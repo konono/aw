@@ -9,7 +9,7 @@ import (
 
 func TestBuildStages_DockerClaude(t *testing.T) {
 	p := profile.Profile{
-		Environment: profile.EnvironmentDocker,
+		Environment: profile.EnvironmentContainer,
 		Launch:      profile.LaunchClaude,
 	}
 	stages := buildStages(p)
@@ -52,7 +52,7 @@ func TestBuildStages_WorktreeHostShell(t *testing.T) {
 func TestBuildStages_WorktreeDockerZellij(t *testing.T) {
 	p := profile.Profile{
 		Worktree:    &profile.WorktreeConfig{},
-		Environment: profile.EnvironmentDocker,
+		Environment: profile.EnvironmentContainer,
 		Launch:      profile.LaunchZellij,
 	}
 	stages := buildStages(p)
@@ -119,7 +119,7 @@ func TestRunOnEndIfConfigured_SkipsWhenWorktreePathEmpty(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnEnd: "echo done"},
-			Environment: profile.EnvironmentDocker,
+			Environment: profile.EnvironmentContainer,
 			Launch:      profile.LaunchZellij,
 		},
 		WorktreePath: "",
@@ -142,9 +142,9 @@ func TestDescribeProfile(t *testing.T) {
 		want    string
 	}{
 		{
-			"docker claude",
-			profile.Profile{Environment: profile.EnvironmentDocker, Launch: profile.LaunchClaude},
-			"docker + claude",
+			"container claude",
+			profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude},
+			"container + claude",
 		},
 		{
 			"worktree host shell",
@@ -152,9 +152,9 @@ func TestDescribeProfile(t *testing.T) {
 			"worktree + host + shell",
 		},
 		{
-			"worktree docker zellij",
-			profile.Profile{Worktree: &profile.WorktreeConfig{}, Environment: profile.EnvironmentDocker, Launch: profile.LaunchZellij},
-			"worktree + docker + zellij",
+			"worktree container zellij",
+			profile.Profile{Worktree: &profile.WorktreeConfig{}, Environment: profile.EnvironmentContainer, Launch: profile.LaunchZellij},
+			"worktree + container + zellij",
 		},
 	}
 

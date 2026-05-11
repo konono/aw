@@ -16,6 +16,11 @@ import (
 
 // Run is the top-level entry point. Returns an exit code.
 func Run(args []string) int {
+	if hasHelpFlag(args) {
+		printHelp()
+		return 0
+	}
+
 	if hasVersionFlag(args) {
 		fmt.Printf("aw %s\n", version.Version)
 		return 0
@@ -144,12 +149,12 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 	}
 
 	// Stage 2: Docker setup (conditional)
-	if p.Environment == profile.EnvironmentDocker {
+	if p.Environment == profile.EnvironmentContainer {
 		stages = append(stages, stage.NewDockerStage())
 	}
 
 	// Stage 3: Env loading (conditional — only for Docker, where custom env vars are needed)
-	if p.Environment == profile.EnvironmentDocker {
+	if p.Environment == profile.EnvironmentContainer {
 		stages = append(stages, &stage.EnvStage{})
 	}
 
@@ -226,4 +231,28 @@ func hasVersionFlag(args []string) bool {
 		}
 	}
 	return false
+}
+
+// hasHelpFlag checks if the args contain --help or -h.
+func hasHelpFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--help" || a == "-h" {
+			return true
+		}
+	}
+	return false
+}
+
+func printHelp() {
+	fmt.Printf("aw %s - agent-workspace\n\n", version.Version)
+	fmt.Println("Usage:")
+	fmt.Println("  aw                      Run default profile")
+	fmt.Println("  aw <profile>            Run a specific profile")
+	fmt.Println("  aw profiles             List available profiles")
+	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
+	fmt.Println("  aw update               Update aw to the latest version")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  -h, --help              Show this help")
+	fmt.Println("  -v, --version           Show version")
 }
