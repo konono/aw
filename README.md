@@ -1,59 +1,59 @@
 # agent-workspace (`aw`) — fork
 
-> **This is a fork of [hiragram/agent-workspace](https://github.com/hiragram/agent-workspace)** with additional features for Podman support, custom mounts, mise integration, and quality-of-life improvements.
+> **これは [hiragram/agent-workspace](https://github.com/hiragram/agent-workspace) のフォーク**であり、Podman サポート、カスタムマウント、mise 統合、各種改善を追加しています。
 
-A CLI tool for launching agent workspaces with configurable profiles. Supports Docker/Podman containers, git worktrees, zellij sessions, and combinations thereof.
+プロファイル設定可能なエージェントワークスペースを起動する CLI ツールです。Docker/Podman コンテナ、git worktree、zellij セッション、およびそれらの組み合わせに対応しています。
 
-## Fork additions
+## フォークでの追加機能
 
-| Feature | Description |
-|---------|-------------|
-| **Podman native support** | `container_runtime: podman` — no wrapper script needed |
-| **Custom mounts** | `mounts:` field to bind-mount arbitrary host directories into the container |
-| **mise integration** | Project's `mise.toml` controls tool installation inside the container |
-| **Minimal base image** | Stripped Dockerfile — only OS essentials + mise; no bundled languages |
-| **`volume create` Podman fix** | Handles Podman's non-idempotent `volume create` (exit 125) with `--ignore` flag |
-| **Zellij tab reuse** | When already inside zellij, opens a new tab instead of nesting sessions |
-| **`--help` flag** | `aw --help` / `aw -h` for usage information |
-| **macOS test fix** | Fixed `/var` → `/private/var` symlink issue in worktree hook tests |
+| 機能 | 説明 |
+|------|------|
+| **Podman ネイティブサポート** | `container_runtime: podman` — ラッパースクリプト不要 |
+| **カスタムマウント** | `mounts:` フィールドでホストの任意のディレクトリをコンテナにバインドマウント |
+| **mise 統合** | プロジェクトの `mise.toml` でコンテナ内のツールインストールを制御 |
+| **最小ベースイメージ** | Dockerfile を簡素化 — OS の必須パッケージ + mise のみ。言語はバンドルしない |
+| **`volume create` Podman 修正** | Podman の非冪等な `volume create`（exit 125）を `--ignore` フラグで対処 |
+| **Zellij タブ再利用** | zellij 内で実行した場合、セッションをネストせず新しいタブを開く |
+| **`--help` フラグ** | `aw --help` / `aw -h` で使い方を表示 |
+| **macOS テスト修正** | worktree フックテストでの `/var` → `/private/var` シンボリックリンク問題を修正 |
 
-## Install
+## インストール
 
-### From source
+### ソースから
 
 ```bash
 go install github.com/konono/agent-workspace@latest
 ```
 
-The binary is installed as `agent-workspace`. Create a symlink for the `aw` command:
+バイナリは `agent-workspace` としてインストールされます。`aw` コマンド用のシンボリックリンクを作成してください:
 
 ```bash
 ln -sf ~/go/bin/agent-workspace ~/go/bin/aw
 ```
 
-## Usage
+## 使い方
 
 ```bash
-aw                      # Run the default profile
-aw <profile-name>       # Run a specific profile
-aw profiles             # List available profiles
-aw default-dockerfile   # Print the default Dockerfile
-aw update               # Self-update
-aw --version            # Show version
-aw --help               # Show help
+aw                      # デフォルトプロファイルを実行
+aw <profile-name>       # 指定したプロファイルを実行
+aw profiles             # 利用可能なプロファイル一覧を表示
+aw default-dockerfile   # デフォルトの Dockerfile を出力
+aw update               # セルフアップデート
+aw --version            # バージョンを表示
+aw --help               # ヘルプを表示
 ```
 
-## Configuration
+## 設定
 
-> **[Detailed Configuration Guide](docs/configuration.md)** — Full reference for all options, validation rules, and examples.
+> **[詳細な設定ガイド](docs/configuration.md)** — 全オプション、バリデーションルール、使用例のリファレンス。
 
-Create `.agent-workspace.yml` in your git repository root:
+git リポジトリのルートに `.agent-workspace.yml` を作成してください:
 
 ```yaml
 default: worktree-zellij
 
-# Top-level defaults (shared by all profiles)
-container_runtime: podman        # "docker" (default) or "podman"
+# トップレベルのデフォルト値（全プロファイルで共有）
+container_runtime: podman        # "docker"（デフォルト）または "podman"
 
 env:
   CLAUDE_CODE_USE_VERTEX: "1"
@@ -82,28 +82,28 @@ profiles:
       layout: default
 ```
 
-If no `.agent-workspace.yml` is found, `aw` uses a built-in default that creates a worktree and starts a zellij dev environment with Docker-based Claude.
+`.agent-workspace.yml` が見つからない場合、`aw` はビルトインのデフォルト設定を使用します。worktree を作成し、Docker ベースの Claude で zellij 開発環境を起動します。
 
-### Profile options
+### プロファイルオプション
 
-- **`worktree`** (optional): Creates a git worktree.
-  - `base` — base ref for the new worktree. Defaults to `origin/main`.
-  - `dir` — directory under which worktrees are created. Defaults to `<repoRoot>/worktrees`. Supports `~` expansion.
-  - `on-create` / `on-end` — shell hooks run after the worktree is created / after the launched process exits.
-- **`environment`** (required): `"host"` or `"container"` — where the main process runs.
-- **`launch`** (required): `"shell"`, `"claude"`, or `"zellij"` — what to launch.
-- **`zellij`** (optional): Zellij session config. Only valid with `launch: zellij`.
-- **`container_runtime`** (optional): `"docker"` or `"podman"`. Defaults to `"docker"`.
-- **`mounts`** (optional): Custom bind mounts for Docker/Podman containers. Only valid with `environment: container`.
-  - `source` — host path (supports `~` expansion)
-  - `target` — container path
-  - `readonly` — mount as read-only (default: false)
-- **`env`** (optional): Environment variables passed into the container.
-- **`dockerfile`** (optional): Path to a custom Dockerfile. Only valid with `environment: container`.
+- **`worktree`**（任意）: git worktree を作成します。
+  - `base` — 新しい worktree のベース ref。デフォルトは `origin/main`。
+  - `dir` — worktree を作成するディレクトリ。デフォルトは `<repoRoot>/worktrees`。`~` 展開に対応。
+  - `on-create` / `on-end` — worktree 作成後 / 起動プロセス終了後に実行されるシェルフック。
+- **`environment`**（必須）: `"host"` または `"container"` — メインプロセスの実行環境。
+- **`launch`**（必須）: `"shell"`、`"claude"`、または `"zellij"` — 起動するもの。
+- **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。
+- **`container_runtime`**（任意）: `"docker"` または `"podman"`。デフォルトは `"docker"`。
+- **`mounts`**（任意）: Docker/Podman コンテナ用のカスタムバインドマウント。`environment: container` の場合のみ有効。
+  - `source` — ホストパス（`~` 展開に対応）
+  - `target` — コンテナパス
+  - `readonly` — 読み取り専用でマウント（デフォルト: false）
+- **`env`**（任意）: コンテナに渡す環境変数。
+- **`dockerfile`**（任意）: カスタム Dockerfile のパス。`environment: container` の場合のみ有効。
 
-### Top-level defaults
+### トップレベルのデフォルト値
 
-Any profile field can also be declared at the top level. Top-level values act as defaults for every profile, and each profile overrides them field-by-field:
+プロファイルの各フィールドはトップレベルにも宣言できます。トップレベルの値は全プロファイルのデフォルトとなり、各プロファイルがフィールドごとに上書きします:
 
 ```yaml
 default: worktree-zellij
@@ -122,21 +122,21 @@ profiles:
     launch: claude
 ```
 
-## mise integration
+## mise 統合
 
-The container image ships with [mise](https://mise.jdx.dev/) pre-installed and a minimal OS base — no languages are bundled. Tools are installed at container startup based on the project's `mise.toml`.
+コンテナイメージには [mise](https://mise.jdx.dev/) がプリインストールされており、最小限の OS ベースのみが含まれています — 言語はバンドルされていません。ツールはコンテナ起動時にプロジェクトの `mise.toml` に基づいてインストールされます。
 
-### How it works
+### 仕組み
 
-1. On `docker build`: only Debian slim + git + curl + mise are installed (fast, small image)
-2. On `docker run` (entrypoint):
-   - If `mise.toml` or `.mise.toml` exists in the workspace → `mise install` runs
-   - If no mise config exists → only Node.js LTS is installed (required for Claude Code)
-3. Installed tools are cached in the persistent volume (`claude-code-local` at `/home/claude/.local`), so subsequent startups are instant
+1. `docker build` 時: Debian slim + git + curl + mise のみインストール（高速で軽量なイメージ）
+2. `docker run` 時（エントリポイント）:
+   - ワークスペースに `mise.toml` または `.mise.toml` がある → `mise install` を実行
+   - mise 設定がない → Node.js LTS のみインストール（Claude Code に必要）
+3. インストールされたツールは永続ボリューム（`/home/claude/.local` の `claude-code-local`）にキャッシュされるため、2回目以降の起動は即座に完了
 
-### Example mise.toml
+### mise.toml の例
 
-A `mise.toml.example` is included in this repository. It reproduces the original upstream Dockerfile's toolset:
+このリポジトリに `mise.toml.example` が含まれています。上流の元の Dockerfile のツールセットを再現します:
 
 ```toml
 [tools]
@@ -146,10 +146,10 @@ go = "1.23"
 gh = "latest"
 ```
 
-Copy it to your project as `mise.toml` and remove tools you don't need:
+プロジェクトに `mise.toml` としてコピーし、不要なツールを削除してください:
 
 ```bash
-# Python project — only need node (for Claude Code) and python
+# Python プロジェクト — node（Claude Code 用）と python のみ必要
 cat > mise.toml << 'EOF'
 [tools]
 node = "22"
@@ -157,161 +157,161 @@ python = "3.14"
 EOF
 ```
 
-## What it does (Docker/Podman mode)
+## 動作の詳細（Docker/Podman モード）
 
-On first run with `environment: container`:
+`environment: container` での初回実行時:
 
-1. Builds a minimal container image (Debian slim + git + curl + mise)
-2. Installs project tools via mise (cached in persistent volume)
-3. Installs Claude Code into the persistent volume
-4. Prompts you to log in via OAuth (browser-based)
+1. 最小コンテナイメージをビルド（Debian slim + git + curl + mise）
+2. mise でプロジェクトのツールをインストール（永続ボリュームにキャッシュ）
+3. 永続ボリュームに Claude Code をインストール
+4. OAuth でのログインを促す（ブラウザベース）
 
-On subsequent runs, it starts instantly with your existing authentication, tools, and settings.
+2回目以降は、既存の認証・ツール・設定を使用して即座に起動します。
 
-### Zellij tab reuse
+### Zellij タブ再利用
 
-When `launch: zellij` is used and you are already inside a zellij session (`$ZELLIJ` is set), `aw` opens a **new tab** with the layout instead of creating a nested session.
+`launch: zellij` を使用中に既に zellij セッション内にいる場合（`$ZELLIJ` が設定済み）、`aw` はネストしたセッションを作成する代わりに、レイアウト付きの**新しいタブ**を開きます。
 
-## What gets synced into the container
+## コンテナに同期されるもの
 
-When using `environment: container`, aw automatically handles host configuration so you don't have to set things up inside the container manually. Here's exactly what happens:
+`environment: container` を使用する場合、aw はホストの設定を自動的に処理するため、コンテナ内で手動設定する必要はありません。具体的には以下の通りです:
 
-### Git — works out of the box
+### Git — そのまま動作
 
-| Host | Container | How |
-|------|-----------|-----|
-| `~/.gitconfig` | `/home/claude/.gitconfig` | Bind mount (if exists) |
+| ホスト | コンテナ | 方法 |
+|--------|----------|------|
+| `~/.gitconfig` | `/home/claude/.gitconfig` | バインドマウント（存在する場合） |
 
-Your `user.name`, `user.email`, aliases, etc. are available as-is. No action needed.
+`user.name`、`user.email`、エイリアスなどがそのまま利用できます。設定不要です。
 
-### SSH — works out of the box
+### SSH — そのまま動作
 
-| Host | Container | How |
-|------|-----------|-----|
-| `~/.ssh/` | `/home/claude/.ssh/` | Mounted read-only → copied by entrypoint with correct permissions |
+| ホスト | コンテナ | 方法 |
+|--------|----------|------|
+| `~/.ssh/` | `/home/claude/.ssh/` | 読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
 
-Private keys, `known_hosts`, `config` are all carried over. `git push` over SSH works immediately.
+秘密鍵、`known_hosts`、`config` がすべて引き継がれます。SSH 経由の `git push` が即座に動作します。
 
-### GitHub CLI — works out of the box
+### GitHub CLI — そのまま動作
 
-| Host | Container | How |
-|------|-----------|-----|
-| `~/.config/gh/` | `/home/claude/.config/gh/` | Bind mount (if exists) |
+| ホスト | コンテナ | 方法 |
+|--------|----------|------|
+| `~/.config/gh/` | `/home/claude/.config/gh/` | バインドマウント（存在する場合） |
 
-`gh` commands (PR creation, issue management, etc.) work with your existing auth.
+`gh` コマンド（PR 作成、Issue 管理など）が既存の認証で動作します。
 
-### Claude Code settings — synced (copied, not mounted)
+### Claude Code 設定 — 同期（コピー、マウントではない）
 
-| Host | Container | How |
-|------|-----------|-----|
-| `~/.claude/settings.json` | `/home/claude/.claude/settings.json` | Copied to `~/.agent-workspace/` then mounted |
-| `~/.claude/CLAUDE.md` | `/home/claude/.claude/CLAUDE.md` | Same |
-| `~/.claude/hooks/` | `/home/claude/.claude/hooks/` | Same |
-| `~/.claude/plugins/` | `/home/claude/.claude/plugins/` | Same |
-| `~/.claude/commands/` | `/home/claude/.claude/commands/` | Same |
-| `~/.claude/agents/` | `/home/claude/.claude/agents/` | Same |
+| ホスト | コンテナ | 方法 |
+|--------|----------|------|
+| `~/.claude/settings.json` | `/home/claude/.claude/settings.json` | `~/.agent-workspace/` にコピーしてからマウント |
+| `~/.claude/CLAUDE.md` | `/home/claude/.claude/CLAUDE.md` | 同上 |
+| `~/.claude/hooks/` | `/home/claude/.claude/hooks/` | 同上 |
+| `~/.claude/plugins/` | `/home/claude/.claude/plugins/` | 同上 |
+| `~/.claude/commands/` | `/home/claude/.claude/commands/` | 同上 |
+| `~/.claude/agents/` | `/home/claude/.claude/agents/` | 同上 |
 
-These are **copied** (not directly mounted) to `~/.agent-workspace/` on the host, which is then mounted into the container. This avoids conflicts with macOS Keychain-based credentials that don't work inside Linux containers.
+これらはホスト上の `~/.agent-workspace/` に**コピー**（直接マウントではなく）され、それがコンテナにマウントされます。Linux コンテナ内で動作しない macOS キーチェーンベースの認証情報との競合を避けるためです。
 
-### Claude Code authentication — separate per container
+### Claude Code 認証 — コンテナごとに独立
 
-OAuth tokens are **not** synced from the host. The container's Claude Code performs its own OAuth login on first run. Credentials are stored in the persistent volume (`claude-code-local`), so you only authenticate once.
+OAuth トークンはホストからは同期**されません**。コンテナの Claude Code は初回実行時に独自の OAuth ログインを行います。認証情報は永続ボリューム（`claude-code-local`）に保存されるため、認証は一度だけで済みます。
 
-### Custom mounts — manual setup
+### カスタムマウント — 手動設定
 
-Use the `mounts:` field in `.agent-workspace.yml` to mount additional directories (e.g., `~/.config/gcloud`). See [Profile options](#profile-options).
+`.agent-workspace.yml` の `mounts:` フィールドを使用して追加ディレクトリをマウントします（例: `~/.config/gcloud`）。[プロファイルオプション](#プロファイルオプション)を参照してください。
 
-### Not synced
+### 同期されないもの
 
-| Item | Workaround |
-|------|------------|
-| GPG keys (`~/.gnupg`) | Add via `mounts:` if you need signed commits |
-| macOS Keychain | N/A — container uses its own OAuth flow |
+| 項目 | 回避策 |
+|------|--------|
+| GPG 鍵（`~/.gnupg`） | 署名付きコミットが必要な場合は `mounts:` で追加 |
+| macOS キーチェーン | N/A — コンテナは独自の OAuth フローを使用 |
 
-### Project-level config
+### プロジェクトレベルの設定
 
-Your project's `.claude/settings.json` and `CLAUDE.md` are available automatically since the workspace directory is mounted into the container.
+プロジェクトの `.claude/settings.json` と `CLAUDE.md` は、ワークスペースディレクトリがコンテナにマウントされるため自動的に利用可能です。
 
-## Data storage
+## データ保存先
 
-| Path | Purpose |
-|------|---------|
-| `~/.agent-workspace/` | Container-side Claude config (copied from `~/.claude/`) |
-| `~/.agent-workspace.json` | Onboarding state |
-| Volume `claude-code-local` | Claude Code installation + mise tool cache + OAuth credentials (persists across runs) |
+| パス | 用途 |
+|------|------|
+| `~/.agent-workspace/` | コンテナ側の Claude 設定（`~/.claude/` からコピー） |
+| `~/.agent-workspace.json` | オンボーディング状態 |
+| ボリューム `claude-code-local` | Claude Code のインストール + mise ツールキャッシュ + OAuth 認証情報（実行間で永続化） |
 
-## Uninstall
+## アンインストール
 
 ```bash
-# Remove binary
+# バイナリの削除
 rm ~/go/bin/agent-workspace ~/go/bin/aw
 
-# Remove data
+# データの削除
 rm -rf ~/.agent-workspace ~/.agent-workspace.json
 
-# Docker
+# Docker の場合
 docker rmi claude-code-docker
 docker volume rm claude-code-local
 
-# Or Podman
+# Podman の場合
 podman rmi claude-code-docker
 podman volume rm claude-code-local
 ```
 
-## Development
+## 開発
 
 ```bash
-# Run tests
+# テスト実行
 go test ./...
 
-# Build
+# ビルド
 go build -o aw .
 
-# Install locally
+# ローカルインストール
 go install .
 
-# Lint
+# リント
 golangci-lint run
 ```
 
-## Requirements
+## 必要なツール
 
-### Host (required)
+### ホスト（必須）
 
-| Tool | When needed | Purpose |
-|------|-------------|---------|
-| `git` | `worktree` profiles | Worktree creation, repo root detection, remote fetch |
-| `docker` or `podman` | `environment: container` profiles | Build image, create volume, run container |
-| `zellij` | `launch: zellij` profiles | Multi-pane session |
+| ツール | 必要な場面 | 用途 |
+|--------|-----------|------|
+| `git` | `worktree` プロファイル | worktree 作成、リポジトリルート検出、リモート fetch |
+| `docker` または `podman` | `environment: container` プロファイル | イメージビルド、ボリューム作成、コンテナ実行 |
+| `zellij` | `launch: zellij` プロファイル | マルチペインセッション |
 
-### Host (additional — required by zellij layout panes)
+### ホスト（追加 — zellij レイアウトペインに必要）
 
-When `launch: zellij` is used, the layout spawns helper panes that shell out to the following tools. Install the ones for the panes you actually use.
+`launch: zellij` を使用する場合、レイアウトは以下のツールを使用するヘルパーペインを起動します。実際に使用するペインに必要なものをインストールしてください。
 
-**`git-diff-picker` pane** — interactive diff viewer
-- `fzf` — fuzzy picker (listen mode)
-- `delta` — side-by-side diff renderer
-- `lsof` — free-port detection for the fzf listen server
-- `curl` — posts reload commands to the fzf server
+**`git-diff-picker` ペイン** — インタラクティブ diff ビューア
+- `fzf` — ファジーピッカー（リッスンモード）
+- `delta` — サイドバイサイド diff レンダラー
+- `lsof` — fzf リッスンサーバー用の空きポート検出
+- `curl` — fzf サーバーにリロードコマンドを送信
 
-**`pr-status` pane** — current branch's PR status
-- `gh` (GitHub CLI) — fetches PR info and checks
-- `jq` — parses PR JSON
+**`pr-status` ペイン** — 現在のブランチの PR ステータス
+- `gh`（GitHub CLI）— PR 情報とチェックを取得
+- `jq` — PR の JSON をパース
 
-**`plans-watcher` pane** — live Markdown preview of `plans/`
-- `fswatch` **or** `entr` — file-change watcher (either works; fswatch preferred)
-- `glow` *(optional)* — Markdown renderer; falls back to `cat` if missing
+**`plans-watcher` ペイン** — `plans/` のライブ Markdown プレビュー
+- `fswatch` **または** `entr` — ファイル変更ウォッチャー（どちらでも可。fswatch 推奨）
+- `glow` *（任意）* — Markdown レンダラー。ない場合は `cat` にフォールバック
 
-### Container (bundled — for reference)
+### コンテナ（同梱 — 参考情報）
 
-The default container image includes only the minimal base. All development tools are installed via mise at runtime.
+デフォルトのコンテナイメージには最小限のベースのみ含まれます。すべての開発ツールは mise によりランタイムでインストールされます。
 
-- Base: Debian bookworm-slim
-- `git`, `curl`, `wget`, `ca-certificates`, `openssh-client`, `sudo`
-- [mise](https://mise.jdx.dev/) — dev tool version manager
-- Additional tools: installed from project's `mise.toml` (see [mise integration](#mise-integration))
+- ベース: Debian bookworm-slim
+- `git`、`curl`、`wget`、`ca-certificates`、`openssh-client`、`sudo`
+- [mise](https://mise.jdx.dev/) — 開発ツールバージョンマネージャー
+- 追加ツール: プロジェクトの `mise.toml` からインストール（[mise 統合](#mise-統合)を参照）
 
-### Optional
+### オプション
 
-- `gpg` / `gpg-agent` — only if you sign git commits
-- SSH keys / `ssh-agent` — only if you push/pull over SSH
+- `gpg` / `gpg-agent` — git コミットに署名する場合のみ
+- SSH 鍵 / `ssh-agent` — SSH 経由で push/pull する場合のみ
