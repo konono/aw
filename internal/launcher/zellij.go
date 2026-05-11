@@ -29,34 +29,30 @@ func (l *ZellijLauncher) Launch(_ context.Context, ec *pipeline.ExecutionContext
 		return fmt.Errorf("zellij is not installed (brew install zellij)")
 	}
 
-	// Prepare temp directory with scripts and layout
-	tmpDir, cleanup, err := l.prepareFiles(ec)
-	if err != nil {
-		return fmt.Errorf("preparing zellij files: %w", err)
-	}
-	defer cleanup()
-
-	// Launch zellij
 	sessionName := ec.WorktreeBranch
 	if sessionName == "" {
 		sessionName = ec.ProfileName
 	}
 
+	dir, err := l.prepareFiles(ec, sessionName)
+	if err != nil {
+		return fmt.Errorf("preparing zellij files: %w", err)
+	}
+
 	fmt.Fprintf(os.Stderr, "Launching zellij session: %s\n", sessionName)
-	return l.launchZellij(ec.WorkDir, tmpDir, sessionName, ec.WorktreeBase)
+	return l.launchZellij(ec.WorkDir, dir, sessionName, ec.WorktreeBase)
 }
 
-func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext) (string, func(), error) {
-	tmpDir, err := os.MkdirTemp("", "aw-zellij-*")
+func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName string) (string, error) {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", nil, fmt.Errorf("creating temp dir: %w", err)
+		return "", fmt.Errorf("getting home dir: %w", err)
 	}
-	cleanupFn := func() { _ = os.RemoveAll(tmpDir) }
 
-	scriptsDir := filepath.Join(tmpDir, "scripts")
+	baseDir := filepath.Join(homeDir, ".cache", "agent-workspace", "zellij", sessionName)
+	scriptsDir := filepath.Join(baseDir, "scripts")
 	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
-		cleanupFn()
-		return "", nil, fmt.Errorf("creating scripts dir: %w", err)
+		return "", fmt.Errorf("creating scripts dir: %w", err)
 	}
 
 	// Write shell scripts
@@ -68,8 +64,7 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext) (string, fu
 	for name, content := range scripts {
 		path := filepath.Join(scriptsDir, name)
 		if err := os.WriteFile(path, content, 0755); err != nil {
-			cleanupFn()
-			return "", nil, fmt.Errorf("writing %s: %w", name, err)
+			return "", fmt.Errorf("writing %s: %w", name, err)
 		}
 	}
 
@@ -79,8 +74,7 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext) (string, fu
 	// Render and write layout template
 	tmpl, err := template.New("layout").Parse(string(layoutKdlTmpl))
 	if err != nil {
-		cleanupFn()
-		return "", nil, fmt.Errorf("parsing layout template: %w", err)
+		return "", fmt.Errorf("parsing layout template: %w", err)
 	}
 
 	var buf bytes.Buffer
@@ -88,17 +82,15 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext) (string, fu
 		ScriptsDir:    scriptsDir,
 		ClaudeCommand: claudeCmd,
 	}); err != nil {
-		cleanupFn()
-		return "", nil, fmt.Errorf("rendering layout template: %w", err)
+		return "", fmt.Errorf("rendering layout template: %w", err)
 	}
 
-	layoutPath := filepath.Join(tmpDir, "layout.kdl")
+	layoutPath := filepath.Join(baseDir, "layout.kdl")
 	if err := os.WriteFile(layoutPath, buf.Bytes(), 0644); err != nil {
-		cleanupFn()
-		return "", nil, fmt.Errorf("writing layout file: %w", err)
+		return "", fmt.Errorf("writing layout file: %w", err)
 	}
 
-	return tmpDir, cleanupFn, nil
+	return baseDir, nil
 }
 
 func (l *ZellijLauncher) buildClaudeCommand(ec *pipeline.ExecutionContext) string {
@@ -142,8 +134,8 @@ func shellJoin(args []string) string {
 	return strings.Join(quoted, " ")
 }
 
-func (l *ZellijLauncher) launchZellij(workDir, tmpDir, sessionName, baseRef string) error {
-	layoutPath := filepath.Join(tmpDir, "layout.kdl")
+func (l *ZellijLauncher) launchZellij(workDir, dir, sessionName, baseRef string) error {
+	layoutPath := filepath.Join(dir, "layout.kdl")
 
 	// If already inside a zellij session, open a new tab instead of nesting
 	if os.Getenv("ZELLIJ") != "" {
