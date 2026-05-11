@@ -27,7 +27,7 @@ func (m *mockDockerClient) CheckAvailable() error {
 	return nil
 }
 
-func (m *mockDockerClient) Build(_ context.Context, _, _ string) error {
+func (m *mockDockerClient) Build(_ context.Context, _, _, _ string) error {
 	m.buildCalled = true
 	return nil
 }

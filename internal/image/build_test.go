@@ -97,9 +97,19 @@ func TestPrepareBuildContext(t *testing.T) {
 
 func TestPrepareBuildContext_CustomDockerfile(t *testing.T) {
 	customDir := t.TempDir()
-	customContent := []byte("FROM alpine:latest\nRUN echo custom\n")
+	customContent := []byte("FROM alpine:latest\nCOPY entrypoint.sh /entrypoint.sh\nRUN echo custom\n")
 	customPath := filepath.Join(customDir, "Dockerfile.custom")
 	if err := os.WriteFile(customPath, customContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Place additional files alongside the Dockerfile
+	if err := os.WriteFile(filepath.Join(customDir, "entrypoint.sh"), []byte("#!/bin/bash\necho hello"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(customDir, "scripts"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(customDir, "scripts", "setup.sh"), []byte("#!/bin/bash\necho setup"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -109,22 +119,37 @@ func TestPrepareBuildContext_CustomDockerfile(t *testing.T) {
 	}
 	defer cleanup()
 
-	// Dockerfile should contain custom content
-	dfContent, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
-	if err != nil {
-		t.Fatalf("reading Dockerfile: %v", err)
-	}
-	if string(dfContent) != string(customContent) {
-		t.Errorf("Dockerfile content = %q, want %q", string(dfContent), string(customContent))
+	// Build context should be the directory containing the Dockerfile
+	if dir != customDir {
+		t.Errorf("build context dir = %q, want %q", dir, customDir)
 	}
 
-	// entrypoint.sh should still be the embedded default
-	epContent, err := os.ReadFile(filepath.Join(dir, "entrypoint.sh"))
-	if err != nil {
-		t.Fatalf("reading entrypoint.sh: %v", err)
+	// All files in the directory should be accessible
+	if _, err := os.Stat(filepath.Join(dir, "entrypoint.sh")); err != nil {
+		t.Errorf("entrypoint.sh should be accessible in build context: %v", err)
 	}
-	if string(epContent) != string(entrypointSh) {
-		t.Error("entrypoint.sh should be the embedded default even with custom Dockerfile")
+	if _, err := os.Stat(filepath.Join(dir, "scripts", "setup.sh")); err != nil {
+		t.Errorf("scripts/setup.sh should be accessible in build context: %v", err)
+	}
+}
+
+func TestPrepareBuildContext_CustomDockerfileCleanupIsNoop(t *testing.T) {
+	customDir := t.TempDir()
+	customPath := filepath.Join(customDir, "Dockerfile")
+	if err := os.WriteFile(customPath, []byte("FROM alpine:latest\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dir, cleanup, err := PrepareBuildContext(customPath)
+	if err != nil {
+		t.Fatalf("PrepareBuildContext() error: %v", err)
+	}
+
+	cleanup()
+
+	// Directory should still exist after cleanup (it's the user's directory)
+	if _, err := os.Stat(dir); err != nil {
+		t.Errorf("user's directory should not be deleted by cleanup: %v", err)
 	}
 }
 

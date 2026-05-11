@@ -69,8 +69,14 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 	// Compute image tag from Dockerfile content hash to bust Docker cache
 	// when the Dockerfile changes.
+	dockerfilePath := customDockerfile
+	hashSource := filepath.Join(buildDir, "Dockerfile")
+	if dockerfilePath != "" {
+		hashSource = dockerfilePath
+	}
+
 	imageName := defaultImageName
-	if dfBytes, err := os.ReadFile(filepath.Join(buildDir, "Dockerfile")); err == nil {
+	if dfBytes, err := os.ReadFile(hashSource); err == nil {
 		hash := fmt.Sprintf("%x", sha256.Sum256(dfBytes))[:12]
 		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
 	}
@@ -80,7 +86,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	} else {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s'...\n", imageName)
 	}
-	if err := s.DockerClient.Build(ctx, imageName, buildDir); err != nil {
+	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath); err != nil {
 		return fmt.Errorf("building image: %w", err)
 	}
 
