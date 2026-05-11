@@ -3,11 +3,23 @@ package stage
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/hiragram/agent-workspace/internal/pipeline"
 	"github.com/hiragram/agent-workspace/internal/profile"
 )
+
+// realPath resolves symlinks so that pwd comparisons work on macOS
+// where /var is a symlink to /private/var.
+func realPath(t *testing.T, path string) string {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", path, err)
+	}
+	return real
+}
 
 func TestRunOnCreateHook_ShellInvocation(t *testing.T) {
 	origExecCommand := execCommand
@@ -24,7 +36,7 @@ func TestRunOnCreateHook_ShellInvocation(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnCreate: "./setup.sh"},
-			Environment: profile.EnvironmentDocker,
+			Environment: profile.EnvironmentContainer,
 		},
 		ProfileName:    "test-profile",
 		WorktreePath:   t.TempDir(),
@@ -60,7 +72,7 @@ func TestRunOnCreateHook_SetsEnvironmentAndDir(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnCreate: "echo test"},
-			Environment: profile.EnvironmentDocker,
+			Environment: profile.EnvironmentContainer,
 		},
 		ProfileName:    "my-profile",
 		WorktreePath:   tmpDir,
@@ -105,7 +117,7 @@ func TestRunOnCreateHook_WorkingDirectory(t *testing.T) {
 	origExecCommand := execCommand
 	defer func() { execCommand = origExecCommand }()
 
-	tmpDir := t.TempDir()
+	tmpDir := realPath(t, t.TempDir())
 	execCommand = exec.Command
 
 	// pwd should match the worktree path
@@ -162,7 +174,7 @@ func TestRunOnEndHook_ShellInvocation(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnEnd: "./cleanup.sh"},
-			Environment: profile.EnvironmentDocker,
+			Environment: profile.EnvironmentContainer,
 		},
 		ProfileName:    "test-profile",
 		WorktreePath:   t.TempDir(),
@@ -193,7 +205,7 @@ func TestRunOnEndHook_SetsEnvironmentAndDir(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnEnd: "test -n \"$AW_WORKTREE_PATH\" && test -n \"$AW_WORKTREE_BRANCH\" && test -n \"$AW_REPO_ROOT\" && test -n \"$AW_PROFILE_NAME\" && test -n \"$AW_ENVIRONMENT\""},
-			Environment: profile.EnvironmentDocker,
+			Environment: profile.EnvironmentContainer,
 		},
 		ProfileName:    "my-profile",
 		WorktreePath:   tmpDir,
@@ -235,7 +247,7 @@ func TestRunOnEndHook_WorkingDirectory(t *testing.T) {
 	origExecCommand := execCommand
 	defer func() { execCommand = origExecCommand }()
 
-	tmpDir := t.TempDir()
+	tmpDir := realPath(t, t.TempDir())
 	execCommand = exec.Command
 
 	ec := &pipeline.ExecutionContext{

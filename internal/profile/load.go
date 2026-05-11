@@ -17,12 +17,12 @@ var builtinConfig = Config{
 	Default: "worktree-zellij",
 	Profiles: map[string]Profile{
 		"claude": {
-			Environment: EnvironmentDocker,
+			Environment: EnvironmentContainer,
 			Launch:      LaunchClaude,
 		},
 		"worktree-zellij": {
 			Worktree:    &WorktreeConfig{},
-			Environment: EnvironmentDocker,
+			Environment: EnvironmentContainer,
 			Launch:      LaunchZellij,
 			Zellij:      &ZellijConfig{Layout: "default"},
 		},

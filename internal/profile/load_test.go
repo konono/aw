@@ -9,11 +9,11 @@ import (
 
 func TestParse(t *testing.T) {
 	yaml := `
-default: docker-claude
+default: container-claude
 
 profiles:
-  docker-claude:
-    environment: docker
+  container-claude:
+    environment: container
     launch: claude
 
   worktree-shell:
@@ -24,7 +24,7 @@ profiles:
 
   worktree-zellij:
     worktree: {}
-    environment: docker
+    environment: container
     launch: zellij
     zellij:
       layout: default
@@ -35,24 +35,24 @@ profiles:
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if cfg.Default != "docker-claude" {
-		t.Errorf("Default = %q, want %q", cfg.Default, "docker-claude")
+	if cfg.Default != "container-claude" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "container-claude")
 	}
 
 	if len(cfg.Profiles) != 3 {
 		t.Fatalf("got %d profiles, want 3", len(cfg.Profiles))
 	}
 
-	// Check docker-claude profile
-	dc := cfg.Profiles["docker-claude"]
-	if dc.Environment != EnvironmentDocker {
-		t.Errorf("docker-claude.Environment = %q, want %q", dc.Environment, EnvironmentDocker)
+	// Check container-claude profile
+	dc := cfg.Profiles["container-claude"]
+	if dc.Environment != EnvironmentContainer {
+		t.Errorf("container-claude.Environment = %q, want %q", dc.Environment, EnvironmentContainer)
 	}
 	if dc.Launch != LaunchClaude {
-		t.Errorf("docker-claude.Launch = %q, want %q", dc.Launch, LaunchClaude)
+		t.Errorf("container-claude.Launch = %q, want %q", dc.Launch, LaunchClaude)
 	}
 	if dc.Worktree != nil {
-		t.Errorf("docker-claude.Worktree should be nil")
+		t.Errorf("container-claude.Worktree should be nil")
 	}
 
 	// Check worktree-shell profile
@@ -286,7 +286,7 @@ func TestParse_Dockerfile(t *testing.T) {
 	yaml := `
 profiles:
   test:
-    environment: docker
+    environment: container
     launch: claude
     dockerfile: docker/Dockerfile.custom
 `

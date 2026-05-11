@@ -6,7 +6,7 @@ import (
 
 func TestMergeProfile_OverrideEnvironment(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 	}
 	override := Profile{
@@ -25,7 +25,7 @@ func TestMergeProfile_OverrideEnvironment(t *testing.T) {
 
 func TestMergeProfile_OverrideLaunch(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 	}
 	override := Profile{
@@ -34,8 +34,8 @@ func TestMergeProfile_OverrideLaunch(t *testing.T) {
 
 	merged := MergeProfile(base, override)
 
-	if merged.Environment != EnvironmentDocker {
-		t.Errorf("Environment = %q, want %q (should be preserved from base)", merged.Environment, EnvironmentDocker)
+	if merged.Environment != EnvironmentContainer {
+		t.Errorf("Environment = %q, want %q (should be preserved from base)", merged.Environment, EnvironmentContainer)
 	}
 	if merged.Launch != LaunchShell {
 		t.Errorf("Launch = %q, want %q", merged.Launch, LaunchShell)
@@ -44,7 +44,7 @@ func TestMergeProfile_OverrideLaunch(t *testing.T) {
 
 func TestMergeProfile_AddWorktree(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 	}
 	override := Profile{
@@ -64,7 +64,7 @@ func TestMergeProfile_AddWorktree(t *testing.T) {
 func TestMergeProfile_OverrideWorktree(t *testing.T) {
 	base := Profile{
 		Worktree:    &WorktreeConfig{Base: "origin/main"},
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchZellij,
 		Zellij:      &ZellijConfig{Layout: "default"},
 	}
@@ -88,7 +88,7 @@ func TestMergeProfile_OverrideWorktree(t *testing.T) {
 func TestMergeProfile_PreserveWorktreeFromBase(t *testing.T) {
 	base := Profile{
 		Worktree:    &WorktreeConfig{Base: "origin/main"},
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchZellij,
 		Zellij:      &ZellijConfig{Layout: "default"},
 	}
@@ -108,7 +108,7 @@ func TestMergeProfile_PreserveWorktreeFromBase(t *testing.T) {
 
 func TestMergeProfile_AddZellij(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchZellij,
 	}
 	override := Profile{
@@ -128,7 +128,7 @@ func TestMergeProfile_AddZellij(t *testing.T) {
 func TestMergeProfile_EmptyOverride(t *testing.T) {
 	base := Profile{
 		Worktree:    &WorktreeConfig{},
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchZellij,
 		Zellij:      &ZellijConfig{Layout: "default"},
 	}
@@ -136,8 +136,8 @@ func TestMergeProfile_EmptyOverride(t *testing.T) {
 
 	merged := MergeProfile(base, override)
 
-	if merged.Environment != EnvironmentDocker {
-		t.Errorf("Environment = %q, want %q", merged.Environment, EnvironmentDocker)
+	if merged.Environment != EnvironmentContainer {
+		t.Errorf("Environment = %q, want %q", merged.Environment, EnvironmentContainer)
 	}
 	if merged.Launch != LaunchZellij {
 		t.Errorf("Launch = %q, want %q", merged.Launch, LaunchZellij)
@@ -154,7 +154,7 @@ func TestMergeConfig_BuiltinOnlyProfilesPreserved(t *testing.T) {
 	builtin := Config{
 		Default: "a",
 		Profiles: map[string]Profile{
-			"a": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"a": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 			"b": {Environment: EnvironmentHost, Launch: LaunchShell},
 		},
 	}
@@ -180,7 +180,7 @@ func TestMergeConfig_BuiltinOnlyProfilesPreserved(t *testing.T) {
 func TestMergeConfig_UserOnlyProfileAdded(t *testing.T) {
 	builtin := Config{
 		Profiles: map[string]Profile{
-			"a": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"a": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
 	user := Config{
@@ -206,7 +206,7 @@ func TestMergeConfig_UserOnlyProfileAdded(t *testing.T) {
 func TestMergeConfig_SameNameProfileMerged(t *testing.T) {
 	builtin := Config{
 		Profiles: map[string]Profile{
-			"claude": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"claude": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
 	user := Config{
@@ -220,8 +220,8 @@ func TestMergeConfig_SameNameProfileMerged(t *testing.T) {
 	merged := MergeConfig(builtin, user)
 
 	p := merged.Profiles["claude"]
-	if p.Environment != EnvironmentDocker {
-		t.Errorf("Environment = %q, want %q (should be preserved from builtin)", p.Environment, EnvironmentDocker)
+	if p.Environment != EnvironmentContainer {
+		t.Errorf("Environment = %q, want %q (should be preserved from builtin)", p.Environment, EnvironmentContainer)
 	}
 	if p.Launch != LaunchClaude {
 		t.Errorf("Launch = %q, want %q (should be preserved from builtin)", p.Launch, LaunchClaude)
@@ -238,7 +238,7 @@ func TestMergeConfig_DefaultOverride(t *testing.T) {
 	builtin := Config{
 		Default: "builtin-default",
 		Profiles: map[string]Profile{
-			"builtin-default": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"builtin-default": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
 	user := Config{
@@ -259,7 +259,7 @@ func TestMergeConfig_DefaultPreservedWhenUserEmpty(t *testing.T) {
 	builtin := Config{
 		Default: "builtin-default",
 		Profiles: map[string]Profile{
-			"builtin-default": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"builtin-default": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
 	user := Config{
@@ -277,7 +277,7 @@ func TestMergeConfig_DefaultPreservedWhenUserEmpty(t *testing.T) {
 
 func TestMergeProfile_EnvMerged(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 		Env:         map[string]string{"A": "1", "B": "2"},
 	}
@@ -300,7 +300,7 @@ func TestMergeProfile_EnvMerged(t *testing.T) {
 
 func TestMergeProfile_NilEnvOverridePreservesBase(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 		Env:         map[string]string{"A": "1"},
 	}
@@ -315,7 +315,7 @@ func TestMergeProfile_NilEnvOverridePreservesBase(t *testing.T) {
 
 func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 		Env:         map[string]string{"A": "1"},
 	}
@@ -333,7 +333,7 @@ func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
 
 func TestMergeProfile_OverrideDockerfile(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 	}
 	override := Profile{
@@ -349,7 +349,7 @@ func TestMergeProfile_OverrideDockerfile(t *testing.T) {
 
 func TestMergeProfile_EmptyDockerfileOverridePreservesBase(t *testing.T) {
 	base := Profile{
-		Environment: EnvironmentDocker,
+		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
 		Dockerfile:  "base/Dockerfile",
 	}
@@ -374,7 +374,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 				Launch: LaunchShell,
 			},
 			"docker-override": {
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 				Worktree:    &WorktreeConfig{Dir: "/tmp/wt"},
 				Env:         map[string]string{"B": "2"},
 			},
@@ -398,8 +398,8 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	}
 
 	d := out.Profiles["docker-override"]
-	if d.Environment != EnvironmentDocker {
-		t.Errorf("docker-override.Environment = %q, want %q (override)", d.Environment, EnvironmentDocker)
+	if d.Environment != EnvironmentContainer {
+		t.Errorf("docker-override.Environment = %q, want %q (override)", d.Environment, EnvironmentContainer)
 	}
 	if d.Worktree == nil || d.Worktree.Base != "origin/main" {
 		t.Errorf("docker-override.Worktree.Base should inherit from top-level, got %+v", d.Worktree)
@@ -415,7 +415,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 func TestMergeConfig_TopLevelMerged(t *testing.T) {
 	builtin := Config{
 		Profile: Profile{
-			Environment: EnvironmentDocker,
+			Environment: EnvironmentContainer,
 		},
 		Profiles: map[string]Profile{},
 	}
@@ -428,8 +428,8 @@ func TestMergeConfig_TopLevelMerged(t *testing.T) {
 
 	merged := MergeConfig(builtin, user)
 
-	if merged.Environment != EnvironmentDocker {
-		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Environment, EnvironmentDocker)
+	if merged.Environment != EnvironmentContainer {
+		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Environment, EnvironmentContainer)
 	}
 	if merged.Worktree == nil || merged.Worktree.Dir != "/custom" {
 		t.Errorf("top-level Worktree.Dir should be %q, got %+v", "/custom", merged.Worktree)
@@ -457,7 +457,7 @@ func TestMergeProfile_WorktreeDeepMerge(t *testing.T) {
 func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 	builtin := Config{
 		Profiles: map[string]Profile{
-			"claude": {Environment: EnvironmentDocker, Launch: LaunchClaude},
+			"claude": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
 	user := Config{
@@ -474,7 +474,7 @@ func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 	if p.Worktree == nil {
 		t.Fatal("Worktree should be enabled via empty object from user config")
 	}
-	if p.Environment != EnvironmentDocker {
-		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentDocker)
+	if p.Environment != EnvironmentContainer {
+		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentContainer)
 	}
 }
