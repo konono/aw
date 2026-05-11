@@ -11,6 +11,20 @@ fi
 # Fix permissions on .local volume for claude user
 chown -R claude:claude /home/claude/.local
 
+# Install tools via mise
+WORKSPACE="${HOST_WORKSPACE:-/workspace}"
+MISE_CMD="export HOME=/home/claude && export MISE_DATA_DIR=/home/claude/.local/share/mise && export MISE_CONFIG_DIR=/home/claude/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
+mkdir -p /home/claude/.config/mise
+chown -R claude:claude /home/claude/.config
+
+if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
+  echo "Installing tools from mise.toml..."
+  su -s /bin/bash claude -c "$MISE_CMD && cd $WORKSPACE && mise trust --all && mise install"
+else
+  # No mise.toml: install Node.js (required for Claude Code)
+  su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts"
+fi
+
 # Install Claude Code if not present (as claude user)
 if [ ! -x /home/claude/.local/bin/claude ]; then
   echo "Installing Claude Code..."
@@ -28,8 +42,8 @@ if [ -d /home/claude/.ssh-host ]; then
   chmod 644 /home/claude/.ssh/config 2>/dev/null || true
 fi
 
-# Fix permissions on mounted .config/gh
-if [ -d /home/claude/.config/gh ]; then
+# Fix permissions on mounted configs (.config/gh, .config/gcloud, etc.)
+if [ -d /home/claude/.config ]; then
   chown -R claude:claude /home/claude/.config
 fi
 
@@ -46,6 +60,9 @@ else
   chown claude:claude /workspace 2>/dev/null || true
 fi
 
-# Run command as claude user
+# Run command as claude user with mise shims in PATH
 export HOME=/home/claude
-exec setpriv --reuid=$(id -u claude) --regid=$(id -g claude) --init-groups env HOME=/home/claude "$@"
+exec setpriv --reuid=$(id -u claude) --regid=$(id -g claude) --init-groups \
+  env HOME=/home/claude \
+  PATH="/home/claude/.local/share/mise/shims:/home/claude/.local/bin:$PATH" \
+  "$@"

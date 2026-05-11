@@ -1,0 +1,17 @@
+# mise.toml.example
+#
+# Place this file as `mise.toml` in your project root.
+# When using `aw` with `environment: docker`, the entrypoint will
+# automatically run `mise install` to set up these tools in the container.
+#
+# Tools are cached in the persistent Docker volume, so subsequent
+# container startups are instant.
+#
+# This example reproduces the original default Dockerfile toolset.
+# Remove tools you don't need to speed up first-run setup.
+
+[tools]
+node = "22"
+python = "3"
+go = "1.23"
+gh = "latest"
