@@ -20,8 +20,10 @@ func TestEnvStage_Name(t *testing.T) {
 func TestEnvStage_NoEnvNoFile(t *testing.T) {
 	dir := t.TempDir()
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{},
-		WorkDir: dir,
+		Profile:     profile.Profile{},
+		HomeDir:     t.TempDir(),
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -46,7 +48,9 @@ func TestEnvStage_ProfileEnvOnly(t *testing.T) {
 				"BAZ": "qux",
 			},
 		},
-		WorkDir: dir,
+		HomeDir:     t.TempDir(),
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -70,8 +74,10 @@ func TestEnvStage_FileOnly(t *testing.T) {
 	}
 
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{},
-		WorkDir: dir,
+		Profile:     profile.Profile{},
+		HomeDir:     t.TempDir(),
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -98,7 +104,9 @@ func TestEnvStage_FileOverridesProfile(t *testing.T) {
 				"PROFILE_ONLY": "yes",
 			},
 		},
-		WorkDir: dir,
+		HomeDir:     t.TempDir(),
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -119,13 +127,16 @@ func TestEnvStage_FileOverridesProfile(t *testing.T) {
 
 func TestEnvStage_WritesProfileEnvFile(t *testing.T) {
 	dir := t.TempDir()
+	homeDir := t.TempDir()
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Env: map[string]string{
 				"STATIC_KEY": "static_value",
 			},
 		},
-		WorkDir: dir,
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -133,11 +144,12 @@ func TestEnvStage_WritesProfileEnvFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// .aw-profile-env should have been written
-	profileEnvFile := filepath.Join(dir, ".aw-profile-env")
+	// .aw-profile-env should have been written to cache dir
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	data, err := os.ReadFile(profileEnvFile)
 	if err != nil {
-		t.Fatalf("expected .aw-profile-env to be created: %v", err)
+		t.Fatalf("expected .aw-profile-env to be created in cache dir: %v", err)
 	}
 	if string(data) != "STATIC_KEY=static_value\n" {
 		t.Errorf("file content = %q, want %q", string(data), "STATIC_KEY=static_value\n")
@@ -147,14 +159,21 @@ func TestEnvStage_WritesProfileEnvFile(t *testing.T) {
 func TestEnvStage_ReadsProfileEnvFile(t *testing.T) {
 	// Simulates child process: profile.Env is empty, but .aw-profile-env exists from parent
 	dir := t.TempDir()
-	profileEnvFile := filepath.Join(dir, ".aw-profile-env")
+	homeDir := t.TempDir()
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	if err := os.WriteFile(profileEnvFile, []byte("PARENT_KEY=parent_value\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{}, // empty, like builtin "claude" profile
-		WorkDir: dir,
+		Profile:     profile.Profile{}, // empty, like builtin "claude" profile
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -169,7 +188,12 @@ func TestEnvStage_ReadsProfileEnvFile(t *testing.T) {
 
 func TestEnvStage_ProfileEnvOverridesProfileEnvFile(t *testing.T) {
 	dir := t.TempDir()
-	profileEnvFile := filepath.Join(dir, ".aw-profile-env")
+	homeDir := t.TempDir()
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	if err := os.WriteFile(profileEnvFile, []byte("SHARED=from-parent-file\nPARENT_ONLY=yes\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +205,9 @@ func TestEnvStage_ProfileEnvOverridesProfileEnvFile(t *testing.T) {
 				"CURRENT_ONLY": "yes",
 			},
 		},
-		WorkDir: dir,
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -202,14 +228,19 @@ func TestEnvStage_ProfileEnvOverridesProfileEnvFile(t *testing.T) {
 
 func TestEnvStage_AwEnvOverridesAll(t *testing.T) {
 	dir := t.TempDir()
+	homeDir := t.TempDir()
 
-	// .aw-profile-env (lowest priority)
-	profileEnvFile := filepath.Join(dir, ".aw-profile-env")
+	// .aw-profile-env in cache dir (lowest priority)
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	if err := os.WriteFile(profileEnvFile, []byte("KEY=from-profile-env-file\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// .aw-env (highest priority)
+	// .aw-env in WorkDir (highest priority)
 	awEnvFile := filepath.Join(dir, ".aw-env")
 	if err := os.WriteFile(awEnvFile, []byte("KEY=from-aw-env\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -221,7 +252,9 @@ func TestEnvStage_AwEnvOverridesAll(t *testing.T) {
 				"KEY": "from-current-profile",
 			},
 		},
-		WorkDir: dir,
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -236,9 +269,12 @@ func TestEnvStage_AwEnvOverridesAll(t *testing.T) {
 
 func TestEnvStage_NoWriteWhenProfileEnvEmpty(t *testing.T) {
 	dir := t.TempDir()
+	homeDir := t.TempDir()
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{}, // no Env
-		WorkDir: dir,
+		Profile:     profile.Profile{}, // no Env
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}
@@ -246,7 +282,8 @@ func TestEnvStage_NoWriteWhenProfileEnvEmpty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	profileEnvFile := filepath.Join(dir, ".aw-profile-env")
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	if _, err := os.Stat(profileEnvFile); !os.IsNotExist(err) {
 		t.Error(".aw-profile-env should not be created when profile.Env is empty")
 	}
@@ -260,8 +297,10 @@ func TestEnvStage_InvalidFileReturnsError(t *testing.T) {
 	}
 
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{},
-		WorkDir: dir,
+		Profile:     profile.Profile{},
+		HomeDir:     t.TempDir(),
+		OrigWorkDir: dir,
+		WorkDir:     dir,
 	}
 
 	s := &EnvStage{}

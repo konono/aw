@@ -2,6 +2,7 @@ package stage
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,10 +21,17 @@ const (
 // merging them into the execution context.
 //
 // Override priority (highest wins):
-//  1. .aw-env (dynamic, from on-create hook)
+//  1. .aw-env (dynamic, from on-create hook, in WorkDir)
 //  2. profile.Env (static, from current profile's env field)
-//  3. .aw-profile-env (static, written by parent process's profile env)
+//  3. .aw-profile-env (static, written by parent process's profile env, in cache dir)
 type EnvStage struct{}
+
+// profileEnvCacheDir returns the cache directory for .aw-profile-env,
+// scoped by OrigWorkDir hash to isolate concurrent workspaces.
+func profileEnvCacheDir(homeDir, origWorkDir string) string {
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(origWorkDir)))[:12]
+	return filepath.Join(homeDir, ".cache", "agent-workspace", "env", hash)
+}
 
 func (s *EnvStage) Name() string { return "env" }
 
@@ -31,7 +39,8 @@ func (s *EnvStage) Run(_ context.Context, ec *pipeline.ExecutionContext) error {
 	merged := make(map[string]string)
 
 	// 1. Start with .aw-profile-env (lowest priority, written by parent process)
-	profileEnvFilePath := filepath.Join(ec.WorkDir, profileEnvFileName)
+	cacheDir := profileEnvCacheDir(ec.HomeDir, ec.OrigWorkDir)
+	profileEnvFilePath := filepath.Join(cacheDir, profileEnvFileName)
 	profileFileEnv, err := envfile.ParseFile(profileEnvFilePath)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", profileEnvFileName, err)
@@ -47,6 +56,9 @@ func (s *EnvStage) Run(_ context.Context, ec *pipeline.ExecutionContext) error {
 
 	// 3. Write current profile env to .aw-profile-env for child processes
 	if len(ec.Profile.Env) > 0 {
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			return fmt.Errorf("creating profile env cache dir: %w", err)
+		}
 		if err := envfile.WriteFile(profileEnvFilePath, ec.Profile.Env); err != nil {
 			return fmt.Errorf("writing %s: %w", profileEnvFileName, err)
 		}
