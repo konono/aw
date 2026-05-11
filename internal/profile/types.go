@@ -18,14 +18,39 @@ type Config struct {
 	Source   ConfigSource       `yaml:"-"`
 }
 
+// ContainerRuntime specifies the container CLI to use.
+type ContainerRuntime string
+
+const (
+	ContainerRuntimeDocker ContainerRuntime = "docker"
+	ContainerRuntimePodman ContainerRuntime = "podman"
+)
+
 // Profile describes a single named workspace profile.
 type Profile struct {
-	Worktree    *WorktreeConfig   `yaml:"worktree,omitempty"`
-	Environment Environment       `yaml:"environment"`
-	Launch      LaunchMode        `yaml:"launch"`
-	Zellij      *ZellijConfig     `yaml:"zellij,omitempty"`
-	Env         map[string]string `yaml:"env,omitempty"`    // custom env vars to pass into Docker container
-	Dockerfile  string            `yaml:"dockerfile,omitempty"` // custom Dockerfile path (docker environment only)
+	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
+	Environment      Environment       `yaml:"environment"`
+	Launch           LaunchMode        `yaml:"launch"`
+	Zellij           *ZellijConfig     `yaml:"zellij,omitempty"`
+	Env              map[string]string `yaml:"env,omitempty"`
+	Dockerfile       string            `yaml:"dockerfile,omitempty"`
+	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
+}
+
+// CustomMount represents a user-defined bind mount for Docker containers.
+type CustomMount struct {
+	Source   string `yaml:"source"`
+	Target   string `yaml:"target"`
+	ReadOnly bool   `yaml:"readonly,omitempty"`
+}
+
+// EffectiveContainerRuntime returns the container runtime, defaulting to "docker".
+func (p *Profile) EffectiveContainerRuntime() string {
+	if p.ContainerRuntime == ContainerRuntimePodman {
+		return "podman"
+	}
+	return "docker"
 }
 
 // WorktreeConfig controls git worktree creation.
@@ -54,7 +79,7 @@ type Environment string
 
 const (
 	EnvironmentHost   Environment = "host"
-	EnvironmentDocker Environment = "docker"
+	EnvironmentContainer Environment = "container"
 )
 
 // LaunchMode specifies what to launch.

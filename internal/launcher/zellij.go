@@ -103,7 +103,7 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext) (string, fu
 
 func (l *ZellijLauncher) buildClaudeCommand(ec *pipeline.ExecutionContext) string {
 	switch ec.Profile.Environment {
-	case profile.EnvironmentDocker:
+	case profile.EnvironmentContainer:
 		// Build docker run command directly using the image already built
 		// by the DockerStage, so we don't re-run the pipeline with a
 		// different profile that would lose custom Dockerfile settings.
@@ -122,7 +122,7 @@ func (l *ZellijLauncher) buildClaudeCommand(ec *pipeline.ExecutionContext) strin
 			Command:   []string{"bash", "-c", "claude --dangerously-skip-permissions; exec bash -i"},
 		}
 		args := docker.BuildRunArgs(runConfig)
-		return "docker " + shellJoin(args)
+		return ec.Profile.EffectiveContainerRuntime() + " " + shellJoin(args)
 	default:
 		// Host mode: just run claude directly
 		return "claude"
@@ -144,6 +144,22 @@ func shellJoin(args []string) string {
 
 func (l *ZellijLauncher) launchZellij(workDir, tmpDir, sessionName, baseRef string) error {
 	layoutPath := filepath.Join(tmpDir, "layout.kdl")
+
+	// If already inside a zellij session, open a new tab instead of nesting
+	if os.Getenv("ZELLIJ") != "" {
+		fmt.Fprintf(os.Stderr, "Already inside zellij, opening new tab: %s\n", sessionName)
+		cmd := exec.Command("zellij", "action", "new-tab", "--layout", layoutPath, "--name", sessionName)
+		cmd.Dir = workDir
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Env = os.Environ()
+		if baseRef != "" {
+			cmd.Env = append(cmd.Env, "AW_BASE_REF="+baseRef)
+		}
+		return cmd.Run()
+	}
+
 	cmd := exec.Command("zellij",
 		"--new-session-with-layout", layoutPath,
 		"-s", sessionName)

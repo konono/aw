@@ -38,9 +38,13 @@ type ShellClient struct {
 	DockerPath string
 }
 
-// NewShellClient creates a new ShellClient with default settings.
-func NewShellClient() *ShellClient {
-	return &ShellClient{DockerPath: "docker"}
+// NewShellClient creates a new ShellClient for the given container runtime.
+// If runtime is empty, it defaults to "docker".
+func NewShellClient(runtime string) *ShellClient {
+	if runtime == "" {
+		runtime = "docker"
+	}
+	return &ShellClient{DockerPath: runtime}
 }
 
 func (c *ShellClient) dockerCmd() string {
@@ -50,17 +54,17 @@ func (c *ShellClient) dockerCmd() string {
 	return "docker"
 }
 
-// CheckAvailable verifies that docker is installed and the daemon is running.
+// CheckAvailable verifies that the container runtime is installed and running.
 func (c *ShellClient) CheckAvailable() error {
 	if _, err := exec.LookPath(c.dockerCmd()); err != nil {
-		return fmt.Errorf("docker is not installed or not in PATH")
+		return fmt.Errorf("%s is not installed or not in PATH", c.dockerCmd())
 	}
 
 	cmd := exec.Command(c.dockerCmd(), "info")
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker daemon is not running")
+		return fmt.Errorf("%s daemon is not running", c.dockerCmd())
 	}
 	return nil
 }
@@ -73,9 +77,16 @@ func (c *ShellClient) Build(ctx context.Context, imageName, contextDir string) e
 	return cmd.Run()
 }
 
-// VolumeCreate creates a named Docker volume (idempotent).
+// VolumeCreate creates a named container volume (idempotent).
 func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error {
-	cmd := exec.CommandContext(ctx, c.dockerCmd(), "volume", "create", volumeName)
+	args := []string{"volume", "create"}
+	switch c.DockerPath {
+	case "podman":
+		args = append(args, "--ignore", volumeName)
+	default:
+		args = append(args, volumeName)
+	}
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run()

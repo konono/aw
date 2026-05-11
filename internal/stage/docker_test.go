@@ -95,7 +95,7 @@ func TestDockerStage_DockerNotAvailable(t *testing.T) {
 	}
 
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{Environment: profile.EnvironmentDocker},
+		Profile: profile.Profile{Environment: profile.EnvironmentContainer},
 		HomeDir: "/home/test",
 		WorkDir: "/workspace",
 	}
@@ -104,15 +104,16 @@ func TestDockerStage_DockerNotAvailable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when docker not available")
 	}
-	if !strings.Contains(err.Error(), "docker is not available") {
-		t.Errorf("error = %q, want containing 'docker is not available'", err.Error())
+	if !strings.Contains(err.Error(), "container runtime is not available") {
+		t.Errorf("error = %q, want containing 'container runtime is not available'", err.Error())
 	}
 }
 
 func TestDockerStage_NewDockerStage(t *testing.T) {
 	s := NewDockerStage()
-	if s.DockerClient == nil {
-		t.Error("DockerClient should not be nil")
+	// DockerClient is nil by default; initialized lazily in Run() from profile's container_runtime
+	if s.DockerClient != nil {
+		t.Error("DockerClient should be nil (lazy init)")
 	}
 	if s.ConfigSyncer == nil {
 		t.Error("ConfigSyncer should not be nil")

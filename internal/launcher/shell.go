@@ -19,7 +19,7 @@ func (l *ShellLauncher) Launch(ctx context.Context, ec *pipeline.ExecutionContex
 	switch ec.Profile.Environment {
 	case profile.EnvironmentHost:
 		return l.launchHostShell(ec)
-	case profile.EnvironmentDocker:
+	case profile.EnvironmentContainer:
 		return l.launchDockerShell(ctx, ec)
 	default:
 		return fmt.Errorf("unsupported environment: %q", ec.Profile.Environment)
@@ -45,7 +45,7 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 }
 
 func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.ExecutionContext) error {
-	client := docker.NewShellClient()
+	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
 
 	envVars := make(map[string]string, len(ec.EnvVars)+2)
 	for k, v := range ec.EnvVars {

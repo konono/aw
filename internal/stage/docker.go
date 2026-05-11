@@ -29,9 +29,9 @@ type DockerStage struct {
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
+// DockerClient is initialized lazily in Run() using the profile's container_runtime.
 func NewDockerStage() *DockerStage {
 	return &DockerStage{
-		DockerClient: docker.NewShellClient(),
 		ConfigSyncer: config.NewSyncer(),
 		MountBuilder: mount.NewBuilder(),
 	}
@@ -40,9 +40,14 @@ func NewDockerStage() *DockerStage {
 func (s *DockerStage) Name() string { return "docker" }
 
 func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) error {
-	// 1. Check Docker availability
+	// 0. Initialize docker client with the configured container runtime
+	if s.DockerClient == nil {
+		s.DockerClient = docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
+	}
+
+	// 1. Check container runtime availability
 	if err := s.DockerClient.CheckAvailable(); err != nil {
-		return fmt.Errorf("docker is not available: %w", err)
+		return fmt.Errorf("container runtime is not available: %w", err)
 	}
 
 	// 2. Resolve custom Dockerfile path
@@ -98,7 +103,17 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("ensuring onboarding state: %w", err)
 	}
 
-	// 6. Build mounts
+	// 6. Build mounts (including custom mounts from profile)
+	var extraMounts []docker.Mount
+	for _, m := range ec.Profile.Mounts {
+		source := expandTilde(m.Source, ec.HomeDir)
+		extraMounts = append(extraMounts, docker.Mount{
+			Source:   source,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
+		})
+	}
+
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
 		HomeDir:             ec.HomeDir,
 		WorkDir:             ec.WorkDir,
@@ -106,6 +121,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		ContainerClaudeHome: containerClaudeHome,
 		ContainerClaudeJSON: containerClaudeJSON,
 		VolumeName:          defaultVolumeName,
+		ExtraMounts:         extraMounts,
 	})
 	if err != nil {
 		return fmt.Errorf("building mounts: %w", err)
@@ -134,6 +150,13 @@ func resolveDockerfilePath(dockerfilePath string) (string, error) {
 	}
 	repoRoot := strings.TrimSpace(string(out))
 	return filepath.Join(repoRoot, dockerfilePath), nil
+}
+
+func expandTilde(path, homeDir string) string {
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(homeDir, path[2:])
+	}
+	return path
 }
 
 func claudeHomePath(homeDir string) string {

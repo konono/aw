@@ -27,6 +27,12 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Dockerfile != "" {
 		merged.Dockerfile = override.Dockerfile
 	}
+	if override.ContainerRuntime != "" {
+		merged.ContainerRuntime = override.ContainerRuntime
+	}
+	if override.Mounts != nil {
+		merged.Mounts = override.Mounts
+	}
 
 	return merged
 }

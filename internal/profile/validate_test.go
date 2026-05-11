@@ -14,7 +14,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid docker + claude",
 			profile: Profile{
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
 			},
 		},
@@ -30,7 +30,7 @@ func TestValidate(t *testing.T) {
 			name: "valid docker + zellij with config",
 			profile: Profile{
 				Worktree:    &WorktreeConfig{},
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 				Launch:      LaunchZellij,
 				Zellij:      &ZellijConfig{Layout: "default"},
 			},
@@ -45,7 +45,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing launch",
 			profile: Profile{
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 			},
 			wantErr: "launch is required",
 		},
@@ -68,7 +68,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "zellij config with non-zellij launch",
 			profile: Profile{
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
 				Zellij:      &ZellijConfig{Layout: "default"},
 			},
@@ -77,7 +77,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid docker with custom dockerfile",
 			profile: Profile{
-				Environment: EnvironmentDocker,
+				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
 				Dockerfile:  "docker/Dockerfile.custom",
 			},
@@ -124,7 +124,7 @@ func TestValidateConfig(t *testing.T) {
 				Default: "test",
 				Profiles: map[string]Profile{
 					"test": {
-						Environment: EnvironmentDocker,
+						Environment: EnvironmentContainer,
 						Launch:      LaunchClaude,
 					},
 				},
@@ -143,7 +143,7 @@ func TestValidateConfig(t *testing.T) {
 				Default: "nonexistent",
 				Profiles: map[string]Profile{
 					"test": {
-						Environment: EnvironmentDocker,
+						Environment: EnvironmentContainer,
 						Launch:      LaunchClaude,
 					},
 				},

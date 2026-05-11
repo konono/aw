@@ -9,12 +9,12 @@ import (
 func Validate(p Profile) error {
 	// Validate environment
 	switch p.Environment {
-	case EnvironmentHost, EnvironmentDocker:
+	case EnvironmentHost, EnvironmentContainer:
 		// ok
 	case "":
-		return fmt.Errorf("environment is required (\"host\" or \"docker\")")
+		return fmt.Errorf("environment is required (\"host\" or \"container\")")
 	default:
-		return fmt.Errorf("unknown environment: %q (must be \"host\" or \"docker\")", p.Environment)
+		return fmt.Errorf("unknown environment: %q (must be \"host\" or \"container\")", p.Environment)
 	}
 
 	// Validate launch mode
@@ -33,8 +33,29 @@ func Validate(p Profile) error {
 	}
 
 	// Validate dockerfile is only used with environment: docker
-	if p.Dockerfile != "" && p.Environment != EnvironmentDocker {
+	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: docker")
+	}
+
+	// Validate container_runtime
+	switch p.ContainerRuntime {
+	case "", ContainerRuntimeDocker, ContainerRuntimePodman:
+		// ok
+	default:
+		return fmt.Errorf("unknown container_runtime: %q (must be \"docker\" or \"podman\")", p.ContainerRuntime)
+	}
+
+	// Validate mounts are only used with environment: docker
+	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("mounts are only valid with environment: docker")
+	}
+	for i, m := range p.Mounts {
+		if m.Source == "" {
+			return fmt.Errorf("mount[%d]: source is required", i)
+		}
+		if m.Target == "" {
+			return fmt.Errorf("mount[%d]: target is required", i)
+		}
 	}
 
 	return nil

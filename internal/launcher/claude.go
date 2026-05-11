@@ -20,7 +20,7 @@ func (l *ClaudeLauncher) Launch(ctx context.Context, ec *pipeline.ExecutionConte
 	switch ec.Profile.Environment {
 	case profile.EnvironmentHost:
 		return l.launchHostClaude(ec)
-	case profile.EnvironmentDocker:
+	case profile.EnvironmentContainer:
 		return l.launchDockerClaude(ctx, ec)
 	default:
 		return fmt.Errorf("unsupported environment: %q", ec.Profile.Environment)
@@ -42,7 +42,7 @@ func (l *ClaudeLauncher) launchHostClaude(ec *pipeline.ExecutionContext) error {
 }
 
 func (l *ClaudeLauncher) launchDockerClaude(ctx context.Context, ec *pipeline.ExecutionContext) error {
-	client := docker.NewShellClient()
+	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
 
 	command := []string{"claude", "--dangerously-skip-permissions"}
 
