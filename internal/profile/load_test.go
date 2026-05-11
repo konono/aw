@@ -301,13 +301,38 @@ profiles:
 	}
 }
 
-func TestLoad_NoGitRepo(t *testing.T) {
-	// Override findGitRoot to simulate not being in a git repo
-	orig := findGitRoot
-	findGitRoot = func() (string, error) {
-		return "", fmt.Errorf("not in a git repository")
+// mockLoadEnv sets up findGitRoot and globalConfigDir mocks, restoring them on cleanup.
+func mockLoadEnv(t *testing.T, gitRoot string, gitErr bool, globalDir string) {
+	t.Helper()
+	origGit := findGitRoot
+	origGlobal := globalConfigDir
+	t.Cleanup(func() {
+		findGitRoot = origGit
+		globalConfigDir = origGlobal
+	})
+
+	if gitErr {
+		findGitRoot = func() (string, error) { return "", fmt.Errorf("not in a git repository") }
+	} else {
+		findGitRoot = func() (string, error) { return gitRoot, nil }
 	}
-	defer func() { findGitRoot = orig }()
+
+	if globalDir == "" {
+		globalConfigDir = func() (string, error) { return "", fmt.Errorf("no home") }
+	} else {
+		globalConfigDir = func() (string, error) { return globalDir, nil }
+	}
+}
+
+func TestLoad_NoGitRepo_WithoutConfigInCwd(t *testing.T) {
+	dir := t.TempDir()
+	mockLoadEnv(t, "", true, dir)
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
 
 	cfg, err := Load()
 	if err != nil {
@@ -316,5 +341,227 @@ func TestLoad_NoGitRepo(t *testing.T) {
 
 	if cfg.Default != "worktree-zellij" {
 		t.Errorf("Default = %q, want %q", cfg.Default, "worktree-zellij")
+	}
+	if !cfg.Source.IsBuiltin {
+		t.Error("Source should be builtin when no config file found")
+	}
+}
+
+func TestLoad_NoGitRepo_WithConfigInCwd(t *testing.T) {
+	dir := t.TempDir()
+	globalDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	content := `
+default: my-profile
+container_runtime: podman
+profiles:
+  my-profile:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "my-profile" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "my-profile")
+	}
+	if cfg.Source.IsBuiltin {
+		t.Error("Source should not be builtin when config file exists in cwd")
+	}
+
+	p, ok := cfg.Profiles["my-profile"]
+	if !ok {
+		t.Fatal("expected my-profile in profiles")
+	}
+	if p.ContainerRuntime != ContainerRuntimePodman {
+		t.Errorf("ContainerRuntime = %q, want %q", p.ContainerRuntime, ContainerRuntimePodman)
+	}
+}
+
+func TestLoad_GlobalConfigOnly(t *testing.T) {
+	globalDir := t.TempDir()
+	cwdDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	content := `
+default: global-profile
+container_runtime: podman
+env:
+  MY_VAR: "from-global"
+profiles:
+  global-profile:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "global-profile" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "global-profile")
+	}
+	if cfg.Source.IsBuiltin {
+		t.Error("Source should not be builtin when global config exists")
+	}
+	if cfg.Source.FilePath != filepath.Join(globalDir, "config.yml") {
+		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, filepath.Join(globalDir, "config.yml"))
+	}
+
+	p, ok := cfg.Profiles["global-profile"]
+	if !ok {
+		t.Fatal("expected global-profile in profiles")
+	}
+	if p.ContainerRuntime != ContainerRuntimePodman {
+		t.Errorf("ContainerRuntime = %q, want %q", p.ContainerRuntime, ContainerRuntimePodman)
+	}
+	if p.Env["MY_VAR"] != "from-global" {
+		t.Errorf("Env[MY_VAR] = %q, want %q", p.Env["MY_VAR"], "from-global")
+	}
+}
+
+func TestLoad_GlobalAndProjectConfig(t *testing.T) {
+	globalDir := t.TempDir()
+	projectDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	globalContent := `
+default: global-profile
+container_runtime: podman
+env:
+  SHARED_VAR: "global"
+  OVERRIDE_VAR: "global"
+profiles:
+  global-profile:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yml"), []byte(globalContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	projectContent := `
+default: project-profile
+env:
+  OVERRIDE_VAR: "project"
+profiles:
+  project-profile:
+    environment: host
+    launch: shell
+`
+	if err := os.WriteFile(filepath.Join(projectDir, ".agent-workspace.yml"), []byte(projectContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	// Project default takes precedence
+	if cfg.Default != "project-profile" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "project-profile")
+	}
+	// Source points to project config (use filepath.EvalSymlinks for macOS /var → /private/var)
+	wantPath, _ := filepath.EvalSymlinks(filepath.Join(projectDir, ".agent-workspace.yml"))
+	gotPath, _ := filepath.EvalSymlinks(cfg.Source.FilePath)
+	if gotPath != wantPath {
+		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, wantPath)
+	}
+	// Global-only profile is preserved
+	if _, ok := cfg.Profiles["global-profile"]; !ok {
+		t.Error("expected global-profile to be preserved from global config")
+	}
+	// Project-only profile exists
+	p, ok := cfg.Profiles["project-profile"]
+	if !ok {
+		t.Fatal("expected project-profile in profiles")
+	}
+	// Project profile inherits container_runtime from global top-level (via ApplyTopLevel)
+	if p.ContainerRuntime != ContainerRuntimePodman {
+		t.Errorf("ContainerRuntime = %q, want %q (inherited from global)", p.ContainerRuntime, ContainerRuntimePodman)
+	}
+	// Env: project overrides global
+	if p.Env["OVERRIDE_VAR"] != "project" {
+		t.Errorf("Env[OVERRIDE_VAR] = %q, want %q", p.Env["OVERRIDE_VAR"], "project")
+	}
+	// Env: global value preserved when not overridden
+	if p.Env["SHARED_VAR"] != "global" {
+		t.Errorf("Env[SHARED_VAR] = %q, want %q", p.Env["SHARED_VAR"], "global")
+	}
+}
+
+func TestLoad_GlobalConfigParseError(t *testing.T) {
+	globalDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yml"), []byte("}{invalid"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cwdDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load() should return error for invalid global config")
+	}
+}
+
+func TestLoad_NoGlobalNoProject(t *testing.T) {
+	globalDir := t.TempDir()
+	cwdDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "worktree-zellij" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "worktree-zellij")
+	}
+	if !cfg.Source.IsBuiltin {
+		t.Error("Source should be builtin when no config files found")
 	}
 }
