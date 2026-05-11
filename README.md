@@ -47,39 +47,74 @@ aw --help               # ヘルプを表示
 
 > **[詳細な設定ガイド](docs/configuration.md)** — 全オプション、バリデーションルール、使用例のリファレンス。
 
-git リポジトリのルートに `.agent-workspace.yml` を作成してください:
+`aw` は以下の順序で設定を読み込み、マージします:
+
+```
+ビルトインデフォルト → ~/.config/aw/config.yml（グローバル） → .agent-workspace.yml（プロジェクト）
+```
+
+| ファイル | 用途 |
+|----------|------|
+| `~/.config/aw/config.yml` | 全プロジェクト共通の設定（`container_runtime`、`env`、`mounts` など） |
+| `.agent-workspace.yml` | プロジェクト固有の設定（git ルートまたはカレントディレクトリ） |
+
+後に読まれた設定が優先されます。`.agent-workspace.yml` がないディレクトリでも、グローバル設定のプロファイルを使えます。
+
+以下は全パラメーターを含む設定例です（`.agent-workspace.yml` と `~/.config/aw/config.yml` の両方で同じ書式が使えます）:
 
 ```yaml
+# デフォルトで実行するプロファイル名
 default: worktree-zellij
 
-# トップレベルのデフォルト値（全プロファイルで共有）
-container_runtime: podman        # "docker"（デフォルト）または "podman"
+# --- トップレベルのデフォルト値（全プロファイルで共有） ---
+# ここに書いたフィールドは全プロファイルのデフォルトになります。
+# 各プロファイルでフィールドごとに上書きできます。
 
-env:
+environment: container             # "host" または "container"（必須）
+container_runtime: podman          # "docker"（デフォルト）または "podman"
+dockerfile: docker/Dockerfile.custom  # カスタム Dockerfile のパス（任意）
+
+env:                               # コンテナに渡す環境変数（任意）
   CLAUDE_CODE_USE_VERTEX: "1"
   CLOUD_ML_REGION: "us-east5"
 
-mounts:
-  - source: "~/.config/gcloud"
-    target: "/home/claude/.config/gcloud"
+mounts:                            # カスタムバインドマウント（任意、container のみ有効）
+  - source: "~/.config/gcloud"     #   ホストパス（~ 展開に対応）
+    target: "/home/claude/.config/gcloud"  #   コンテナパス
+    readonly: false                #   読み取り専用でマウント（デフォルト: false）
 
 profiles:
   claude:
+    environment: container         # "host" または "container"（必須）
+    launch: claude                 # "shell"、"claude"、または "zellij"（必須）
+    container_runtime: podman      # "docker" または "podman"（任意）
+    dockerfile: Dockerfile.dev     # カスタム Dockerfile のパス（任意）
+    env:                           # 環境変数（任意、トップレベルとマージ）
+      MY_VAR: "value"
+    mounts:                        # カスタムマウント（任意、トップレベルを上書き）
+      - source: "~/data"
+        target: "/data"
+        readonly: true
+
+  worktree-claude:
+    worktree:                      # git worktree 設定（任意）
+      base: origin/main            #   ベース ref（デフォルト: origin/main）
+      dir: ~/worktrees/project     #   worktree 作成先（デフォルト: <repoRoot>/worktrees、~ 展開対応）
+      on-create: "./scripts/setup.sh"  #   worktree 作成後に実行するシェルコマンド（任意）
+      on-end: "./scripts/cleanup.sh"   #   起動プロセス終了後に実行するシェルコマンド（任意）
     environment: container
     launch: claude
 
-  worktree-shell:
-    worktree:
-      base: origin/main
-    environment: host
-    launch: shell
-
   worktree-zellij:
-    worktree: {}
+    worktree: {}                   # 空オブジェクト = デフォルト設定で worktree を有効化
     environment: container
-    launch: zellij
-    zellij:
-      layout: default
+    launch: zellij                 # zellij セッションを起動
+    zellij:                        # Zellij セッション設定（任意、launch: zellij の場合のみ有効）
+      layout: default              #   レイアウト名（"default" またはカスタムパス）
+
+  host-shell:
+    environment: host              # ホスト上で直接実行（コンテナなし）
+    launch: shell
 ```
 
 `.agent-workspace.yml` が見つからない場合、`aw` はビルトインのデフォルト設定を使用します。worktree を作成し、Docker ベースの Claude で zellij 開発環境を起動します。
@@ -99,7 +134,7 @@ profiles:
   - `target` — コンテナパス
   - `readonly` — 読み取り専用でマウント（デフォルト: false）
 - **`env`**（任意）: コンテナに渡す環境変数。
-- **`dockerfile`**（任意）: カスタム Dockerfile のパス。`environment: container` の場合のみ有効。
+- **`dockerfile`**（任意）: カスタム Dockerfile のパス。`environment: container` の場合のみ有効。Dockerfile が置かれたディレクトリ全体がビルドコンテキストになるため、`COPY` で同じディレクトリ内のファイルを参照できます。
 
 ### トップレベルのデフォルト値
 
@@ -121,6 +156,55 @@ profiles:
   claude:
     launch: claude
 ```
+
+## カスタム Dockerfile
+
+`dockerfile` フィールドでカスタム Dockerfile を指定すると、通常の `docker build` と同じ感覚でイメージをカスタマイズできます。Dockerfile が置かれた**ディレクトリ全体**がビルドコンテキストになるため、`COPY` で同じディレクトリ内のファイルを自由に参照できます。
+
+### ディレクトリ構成例
+
+```
+docker/
+├── Dockerfile.custom   ← dockerfile: で指定
+├── entrypoint.sh       ← COPY entrypoint.sh で参照可能
+└── scripts/
+    └── setup.sh        ← COPY scripts/setup.sh で参照可能
+```
+
+### 設定例
+
+```yaml
+profiles:
+  custom:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.custom  # git ルートからの相対パス
+```
+
+### Dockerfile の例
+
+```dockerfile
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git curl ca-certificates sudo && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash claude && \
+    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# 自前のスクリプトをコピー
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+COPY scripts/setup.sh /usr/local/bin/setup.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["claude"]
+```
+
+デフォルトの Dockerfile と entrypoint.sh は `aw default-dockerfile` で確認できます。これをベースにカスタマイズするのが最も簡単です。
 
 ## mise 統合
 
