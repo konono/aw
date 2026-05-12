@@ -21,7 +21,7 @@ if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
     su -s /bin/bash claude -c "$MISE_CMD && cd $WORKSPACE && mise run install"
   fi
 else
-  su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts"
+  su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts gh@latest"
 fi
 
 # Install Playwright browsers if node is available

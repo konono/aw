@@ -26,7 +26,7 @@ if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   fi
 else
   # No mise.toml: install Node.js (required for Claude Code)
-  su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts"
+  su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts gh@latest"
 fi
 
 # Install Claude Code if not present (as claude user)
