@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hiragram/agent-workspace/internal/image"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
-	"github.com/hiragram/agent-workspace/internal/stage"
-	"github.com/hiragram/agent-workspace/internal/update"
-	"github.com/hiragram/agent-workspace/internal/version"
+	"github.com/konono/aw/internal/image"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/stage"
+	"github.com/konono/aw/internal/update"
+	"github.com/konono/aw/internal/version"
 )
 
 // Run is the top-level entry point. Returns an exit code.

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/hiragram/agent-workspace/internal/cmd"
+	"github.com/konono/aw/internal/cmd"
 )
 
 func main() {

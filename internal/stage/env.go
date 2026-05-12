@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hiragram/agent-workspace/internal/envfile"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
+	"github.com/konono/aw/internal/envfile"
+	"github.com/konono/aw/internal/pipeline"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hiragram/agent-workspace/internal/docker"
+	"github.com/konono/aw/internal/docker"
 )
 
 func newTestOpts(homeDir, workDir string) MountOptions {

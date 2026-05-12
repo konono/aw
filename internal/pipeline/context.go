@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"github.com/hiragram/agent-workspace/internal/docker"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/profile"
 )
 
 // ExecutionContext carries mutable state through pipeline stages.

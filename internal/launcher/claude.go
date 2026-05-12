@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/hiragram/agent-workspace/internal/docker"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 )
 
 // ClaudeLauncher runs Claude Code.

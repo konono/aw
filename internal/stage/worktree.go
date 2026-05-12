@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/worktree"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/worktree"
 )
 
 // WorktreeStage creates a git worktree for the workspace.

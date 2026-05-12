@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hiragram/agent-workspace/internal/launcher"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/launcher"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 )
 
 // LaunchStage selects and executes the appropriate launcher.

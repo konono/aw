@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/hiragram/agent-workspace/internal/docker"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 )
 
 // ShellLauncher opens a shell in the workspace.

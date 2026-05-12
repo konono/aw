@@ -1,4 +1,4 @@
-# agent-workspace (`aw`) — fork
+# aw — fork
 
 > **これは [hiragram/agent-workspace](https://github.com/hiragram/agent-workspace) のフォーク**であり、Podman サポート、カスタムマウント、mise 統合、各種改善を追加しています。
 
@@ -22,13 +22,7 @@
 ### ソースから
 
 ```bash
-go install github.com/konono/agent-workspace@latest
-```
-
-バイナリは `agent-workspace` としてインストールされます。`aw` コマンド用のシンボリックリンクを作成してください:
-
-```bash
-ln -sf ~/go/bin/agent-workspace ~/go/bin/aw
+go install github.com/konono/aw@latest
 ```
 
 ## 使い方
@@ -328,7 +322,7 @@ OAuth トークンはホストからは同期**されません**。コンテナ�
 
 ```bash
 # バイナリの削除
-rm ~/go/bin/agent-workspace ~/go/bin/aw
+rm ~/go/bin/aw
 
 # データの削除
 rm -rf ~/.agent-workspace ~/.agent-workspace.json

@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hiragram/agent-workspace/internal/config"
-	"github.com/hiragram/agent-workspace/internal/docker"
-	"github.com/hiragram/agent-workspace/internal/image"
-	"github.com/hiragram/agent-workspace/internal/mount"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
+	"github.com/konono/aw/internal/config"
+	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/image"
+	"github.com/konono/aw/internal/mount"
+	"github.com/konono/aw/internal/pipeline"
 )
 
 const (

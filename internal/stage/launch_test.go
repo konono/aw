@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hiragram/agent-workspace/internal/launcher"
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/launcher"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 )
 
 type mockLauncher struct {

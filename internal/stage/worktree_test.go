@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hiragram/agent-workspace/internal/pipeline"
-	"github.com/hiragram/agent-workspace/internal/profile"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 )
 
 // realPath resolves symlinks so that pwd comparisons work on macOS

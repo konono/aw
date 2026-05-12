@@ -3,7 +3,7 @@ package launcher
 import (
 	"context"
 
-	"github.com/hiragram/agent-workspace/internal/pipeline"
+	"github.com/konono/aw/internal/pipeline"
 )
 
 // Launcher executes the final "run something" step of the pipeline.
