@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,13 +24,20 @@ func TestSyncSettings_CopiesFiles(t *testing.T) {
 		t.Fatalf("SyncSettings() error: %v", err)
 	}
 
-	// Verify files were copied
+	// Verify settings.json was patched
 	content, err := os.ReadFile(filepath.Join(containerHome, "settings.json"))
 	if err != nil {
 		t.Fatalf("reading settings.json: %v", err)
 	}
-	if string(content) != `{"key":"value"}` {
-		t.Errorf("settings.json = %q, want %q", string(content), `{"key":"value"}`)
+	var settings map[string]interface{}
+	if err := json.Unmarshal(content, &settings); err != nil {
+		t.Fatalf("parsing settings.json: %v", err)
+	}
+	if settings["key"] != "value" {
+		t.Errorf("settings.json key = %v, want %q", settings["key"], "value")
+	}
+	if settings["skipDangerousModePermissionPrompt"] != true {
+		t.Error("settings.json should have skipDangerousModePermissionPrompt: true")
 	}
 
 	content, err = os.ReadFile(filepath.Join(containerHome, "CLAUDE.md"))
@@ -51,9 +59,17 @@ func TestSyncSettings_SkipsMissingFiles(t *testing.T) {
 		t.Fatalf("SyncSettings() error: %v", err)
 	}
 
-	// Verify no files were created
-	if _, err := os.Stat(filepath.Join(containerHome, "settings.json")); !os.IsNotExist(err) {
-		t.Error("settings.json should not exist when source is missing")
+	// settings.json should still be created with minimal content
+	content, err := os.ReadFile(filepath.Join(containerHome, "settings.json"))
+	if err != nil {
+		t.Fatalf("settings.json should exist even without source: %v", err)
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal(content, &settings); err != nil {
+		t.Fatalf("parsing settings.json: %v", err)
+	}
+	if settings["skipDangerousModePermissionPrompt"] != true {
+		t.Error("settings.json should have skipDangerousModePermissionPrompt: true")
 	}
 }
 
@@ -186,5 +202,80 @@ func TestSyncSettings_NestedDirectories(t *testing.T) {
 	}
 	if string(content) != `{}` {
 		t.Errorf("plugin.json = %q, want %q", string(content), `{}`)
+	}
+}
+
+func TestPatchSettingsForContainer(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		check   func(t *testing.T, settings map[string]interface{})
+	}{
+		{
+			name:  "adds skip permission to existing settings",
+			input: `{"model":"claude-opus-4-6"}`,
+			check: func(t *testing.T, s map[string]interface{}) {
+				if s["skipDangerousModePermissionPrompt"] != true {
+					t.Error("missing skipDangerousModePermissionPrompt")
+				}
+				if s["model"] != "claude-opus-4-6" {
+					t.Errorf("model = %v, want claude-opus-4-6", s["model"])
+				}
+			},
+		},
+		{
+			name:  "adds skip permission to empty object",
+			input: `{}`,
+			check: func(t *testing.T, s map[string]interface{}) {
+				if s["skipDangerousModePermissionPrompt"] != true {
+					t.Error("missing skipDangerousModePermissionPrompt")
+				}
+				if len(s) != 1 {
+					t.Errorf("expected 1 key, got %d", len(s))
+				}
+			},
+		},
+		{
+			name:  "preserves all existing fields",
+			input: `{"hooks":{"Stop":[]},"statusLine":{"type":"command"},"model":"opus"}`,
+			check: func(t *testing.T, s map[string]interface{}) {
+				if s["skipDangerousModePermissionPrompt"] != true {
+					t.Error("missing skipDangerousModePermissionPrompt")
+				}
+				if s["hooks"] == nil {
+					t.Error("hooks should be preserved")
+				}
+				if s["statusLine"] == nil {
+					t.Error("statusLine should be preserved")
+				}
+			},
+		},
+		{
+			name:    "returns error for invalid JSON",
+			input:   `not json`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := patchSettingsForContainer([]byte(tt.input))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var settings map[string]interface{}
+			if err := json.Unmarshal(out, &settings); err != nil {
+				t.Fatalf("output is not valid JSON: %v", err)
+			}
+			tt.check(t, settings)
+		})
 	}
 }

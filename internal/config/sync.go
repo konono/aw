@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -37,8 +38,14 @@ func (s *DefaultSyncer) SyncSettings(claudeHome, containerClaudeHome string) err
 	for _, f := range syncFiles {
 		src := filepath.Join(claudeHome, f)
 		dst := filepath.Join(containerClaudeHome, f)
-		if err := copyFileIfExists(src, dst); err != nil {
-			return fmt.Errorf("syncing file %s: %w", f, err)
+		if f == "settings.json" {
+			if err := syncSettingsJSON(src, dst); err != nil {
+				return fmt.Errorf("syncing file %s: %w", f, err)
+			}
+		} else {
+			if err := copyFileIfExists(src, dst); err != nil {
+				return fmt.Errorf("syncing file %s: %w", f, err)
+			}
 		}
 	}
 
@@ -98,6 +105,39 @@ func syncDirIfExists(src, dst string) error {
 	}
 
 	return copyDir(src, dst)
+}
+
+func syncSettingsJSON(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			data = []byte("{}")
+		} else {
+			return err
+		}
+	}
+
+	patched, err := patchSettingsForContainer(data)
+	if err != nil {
+		return fmt.Errorf("patching settings.json: %w", err)
+	}
+
+	return os.WriteFile(dst, patched, 0644)
+}
+
+func patchSettingsForContainer(data []byte) ([]byte, error) {
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil, err
+	}
+
+	settings["skipDangerousModePermissionPrompt"] = true
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
 }
 
 // copyDir recursively copies a directory from src to dst.
