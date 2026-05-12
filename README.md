@@ -155,48 +155,59 @@ profiles:
 
 `dockerfile` フィールドでカスタム Dockerfile を指定すると、通常の `docker build` と同じ感覚でイメージをカスタマイズできます。Dockerfile が置かれた**ディレクトリ全体**がビルドコンテキストになるため、`COPY` で同じディレクトリ内のファイルを自由に参照できます。
 
-### ディレクトリ構成例
+### 例: Playwright 対応コンテナ
+
+このリポジトリには `playwright-docker/` ディレクトリに実例があります:
 
 ```
-docker/
-├── Dockerfile.custom   ← dockerfile: で指定
-├── entrypoint.sh       ← COPY entrypoint.sh で参照可能
-└── scripts/
-    └── setup.sh        ← COPY scripts/setup.sh で参照可能
+playwright-docker/
+├── Dockerfile       ← dockerfile: で指定
+├── entrypoint.sh    ← COPY entrypoint.sh で参照可能
+└── mise.toml        ← コンテナ内で使うツール定義
 ```
 
-### 設定例
+#### 設定例
 
 ```yaml
 profiles:
-  custom:
+  playwright:
     environment: container
     launch: claude
-    dockerfile: docker/Dockerfile.custom  # git ルートからの相対パス
+    dockerfile: playwright-docker/Dockerfile  # git ルートからの相対パス
 ```
 
-### Dockerfile の例
+#### Dockerfile (`playwright-docker/Dockerfile`)
 
 ```dockerfile
 FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      git curl ca-certificates sudo && \
+      git curl ca-certificates wget openssh-client sudo \
+      # Playwright browser dependencies
+      libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+      libdbus-1-3 libx11-6 libxcomposite1 libxdamage1 libxext6 \
+      libxfixes3 libxrandr2 libgbm1 libxcb1 libpango-1.0-0 \
+      libcairo2 libasound2 libcups2 libdrm2 libxshmfence1 \
+      libxkbcommon0 libatspi2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash claude && \
     echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# 自前のスクリプトをコピー
+RUN su -s /bin/bash claude -c 'curl https://mise.jdx.dev/install.sh | sh'
+
+ENV PATH="/home/claude/.local/bin:/home/claude/.local/share/mise/shims:${PATH}"
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-COPY scripts/setup.sh /usr/local/bin/setup.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["claude"]
 ```
+
+entrypoint.sh で Playwright ブラウザの自動インストールも行われます。詳細は `playwright-docker/entrypoint.sh` を参照してください。
 
 デフォルトの Dockerfile と entrypoint.sh は `aw default-dockerfile` で確認できます。これをベースにカスタマイズするのが最も簡単です。
 

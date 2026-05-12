@@ -16,6 +16,10 @@ chown -R claude:claude /home/claude/.config
 if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   echo "Installing tools from mise.toml..."
   su -s /bin/bash claude -c "$MISE_CMD && cd $WORKSPACE && mise trust --all && mise install"
+  if su -s /bin/bash claude -c "$MISE_CMD && cd $WORKSPACE && mise tasks 2>/dev/null | grep -q '^install '"; then
+    echo "Running mise run install..."
+    su -s /bin/bash claude -c "$MISE_CMD && cd $WORKSPACE && mise run install"
+  fi
 else
   su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts"
 fi
