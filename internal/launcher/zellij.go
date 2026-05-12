@@ -111,7 +111,7 @@ func (l *ZellijLauncher) buildClaudeCommand(ec *pipeline.ExecutionContext) strin
 			Mounts:    ec.DockerMounts,
 			EnvVars:   envVars,
 			WorkDir:   ec.WorkDir,
-			Command:   []string{"bash", "-c", "claude --dangerously-skip-permissions; exec bash -i"},
+			Command:   []string{"bash", "-c", "claude --dangerously-skip-permissions --yes; exec bash -i"},
 		}
 		args := docker.BuildRunArgs(runConfig)
 		return ec.Profile.EffectiveContainerRuntime() + " " + shellJoin(args)
