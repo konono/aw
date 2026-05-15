@@ -36,8 +36,9 @@ if [ ! -x /home/claude/.local/bin/claude ]; then
 fi
 
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
+# Ignore errors from sockets or broken symlinks (e.g. SSH agent socket files)
 if [ -d /home/claude/.ssh-host ]; then
-  cp -a /home/claude/.ssh-host /home/claude/.ssh
+  cp -a /home/claude/.ssh-host /home/claude/.ssh 2>/dev/null || true
   chown -R claude:claude /home/claude/.ssh
   chmod 700 /home/claude/.ssh
   chmod 600 /home/claude/.ssh/* 2>/dev/null || true
