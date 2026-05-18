@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 
 	"github.com/konono/aw/internal/docker"
@@ -36,7 +35,6 @@ func (l *ClaudeLauncher) launchHostClaude(ec *pipeline.ExecutionContext) error {
 	fmt.Fprintf(os.Stderr, "Launching Claude in %s\n", ec.WorkDir)
 
 	args := []string{"claude"}
-	// Use syscall.Exec to replace the current process
 	env := os.Environ()
 	return syscall.Exec(claudePath, args, env)
 }
@@ -46,13 +44,7 @@ func (l *ClaudeLauncher) launchDockerClaude(ctx context.Context, ec *pipeline.Ex
 
 	command := []string{"claude", "--permission-mode", "bypassPermissions"}
 
-	envVars := make(map[string]string, len(ec.EnvVars)+3)
-	for k, v := range ec.EnvVars {
-		envVars[k] = v
-	}
-	// Hardcoded vars always win — users cannot override these
-	envVars["AW_LAUNCH_MODE"] = "claude"
-	envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
+	envVars := buildContainerEnvVars(ec, "claude")
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 	runConfig := docker.RunConfig{
@@ -64,11 +56,4 @@ func (l *ClaudeLauncher) launchDockerClaude(ctx context.Context, ec *pipeline.Ex
 	}
 
 	return client.Run(ctx, runConfig)
-}
-
-func claudeHomePath(homeDir string) string {
-	if v := os.Getenv("CLAUDE_HOME"); v != "" {
-		return v
-	}
-	return filepath.Join(homeDir, ".claude")
 }

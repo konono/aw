@@ -73,8 +73,11 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 	tool := ec.Profile.EffectiveTool()
 	agentCmd := l.buildAgentCommand(ec, tool)
 	agentName := "Claude Code"
-	if tool == "codex" {
+	switch tool {
+	case "codex":
 		agentName = "Codex"
+	case "opencode":
+		agentName = "OpenCode"
 	}
 
 	// Render and write layout template
@@ -104,21 +107,17 @@ func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool s
 	agentCmd := "claude --permission-mode bypassPermissions"
 	agentBin := "claude"
 	if tool == "codex" {
-		agentCmd = "codex --full-auto"
+		agentCmd = "codex -a never"
 		agentBin = "codex"
+	} else if tool == "opencode" {
+		agentCmd = "opencode"
+		agentBin = "opencode"
 	}
 
 	switch ec.Profile.Environment {
 	case profile.EnvironmentContainer:
-		envVars := make(map[string]string, len(ec.EnvVars)+3)
-		for k, v := range ec.EnvVars {
-			envVars[k] = v
-		}
-		envVars["AW_LAUNCH_MODE"] = tool
+		envVars := buildContainerEnvVars(ec, tool)
 		envVars["HOST_WORKSPACE"] = ec.WorkDir
-		if tool != "codex" {
-			envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
-		}
 
 		runConfig := docker.RunConfig{
 			ImageName: ec.DockerImage,
