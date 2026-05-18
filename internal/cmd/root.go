@@ -42,6 +42,10 @@ func Run(args []string) int {
 		return runDefaultDockerfile()
 	}
 
+	if len(args) > 0 && args[0] == "init" {
+		return runInit(args[1:])
+	}
+
 	// Determine profile name
 	profileName := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -173,7 +177,7 @@ func runProfiles() int {
 
 	// Show config source
 	if cfg.Source.IsBuiltin {
-		fmt.Println("Source: built-in default (no .agent-workspace.yml found)")
+		fmt.Println("Source: built-in embedded default (no config files found)")
 	} else {
 		fmt.Printf("Source: %s\n", cfg.Source.FilePath)
 	}
@@ -252,6 +256,7 @@ func printHelp() {
 	fmt.Println("  aw                      Run default profile")
 	fmt.Println("  aw <profile>            Run a specific profile")
 	fmt.Println("  aw profiles             List available profiles")
+	fmt.Println("  aw init                 Write the built-in config to ~/.config/aw/config.yml")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
