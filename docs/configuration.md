@@ -119,6 +119,31 @@ What command to launch.
 - **`claude`** -- Launches Claude Code.
 - **`zellij`** -- Starts a zellij session with a multi-pane layout (plans watcher, git diff picker, PR status, and Claude Code).
 
+### `os` (optional)
+
+| | |
+|---|---|
+| Type | `string` |
+| Values | `"debian12"`, `"ubi9"`, `"ubi10"`, `"ubuntu2604"` |
+| Default | `"debian12"` |
+
+The base operating system for the container image. Only valid with `environment: container`. Mutually exclusive with `dockerfile`.
+
+- **`debian12`** -- Debian 12 bookworm-slim (default, same as current behavior)
+- **`ubi9`** -- Red Hat Universal Base Image 9 (for RHEL 9 work)
+- **`ubi10`** -- Red Hat Universal Base Image 10 (for RHEL 10 work)
+- **`ubuntu2604`** -- Ubuntu 26.04
+
+All OS templates include the same tooling: git, curl, Nix, devbox, and setpriv. The entrypoint behavior is identical across all OS templates.
+
+```yaml
+profiles:
+  rhel10-shell:
+    environment: container
+    launch: shell
+    os: ubi10
+```
+
 ### `worktree` (optional)
 
 | | |
@@ -224,6 +249,9 @@ profiles:
 3. **`launch` is required** on every profile. Must be `"shell"`, `"claude"`, or `"zellij"`.
 4. **`zellij` config requires `launch: zellij`.** Specifying `zellij:` on a profile with a different launch mode is an error.
 5. **`default` must reference an existing profile.** If `default` is set, it must match one of the keys in `profiles`.
+6. **`os` must be a known value.** Must be `"debian12"`, `"ubi9"`, `"ubi10"`, or `"ubuntu2604"`.
+7. **`os` requires `environment: container`.** Using `os` with `environment: host` is an error.
+8. **`os` and `dockerfile` are mutually exclusive.** Use `os` for built-in templates or `dockerfile` for a custom Dockerfile.
 
 ### Example error messages
 

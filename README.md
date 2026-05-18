@@ -11,6 +11,7 @@
 | **Podman ネイティブサポート** | `container_runtime: podman` — ラッパースクリプト不要 |
 | **カスタムマウント** | `mounts:` フィールドでホストの任意のディレクトリをコンテナにバインドマウント |
 | **mise 統合** | プロジェクトの `mise.toml` でコンテナ内のツールインストールを制御 |
+| **マルチOS テンプレート** | `os:` フィールドで Debian 12, UBI 9, UBI 10, Ubuntu 26.04 を選択可能 |
 | **最小ベースイメージ** | Dockerfile を簡素化 — OS の必須パッケージ + mise のみ。言語はバンドルしない |
 | **`volume create` Podman 修正** | Podman の非冪等な `volume create`（exit 125）を `--ignore` フラグで対処 |
 | **Zellij タブ再利用** | zellij 内で実行した場合、セッションをネストせず新しいタブを開く |
@@ -106,6 +107,11 @@ profiles:
     zellij:                        # Zellij セッション設定（任意、launch: zellij の場合のみ有効）
       layout: default              #   レイアウト名（"default" またはカスタムパス）
 
+  rhel10-shell:
+    environment: container
+    launch: shell
+    os: ubi10                      # RHEL 10 (UBI 10) ベースのコンテナ
+
   host-shell:
     environment: host              # ホスト上で直接実行（コンテナなし）
     launch: shell
@@ -128,7 +134,8 @@ profiles:
   - `target` — コンテナパス
   - `readonly` — 読み取り専用でマウント（デフォルト: false）
 - **`env`**（任意）: コンテナに渡す環境変数。
-- **`dockerfile`**（任意）: カスタム Dockerfile のパス。`environment: container` の場合のみ有効。Dockerfile が置かれたディレクトリ全体がビルドコンテキストになるため、`COPY` で同じディレクトリ内のファイルを参照できます。
+- **`os`**（任意）: コンテナイメージのベース OS。`"debian12"`（デフォルト）、`"ubi9"`、`"ubi10"`、`"ubuntu2604"`。`environment: container` の場合のみ有効。`dockerfile` と排他的。
+- **`dockerfile`**（任意）: カスタム Dockerfile のパス。`environment: container` の場合のみ有効。`os` と排他的。Dockerfile が置かれたディレクトリ全体がビルドコンテキストになるため、`COPY` で同じディレクトリ内のファイルを参照できます。
 
 ### トップレベルのデフォルト値
 
