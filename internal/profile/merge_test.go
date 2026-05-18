@@ -477,7 +477,7 @@ func TestMergeProfile_InvalidOverrideKeepsOSAndDockerfileForValidation(t *testin
 
 func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	cfg := Config{
-		Profile: Profile{
+		Defaults: ProfileDefaults{
 			Environment: EnvironmentHost,
 			Worktree:    &WorktreeConfig{Base: "origin/main", Dir: "~/.aw/wt"},
 			Env:         map[string]string{"A": "1"},
@@ -535,7 +535,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 
 func TestApplyTopLevel_ProfileDockerfileOverridesTopLevelOS(t *testing.T) {
 	cfg := Config{
-		Profile: Profile{
+		Defaults: ProfileDefaults{
 			Environment: EnvironmentContainer,
 			OS:          OSDebian12,
 		},
@@ -560,7 +560,7 @@ func TestApplyTopLevel_ProfileDockerfileOverridesTopLevelOS(t *testing.T) {
 
 func TestApplyTopLevel_ProfileOSOverridesTopLevelDockerfile(t *testing.T) {
 	cfg := Config{
-		Profile: Profile{
+		Defaults: ProfileDefaults{
 			Environment: EnvironmentContainer,
 			Dockerfile:  "Dockerfile.base",
 		},
@@ -585,13 +585,13 @@ func TestApplyTopLevel_ProfileOSOverridesTopLevelDockerfile(t *testing.T) {
 
 func TestMergeConfig_TopLevelMerged(t *testing.T) {
 	builtin := Config{
-		Profile: Profile{
+		Defaults: ProfileDefaults{
 			Environment: EnvironmentContainer,
 		},
 		Profiles: map[string]Profile{},
 	}
 	user := Config{
-		Profile: Profile{
+		Defaults: ProfileDefaults{
 			Worktree: &WorktreeConfig{Dir: "/custom"},
 		},
 		Profiles: map[string]Profile{},
@@ -599,11 +599,73 @@ func TestMergeConfig_TopLevelMerged(t *testing.T) {
 
 	merged := MergeConfig(builtin, user)
 
-	if merged.Environment != EnvironmentContainer {
-		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Environment, EnvironmentContainer)
+	if merged.Defaults.Environment != EnvironmentContainer {
+		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Defaults.Environment, EnvironmentContainer)
 	}
-	if merged.Worktree == nil || merged.Worktree.Dir != "/custom" {
-		t.Errorf("top-level Worktree.Dir should be %q, got %+v", "/custom", merged.Worktree)
+	if merged.Defaults.Worktree == nil || merged.Defaults.Worktree.Dir != "/custom" {
+		t.Errorf("top-level Worktree.Dir should be %q, got %+v", "/custom", merged.Defaults.Worktree)
+	}
+}
+
+func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
+	defaults := Profile{
+		Environment:      EnvironmentContainer,
+		Launch:           LaunchClaude,
+		Worktree:         &WorktreeConfig{Base: "origin/main", Dir: "/base"},
+		Zellij:           &ZellijConfig{Layout: "default", Tool: "claude"},
+		Env:              map[string]string{"A": "1"},
+		OS:               OSDebian12,
+		ContainerRuntime: ContainerRuntimePodman,
+		MountSSH:         boolPtr(true),
+		Mounts:           []CustomMount{{Source: "/src", Target: "/dst"}},
+	}
+	effective := MergeProfile(defaults, Profile{
+		Launch:     LaunchZellij,
+		Worktree:   &WorktreeConfig{Dir: "/override"},
+		Zellij:     &ZellijConfig{Tool: "codex"},
+		Env:        map[string]string{"B": "2"},
+		Dockerfile: "Dockerfile.custom",
+		MountSSH:   boolPtr(false),
+		Mounts:     []CustomMount{},
+	})
+
+	relative := RelativeProfile(defaults, effective)
+	roundTrip := MergeProfile(defaults, relative)
+
+	if roundTrip.Environment != effective.Environment {
+		t.Errorf("Environment = %q, want %q", roundTrip.Environment, effective.Environment)
+	}
+	if roundTrip.Launch != effective.Launch {
+		t.Errorf("Launch = %q, want %q", roundTrip.Launch, effective.Launch)
+	}
+	if roundTrip.Worktree == nil || effective.Worktree == nil || *roundTrip.Worktree != *effective.Worktree {
+		t.Errorf("Worktree = %+v, want %+v", roundTrip.Worktree, effective.Worktree)
+	}
+	if roundTrip.Zellij == nil || effective.Zellij == nil || *roundTrip.Zellij != *effective.Zellij {
+		t.Errorf("Zellij = %+v, want %+v", roundTrip.Zellij, effective.Zellij)
+	}
+	if len(roundTrip.Env) != len(effective.Env) || roundTrip.Env["A"] != effective.Env["A"] || roundTrip.Env["B"] != effective.Env["B"] {
+		t.Errorf("Env = %+v, want %+v", roundTrip.Env, effective.Env)
+	}
+	if roundTrip.OS != effective.OS {
+		t.Errorf("OS = %q, want %q", roundTrip.OS, effective.OS)
+	}
+	if roundTrip.Dockerfile != effective.Dockerfile {
+		t.Errorf("Dockerfile = %q, want %q", roundTrip.Dockerfile, effective.Dockerfile)
+	}
+	if roundTrip.ContainerRuntime != effective.ContainerRuntime {
+		t.Errorf("ContainerRuntime = %q, want %q", roundTrip.ContainerRuntime, effective.ContainerRuntime)
+	}
+	if roundTrip.EffectiveMountSSH() != effective.EffectiveMountSSH() {
+		t.Errorf("EffectiveMountSSH() = %v, want %v", roundTrip.EffectiveMountSSH(), effective.EffectiveMountSSH())
+	}
+	if len(roundTrip.Mounts) != len(effective.Mounts) {
+		t.Fatalf("Mounts = %+v, want %+v", roundTrip.Mounts, effective.Mounts)
+	}
+	for i := range roundTrip.Mounts {
+		if roundTrip.Mounts[i] != effective.Mounts[i] {
+			t.Errorf("Mounts[%d] = %+v, want %+v", i, roundTrip.Mounts[i], effective.Mounts[i])
+		}
 	}
 }
 

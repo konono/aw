@@ -8,12 +8,12 @@ type ConfigSource struct {
 
 // Config represents the top-level .agent-workspace.yml file.
 //
-// Profile fields declared at the top level (via the embedded Profile) act as
-// defaults for every profile in Profiles. Each profile overrides those
-// defaults field-by-field using the same merge rules as MergeProfile.
+// Profile fields declared at the top level (via Defaults) act as defaults for
+// every profile in Profiles. Each profile overrides those defaults
+// field-by-field using the same merge rules as MergeProfile.
 type Config struct {
 	Default  string             `yaml:"default"`
-	Profile  `yaml:",inline"`   // top-level defaults shared by all profiles
+	Defaults ProfileDefaults    `yaml:",inline"` // top-level defaults shared by all profiles
 	Profiles map[string]Profile `yaml:"profiles"`
 	Source   ConfigSource       `yaml:"-"`
 }
@@ -48,6 +48,31 @@ type Profile struct {
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
+}
+
+// ProfileDefaults describes top-level defaults shared by all profiles.
+type ProfileDefaults Profile
+
+// AsProfile converts top-level defaults into a Profile for merge operations.
+func (d ProfileDefaults) AsProfile() Profile {
+	return Profile(d)
+}
+
+// ProfileDefaultsFromProfile converts a Profile into top-level defaults.
+func ProfileDefaultsFromProfile(p Profile) ProfileDefaults {
+	return ProfileDefaults(p)
+}
+
+// BuiltinShared returns the subset of starter defaults that should remain
+// inheritable across later config layers. Container-only fields are baked into
+// the built-in starter profiles so user-defined host profiles do not inherit
+// invalid defaults from the embedded template.
+func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
+	shared := d
+	shared.Environment = ""
+	shared.OS = ""
+	shared.Dockerfile = ""
+	return shared
 }
 
 // CustomMount represents a user-defined bind mount for Docker containers.
@@ -104,7 +129,7 @@ type ZellijConfig struct {
 type Environment string
 
 const (
-	EnvironmentHost   Environment = "host"
+	EnvironmentHost      Environment = "host"
 	EnvironmentContainer Environment = "container"
 )
 

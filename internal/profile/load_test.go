@@ -250,6 +250,42 @@ profiles:
 	}
 }
 
+func TestLoadFile_TopLevelMountSSHOverridesBuiltinProfiles(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".agent-workspace.yml")
+
+	content := `
+mount_ssh: true
+profiles:
+  claude:
+    mount_ssh: false
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFile(configPath)
+	if err != nil {
+		t.Fatalf("LoadFile() error: %v", err)
+	}
+
+	shellProfile, ok := cfg.Profiles["shell"]
+	if !ok {
+		t.Fatal("expected builtin shell profile to be preserved")
+	}
+	if !shellProfile.EffectiveMountSSH() {
+		t.Error("shell should inherit mount_ssh: true from top-level user config")
+	}
+
+	claudeProfile, ok := cfg.Profiles["claude"]
+	if !ok {
+		t.Fatal("expected builtin claude profile to be preserved")
+	}
+	if claudeProfile.EffectiveMountSSH() {
+		t.Error("claude should override inherited mount_ssh to false")
+	}
+}
+
 func TestParse_WorktreeOnCreate(t *testing.T) {
 	yaml := `
 profiles:
@@ -401,7 +437,7 @@ profiles:
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if cfg.MountSSH == nil || !*cfg.MountSSH {
+	if cfg.Defaults.MountSSH == nil || !*cfg.Defaults.MountSSH {
 		t.Fatal("top-level mount_ssh should parse as true")
 	}
 
