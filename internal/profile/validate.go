@@ -42,6 +42,24 @@ func Validate(p Profile) error {
 		}
 	}
 
+	// Validate os
+	switch p.OS {
+	case "", OSDebian12, OSUBI9, OSUBI10, OSUbuntu2604:
+		// ok
+	default:
+		return fmt.Errorf("unknown os: %q (must be \"debian12\", \"ubi9\", \"ubi10\", or \"ubuntu2604\")", p.OS)
+	}
+
+	// Validate os is only used with environment: container
+	if p.OS != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("os is only valid with environment: container")
+	}
+
+	// Validate os and dockerfile are mutually exclusive
+	if p.OS != "" && p.Dockerfile != "" {
+		return fmt.Errorf("os and dockerfile are mutually exclusive; use os for built-in templates or dockerfile for a custom Dockerfile")
+	}
+
 	// Validate dockerfile is only used with environment: docker
 	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: docker")

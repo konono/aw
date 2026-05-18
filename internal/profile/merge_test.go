@@ -331,6 +331,37 @@ func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_OverrideOS(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+	}
+	override := Profile{
+		OS: OSUBI9,
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
+	}
+}
+
+func TestMergeProfile_EmptyOSOverridePreservesBase(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		OS:          OSUBI10,
+	}
+	override := Profile{}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI10 {
+		t.Errorf("OS = %q, want %q (should be preserved from base)", merged.OS, OSUBI10)
+	}
+}
+
 func TestMergeProfile_OverrideDockerfile(t *testing.T) {
 	base := Profile{
 		Environment: EnvironmentContainer,

@@ -26,6 +26,16 @@ const (
 	ContainerRuntimePodman ContainerRuntime = "podman"
 )
 
+// OSTemplate specifies the base OS for the container image.
+type OSTemplate string
+
+const (
+	OSDebian12   OSTemplate = "debian12"
+	OSUBI9       OSTemplate = "ubi9"
+	OSUBI10      OSTemplate = "ubi10"
+	OSUbuntu2604 OSTemplate = "ubuntu2604"
+)
+
 // Profile describes a single named workspace profile.
 type Profile struct {
 	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
@@ -33,6 +43,7 @@ type Profile struct {
 	Launch           LaunchMode        `yaml:"launch"`
 	Zellij           *ZellijConfig     `yaml:"zellij,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
+	OS               OSTemplate        `yaml:"os,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
@@ -43,6 +54,14 @@ type CustomMount struct {
 	Source   string `yaml:"source"`
 	Target   string `yaml:"target"`
 	ReadOnly bool   `yaml:"readonly,omitempty"`
+}
+
+// EffectiveOS returns the OS template, defaulting to "debian12" if empty.
+func (p *Profile) EffectiveOS() OSTemplate {
+	if p.OS != "" {
+		return p.OS
+	}
+	return OSDebian12
 }
 
 // EffectiveContainerRuntime returns the container runtime, defaulting to "docker".

@@ -122,6 +122,74 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "dockerfile is only valid with environment: docker",
 		},
+		{
+			name: "valid container + claude + os debian12",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSDebian12,
+			},
+		},
+		{
+			name: "valid container + claude + os ubi9",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSUBI9,
+			},
+		},
+		{
+			name: "valid container + claude + os ubi10",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSUBI10,
+			},
+		},
+		{
+			name: "valid container + claude + os ubuntu2604",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSUbuntu2604,
+			},
+		},
+		{
+			name: "unknown os value",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          "centos7",
+			},
+			wantErr: "unknown os",
+		},
+		{
+			name: "os with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				OS:          OSUBI9,
+			},
+			wantErr: "os is only valid with environment: container",
+		},
+		{
+			name: "os and dockerfile mutually exclusive",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSUBI10,
+				Dockerfile:  "custom/Dockerfile",
+			},
+			wantErr: "os and dockerfile are mutually exclusive",
+		},
+		{
+			name: "dockerfile without os is valid",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Dockerfile:  "custom/Dockerfile",
+			},
+		},
 	}
 
 	for _, tt := range tests {

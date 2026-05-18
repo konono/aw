@@ -320,6 +320,25 @@ profiles:
 	}
 }
 
+func TestParse_OS(t *testing.T) {
+	yaml := `
+profiles:
+  test:
+    environment: container
+    launch: claude
+    os: ubi9
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	p := cfg.Profiles["test"]
+	if p.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", p.OS, OSUBI9)
+	}
+}
+
 func TestParse_Dockerfile(t *testing.T) {
 	yaml := `
 profiles:
