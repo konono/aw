@@ -202,6 +202,9 @@ func assertStarterProfiles(t *testing.T, cfg *Config) {
 		if p.ContainerRuntime != ContainerRuntimePodman {
 			t.Errorf("%s.ContainerRuntime = %q, want %q", tt.name, p.ContainerRuntime, ContainerRuntimePodman)
 		}
+		if p.EffectiveMountSSH() {
+			t.Errorf("%s.EffectiveMountSSH() = true, want false", tt.name)
+		}
 	}
 }
 
@@ -378,6 +381,36 @@ profiles:
 	p := cfg.Profiles["test"]
 	if p.Dockerfile != "docker/Dockerfile.custom" {
 		t.Errorf("Dockerfile = %q, want %q", p.Dockerfile, "docker/Dockerfile.custom")
+	}
+}
+
+func TestParse_MountSSH(t *testing.T) {
+	yaml := `
+mount_ssh: true
+profiles:
+  enabled:
+    environment: container
+    launch: claude
+  disabled:
+    environment: container
+    launch: shell
+    mount_ssh: false
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	if cfg.MountSSH == nil || !*cfg.MountSSH {
+		t.Fatal("top-level mount_ssh should parse as true")
+	}
+
+	disabled := cfg.Profiles["disabled"]
+	if disabled.MountSSH == nil {
+		t.Fatal("profile mount_ssh should not be nil")
+	}
+	if *disabled.MountSSH {
+		t.Error("disabled.mount_ssh = true, want false")
 	}
 }
 

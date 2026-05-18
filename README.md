@@ -83,6 +83,8 @@ env:                               # コンテナに渡す環境変数（任意�
   CLAUDE_CODE_USE_VERTEX: "1"
   CLOUD_ML_REGION: "us-east5"
 
+mount_ssh: true                    # ~/.ssh を読み取り専用でマウント（必要な場合のみ、デフォルト: false）
+
 mounts:                            # カスタムバインドマウント（任意、container のみ有効）
   - source: "~/.config/gcloud"     #   ホストパス（~ 展開に対応）
     target: "/home/claude/.config/gcloud"  #   コンテナパス
@@ -139,6 +141,7 @@ profiles:
 - **`launch`**（必須）: `"shell"`、`"claude"`、または `"zellij"` — 起動するもの。
 - **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。
 - **`container_runtime`**（任意）: `"docker"` または `"podman"`。デフォルトは `"docker"`。
+- **`mount_ssh`**（任意）: ホストの `~/.ssh` を読み取り専用でコンテナへ持ち込む明示 opt-in。デフォルトは `false`。トップレベルに置けば全プロファイルの既定値になり、各プロファイルで `true` / `false` を個別に上書きできます。
 - **`mounts`**（任意）: Docker/Podman コンテナ用のカスタムバインドマウント。`environment: container` の場合のみ有効。
   - `source` — ホストパス（`~` 展開に対応）
   - `target` — コンテナパス
@@ -156,6 +159,7 @@ default: worktree-zellij
 
 container_runtime: podman
 environment: container
+mount_ssh: true
 
 mounts:
   - source: "~/.config/gcloud"
@@ -292,13 +296,13 @@ EOF
 
 `user.name`、`user.email`、エイリアスなどがそのまま利用できます。設定不要です。
 
-### SSH — そのまま動作
+### SSH — 明示 opt-in
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.ssh/` | `/home/claude/.ssh/` | 読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
+| `~/.ssh/` | `/home/claude/.ssh/` | `mount_ssh: true` のときだけ読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
 
-秘密鍵、`known_hosts`、`config` がすべて引き継がれます。SSH 経由の `git push` が即座に動作します。
+`~/.ssh` はデフォルトではマウントされません。SSH 経由の `git push` / `pull` が必要なプロファイルだけ `mount_ssh: true` を付けると、秘密鍵、`known_hosts`、`config` を引き継げます。
 
 ### GitHub CLI — そのまま動作
 

@@ -46,6 +46,7 @@ type Profile struct {
 	OS               OSTemplate        `yaml:"os,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
 }
 
@@ -70,6 +71,11 @@ func (p *Profile) EffectiveContainerRuntime() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+// EffectiveMountSSH returns whether the host ~/.ssh directory should be mounted.
+func (p *Profile) EffectiveMountSSH() bool {
+	return p != nil && p.MountSSH != nil && *p.MountSSH
 }
 
 // WorktreeConfig controls git worktree creation.

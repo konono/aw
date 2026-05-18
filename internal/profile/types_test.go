@@ -97,3 +97,40 @@ func TestProfile_EffectiveTool(t *testing.T) {
 		})
 	}
 }
+
+func TestProfile_EffectiveMountSSH(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile *Profile
+		want    bool
+	}{
+		{
+			name:    "nil profile defaults to false",
+			profile: nil,
+			want:    false,
+		},
+		{
+			name:    "unset defaults to false",
+			profile: &Profile{},
+			want:    false,
+		},
+		{
+			name:    "explicit false stays false",
+			profile: &Profile{MountSSH: boolPtr(false)},
+			want:    false,
+		},
+		{
+			name:    "explicit true enables ssh mount",
+			profile: &Profile{MountSSH: boolPtr(true)},
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.profile.EffectiveMountSSH(); got != tt.want {
+				t.Errorf("EffectiveMountSSH() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -13,6 +13,7 @@ type MountOptions struct {
 	WorkDir          string         // host working directory (workspace)
 	ToolStageDir     string         // host staging dir for tool config (e.g. ~/.agent-workspace/claude)
 	ToolContainerDir string         // container target for tool config (e.g. /home/agent/.claude)
+	MountSSH         bool           // whether to mount host ~/.ssh into the container
 	ExtraMounts      []docker.Mount // user-defined custom mounts
 }
 
@@ -45,7 +46,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		Target: opts.WorkDir,
 	})
 
-	mounts = append(mounts, optionalMounts(opts.HomeDir)...)
+	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.MountSSH)...)
 
 	worktreeMount, err := worktreeMount(opts.WorkDir)
 	if err != nil {
@@ -60,7 +61,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 	return mounts, nil
 }
 
-func optionalMounts(homeDir string) []docker.Mount {
+func optionalMounts(homeDir string, mountSSH bool) []docker.Mount {
 	var mounts []docker.Mount
 
 	gitconfig := filepath.Join(homeDir, ".gitconfig")
@@ -80,7 +81,7 @@ func optionalMounts(homeDir string) []docker.Mount {
 	}
 
 	sshDir := filepath.Join(homeDir, ".ssh")
-	if dirExists(sshDir) {
+	if mountSSH && dirExists(sshDir) {
 		mounts = append(mounts, docker.Mount{
 			Source:   sshDir,
 			Target:   "/home/agent/.ssh-host",
