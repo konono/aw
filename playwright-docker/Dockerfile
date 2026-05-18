@@ -14,6 +14,18 @@ RUN apt-get update && \
 RUN useradd -m -s /bin/bash agent && \
     echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
+# Create /nix owned by agent for single-user Nix install
+RUN mkdir -p /nix && chown agent:agent /nix
+
+# Install Nix as agent user (single-user mode, no daemon)
+USER agent
+RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+USER root
+
+# Create default profile symlink that devbox expects
+RUN ln -s /home/agent/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
+
+# Install devbox
 RUN su -s /bin/bash agent -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
 
 ENV PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"

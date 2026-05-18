@@ -14,6 +14,7 @@ import (
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/toolinfo"
 )
 
 const defaultImageName = "aw-container"
@@ -80,7 +81,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if dfBytes, err := os.ReadFile(hashSource); err == nil {
 		hashInput = string(dfBytes)
 	}
-	toolPkg := toolDevboxPkg(tool)
+	toolPkg := toolinfo.DevboxPkg(tool)
 	hashInput += "\n" + toolPkg
 	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
 		hashInput += "\n" + string(devboxData)
@@ -110,11 +111,11 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	toolStageDir := ""
 	toolContainerDir := ""
 
-	spec, containerDir := toolSyncConfig(tool)
+	spec := toolSyncSpec(tool)
 	if spec != nil {
-		srcDir := toolHomePath(tool, ec.HomeDir)
+		srcDir := toolinfo.HomePath(tool, ec.HomeDir)
 		toolStageDir = filepath.Join(stageDir, tool)
-		toolContainerDir = containerDir
+		toolContainerDir = toolinfo.ContainerDir(tool)
 		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
 			return fmt.Errorf("syncing %s settings: %w", tool, err)
 		}
@@ -154,51 +155,16 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
-func toolSyncConfig(tool string) (*config.ToolSyncSpec, string) {
+func toolSyncSpec(tool string) *config.ToolSyncSpec {
 	switch tool {
 	case "claude":
-		return &config.ClaudeSyncSpec, "/home/agent/.claude"
+		return &config.ClaudeSyncSpec
 	case "codex":
-		return &config.CodexSyncSpec, "/home/agent/.codex"
+		return &config.CodexSyncSpec
 	case "opencode":
-		return &config.OpenCodeSyncSpec, "/home/agent/.config/opencode"
+		return &config.OpenCodeSyncSpec
 	default:
-		return nil, ""
-	}
-}
-
-func toolDevboxPkg(tool string) string {
-	switch tool {
-	case "claude":
-		return "claude-code"
-	case "codex":
-		return "codex"
-	case "opencode":
-		return "opencode"
-	default:
-		return ""
-	}
-}
-
-func toolHomePath(tool, homeDir string) string {
-	switch tool {
-	case "claude":
-		if v := os.Getenv("CLAUDE_HOME"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".claude")
-	case "codex":
-		if v := os.Getenv("CODEX_HOME"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".codex")
-	case "opencode":
-		if v := os.Getenv("OPENCODE_CONFIG_DIR"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".config", "opencode")
-	default:
-		return ""
+		return nil
 	}
 }
 
