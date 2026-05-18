@@ -27,7 +27,7 @@ type RunConfig struct {
 // Client is the interface for Docker operations.
 type Client interface {
 	CheckAvailable() error
-	Build(ctx context.Context, imageName, contextDir, dockerfilePath string) error
+	Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error
 	VolumeCreate(ctx context.Context, volumeName string) error
 	Run(ctx context.Context, config RunConfig) error
 }
@@ -71,10 +71,14 @@ func (c *ShellClient) CheckAvailable() error {
 
 // Build builds a Docker image from the given build context directory.
 // If dockerfilePath is non-empty, it is passed via -f to specify the Dockerfile.
-func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfilePath string) error {
+// buildArgs are passed as --build-arg KEY=VALUE.
+func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error {
 	args := []string{"build", "-t", imageName}
 	if dockerfilePath != "" {
 		args = append(args, "-f", dockerfilePath)
+	}
+	for k, v := range buildArgs {
+		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
 	}
 	args = append(args, contextDir)
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)

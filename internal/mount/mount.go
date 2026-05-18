@@ -9,15 +9,11 @@ import (
 
 // MountOptions contains the parameters needed to construct Docker mounts.
 type MountOptions struct {
-	HomeDir             string         // host user home directory
-	WorkDir             string         // host working directory (workspace)
-	ClaudeHome          string         // host ~/.claude
-	ContainerClaudeHome string         // host ~/.agent-workspace
-	ContainerClaudeJSON string         // host ~/.agent-workspace.json
-	VolumeName          string         // Docker volume name for tool installation cache
-	ExtraMounts         []docker.Mount // user-defined custom mounts
-	Tool                string         // AI tool: "claude", "codex", or "" (defaults to claude)
-	ContainerCodexHome  string         // host ~/.agent-workspace-codex (for codex)
+	HomeDir          string         // host user home directory
+	WorkDir          string         // host working directory (workspace)
+	ToolStageDir     string         // host staging dir for tool config (e.g. ~/.agent-workspace/claude)
+	ToolContainerDir string         // container target for tool config (e.g. /home/agent/.claude)
+	ExtraMounts      []docker.Mount // user-defined custom mounts
 }
 
 // Builder constructs Docker mount arguments.
@@ -37,30 +33,10 @@ func NewBuilder() *DefaultBuilder {
 func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) {
 	var mounts []docker.Mount
 
-	// Fixed mounts (always present)
-	mounts = append(mounts, docker.Mount{
-		Source:   opts.VolumeName,
-		Target:   "/home/claude/.local",
-		IsVolume: true,
-	})
-
-	// Tool-specific mounts
-	switch opts.Tool {
-	case "codex":
-		if opts.ContainerCodexHome != "" {
-			mounts = append(mounts, docker.Mount{
-				Source: opts.ContainerCodexHome,
-				Target: "/home/claude/.codex",
-			})
-		}
-	default:
+	if opts.ToolStageDir != "" && opts.ToolContainerDir != "" {
 		mounts = append(mounts, docker.Mount{
-			Source: opts.ContainerClaudeHome,
-			Target: "/home/claude/.claude",
-		})
-		mounts = append(mounts, docker.Mount{
-			Source: opts.ContainerClaudeJSON,
-			Target: "/home/claude/.claude.json",
+			Source: opts.ToolStageDir,
+			Target: opts.ToolContainerDir,
 		})
 	}
 
@@ -69,10 +45,8 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		Target: opts.WorkDir,
 	})
 
-	// Optional host mounts
 	mounts = append(mounts, optionalMounts(opts.HomeDir)...)
 
-	// Worktree mount
 	worktreeMount, err := worktreeMount(opts.WorkDir)
 	if err != nil {
 		return nil, err
@@ -81,40 +55,35 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		mounts = append(mounts, *worktreeMount)
 	}
 
-	// Custom user-defined mounts
 	mounts = append(mounts, opts.ExtraMounts...)
 
 	return mounts, nil
 }
 
-// optionalMounts returns mounts for host files that may or may not exist.
 func optionalMounts(homeDir string) []docker.Mount {
 	var mounts []docker.Mount
 
-	// .gitconfig
 	gitconfig := filepath.Join(homeDir, ".gitconfig")
 	if fileExists(gitconfig) {
 		mounts = append(mounts, docker.Mount{
 			Source: gitconfig,
-			Target: "/home/claude/.gitconfig",
+			Target: "/home/agent/.gitconfig",
 		})
 	}
 
-	// .config/gh
 	ghConfig := filepath.Join(homeDir, ".config", "gh")
 	if dirExists(ghConfig) {
 		mounts = append(mounts, docker.Mount{
 			Source: ghConfig,
-			Target: "/home/claude/.config/gh",
+			Target: "/home/agent/.config/gh",
 		})
 	}
 
-	// .ssh (mounted read-only to .ssh-host, entrypoint copies it)
 	sshDir := filepath.Join(homeDir, ".ssh")
 	if dirExists(sshDir) {
 		mounts = append(mounts, docker.Mount{
 			Source:   sshDir,
-			Target:   "/home/claude/.ssh-host",
+			Target:   "/home/agent/.ssh-host",
 			ReadOnly: true,
 		})
 	}
@@ -122,8 +91,6 @@ func optionalMounts(homeDir string) []docker.Mount {
 	return mounts
 }
 
-// worktreeMount returns an additional mount for the main .git directory
-// if the workspace is a git worktree.
 func worktreeMount(workDir string) (*docker.Mount, error) {
 	mainGitDir, err := DetectWorktree(workDir)
 	if err != nil {
@@ -133,7 +100,6 @@ func worktreeMount(workDir string) (*docker.Mount, error) {
 		return nil, nil
 	}
 
-	// If the main .git dir is already under the workspace, no extra mount needed
 	if IsSubpath(workDir, mainGitDir) {
 		return nil, nil
 	}

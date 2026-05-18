@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/konono/aw/internal/config"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
@@ -27,7 +28,7 @@ func (m *mockDockerClient) CheckAvailable() error {
 	return nil
 }
 
-func (m *mockDockerClient) Build(_ context.Context, _, _, _ string) error {
+func (m *mockDockerClient) Build(_ context.Context, _, _, _ string, _ map[string]string) error {
 	m.buildCalled = true
 	return nil
 }
@@ -44,22 +45,15 @@ func (m *mockDockerClient) Run(_ context.Context, config docker.RunConfig) error
 }
 
 type mockConfigSyncer struct {
-	syncCalled      bool
-	codexSyncCalled bool
-	onboardCalled   bool
-	syncErr         error
-	codexSyncErr    error
-	onboardErr      error
+	syncCalled    bool
+	onboardCalled bool
+	syncErr       error
+	onboardErr    error
 }
 
-func (m *mockConfigSyncer) SyncSettings(_, _ string) error {
+func (m *mockConfigSyncer) SyncToolSettings(_, _ string, _ config.ToolSyncSpec) error {
 	m.syncCalled = true
 	return m.syncErr
-}
-
-func (m *mockConfigSyncer) SyncCodexSettings(_, _ string) error {
-	m.codexSyncCalled = true
-	return m.codexSyncErr
 }
 
 func (m *mockConfigSyncer) EnsureOnboardingState(_ string) error {
@@ -89,8 +83,8 @@ func TestResolveDockerfilePath_Absolute(t *testing.T) {
 
 func TestDockerStage_Name(t *testing.T) {
 	s := &DockerStage{}
-	if s.Name() != "docker" {
-		t.Errorf("Name() = %q, want %q", s.Name(), "docker")
+	if s.Name() != "container" {
+		t.Errorf("Name() = %q, want %q", s.Name(), "container")
 	}
 }
 

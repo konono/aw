@@ -16,10 +16,7 @@ import (
 	"github.com/konono/aw/internal/pipeline"
 )
 
-const (
-	defaultImageName  = "claude-code-docker"
-	defaultVolumeName = "claude-code-local"
-)
+const defaultImageName = "aw-container"
 
 // DockerStage builds the Docker image, creates volumes, syncs config, and builds mounts.
 type DockerStage struct {
@@ -29,7 +26,6 @@ type DockerStage struct {
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
-// DockerClient is initialized lazily in Run() using the profile's container_runtime.
 func NewDockerStage() *DockerStage {
 	return &DockerStage{
 		ConfigSyncer: config.NewSyncer(),
@@ -37,20 +33,17 @@ func NewDockerStage() *DockerStage {
 	}
 }
 
-func (s *DockerStage) Name() string { return "docker" }
+func (s *DockerStage) Name() string { return "container" }
 
 func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) error {
-	// 0. Initialize docker client with the configured container runtime
 	if s.DockerClient == nil {
 		s.DockerClient = docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
 	}
 
-	// 1. Check container runtime availability
 	if err := s.DockerClient.CheckAvailable(); err != nil {
 		return fmt.Errorf("container runtime is not available: %w", err)
 	}
 
-	// 2. Resolve custom Dockerfile path
 	customDockerfile := ""
 	if ec.Profile.Dockerfile != "" {
 		resolved, err := resolveDockerfilePath(ec.Profile.Dockerfile)
@@ -60,25 +53,48 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		customDockerfile = resolved
 	}
 
-	// 3. Build Docker image
+	tool := ec.Profile.EffectiveTool()
+
 	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile)
 	if err != nil {
 		return fmt.Errorf("preparing build context: %w", err)
 	}
 	defer cleanup()
 
-	// Compute image tag from Dockerfile content hash to bust Docker cache
-	// when the Dockerfile changes.
+	// Copy user's global devbox.json into build context if it exists
+	userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
+	if data, err := os.ReadFile(userDevboxJSON); err == nil {
+		if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
+			return fmt.Errorf("copying user devbox.json to build context: %w", err)
+		}
+	}
+
 	dockerfilePath := customDockerfile
 	hashSource := filepath.Join(buildDir, "Dockerfile")
 	if dockerfilePath != "" {
 		hashSource = dockerfilePath
 	}
 
-	imageName := defaultImageName
+	// Include tool name and user devbox.json in image hash
+	hashInput := ""
 	if dfBytes, err := os.ReadFile(hashSource); err == nil {
-		hash := fmt.Sprintf("%x", sha256.Sum256(dfBytes))[:12]
+		hashInput = string(dfBytes)
+	}
+	toolPkg := toolDevboxPkg(tool)
+	hashInput += "\n" + toolPkg
+	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
+		hashInput += "\n" + string(devboxData)
+	}
+
+	imageName := defaultImageName
+	if hashInput != "" {
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
 		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
+	}
+
+	buildArgs := map[string]string{}
+	if toolPkg != "" {
+		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
 
 	if customDockerfile != "" {
@@ -86,39 +102,31 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	} else {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s'...\n", imageName)
 	}
-	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath); err != nil {
+	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
 		return fmt.Errorf("building image: %w", err)
 	}
 
-	// 3. Create Docker volume
-	if err := s.DockerClient.VolumeCreate(ctx, defaultVolumeName); err != nil {
-		return fmt.Errorf("creating volume: %w", err)
+	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
+	toolStageDir := ""
+	toolContainerDir := ""
+
+	spec, containerDir := toolSyncConfig(tool)
+	if spec != nil {
+		srcDir := toolHomePath(tool, ec.HomeDir)
+		toolStageDir = filepath.Join(stageDir, tool)
+		toolContainerDir = containerDir
+		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
+			return fmt.Errorf("syncing %s settings: %w", tool, err)
+		}
 	}
 
-	// 4. Sync host settings (tool-specific)
-	tool := ec.Profile.EffectiveTool()
-	claudeHome := claudeHomePath(ec.HomeDir)
-	containerClaudeHome := filepath.Join(ec.HomeDir, ".agent-workspace")
-	containerClaudeJSON := filepath.Join(ec.HomeDir, ".agent-workspace.json")
-	containerCodexHome := ""
-
-	switch tool {
-	case "codex":
-		codexHome := codexHomePath(ec.HomeDir)
-		containerCodexHome = filepath.Join(ec.HomeDir, ".agent-workspace-codex")
-		if err := s.ConfigSyncer.SyncCodexSettings(codexHome, containerCodexHome); err != nil {
-			return fmt.Errorf("syncing codex settings: %w", err)
-		}
-	default:
-		if err := s.ConfigSyncer.SyncSettings(claudeHome, containerClaudeHome); err != nil {
-			return fmt.Errorf("syncing settings: %w", err)
-		}
-		if err := s.ConfigSyncer.EnsureOnboardingState(containerClaudeJSON); err != nil {
+	if tool == "claude" && toolStageDir != "" {
+		onboardingPath := filepath.Join(toolStageDir, ".claude.json")
+		if err := s.ConfigSyncer.EnsureOnboardingState(onboardingPath); err != nil {
 			return fmt.Errorf("ensuring onboarding state: %w", err)
 		}
 	}
 
-	// 5. Build mounts (including custom mounts from profile)
 	var extraMounts []docker.Mount
 	for _, m := range ec.Profile.Mounts {
 		source := expandTilde(m.Source, ec.HomeDir)
@@ -130,31 +138,70 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
-		HomeDir:             ec.HomeDir,
-		WorkDir:             ec.WorkDir,
-		ClaudeHome:          claudeHome,
-		ContainerClaudeHome: containerClaudeHome,
-		ContainerClaudeJSON: containerClaudeJSON,
-		VolumeName:          defaultVolumeName,
-		ExtraMounts:         extraMounts,
-		Tool:                tool,
-		ContainerCodexHome:  containerCodexHome,
+		HomeDir:          ec.HomeDir,
+		WorkDir:          ec.WorkDir,
+		ToolStageDir:     toolStageDir,
+		ToolContainerDir: toolContainerDir,
+		ExtraMounts:      extraMounts,
 	})
 	if err != nil {
 		return fmt.Errorf("building mounts: %w", err)
 	}
 
-	// 7. Update execution context
 	ec.DockerImage = imageName
 	ec.DockerMounts = mounts
-	ec.DockerVolume = defaultVolumeName
 
 	return nil
 }
 
-// resolveDockerfilePath resolves a Dockerfile path.
-// If the path is absolute, it is returned as-is.
-// If relative, it is resolved against the git repo root.
+func toolSyncConfig(tool string) (*config.ToolSyncSpec, string) {
+	switch tool {
+	case "claude":
+		return &config.ClaudeSyncSpec, "/home/agent/.claude"
+	case "codex":
+		return &config.CodexSyncSpec, "/home/agent/.codex"
+	case "opencode":
+		return &config.OpenCodeSyncSpec, "/home/agent/.config/opencode"
+	default:
+		return nil, ""
+	}
+}
+
+func toolDevboxPkg(tool string) string {
+	switch tool {
+	case "claude":
+		return "claude-code"
+	case "codex":
+		return "codex"
+	case "opencode":
+		return "opencode"
+	default:
+		return ""
+	}
+}
+
+func toolHomePath(tool, homeDir string) string {
+	switch tool {
+	case "claude":
+		if v := os.Getenv("CLAUDE_HOME"); v != "" {
+			return v
+		}
+		return filepath.Join(homeDir, ".claude")
+	case "codex":
+		if v := os.Getenv("CODEX_HOME"); v != "" {
+			return v
+		}
+		return filepath.Join(homeDir, ".codex")
+	case "opencode":
+		if v := os.Getenv("OPENCODE_CONFIG_DIR"); v != "" {
+			return v
+		}
+		return filepath.Join(homeDir, ".config", "opencode")
+	default:
+		return ""
+	}
+}
+
 func resolveDockerfilePath(dockerfilePath string) (string, error) {
 	if filepath.IsAbs(dockerfilePath) {
 		return dockerfilePath, nil
@@ -174,18 +221,4 @@ func expandTilde(path, homeDir string) string {
 		return filepath.Join(homeDir, path[2:])
 	}
 	return path
-}
-
-func claudeHomePath(homeDir string) string {
-	if v := os.Getenv("CLAUDE_HOME"); v != "" {
-		return v
-	}
-	return filepath.Join(homeDir, ".claude")
-}
-
-func codexHomePath(homeDir string) string {
-	if v := os.Getenv("CODEX_HOME"); v != "" {
-		return v
-	}
-	return filepath.Join(homeDir, ".codex")
 }
