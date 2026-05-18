@@ -23,6 +23,29 @@ func TestWorktreeConfig_EffectiveBase(t *testing.T) {
 	}
 }
 
+func TestProfile_EffectiveOS(t *testing.T) {
+	tests := []struct {
+		name string
+		os   OSTemplate
+		want OSTemplate
+	}{
+		{"empty defaults to debian12", "", OSDebian12},
+		{"explicit debian12", OSDebian12, OSDebian12},
+		{"ubi9", OSUBI9, OSUBI9},
+		{"ubi10", OSUBI10, OSUBI10},
+		{"ubuntu2604", OSUbuntu2604, OSUbuntu2604},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Profile{OS: tt.os}
+			if got := p.EffectiveOS(); got != tt.want {
+				t.Errorf("EffectiveOS() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProfile_EffectiveTool(t *testing.T) {
 	tests := []struct {
 		name    string

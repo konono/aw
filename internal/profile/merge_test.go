@@ -331,6 +331,57 @@ func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_OverrideOS(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+	}
+	override := Profile{
+		OS: OSUBI9,
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
+	}
+}
+
+func TestMergeProfile_EmptyOSOverridePreservesBase(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		OS:          OSUBI10,
+	}
+	override := Profile{}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI10 {
+		t.Errorf("OS = %q, want %q (should be preserved from base)", merged.OS, OSUBI10)
+	}
+}
+
+func TestMergeProfile_OSOverrideClearsInheritedDockerfile(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Dockerfile:  "base/Dockerfile",
+	}
+	override := Profile{
+		OS: OSUBI9,
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
+	}
+	if merged.Dockerfile != "" {
+		t.Errorf("Dockerfile = %q, want empty (cleared by OS override)", merged.Dockerfile)
+	}
+}
+
 func TestMergeProfile_OverrideDockerfile(t *testing.T) {
 	base := Profile{
 		Environment: EnvironmentContainer,
@@ -359,6 +410,46 @@ func TestMergeProfile_EmptyDockerfileOverridePreservesBase(t *testing.T) {
 
 	if merged.Dockerfile != "base/Dockerfile" {
 		t.Errorf("Dockerfile = %q, want %q (should be preserved from base)", merged.Dockerfile, "base/Dockerfile")
+	}
+}
+
+func TestMergeProfile_DockerfileOverrideClearsInheritedOS(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		OS:          OSDebian12,
+	}
+	override := Profile{
+		Dockerfile: "custom/Dockerfile",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Dockerfile != "custom/Dockerfile" {
+		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
+	}
+	if merged.OS != "" {
+		t.Errorf("OS = %q, want empty (cleared by dockerfile override)", merged.OS)
+	}
+}
+
+func TestMergeProfile_InvalidOverrideKeepsOSAndDockerfileForValidation(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+	}
+	override := Profile{
+		OS:         OSUBI10,
+		Dockerfile: "custom/Dockerfile",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI10 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI10)
+	}
+	if merged.Dockerfile != "custom/Dockerfile" {
+		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
 	}
 }
 
@@ -409,6 +500,56 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	}
 	if d.Env["A"] != "1" || d.Env["B"] != "2" {
 		t.Errorf("docker-override.Env = %+v, want both A and B", d.Env)
+	}
+}
+
+func TestApplyTopLevel_ProfileDockerfileOverridesTopLevelOS(t *testing.T) {
+	cfg := Config{
+		Profile: Profile{
+			Environment: EnvironmentContainer,
+			OS:          OSDebian12,
+		},
+		Profiles: map[string]Profile{
+			"custom": {
+				Launch:     LaunchClaude,
+				Dockerfile: "Dockerfile.custom",
+			},
+		},
+	}
+
+	out := ApplyTopLevel(cfg)
+	p := out.Profiles["custom"]
+
+	if p.Dockerfile != "Dockerfile.custom" {
+		t.Errorf("Dockerfile = %q, want %q", p.Dockerfile, "Dockerfile.custom")
+	}
+	if p.OS != "" {
+		t.Errorf("OS = %q, want empty (top-level OS should be cleared)", p.OS)
+	}
+}
+
+func TestApplyTopLevel_ProfileOSOverridesTopLevelDockerfile(t *testing.T) {
+	cfg := Config{
+		Profile: Profile{
+			Environment: EnvironmentContainer,
+			Dockerfile:  "Dockerfile.base",
+		},
+		Profiles: map[string]Profile{
+			"ubi9": {
+				Launch: LaunchClaude,
+				OS:     OSUBI9,
+			},
+		},
+	}
+
+	out := ApplyTopLevel(cfg)
+	p := out.Profiles["ubi9"]
+
+	if p.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", p.OS, OSUBI9)
+	}
+	if p.Dockerfile != "" {
+		t.Errorf("Dockerfile = %q, want empty (top-level dockerfile should be cleared)", p.Dockerfile)
 	}
 }
 
