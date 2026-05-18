@@ -1,40 +1,96 @@
 # Configuration Guide
 
-This document describes the `.agent-workspace.yml` configuration file in detail.
+This document describes how `aw` loads, merges, and validates `.agent-workspace.yml` style configuration.
 
 ## Overview
 
-`aw` reads its configuration from your project and optional global config files. If no configuration files are found (or you're not in a git repository), a built-in starter config is used. Its default profile launches Claude Code in a Debian 12 Podman container.
+`aw` can launch built-in starter profiles with no config files at all. When config files are present, it merges them with the built-in starter config and then materializes an effective profile for the requested profile name.
 
-## File location
+## File locations
 
-```
-your-repo/
-  .agent-workspace.yml   <-- place it here
-  src/
-  ...
-```
+`aw` reads configuration from these locations:
 
-`aw` finds the file by running `git rev-parse --show-toplevel` to locate the repository root, then looks for `.agent-workspace.yml` in that directory.
-
-## Resolution order
-
-`aw` merges configuration in this order:
-
-1. Built-in starter config
+1. Built-in starter config embedded in the binary
 2. `~/.config/aw/config.yml`
-3. `.agent-workspace.yml`
+3. `<git-root>/.agent-workspace.yml`
 
-Run `aw init` if you want to write the current built-in starter config to `~/.config/aw/config.yml` and customize it there. This step is optional; `aw` works without creating any config files.
+If `git rev-parse --show-toplevel` fails, `aw` falls back to `.agent-workspace.yml` in the current directory.
+
+Run `aw init` if you want to write the current built-in starter config to `~/.config/aw/config.yml` and customize it there.
+
+## Resolution And Precedence
+
+There are two precedence axes:
+
+1. **Source precedence**
+   Built-in starter config < global config < project config
+2. **Within a single file**
+   Top-level shared defaults < `profiles.<name>`
+
+That means a later file wins over an earlier one, and within the same file an explicit field on `profiles.<name>` wins over the top-level value for that field.
+
+### Setting points
+
+Configuration can come from the following places:
+
+- The embedded starter config in `internal/profile/embed/config.yml`
+- `~/.config/aw/config.yml`
+- `.agent-workspace.yml`
+- Top-level shared defaults in any of those files
+- Per-profile overrides under `profiles.<name>`
+
+### Merge model
+
+At a high level, `aw` resolves configuration like this:
+
+1. Read the built-in starter config
+2. Overlay `~/.config/aw/config.yml` if present
+3. Overlay `.agent-workspace.yml` if present
+4. Apply the final top-level shared defaults to every profile
+5. Validate the resulting effective profiles
+
+### Field-specific merge rules
+
+- `env` is merged key by key, with later values winning
+- `worktree` is merged field by field
+- `zellij` is merged field by field
+- `mounts` is replaced as a whole when specified
+- `mount_ssh` uses explicit tri-state behavior:
+  - omitted: inherit
+  - `true`: enable
+  - `false`: disable
+- `os` and `dockerfile` are mutually exclusive at the final profile level; if one is inherited and the other is specified later, the later one clears the inherited counterpart
+
+## YAML shape
+
+There is no nested `defaults:` block. Shared defaults stay flat at the top level:
+
+```yaml
+default: claude
+
+environment: container
+container_runtime: podman
+mount_ssh: false
+
+profiles:
+  claude:
+    launch: claude
+
+  shell:
+    launch: shell
+```
+
+`profiles.<name>` uses the same field names as the top level. The difference is semantic:
+
+- top-level fields are shared defaults
+- `profiles.<name>` fields are profile-specific overrides
 
 ## Minimal example
-
-The simplest valid configuration defines a single profile:
 
 ```yaml
 profiles:
   my-profile:
-    environment: docker
+    environment: container
     launch: claude
 ```
 
@@ -43,279 +99,223 @@ profiles:
 ```yaml
 default: worktree-zellij
 
+environment: container
+container_runtime: podman
+mount_ssh: false
+env:
+  CLAUDE_CODE_USE_VERTEX: "1"
+
 profiles:
   claude:
-    environment: docker
     launch: claude
 
-  worktree-shell:
-    worktree:
-      base: origin/main
+  codex:
+    launch: codex
+
+  opencode:
+    launch: opencode
+
+  host-shell:
     environment: host
     launch: shell
 
-  worktree-claude:
-    worktree: {}
-    environment: host
-    launch: claude
-
-  worktree-docker:
-    worktree: {}
-    environment: docker
-    launch: claude
-
   worktree-zellij:
     worktree: {}
-    environment: docker
     launch: zellij
     zellij:
       layout: default
+      tool: codex
 
-  worktree-with-setup:
-    worktree:
-      base: origin/main
-      on-create: "./scripts/setup.sh"
-    environment: docker
+  ubi10-shell:
+    launch: shell
+    os: ubi10
+
+  playwright:
     launch: claude
+    dockerfile: playwright-docker/Dockerfile
+    mounts:
+      - source: "~/.config/gcloud"
+        target: "/home/agent/.config/gcloud"
+        readonly: true
 ```
 
-## Top-level fields
+## Top-level keys
 
 ### `default`
 
-| | |
-|---|---|
-| Type | `string` |
-| Required | No |
-| Default | _(none)_ |
+The profile name used when you run `aw` without arguments. If omitted, `aw` lists available profiles instead of launching one.
 
-The name of the profile to use when you run `aw` without arguments. Must match one of the keys in `profiles`.
+### Shared defaults
 
-If omitted, running `aw` without arguments prints the list of available profiles instead of launching one.
+Any profile field can also appear at the top level. These top-level fields become shared defaults for every profile in the merged config.
+
+Common top-level defaults include:
+
+- `environment`
+- `container_runtime`
+- `env`
+- `mount_ssh`
+- `mounts`
+- `os`
+- `dockerfile`
+- `worktree`
+- `zellij`
 
 ### `profiles`
 
-| | |
-|---|---|
-| Type | `map[string]Profile` |
-| Required | Yes (at least one profile) |
-
-A map of named profiles. Each key is the profile name (used as `aw <name>`), and the value is a [Profile](#profile-fields) object.
+A required map of named profiles. Each key is a profile name, and each value is a partial or complete profile definition.
 
 ## Profile fields
 
 ### `environment` (required)
 
-| | |
-|---|---|
-| Type | `string` |
-| Values | `"host"`, `"docker"` |
+Controls where the main process runs.
 
-Where the main process runs.
-
-- **`host`** -- Runs the launched command directly on your machine.
-- **`docker`** -- Runs inside a Docker container. On first run, `aw` builds a lightweight Docker image (Debian slim + git + curl + Node.js + gh), installs Claude Code into a persistent volume, and prompts for OAuth login.
+- `host` - run directly on the host
+- `container` - run inside the aw container image
 
 ### `launch` (required)
 
-| | |
-|---|---|
-| Type | `string` |
-| Values | `"shell"`, `"claude"`, `"zellij"` |
+Controls what `aw` launches.
 
-What command to launch.
-
-- **`shell`** -- Opens an interactive shell.
-- **`claude`** -- Launches Claude Code.
-- **`zellij`** -- Starts a zellij session with a multi-pane layout (plans watcher, git diff picker, PR status, and Claude Code).
-
-### `os` (optional)
-
-| | |
-|---|---|
-| Type | `string` |
-| Values | `"debian12"`, `"ubi9"`, `"ubi10"`, `"ubuntu2604"` |
-| Default | `"debian12"` |
-
-The base operating system for the container image. Only valid with `environment: container`. Mutually exclusive with `dockerfile`.
-
-- **`debian12`** -- Debian 12 bookworm-slim (default, same as current behavior)
-- **`ubi9`** -- Red Hat Universal Base Image 9 (for RHEL 9 work)
-- **`ubi10`** -- Red Hat Universal Base Image 10 (for RHEL 10 work)
-- **`ubuntu2604`** -- Ubuntu 26.04
-
-All OS templates include the same tooling: git, curl, Nix, devbox, and setpriv. The entrypoint behavior is identical across all OS templates.
-
-If `os` or `dockerfile` is inherited from top-level defaults, specifying the other field on a profile replaces the inherited value so that each final profile still uses only one of them.
-
-```yaml
-profiles:
-  rhel10-shell:
-    environment: container
-    launch: shell
-    os: ubi10
-```
+- `shell`
+- `claude`
+- `codex`
+- `opencode`
+- `zellij`
 
 ### `worktree` (optional)
 
-| | |
-|---|---|
-| Type | `object` or omitted |
+If present, `aw` creates a git worktree before launch.
 
-If present, `aw` creates a git worktree before running the profile. The worktree is created in a temporary location, and the launched process's working directory is set to it.
+`worktree: {}` enables worktree mode with defaults.
 
-To enable worktree creation with all defaults, use an empty object:
+Supported fields:
 
-```yaml
-worktree: {}
-```
+- `base` - default `origin/main`
+- `dir` - directory to host worktrees
+- `on-create` - shell command run after creating the worktree
+- `on-end` - shell command run after the launched process exits
 
-#### `worktree.base`
+Available environment variables for hooks:
 
-| | |
-|---|---|
-| Type | `string` |
-| Default | `"origin/main"` |
-
-The git ref to base the worktree branch on. This can be a remote branch, local branch, tag, or commit hash.
-
-```yaml
-worktree:
-  base: origin/develop
-```
-
-#### `worktree.on-create`
-
-| | |
-|---|---|
-| Type | `string` |
-| Default | _(none)_ |
-
-A shell command to run after the worktree is created. The command is executed via `sh -c` with the working directory set to the newly created worktree path.
-
-The following environment variables are available to the hook script:
-
-| Variable | Description |
-|---|---|
-| `AW_WORKTREE_PATH` | Absolute path to the created worktree |
-| `AW_WORKTREE_BRANCH` | Branch name of the created worktree |
-| `AW_REPO_ROOT` | Absolute path to the git repository root |
-| `AW_PROFILE_NAME` | Name of the profile being run |
-| `AW_ENVIRONMENT` | Profile environment (`host` or `docker`) |
-
-If the hook exits with a non-zero status, the pipeline is aborted.
-
-```yaml
-worktree:
-  on-create: "npm install && npm run setup"
-```
+- `AW_WORKTREE_PATH`
+- `AW_WORKTREE_BRANCH`
+- `AW_REPO_ROOT`
+- `AW_PROFILE_NAME`
+- `AW_ENVIRONMENT`
 
 ### `zellij` (optional)
 
-| | |
-|---|---|
-| Type | `object` or omitted |
+Only valid when `launch: zellij`.
 
-Configuration for zellij sessions. **Only valid when `launch` is `"zellij"`**. Setting this on a profile with a different `launch` mode causes a validation error.
+Supported fields:
 
-#### `zellij.layout`
+- `layout` - default `default`
+- `tool` - one of `claude`, `codex`, or `opencode`
 
-| | |
-|---|---|
-| Type | `string` |
-| Default | `"default"` |
+### `env` (optional)
 
-The layout to use for the zellij session. Currently only `"default"` is supported, which creates a multi-pane layout with:
+Additional environment variables passed into the launched environment. Top-level and per-profile `env` values are merged.
 
-- Claude Code (main pane)
-- Plans watcher
-- Git diff picker
-- PR status
+### `os` (optional)
 
-## Built-in default
+Built-in container OS template. Valid values:
 
-When no `.agent-workspace.yml` is found, `aw` behaves as if the following configuration were present:
+- `debian12`
+- `ubi9`
+- `ubi10`
+- `ubuntu2604`
 
-```yaml
-default: worktree-zellij
+Only valid with `environment: container`. Mutually exclusive with `dockerfile`.
 
-profiles:
-  claude:
-    environment: docker
-    launch: claude
+### `dockerfile` (optional)
 
-  worktree-zellij:
-    worktree: {}
-    environment: docker
-    launch: zellij
-    zellij:
-      layout: default
+Path to a custom Dockerfile, relative to the git root unless absolute. Only valid with `environment: container`. Mutually exclusive with `os`.
+
+### `container_runtime` (optional)
+
+Container CLI to use:
+
+- `docker`
+- `podman`
+
+If omitted, the effective runtime defaults to `docker`.
+
+### `mount_ssh` (optional)
+
+Whether to mount host `~/.ssh` into the container as read-only input. The container entrypoint copies it to `/home/agent/.ssh` with fixed permissions.
+
+If omitted, the field inherits from top-level defaults. The built-in starter config sets this to `false`.
+
+### `mounts` (optional)
+
+Additional bind mounts for container profiles.
+
+Each mount supports:
+
+- `source`
+- `target`
+- `readonly`
+
+## Built-in starter config
+
+When no config files exist, `aw` behaves as if the built-in starter config were loaded. The starter config currently provides:
+
+- `claude`
+- `shell`
+- `codex`
+- `opencode`
+- `ubi9-shell`
+- `ubi10-shell`
+- `ubuntu2604-shell`
+
+The built-in default profile is `claude`.
+
+You can materialize the current starter config into `~/.config/aw/config.yml` with:
+
+```bash
+aw init
 ```
 
 ## Validation rules
 
-`aw` validates your configuration on every run. The following rules are enforced:
+`aw` validates effective profiles on each run.
 
-1. **At least one profile must be defined.** An empty `profiles` map is an error.
-2. **`environment` is required** on every profile. Must be `"host"` or `"docker"`.
-3. **`launch` is required** on every profile. Must be `"shell"`, `"claude"`, or `"zellij"`.
-4. **`zellij` config requires `launch: zellij`.** Specifying `zellij:` on a profile with a different launch mode is an error.
-5. **`default` must reference an existing profile.** If `default` is set, it must match one of the keys in `profiles`.
-6. **`os` must be a known value.** Must be `"debian12"`, `"ubi9"`, `"ubi10"`, or `"ubuntu2604"`.
-7. **`os` requires `environment: container`.** Using `os` with `environment: host` is an error.
-8. **`os` and `dockerfile` are mutually exclusive.** Use `os` for built-in templates or `dockerfile` for a custom Dockerfile.
+Current rules include:
 
-### Example error messages
+1. At least one profile must exist
+2. `default`, if set, must point to an existing profile
+3. `environment` is required and must be `host` or `container`
+4. `launch` is required and must be `shell`, `claude`, `codex`, `opencode`, or `zellij`
+5. `zellij` is only valid with `launch: zellij`
+6. `zellij.tool` must be `claude`, `codex`, or `opencode`
+7. `os` must be one of the supported built-in templates
+8. `os` is only valid with `environment: container`
+9. `dockerfile` is only valid with `environment: container`
+10. `os` and `dockerfile` are mutually exclusive
+11. `container_runtime` must be `docker` or `podman`
+12. `mounts` are only valid with `environment: container`
+13. Every mount must include both `source` and `target`
 
-```
-Error: environment is required ("host" or "docker")
-Error: unknown environment: "kubernetes" (must be "host" or "docker")
-Error: launch is required ("shell", "claude", or "zellij")
-Error: unknown launch mode: "tmux" (must be "shell", "claude", or "zellij")
-Error: zellij config is only valid with launch: zellij
-Error: default profile "nonexistent" not found in profiles
-```
+## Host settings synced into containers
 
-## Valid combinations
+When using `environment: container`, `aw` automatically handles common host-side settings:
 
-The following table shows all valid combinations of `worktree`, `environment`, and `launch`:
+- `~/.gitconfig` -> `/home/agent/.gitconfig`
+- `~/.config/gh` -> `/home/agent/.config/gh`
+- `~/.claude/settings.json` -> `/home/agent/.claude/settings.json`
+- `~/.claude/CLAUDE.md` -> `/home/agent/.claude/CLAUDE.md`
+- `~/.claude/hooks` -> `/home/agent/.claude/hooks`
+- `~/.claude/plugins` -> `/home/agent/.claude/plugins`
+- `~/.claude/commands` -> `/home/agent/.claude/commands`
+- `~/.claude/agents` -> `/home/agent/.claude/agents`
 
-| worktree | environment | launch | Description |
-|----------|-------------|--------|-------------|
-| _(omitted)_ | `host` | `shell` | Open a shell in the current directory |
-| _(omitted)_ | `host` | `claude` | Run Claude Code in the current directory |
-| _(omitted)_ | `docker` | `shell` | Open a shell inside Docker |
-| _(omitted)_ | `docker` | `claude` | Run Claude Code inside Docker |
-| _(omitted)_ | `docker` | `zellij` | Start a zellij session with Docker-based Claude |
-| `{}` | `host` | `shell` | Create a worktree, open a shell in it |
-| `{}` | `host` | `claude` | Create a worktree, run Claude Code in it |
-| `{}` | `docker` | `shell` | Create a worktree, mount in Docker, open a shell |
-| `{}` | `docker` | `claude` | Create a worktree, mount in Docker, run Claude Code |
-| `{}` | `docker` | `zellij` | Create a worktree, start zellij with Docker-based Claude |
-| `{base: ...}` | `host` | `zellij` | Create a worktree from custom ref, start zellij on host |
-
-All other combinations follow the same pattern. `worktree` is always optional and independent of `environment`/`launch`.
-
-## Host settings sync (Docker mode)
-
-When using `environment: docker`, the following files and directories from `~/.claude/` are automatically synced into the container at each launch:
-
-**Files:**
-- `settings.json` -- Claude Code configuration
-- `CLAUDE.md` -- Global instructions
-
-**Directories:**
-- `hooks/` -- Custom hook scripts
-- `plugins/` -- Installed plugins and skills
-- `commands/` -- Custom slash commands
-- `agents/` -- Custom agent definitions
-
-These are copied to `~/.agent-workspace/` to avoid conflicts with the host-side Claude Code.
+`~/.ssh` is not mounted by default. Set `mount_ssh: true` when a profile needs SSH access.
 
 ## Tips
 
-- Use `aw profiles` to see all available profiles and which config file they were loaded from.
-- Run `aw init` when you want to materialize the built-in starter config into `~/.config/aw/config.yml` for editing.
-- Profile names can be any valid YAML string. Keep them short and descriptive (e.g., `claude`, `worktree-shell`).
-- You can commit `.agent-workspace.yml` to your repository so all contributors share the same workspace profiles.
-- If you need different profiles for different machines, use separate branches or a gitignored override (not currently supported, but the built-in default handles the no-config case gracefully).
+- Use `aw profiles` to see available profiles and where they were loaded from
+- Use `aw init` to create a starting global config only when you want to customize it
+- Keep profile names short and descriptive
+- Commit `.agent-workspace.yml` when the team should share the same profiles

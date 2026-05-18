@@ -63,6 +63,14 @@ aw --help               # ヘルプを表示
 
 後に読まれた設定が優先されます。`.agent-workspace.yml` がないディレクトリでも、グローバル設定のプロファイルを使えます。
 
+### 設定可能ポイントと優先順位
+
+- 設定元は 5 つあります: ビルトインスターター設定、`~/.config/aw/config.yml`、`.agent-workspace.yml`、各ファイルのトップレベル shared defaults、各 `profiles.<name>`
+- ソース優先順位は `ビルトイン < グローバル < プロジェクト` です
+- 同じファイル内では `トップレベル shared defaults < profiles.<name>` です
+- フィールドごとの merge ルールは一律ではなく、`env` は map merge、`worktree` / `zellij` は deep merge、`mounts` は置換、`mount_ssh` は明示 true/false override です
+- `os` と `dockerfile` は最終的なプロファイル単位で排他的です。継承された値があっても、後から指定した側が反対側を置き換えます
+
 `go install` 直後は、このビルトイン設定だけで `aw` を起動できます。グローバル設定ファイルが欲しい場合だけ `aw init` を実行してください。
 
 以下は全パラメーターを含む設定例です（`.agent-workspace.yml` と `~/.config/aw/config.yml` の両方で同じ書式が使えます）:
@@ -87,7 +95,7 @@ mount_ssh: true                    # ~/.ssh を読み取り専用でマウント
 
 mounts:                            # カスタムバインドマウント（任意、container のみ有効）
   - source: "~/.config/gcloud"     #   ホストパス（~ 展開に対応）
-    target: "/home/claude/.config/gcloud"  #   コンテナパス
+    target: "/home/agent/.config/gcloud"  #   コンテナパス
     readonly: false                #   読み取り専用でマウント（デフォルト: false）
 
 profiles:
@@ -138,8 +146,8 @@ profiles:
   - `dir` — worktree を作成するディレクトリ。デフォルトは `<repoRoot>/worktrees`。`~` 展開に対応。
   - `on-create` / `on-end` — worktree 作成後 / 起動プロセス終了後に実行されるシェルフック。
 - **`environment`**（必須）: `"host"` または `"container"` — メインプロセスの実行環境。
-- **`launch`**（必須）: `"shell"`、`"claude"`、または `"zellij"` — 起動するもの。
-- **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。
+- **`launch`**（必須）: `"shell"`、`"claude"`、`"codex"`、`"opencode"`、または `"zellij"` — 起動するもの。
+- **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。`tool` には `"claude"`、`"codex"`、`"opencode"` を指定できます。
 - **`container_runtime`**（任意）: `"docker"` または `"podman"`。デフォルトは `"docker"`。
 - **`mount_ssh`**（任意）: ホストの `~/.ssh` を読み取り専用でコンテナへ持ち込む明示 opt-in。デフォルトは `false`。トップレベルに置けば全プロファイルの既定値になり、各プロファイルで `true` / `false` を個別に上書きできます。
 - **`mounts`**（任意）: Docker/Podman コンテナ用のカスタムバインドマウント。`environment: container` の場合のみ有効。
@@ -163,7 +171,7 @@ mount_ssh: true
 
 mounts:
   - source: "~/.config/gcloud"
-    target: "/home/claude/.config/gcloud"
+    target: "/home/agent/.config/gcloud"
 
 profiles:
   shell:
@@ -215,12 +223,12 @@ RUN apt-get update && \
       libxkbcommon0 libatspi2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash claude && \
-    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN useradd -m -s /bin/bash agent && \
+    echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN su -s /bin/bash claude -c 'curl https://mise.jdx.dev/install.sh | sh'
+RUN su -s /bin/bash agent -c 'curl https://mise.jdx.dev/install.sh | sh'
 
-ENV PATH="/home/claude/.local/bin:/home/claude/.local/share/mise/shims:${PATH}"
+ENV PATH="/home/agent/.local/bin:/home/agent/.local/share/mise/shims:${PATH}"
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -244,7 +252,7 @@ entrypoint.sh で Playwright ブラウザの自動インストールも行われ
 2. `docker run` 時（エントリポイント）:
    - ワークスペースに `mise.toml` または `.mise.toml` がある → `mise install` を実行
    - mise 設定がない → Node.js LTS のみインストール（Claude Code に必要）
-3. インストールされたツールは永続ボリューム（`/home/claude/.local` の `claude-code-local`）にキャッシュされるため、2回目以降の起動は即座に完了
+3. インストールされたツールは永続ボリューム（`/home/agent/.local` の `claude-code-local`）にキャッシュされるため、2回目以降の起動は即座に完了
 
 ### mise.toml の例
 
@@ -292,7 +300,7 @@ EOF
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.gitconfig` | `/home/claude/.gitconfig` | バインドマウント（存在する場合） |
+| `~/.gitconfig` | `/home/agent/.gitconfig` | バインドマウント（存在する場合） |
 
 `user.name`、`user.email`、エイリアスなどがそのまま利用できます。設定不要です。
 
@@ -300,7 +308,7 @@ EOF
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.ssh/` | `/home/claude/.ssh/` | `mount_ssh: true` のときだけ読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
+| `~/.ssh/` | `/home/agent/.ssh/` | `mount_ssh: true` のときだけ読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
 
 `~/.ssh` はデフォルトではマウントされません。SSH 経由の `git push` / `pull` が必要なプロファイルだけ `mount_ssh: true` を付けると、秘密鍵、`known_hosts`、`config` を引き継げます。
 
@@ -308,7 +316,7 @@ EOF
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.config/gh/` | `/home/claude/.config/gh/` | バインドマウント（存在する場合） |
+| `~/.config/gh/` | `/home/agent/.config/gh/` | バインドマウント（存在する場合） |
 
 `gh` コマンド（PR 作成、Issue 管理など）が既存の認証で動作します。
 
@@ -316,12 +324,12 @@ EOF
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.claude/settings.json` | `/home/claude/.claude/settings.json` | `~/.agent-workspace/` にコピーしてからマウント |
-| `~/.claude/CLAUDE.md` | `/home/claude/.claude/CLAUDE.md` | 同上 |
-| `~/.claude/hooks/` | `/home/claude/.claude/hooks/` | 同上 |
-| `~/.claude/plugins/` | `/home/claude/.claude/plugins/` | 同上 |
-| `~/.claude/commands/` | `/home/claude/.claude/commands/` | 同上 |
-| `~/.claude/agents/` | `/home/claude/.claude/agents/` | 同上 |
+| `~/.claude/settings.json` | `/home/agent/.claude/settings.json` | `~/.agent-workspace/` にコピーしてからマウント |
+| `~/.claude/CLAUDE.md` | `/home/agent/.claude/CLAUDE.md` | 同上 |
+| `~/.claude/hooks/` | `/home/agent/.claude/hooks/` | 同上 |
+| `~/.claude/plugins/` | `/home/agent/.claude/plugins/` | 同上 |
+| `~/.claude/commands/` | `/home/agent/.claude/commands/` | 同上 |
+| `~/.claude/agents/` | `/home/agent/.claude/agents/` | 同上 |
 
 これらはホスト上の `~/.agent-workspace/` に**コピー**（直接マウントではなく）され、それがコンテナにマウントされます。Linux コンテナ内で動作しない macOS キーチェーンベースの認証情報との競合を避けるためです。
 
