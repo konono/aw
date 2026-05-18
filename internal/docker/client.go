@@ -3,8 +3,10 @@ package docker
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
 )
 
 // Mount represents a Docker mount (bind mount or named volume).
@@ -77,8 +79,8 @@ func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfi
 	if dockerfilePath != "" {
 		args = append(args, "-f", dockerfilePath)
 	}
-	for k, v := range buildArgs {
-		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
+	for _, k := range slices.Sorted(maps.Keys(buildArgs)) {
+		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, buildArgs[k]))
 	}
 	args = append(args, contextDir)
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
