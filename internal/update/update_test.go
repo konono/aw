@@ -45,7 +45,7 @@ func TestExecute_NewVersionAvailable(t *testing.T) {
 	archive := createTestArchive(t, newBinary)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/hiragram/agent-workspace/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/konono/aw/releases/latest", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `{
 			"tag_name": "v0.2.0",
 			"assets": [
@@ -110,7 +110,7 @@ func TestExecute_NewVersionAvailable(t *testing.T) {
 
 func TestExecute_AlreadyUpToDate(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/hiragram/agent-workspace/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/konono/aw/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `{"tag_name": "v0.1.0", "assets": []}`)
 	})
 	server := httptest.NewServer(mux)
@@ -169,7 +169,7 @@ func TestExecute_NetworkError(t *testing.T) {
 
 func TestExecute_NoMatchingAsset(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/hiragram/agent-workspace/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/konono/aw/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `{
 			"tag_name": "v0.2.0",
 			"assets": [

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-REPO="hiragram/agent-workspace"
+REPO="konono/aw"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 COMMAND_NAME="aw"
 
@@ -56,4 +56,5 @@ fi
 
 echo "Installed $COMMAND_NAME $LATEST to $INSTALL_DIR/$COMMAND_NAME"
 echo ""
-echo "Run '$COMMAND_NAME' to start agent-workspace."
+echo "Run '$COMMAND_NAME' to start agent-workspace immediately."
+echo "Run '$COMMAND_NAME init' to write the built-in starter config to ~/.config/aw/config.yml."
