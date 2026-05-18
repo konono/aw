@@ -132,6 +132,41 @@ profiles:
 	}
 }
 
+func TestParse_LaunchCodex(t *testing.T) {
+	yaml := `
+profiles:
+  codex:
+    environment: container
+    launch: codex
+  zellij-codex:
+    environment: container
+    launch: zellij
+    zellij:
+      layout: default
+      tool: codex
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	codex := cfg.Profiles["codex"]
+	if codex.Launch != LaunchCodex {
+		t.Errorf("codex.Launch = %q, want %q", codex.Launch, LaunchCodex)
+	}
+
+	zc := cfg.Profiles["zellij-codex"]
+	if zc.Launch != LaunchZellij {
+		t.Errorf("zellij-codex.Launch = %q, want %q", zc.Launch, LaunchZellij)
+	}
+	if zc.Zellij == nil {
+		t.Fatal("zellij-codex.Zellij should not be nil")
+	}
+	if zc.Zellij.Tool != "codex" {
+		t.Errorf("zellij-codex.Zellij.Tool = %q, want %q", zc.Zellij.Tool, "codex")
+	}
+}
+
 func TestLoadFile_NotFound(t *testing.T) {
 	cfg, err := LoadFile("/nonexistent/path/.agent-workspace.yml")
 	if err != nil {
@@ -144,6 +179,9 @@ func TestLoadFile_NotFound(t *testing.T) {
 	}
 	if _, ok := cfg.Profiles["claude"]; !ok {
 		t.Error("expected claude profile in builtin default")
+	}
+	if _, ok := cfg.Profiles["codex"]; !ok {
+		t.Error("expected codex profile in builtin default")
 	}
 	if _, ok := cfg.Profiles["worktree-zellij"]; !ok {
 		t.Error("expected worktree-zellij profile in builtin default")

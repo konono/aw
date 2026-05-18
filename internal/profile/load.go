@@ -30,6 +30,10 @@ var builtinConfig = Config{
 			Environment: EnvironmentContainer,
 			Launch:      LaunchClaude,
 		},
+		"codex": {
+			Environment: EnvironmentContainer,
+			Launch:      LaunchCodex,
+		},
 		"worktree-zellij": {
 			Worktree:    &WorktreeConfig{},
 			Environment: EnvironmentContainer,

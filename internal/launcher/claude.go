@@ -46,11 +46,12 @@ func (l *ClaudeLauncher) launchDockerClaude(ctx context.Context, ec *pipeline.Ex
 
 	command := []string{"claude", "--permission-mode", "bypassPermissions"}
 
-	envVars := make(map[string]string, len(ec.EnvVars)+2)
+	envVars := make(map[string]string, len(ec.EnvVars)+3)
 	for k, v := range ec.EnvVars {
 		envVars[k] = v
 	}
 	// Hardcoded vars always win — users cannot override these
+	envVars["AW_LAUNCH_MODE"] = "claude"
 	envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 

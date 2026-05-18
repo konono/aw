@@ -36,6 +36,37 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid docker + codex",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchCodex,
+			},
+		},
+		{
+			name: "valid host + codex",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchCodex,
+			},
+		},
+		{
+			name: "valid zellij with tool codex",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
+			},
+		},
+		{
+			name: "invalid zellij tool",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default", Tool: "gemini"},
+			},
+			wantErr: "unknown zellij tool",
+		},
+		{
 			name: "missing environment",
 			profile: Profile{
 				Launch: LaunchClaude,

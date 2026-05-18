@@ -17,8 +17,9 @@ import (
 
 // layoutData holds template variables for the zellij layout.
 type layoutData struct {
-	ScriptsDir    string
-	ClaudeCommand string
+	ScriptsDir   string
+	AgentCommand string
+	AgentName    string
 }
 
 // ZellijLauncher launches a zellij session with multiple panes.
@@ -68,8 +69,13 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 		}
 	}
 
-	// Build Claude command based on environment
-	claudeCmd := l.buildClaudeCommand(ec)
+	// Build agent command based on environment and tool
+	tool := ec.Profile.EffectiveTool()
+	agentCmd := l.buildAgentCommand(ec, tool)
+	agentName := "Claude Code"
+	if tool == "codex" {
+		agentName = "Codex"
+	}
 
 	// Render and write layout template
 	tmpl, err := template.New("layout").Parse(string(layoutKdlTmpl))
@@ -79,8 +85,9 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, layoutData{
-		ScriptsDir:    scriptsDir,
-		ClaudeCommand: claudeCmd,
+		ScriptsDir:   scriptsDir,
+		AgentCommand: agentCmd,
+		AgentName:    agentName,
 	}); err != nil {
 		return "", fmt.Errorf("rendering layout template: %w", err)
 	}
@@ -93,31 +100,37 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 	return baseDir, nil
 }
 
-func (l *ZellijLauncher) buildClaudeCommand(ec *pipeline.ExecutionContext) string {
+func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool string) string {
+	agentCmd := "claude --permission-mode bypassPermissions"
+	agentBin := "claude"
+	if tool == "codex" {
+		agentCmd = "codex --full-auto"
+		agentBin = "codex"
+	}
+
 	switch ec.Profile.Environment {
 	case profile.EnvironmentContainer:
-		// Build docker run command directly using the image already built
-		// by the DockerStage, so we don't re-run the pipeline with a
-		// different profile that would lose custom Dockerfile settings.
-		envVars := make(map[string]string, len(ec.EnvVars)+2)
+		envVars := make(map[string]string, len(ec.EnvVars)+3)
 		for k, v := range ec.EnvVars {
 			envVars[k] = v
 		}
-		envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
+		envVars["AW_LAUNCH_MODE"] = tool
 		envVars["HOST_WORKSPACE"] = ec.WorkDir
+		if tool != "codex" {
+			envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
+		}
 
 		runConfig := docker.RunConfig{
 			ImageName: ec.DockerImage,
 			Mounts:    ec.DockerMounts,
 			EnvVars:   envVars,
 			WorkDir:   ec.WorkDir,
-			Command:   []string{"bash", "-c", "claude --permission-mode bypassPermissions; exec bash -i"},
+			Command:   []string{"bash", "-c", agentCmd + "; exec bash -i"},
 		}
 		args := docker.BuildRunArgs(runConfig)
 		return ec.Profile.EffectiveContainerRuntime() + " " + shellJoin(args)
 	default:
-		// Host mode: just run claude directly
-		return "claude"
+		return agentBin
 	}
 }
 

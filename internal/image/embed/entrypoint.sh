@@ -1,11 +1,13 @@
 #!/bin/bash
 set -e
 
-# Create symlink to host-side claude home path (runs as root)
+# Create symlink to host-side claude home path (runs as root, Claude only)
 # installed_plugins.json etc. reference host absolute paths
-if [ -n "$HOST_CLAUDE_HOME" ] && [ "$HOST_CLAUDE_HOME" != "/home/claude/.claude" ]; then
-  mkdir -p "$(dirname "$HOST_CLAUDE_HOME")"
-  ln -sfn /home/claude/.claude "$HOST_CLAUDE_HOME"
+if [ "${AW_LAUNCH_MODE:-claude}" = "claude" ]; then
+  if [ -n "$HOST_CLAUDE_HOME" ] && [ "$HOST_CLAUDE_HOME" != "/home/claude/.claude" ]; then
+    mkdir -p "$(dirname "$HOST_CLAUDE_HOME")"
+    ln -sfn /home/claude/.claude "$HOST_CLAUDE_HOME"
+  fi
 fi
 
 # Fix permissions on .local volume for claude user
@@ -29,11 +31,21 @@ else
   su -s /bin/bash claude -c "$MISE_CMD && mise use --global node@lts gh@latest"
 fi
 
-# Install Claude Code if not present (as claude user)
-if [ ! -x /home/claude/.local/bin/claude ]; then
-  echo "Installing Claude Code..."
-  su -s /bin/bash claude -c 'curl -fsSL https://claude.ai/install.sh | bash'
-fi
+# Install AI tool based on launch mode
+case "${AW_LAUNCH_MODE:-claude}" in
+  claude)
+    if [ ! -x /home/claude/.local/bin/claude ]; then
+      echo "Installing Claude Code..."
+      su -s /bin/bash claude -c 'curl -fsSL https://claude.ai/install.sh | bash'
+    fi
+    ;;
+  codex)
+    if ! su -s /bin/bash claude -c "export PATH=/home/claude/.local/share/mise/shims:/home/claude/.local/bin:\$PATH && command -v codex" > /dev/null 2>&1; then
+      echo "Installing Codex CLI..."
+      su -s /bin/bash claude -c "export PATH=/home/claude/.local/share/mise/shims:/home/claude/.local/bin:\$PATH && npm install -g @openai/codex"
+    fi
+    ;;
+esac
 
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
 # Ignore errors from sockets or broken symlinks (e.g. SSH agent socket files)

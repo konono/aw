@@ -19,17 +19,27 @@ func Validate(p Profile) error {
 
 	// Validate launch mode
 	switch p.Launch {
-	case LaunchShell, LaunchClaude, LaunchZellij:
+	case LaunchShell, LaunchClaude, LaunchCodex, LaunchZellij:
 		// ok
 	case "":
-		return fmt.Errorf("launch is required (\"shell\", \"claude\", or \"zellij\")")
+		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", or \"zellij\")")
 	default:
-		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", or \"zellij\")", p.Launch)
+		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", or \"zellij\")", p.Launch)
 	}
 
 	// Validate zellij config is only used with launch: zellij
 	if p.Zellij != nil && p.Launch != LaunchZellij {
 		return fmt.Errorf("zellij config is only valid with launch: zellij")
+	}
+
+	// Validate zellij tool field
+	if p.Zellij != nil && p.Zellij.Tool != "" {
+		switch p.Zellij.Tool {
+		case "claude", "codex":
+			// ok
+		default:
+			return fmt.Errorf("unknown zellij tool: %q (must be \"claude\" or \"codex\")", p.Zellij.Tool)
+		}
 	}
 
 	// Validate dockerfile is only used with environment: docker

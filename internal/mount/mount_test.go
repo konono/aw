@@ -216,6 +216,94 @@ func TestBuildMounts_WorktreeAddsMount(t *testing.T) {
 	}
 }
 
+func TestBuildMounts_CodexSkipsClaudeMounts(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+	codexHome := filepath.Join(homeDir, ".agent-workspace-codex")
+	if err := os.MkdirAll(codexHome, 0755); err != nil {
+		t.Fatalf("creating codex home: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.Tool = "codex"
+	opts.ContainerCodexHome = codexHome
+
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	// Claude-specific mounts should NOT be present
+	if findMount(mounts, "/home/claude/.claude") != nil {
+		t.Error("claude config mount should not exist for codex tool")
+	}
+	if findMount(mounts, "/home/claude/.claude.json") != nil {
+		t.Error("claude json mount should not exist for codex tool")
+	}
+
+	// Codex mount should be present
+	codex := findMount(mounts, "/home/claude/.codex")
+	if codex == nil {
+		t.Fatal("missing codex config mount")
+	}
+	if codex.Source != codexHome {
+		t.Errorf("codex source = %q, want %q", codex.Source, codexHome)
+	}
+
+	// Volume and workspace should still be present
+	if findMount(mounts, "/home/claude/.local") == nil {
+		t.Error("volume mount should still be present for codex")
+	}
+	if findMount(mounts, workDir) == nil {
+		t.Error("workspace mount should still be present for codex")
+	}
+}
+
+func TestBuildMounts_CodexNoCodexHomeSkipsMount(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.Tool = "codex"
+	opts.ContainerCodexHome = ""
+
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, "/home/claude/.codex") != nil {
+		t.Error("codex mount should not exist when ContainerCodexHome is empty")
+	}
+	if findMount(mounts, "/home/claude/.claude") != nil {
+		t.Error("claude mount should not exist for codex tool")
+	}
+}
+
+func TestBuildMounts_EmptyToolDefaultsToClaude(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	// Tool is empty (default)
+
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	// Claude mounts should be present
+	if findMount(mounts, "/home/claude/.claude") == nil {
+		t.Error("claude config mount should exist for default (empty) tool")
+	}
+	if findMount(mounts, "/home/claude/.claude.json") == nil {
+		t.Error("claude json mount should exist for default (empty) tool")
+	}
+}
+
 func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()

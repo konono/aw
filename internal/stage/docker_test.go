@@ -45,14 +45,21 @@ func (m *mockDockerClient) Run(_ context.Context, config docker.RunConfig) error
 
 type mockConfigSyncer struct {
 	syncCalled      bool
+	codexSyncCalled bool
 	onboardCalled   bool
 	syncErr         error
+	codexSyncErr    error
 	onboardErr      error
 }
 
 func (m *mockConfigSyncer) SyncSettings(_, _ string) error {
 	m.syncCalled = true
 	return m.syncErr
+}
+
+func (m *mockConfigSyncer) SyncCodexSettings(_, _ string) error {
+	m.codexSyncCalled = true
+	return m.codexSyncErr
 }
 
 func (m *mockConfigSyncer) EnsureOnboardingState(_ string) error {

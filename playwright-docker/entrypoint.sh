@@ -1,9 +1,11 @@
 #!/bin/bash
 set -e
 
-if [ -n "$HOST_CLAUDE_HOME" ] && [ "$HOST_CLAUDE_HOME" != "/home/claude/.claude" ]; then
-  mkdir -p "$(dirname "$HOST_CLAUDE_HOME")"
-  ln -sfn /home/claude/.claude "$HOST_CLAUDE_HOME"
+if [ "${AW_LAUNCH_MODE:-claude}" = "claude" ]; then
+  if [ -n "$HOST_CLAUDE_HOME" ] && [ "$HOST_CLAUDE_HOME" != "/home/claude/.claude" ]; then
+    mkdir -p "$(dirname "$HOST_CLAUDE_HOME")"
+    ln -sfn /home/claude/.claude "$HOST_CLAUDE_HOME"
+  fi
 fi
 
 chown -R claude:claude /home/claude/.local
@@ -32,10 +34,20 @@ if su -s /bin/bash claude -c "$MISE_CMD && command -v npx" > /dev/null 2>&1; the
   fi
 fi
 
-if [ ! -x /home/claude/.local/bin/claude ]; then
-  echo "Installing Claude Code..."
-  su -s /bin/bash claude -c 'curl -fsSL https://claude.ai/install.sh | bash'
-fi
+case "${AW_LAUNCH_MODE:-claude}" in
+  claude)
+    if [ ! -x /home/claude/.local/bin/claude ]; then
+      echo "Installing Claude Code..."
+      su -s /bin/bash claude -c 'curl -fsSL https://claude.ai/install.sh | bash'
+    fi
+    ;;
+  codex)
+    if ! su -s /bin/bash claude -c "export PATH=/home/claude/.local/share/mise/shims:/home/claude/.local/bin:\$PATH && command -v codex" > /dev/null 2>&1; then
+      echo "Installing Codex CLI..."
+      su -s /bin/bash claude -c "export PATH=/home/claude/.local/share/mise/shims:/home/claude/.local/bin:\$PATH && npm install -g @openai/codex"
+    fi
+    ;;
+esac
 
 if [ -d /home/claude/.ssh-host ]; then
   cp -a /home/claude/.ssh-host /home/claude/.ssh

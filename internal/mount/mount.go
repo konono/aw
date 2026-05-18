@@ -14,8 +14,10 @@ type MountOptions struct {
 	ClaudeHome          string         // host ~/.claude
 	ContainerClaudeHome string         // host ~/.agent-workspace
 	ContainerClaudeJSON string         // host ~/.agent-workspace.json
-	VolumeName          string         // Docker volume name for Claude installation
+	VolumeName          string         // Docker volume name for tool installation cache
 	ExtraMounts         []docker.Mount // user-defined custom mounts
+	Tool                string         // AI tool: "claude", "codex", or "" (defaults to claude)
+	ContainerCodexHome  string         // host ~/.agent-workspace-codex (for codex)
 }
 
 // Builder constructs Docker mount arguments.
@@ -41,14 +43,27 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		Target:   "/home/claude/.local",
 		IsVolume: true,
 	})
-	mounts = append(mounts, docker.Mount{
-		Source: opts.ContainerClaudeHome,
-		Target: "/home/claude/.claude",
-	})
-	mounts = append(mounts, docker.Mount{
-		Source: opts.ContainerClaudeJSON,
-		Target: "/home/claude/.claude.json",
-	})
+
+	// Tool-specific mounts
+	switch opts.Tool {
+	case "codex":
+		if opts.ContainerCodexHome != "" {
+			mounts = append(mounts, docker.Mount{
+				Source: opts.ContainerCodexHome,
+				Target: "/home/claude/.codex",
+			})
+		}
+	default:
+		mounts = append(mounts, docker.Mount{
+			Source: opts.ContainerClaudeHome,
+			Target: "/home/claude/.claude",
+		})
+		mounts = append(mounts, docker.Mount{
+			Source: opts.ContainerClaudeJSON,
+			Target: "/home/claude/.claude.json",
+		})
+	}
+
 	mounts = append(mounts, docker.Mount{
 		Source: opts.WorkDir,
 		Target: opts.WorkDir,

@@ -72,6 +72,7 @@ func (w *WorktreeConfig) EffectiveBase() string {
 // ZellijConfig controls zellij session settings.
 type ZellijConfig struct {
 	Layout string `yaml:"layout,omitempty"` // "default" or custom path (future)
+	Tool   string `yaml:"tool,omitempty"`   // AI tool to use: "claude" (default) or "codex"
 }
 
 // Environment specifies where the main process runs.
@@ -88,5 +89,24 @@ type LaunchMode string
 const (
 	LaunchShell  LaunchMode = "shell"
 	LaunchClaude LaunchMode = "claude"
+	LaunchCodex  LaunchMode = "codex"
 	LaunchZellij LaunchMode = "zellij"
 )
+
+// EffectiveTool returns the AI tool name ("claude" or "codex") based on
+// the launch mode and, for zellij, the ZellijConfig.Tool override.
+func (p *Profile) EffectiveTool() string {
+	switch p.Launch {
+	case LaunchClaude:
+		return "claude"
+	case LaunchCodex:
+		return "codex"
+	case LaunchZellij:
+		if p.Zellij != nil && p.Zellij.Tool != "" {
+			return p.Zellij.Tool
+		}
+		return "claude"
+	default:
+		return ""
+	}
+}

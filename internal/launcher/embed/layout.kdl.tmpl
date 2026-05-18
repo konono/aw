@@ -8,9 +8,9 @@ layout {
                 command "bash"
                 args "-c" "{{.ScriptsDir}}/plans-watcher.sh"
             }
-            pane name="Claude Code" {
+            pane name="{{.AgentName}}" {
                 command "bash"
-                args "-c" "{{.ClaudeCommand}}"
+                args "-c" "{{.AgentCommand}}"
             }
             pane size=40 cwd="" name="Changed Files" {
                 command "bash"

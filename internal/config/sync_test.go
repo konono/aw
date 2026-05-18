@@ -205,6 +205,58 @@ func TestSyncSettings_NestedDirectories(t *testing.T) {
 	}
 }
 
+func TestSyncCodexSettings_CopiesDirectory(t *testing.T) {
+	codexHome := t.TempDir()
+	containerHome := filepath.Join(t.TempDir(), "agent-workspace-codex")
+
+	// Create source files
+	if err := os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte("[auth]\napi_key = \"test\""), 0644); err != nil {
+		t.Fatalf("writing config.toml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"token":"abc"}`), 0644); err != nil {
+		t.Fatalf("writing auth.json: %v", err)
+	}
+
+	syncer := NewSyncer()
+	if err := syncer.SyncCodexSettings(codexHome, containerHome); err != nil {
+		t.Fatalf("SyncCodexSettings() error: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(containerHome, "config.toml"))
+	if err != nil {
+		t.Fatalf("reading config.toml: %v", err)
+	}
+	if string(content) != "[auth]\napi_key = \"test\"" {
+		t.Errorf("config.toml = %q, want %q", string(content), "[auth]\napi_key = \"test\"")
+	}
+
+	content, err = os.ReadFile(filepath.Join(containerHome, "auth.json"))
+	if err != nil {
+		t.Fatalf("reading auth.json: %v", err)
+	}
+	if string(content) != `{"token":"abc"}` {
+		t.Errorf("auth.json = %q, want %q", string(content), `{"token":"abc"}`)
+	}
+}
+
+func TestSyncCodexSettings_NoSourceDir(t *testing.T) {
+	containerHome := filepath.Join(t.TempDir(), "agent-workspace-codex")
+
+	syncer := NewSyncer()
+	if err := syncer.SyncCodexSettings("/nonexistent/codex", containerHome); err != nil {
+		t.Fatalf("SyncCodexSettings() should not error for missing source: %v", err)
+	}
+
+	// Container dir should be created even if source doesn't exist
+	info, err := os.Stat(containerHome)
+	if err != nil {
+		t.Fatalf("container codex home should exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("container codex home should be a directory")
+	}
+}
+
 func TestPatchSettingsForContainer(t *testing.T) {
 	tests := []struct {
 		name    string

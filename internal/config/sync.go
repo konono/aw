@@ -15,9 +15,10 @@ var syncFiles = []string{"settings.json", "CLAUDE.md"}
 // syncDirs is the list of directories to sync from claudeHome.
 var syncDirs = []string{"hooks", "plugins", "commands", "agents"}
 
-// Syncer syncs host Claude settings to the container-side config directory.
+// Syncer syncs host AI tool settings to the container-side config directory.
 type Syncer interface {
 	SyncSettings(claudeHome, containerClaudeHome string) error
+	SyncCodexSettings(codexHome, containerCodexHome string) error
 	EnsureOnboardingState(path string) error
 }
 
@@ -58,6 +59,31 @@ func (s *DefaultSyncer) SyncSettings(claudeHome, containerClaudeHome string) err
 	}
 
 	return nil
+}
+
+// SyncCodexSettings copies the Codex config directory from codexHome to containerCodexHome.
+// If codexHome does not exist, it creates an empty containerCodexHome directory.
+func (s *DefaultSyncer) SyncCodexSettings(codexHome, containerCodexHome string) error {
+	if err := os.MkdirAll(containerCodexHome, 0755); err != nil {
+		return fmt.Errorf("creating container codex home: %w", err)
+	}
+
+	info, err := os.Stat(codexHome)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+
+	if err := os.RemoveAll(containerCodexHome); err != nil {
+		return fmt.Errorf("removing old container codex home: %w", err)
+	}
+
+	return copyDir(codexHome, containerCodexHome)
 }
 
 // copyFileIfExists copies src to dst if src exists. Does nothing if src doesn't exist.

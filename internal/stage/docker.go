@@ -95,21 +95,30 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("creating volume: %w", err)
 	}
 
-	// 4. Sync host settings
+	// 4. Sync host settings (tool-specific)
+	tool := ec.Profile.EffectiveTool()
 	claudeHome := claudeHomePath(ec.HomeDir)
 	containerClaudeHome := filepath.Join(ec.HomeDir, ".agent-workspace")
 	containerClaudeJSON := filepath.Join(ec.HomeDir, ".agent-workspace.json")
+	containerCodexHome := ""
 
-	if err := s.ConfigSyncer.SyncSettings(claudeHome, containerClaudeHome); err != nil {
-		return fmt.Errorf("syncing settings: %w", err)
+	switch tool {
+	case "codex":
+		codexHome := codexHomePath(ec.HomeDir)
+		containerCodexHome = filepath.Join(ec.HomeDir, ".agent-workspace-codex")
+		if err := s.ConfigSyncer.SyncCodexSettings(codexHome, containerCodexHome); err != nil {
+			return fmt.Errorf("syncing codex settings: %w", err)
+		}
+	default:
+		if err := s.ConfigSyncer.SyncSettings(claudeHome, containerClaudeHome); err != nil {
+			return fmt.Errorf("syncing settings: %w", err)
+		}
+		if err := s.ConfigSyncer.EnsureOnboardingState(containerClaudeJSON); err != nil {
+			return fmt.Errorf("ensuring onboarding state: %w", err)
+		}
 	}
 
-	// 5. Ensure onboarding state
-	if err := s.ConfigSyncer.EnsureOnboardingState(containerClaudeJSON); err != nil {
-		return fmt.Errorf("ensuring onboarding state: %w", err)
-	}
-
-	// 6. Build mounts (including custom mounts from profile)
+	// 5. Build mounts (including custom mounts from profile)
 	var extraMounts []docker.Mount
 	for _, m := range ec.Profile.Mounts {
 		source := expandTilde(m.Source, ec.HomeDir)
@@ -128,6 +137,8 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		ContainerClaudeJSON: containerClaudeJSON,
 		VolumeName:          defaultVolumeName,
 		ExtraMounts:         extraMounts,
+		Tool:                tool,
+		ContainerCodexHome:  containerCodexHome,
 	})
 	if err != nil {
 		return fmt.Errorf("building mounts: %w", err)
@@ -170,4 +181,11 @@ func claudeHomePath(homeDir string) string {
 		return v
 	}
 	return filepath.Join(homeDir, ".claude")
+}
+
+func codexHomePath(homeDir string) string {
+	if v := os.Getenv("CODEX_HOME"); v != "" {
+		return v
+	}
+	return filepath.Join(homeDir, ".codex")
 }
