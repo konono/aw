@@ -92,6 +92,7 @@ env:                               # コンテナに渡す環境変数（任意�
   CLOUD_ML_REGION: "us-east5"
 
 mount_ssh: true                    # ~/.ssh を読み取り専用でマウント（必要な場合のみ、デフォルト: false）
+ssh_agent_forwarding: true                      # SSH Agent 転送で git push/clone を有効化（鍵ファイル不要、デフォルト: false）
 
 mounts:                            # カスタムバインドマウント（任意、container のみ有効）
   - source: "~/.config/gcloud"     #   ホストパス（~ 展開に対応）
@@ -150,6 +151,7 @@ profiles:
 - **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。`tool` には `"claude"`、`"codex"`、`"opencode"` を指定できます。
 - **`container_runtime`**（任意）: `"docker"` または `"podman"`。デフォルトは `"docker"`。
 - **`mount_ssh`**（任意）: ホストの `~/.ssh` を読み取り専用でコンテナへ持ち込む明示 opt-in。デフォルトは `false`。トップレベルに置けば全プロファイルの既定値になり、各プロファイルで `true` / `false` を個別に上書きできます。
+- **`ssh_agent_forwarding`**（任意）: ホストの SSH Agent ソケットをコンテナに転送し、Git SSH 操作（push/clone/fetch）を有効化。`mount_ssh` と異なり、鍵ファイルはコンテナにコピーされません。ホスト側で SSH Agent が起動している必要があります（`ssh-add -l` で確認）。`mount_ssh: true` の場合は無視されます（`mount_ssh` が上位互換）。デフォルトは `false`。
 - **`mounts`**（任意）: Docker/Podman コンテナ用のカスタムバインドマウント。`environment: container` の場合のみ有効。
   - `source` — ホストパス（`~` 展開に対応）
   - `target` — コンテナパス
@@ -304,13 +306,48 @@ EOF
 
 `user.name`、`user.email`、エイリアスなどがそのまま利用できます。設定不要です。
 
-### SSH — 明示 opt-in
+### SSH — 2つの方式
 
-| ホスト | コンテナ | 方法 |
-|--------|----------|------|
-| `~/.ssh/` | `/home/agent/.ssh/` | `mount_ssh: true` のときだけ読み取り専用でマウント → エントリポイントで正しいパーミッションでコピー |
+Git SSH 操作（push/clone/fetch）には `ssh_agent_forwarding` と `mount_ssh` の2つの方式があります:
 
-`~/.ssh` はデフォルトではマウントされません。SSH 経由の `git push` / `pull` が必要なプロファイルだけ `mount_ssh: true` を付けると、秘密鍵、`known_hosts`、`config` を引き継げます。
+| 方式 | 設定 | 仕組み | 鍵ファイルの露出 |
+|------|------|--------|------------------|
+| **SSH Agent 転送** | `ssh_agent_forwarding: true` | ホストの SSH Agent ソケット（`SSH_AUTH_SOCK`）をコンテナに転送 | なし（推奨） |
+| **SSH ディレクトリマウント** | `mount_ssh: true` | `~/.ssh/` 全体を読み取り専用でマウント → エントリポイントでコピー | あり（鍵ファイルがコンテナ内に存在） |
+
+`ssh_agent_forwarding: true` は鍵ファイルをコンテナに入れずに Git SSH 認証を通す軽量な方式です。ホスト側で SSH Agent が起動し、鍵が登録されている必要があります（`ssh-add -l` で確認）。`mount_ssh: true` と同時に設定した場合は `mount_ssh` が優先されます。
+
+`mount_ssh: true` はサーバーへの SSH ログインなど、Git 以外の SSH 操作も必要な場合に使います。
+
+**プラットフォームごとの動作（`ssh_agent_forwarding`）:**
+
+| 環境 | 仕組み |
+|------|--------|
+| Linux (Docker/Podman) | `$SSH_AUTH_SOCK` を直接 bind mount |
+| macOS + Docker Desktop | Docker Desktop のファイル共有経由で `$SSH_AUTH_SOCK` を bind mount |
+| macOS + Podman | `ssh -R` で Podman VM にソケット転送 + SELinux モジュール自動インストール（下記参照） |
+
+#### macOS + Podman での SSH Agent 転送の仕組み
+
+macOS + Podman では、SSH Agent ソケットが Podman VM から直接アクセスできないため、`aw` が以下の処理を自動的に行います:
+
+1. **SSH トンネル確立**: `ssh -R` で macOS の `$SSH_AUTH_SOCK` を Podman VM 内の `/tmp/aw-ssh-agent.sock` に転送
+2. **SELinux モジュールインストール** (初回のみ): コンテナ (`container_t`) が VM 内のソケットに接続するためのカスタムポリシー `aw_agent_sock` を VM にインストール
+3. **ソケットマウント**: VM 内のソケットをコンテナに bind mount し、`SSH_AUTH_SOCK` 環境変数を設定
+4. **クリーンアップ**: コンテナ終了時に SSH トンネルプロセスを停止し、VM 内のソケットを削除
+
+**Podman VM に設定されるもの:**
+
+| 対象 | 内容 | 永続性 |
+|------|------|--------|
+| `/tmp/aw-ssh-agent.sock` | SSH Agent 転送ソケット | コンテナ終了時に削除 |
+| SELinux module `aw_agent_sock` | `container_t` → `unconfined_t` ソケット接続許可 | 永続（VM 再起動後も有効） |
+
+SELinux モジュールの内容:
+```
+allow container_t unconfined_t:unix_stream_socket connectto;
+allow container_t user_tmp_t:sock_file { read write getattr };
+```
 
 ### GitHub CLI — そのまま動作
 
