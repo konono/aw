@@ -1,0 +1,56 @@
+# Starter config used when no config files exist.
+# Run `aw init` to write this file to ~/.config/aw/config.yml and edit it.
+#
+# Top-level fields here act as defaults for all profiles below.
+default: claude
+environment: container        # "host" or "container"
+os: debian12                  # "debian12", "ubi9", "ubi10", "ubuntu2604"
+container_runtime: podman     # "docker" or "podman"
+
+profiles:
+  shell:
+    launch: shell             # "shell", "claude", "codex", "opencode", "zellij"
+
+  claude:
+    launch: claude
+
+  codex:
+    launch: codex
+
+  opencode:
+    launch: opencode
+
+  ubi9-shell:
+    os: ubi9
+    launch: shell
+
+  ubi10-shell:
+    os: ubi10
+    launch: shell
+
+  ubuntu2604-shell:
+    os: ubuntu2604
+    launch: shell
+
+  # Example with additional optional fields you can use in any profile:
+  #
+  # custom:
+  #   environment: container
+  #   launch: zellij
+  #   os: ubuntu2604
+  #   container_runtime: podman
+  #   dockerfile: docker/Dockerfile.custom   # use either os or dockerfile
+  #   env:
+  #     FOO: bar
+  #   mounts:
+  #     - source: ~/.config/gcloud
+  #       target: /home/claude/.config/gcloud
+  #       readonly: true
+  #   worktree:
+  #     base: origin/main
+  #     dir: ~/worktrees/my-project
+  #     on-create: ./scripts/setup.sh
+  #     on-end: ./scripts/cleanup.sh
+  #   zellij:
+  #     layout: default
+  #     tool: claude                        # "claude", "codex", "opencode"
