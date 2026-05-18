@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/konono/aw/internal/profile"
 )
 
 // PrepareBuildContext prepares a build context directory for docker build.
@@ -14,10 +16,10 @@ import (
 // are available via COPY.
 //
 // If customDockerfilePath is empty, a temporary directory is created with the
-// embedded default Dockerfile and entrypoint.sh.
+// embedded Dockerfile for the given OS template and entrypoint.sh.
 //
 // The caller must call the returned cleanup function when done.
-func PrepareBuildContext(customDockerfilePath string) (dir string, cleanup func(), err error) {
+func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate) (dir string, cleanup func(), err error) {
 	if customDockerfilePath != "" {
 		absPath, err := filepath.Abs(customDockerfilePath)
 		if err != nil {
@@ -29,6 +31,11 @@ func PrepareBuildContext(customDockerfilePath string) (dir string, cleanup func(
 		return filepath.Dir(absPath), func() {}, nil
 	}
 
+	df, err := DockerfileForOS(osTemplate)
+	if err != nil {
+		return "", nil, err
+	}
+
 	tmpDir, err := os.MkdirTemp("", "aw-build-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("creating temp dir: %w", err)
@@ -36,7 +43,7 @@ func PrepareBuildContext(customDockerfilePath string) (dir string, cleanup func(
 
 	cleanupFn := func() { _ = os.RemoveAll(tmpDir) }
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), dockerfile, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), df, 0644); err != nil {
 		cleanupFn()
 		return "", nil, fmt.Errorf("writing Dockerfile: %w", err)
 	}
