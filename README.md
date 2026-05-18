@@ -67,7 +67,7 @@ default: worktree-zellij
 
 environment: container             # "host" または "container"（必須）
 container_runtime: podman          # "docker"（デフォルト）または "podman"
-dockerfile: docker/Dockerfile.custom  # カスタム Dockerfile のパス（任意）
+dockerfile: docker/Dockerfile.custom  # カスタム Dockerfile のパス（任意、各 profile で上書き可）
 
 env:                               # コンテナに渡す環境変数（任意）
   CLAUDE_CODE_USE_VERTEX: "1"
@@ -157,6 +157,8 @@ profiles:
   claude:
     launch: claude
 ```
+
+`os` と `dockerfile` は最終的なプロファイル単位で排他的です。トップレベルで片方を設定していても、各プロファイルで反対側を指定すると継承値を置き換えます。
 
 ## カスタム Dockerfile
 

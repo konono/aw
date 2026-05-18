@@ -16,6 +16,17 @@ import (
 	"github.com/konono/aw/internal/toolinfo"
 )
 
+var allOSTemplates = []profile.OSTemplate{
+	profile.OSDebian12,
+	profile.OSUBI9,
+	profile.OSUBI10,
+	profile.OSUbuntu2604,
+}
+
+var integrationTools = []string{"claude", "codex", "opencode"}
+
+const progressLogInterval = 30 * time.Second
+
 func detectRuntime() string {
 	if r := os.Getenv("CONTAINER_RUNTIME"); r != "" {
 		return r
@@ -24,6 +35,36 @@ func detectRuntime() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+func runCommandWithProgress(t *testing.T, cmd *exec.Cmd, label string) error {
+	t.Helper()
+
+	start := time.Now()
+	t.Logf("%s: starting", label)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	ticker := time.NewTicker(progressLogInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Logf("%s: completed in %s", label, time.Since(start).Round(time.Second))
+			}
+			return err
+		case <-ticker.C:
+			t.Logf("%s: still running after %s", label, time.Since(start).Round(time.Second))
+		}
+	}
 }
 
 func buildImage(t *testing.T, runtime, imageName, contextDir string, buildArgs map[string]string) {
@@ -40,7 +81,7 @@ func buildImage(t *testing.T, runtime, imageName, contextDir string, buildArgs m
 	cmd := exec.CommandContext(ctx, runtime, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("build %s", imageName)); err != nil {
 		t.Fatalf("build %s failed: %v", imageName, err)
 	}
 }
@@ -55,7 +96,7 @@ func runInContainer(t *testing.T, runtime, imageName, script string) string {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	if err := cmd.Run(); err != nil {
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("run %s", imageName)); err != nil {
 		t.Fatalf("run in %s failed: %v\noutput: %s", imageName, err, out.String())
 	}
 	return out.String()
@@ -67,14 +108,16 @@ func removeImage(runtime, imageName string) {
 
 func TestIntegration_ShellPerOS(t *testing.T) {
 	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
 
-	for osTemplate := range dockerfiles {
-		osTemplate := osTemplate
+	// Build-heavy integration tests run sequentially so progress logs stay readable
+	// and the local container runtime is not overloaded.
+	for _, osTemplate := range allOSTemplates {
 		t.Run(string(osTemplate), func(t *testing.T) {
-			t.Parallel()
 			imageName := fmt.Sprintf("aw-inttest-shell-%s", osTemplate)
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
+			t.Logf("preparing shell image for os=%s", osTemplate)
 			buildDir, cleanup, err := PrepareBuildContext("", osTemplate)
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
@@ -103,13 +146,10 @@ echo "SHELL_OK"
 
 func TestIntegration_ToolPerOS(t *testing.T) {
 	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
 
-	tools := []string{"claude", "codex"}
-
-	for osTemplate := range dockerfiles {
-		for _, tool := range tools {
-			osTemplate := osTemplate
-			tool := tool
+	for _, osTemplate := range allOSTemplates {
+		for _, tool := range integrationTools {
 			pkg := toolinfo.DevboxPkg(tool)
 			if pkg == "" {
 				continue
@@ -117,10 +157,10 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 
 			testName := fmt.Sprintf("%s/%s", osTemplate, tool)
 			t.Run(testName, func(t *testing.T) {
-				t.Parallel()
 				imageName := fmt.Sprintf("aw-inttest-%s-%s", tool, osTemplate)
 				t.Cleanup(func() { removeImage(runtime, imageName) })
 
+				t.Logf("preparing tool image for os=%s tool=%s pkg=%s", osTemplate, tool, pkg)
 				buildDir, cleanup, err := PrepareBuildContext("", osTemplate)
 				if err != nil {
 					t.Fatalf("PrepareBuildContext: %v", err)
@@ -143,14 +183,7 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 }
 
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
-	allOS := []profile.OSTemplate{
-		profile.OSDebian12,
-		profile.OSUBI9,
-		profile.OSUBI10,
-		profile.OSUbuntu2604,
-	}
-
-	for _, os := range allOS {
+	for _, os := range allOSTemplates {
 		if _, ok := dockerfiles[os]; !ok {
 			t.Errorf("no embedded Dockerfile for OS template %q", os)
 		}

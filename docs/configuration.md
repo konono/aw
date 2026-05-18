@@ -136,6 +136,8 @@ The base operating system for the container image. Only valid with `environment:
 
 All OS templates include the same tooling: git, curl, Nix, devbox, and setpriv. The entrypoint behavior is identical across all OS templates.
 
+If `os` or `dockerfile` is inherited from top-level defaults, specifying the other field on a profile replaces the inherited value so that each final profile still uses only one of them.
+
 ```yaml
 profiles:
   rhel10-shell:
