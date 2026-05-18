@@ -47,6 +47,7 @@ type Profile struct {
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
+	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
 }
 
@@ -101,6 +102,11 @@ func (p *Profile) EffectiveContainerRuntime() string {
 // EffectiveMountSSH returns whether the host ~/.ssh directory should be mounted.
 func (p *Profile) EffectiveMountSSH() bool {
 	return p != nil && p.MountSSH != nil && *p.MountSSH
+}
+
+// EffectiveSSHAgentForwarding returns whether SSH agent forwarding should be enabled.
+func (p *Profile) EffectiveSSHAgentForwarding() bool {
+	return p != nil && p.SSHAgentForwarding != nil && *p.SSHAgentForwarding
 }
 
 // WorktreeConfig controls git worktree creation.

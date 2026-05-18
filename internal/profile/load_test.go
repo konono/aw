@@ -205,6 +205,9 @@ func assertStarterProfiles(t *testing.T, cfg *Config) {
 		if p.EffectiveMountSSH() {
 			t.Errorf("%s.EffectiveMountSSH() = true, want false", tt.name)
 		}
+		if p.EffectiveSSHAgentForwarding() {
+			t.Errorf("%s.EffectiveSSHAgentForwarding() = true, want false", tt.name)
+		}
 	}
 }
 
@@ -447,6 +450,72 @@ profiles:
 	}
 	if *disabled.MountSSH {
 		t.Error("disabled.mount_ssh = true, want false")
+	}
+}
+
+func TestParse_SSHAgentForwarding(t *testing.T) {
+	yaml := `
+ssh_agent_forwarding: true
+profiles:
+  enabled:
+    environment: container
+    launch: claude
+  disabled:
+    environment: container
+    launch: shell
+    ssh_agent_forwarding: false
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	if cfg.Defaults.SSHAgentForwarding == nil || !*cfg.Defaults.SSHAgentForwarding {
+		t.Fatal("top-level ssh_agent_forwarding should parse as true")
+	}
+
+	disabled := cfg.Profiles["disabled"]
+	if disabled.SSHAgentForwarding == nil {
+		t.Fatal("profile ssh_agent_forwarding should not be nil")
+	}
+	if *disabled.SSHAgentForwarding {
+		t.Error("disabled.ssh_agent_forwarding = true, want false")
+	}
+}
+
+func TestLoadFile_TopLevelSSHAgentForwardingOverridesBuiltinProfiles(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".agent-workspace.yml")
+
+	content := `
+ssh_agent_forwarding: true
+profiles:
+  claude:
+    ssh_agent_forwarding: false
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFile(configPath)
+	if err != nil {
+		t.Fatalf("LoadFile() error: %v", err)
+	}
+
+	shellProfile, ok := cfg.Profiles["shell"]
+	if !ok {
+		t.Fatal("expected builtin shell profile to be preserved")
+	}
+	if !shellProfile.EffectiveSSHAgentForwarding() {
+		t.Error("shell should inherit ssh_agent_forwarding: true from top-level user config")
+	}
+
+	claudeProfile, ok := cfg.Profiles["claude"]
+	if !ok {
+		t.Fatal("expected builtin claude profile to be preserved")
+	}
+	if claudeProfile.EffectiveSSHAgentForwarding() {
+		t.Error("claude should override inherited ssh_agent_forwarding to false")
 	}
 }
 

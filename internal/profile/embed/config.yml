@@ -7,6 +7,7 @@ environment: container        # "host" or "container"
 os: debian12                  # "debian12", "ubi9", "ubi10", "ubuntu2604"
 container_runtime: podman     # "docker" or "podman"
 mount_ssh: false              # opt-in: set true to mount host ~/.ssh read-only
+ssh_agent_forwarding: false   # opt-in: set true to forward SSH agent for git push/clone
 
 profiles:
   shell:

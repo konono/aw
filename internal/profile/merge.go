@@ -45,6 +45,10 @@ func MergeProfile(base, override Profile) Profile {
 		v := *override.MountSSH
 		merged.MountSSH = &v
 	}
+	if override.SSHAgentForwarding != nil {
+		v := *override.SSHAgentForwarding
+		merged.SSHAgentForwarding = &v
+	}
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
@@ -122,6 +126,10 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if !equalBoolPtr(effective.MountSSH, defaults.MountSSH) && effective.MountSSH != nil {
 		v := *effective.MountSSH
 		relative.MountSSH = &v
+	}
+	if !equalBoolPtr(effective.SSHAgentForwarding, defaults.SSHAgentForwarding) && effective.SSHAgentForwarding != nil {
+		v := *effective.SSHAgentForwarding
+		relative.SSHAgentForwarding = &v
 	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
