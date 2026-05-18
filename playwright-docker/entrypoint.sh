@@ -7,6 +7,11 @@ if [ -n "$AW_HOST_CONFIG_HOME" ] && [ -n "$AW_CONTAINER_CONFIG_DIR" ] \
   ln -sfn "$AW_CONTAINER_CONFIG_DIR" "$AW_HOST_CONFIG_HOME"
 fi
 
+# Symlink .claude.json from staging dir to home (for onboarding state persistence)
+if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then
+  ln -sfn "$AW_CONTAINER_CONFIG_DIR/.claude.json" /home/agent/.claude.json
+fi
+
 if [ -n "$AW_DATA_SYMLINKS" ]; then
   IFS=',' read -ra LINKS <<< "$AW_DATA_SYMLINKS"
   for link in "${LINKS[@]}"; do
@@ -76,6 +81,18 @@ else
 fi
 
 export HOME=/home/agent
+
+# Write devbox/nix PATH setup to .bashrc so all child processes (including
+# commands spawned by AI tools like `bash -c "uv sync"`) inherit the PATH.
+cat > /home/agent/.bashrc <<BASHRC
+. /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+eval "\$(devbox global shellenv --preserve-path-stack -r 2>/dev/null | grep '^export ')"
+export PATH="/home/agent/.local/share/mise/shims:\$PATH"
+export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-/workspace}"
+export MISE_YES=1
+BASHRC
+chown agent:agent /home/agent/.bashrc
+
 exec setpriv --reuid="$(id -u agent)" --regid="$(id -g agent)" --init-groups \
   env HOME=/home/agent \
-  bash -c 'eval "$(devbox global shellenv 2>/dev/null)"; export PATH="/home/agent/.local/share/mise/shims:$PATH"; exec "$@"' -- "$@"
+  bash -lc 'exec "$@"' -- "$@"
