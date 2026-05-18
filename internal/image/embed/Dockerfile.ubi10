@@ -1,0 +1,40 @@
+FROM registry.access.redhat.com/ubi10/ubi:latest
+
+RUN dnf install -y --allowerasing \
+      git curl ca-certificates wget openssh-clients sudo xz \
+      util-linux-core tar gzip findutils && \
+    dnf clean all
+
+RUN useradd -m -s /bin/bash agent && \
+    echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+RUN mkdir -p /nix && chown agent:agent /nix
+
+USER agent
+RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+USER root
+
+RUN ln -s /home/agent/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
+
+RUN su -s /bin/bash agent -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
+
+ENV PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
+
+ARG AW_TOOL_PKG=""
+COPY . /tmp/aw-build/
+RUN if [ -n "$AW_TOOL_PKG" ]; then \
+      su -s /bin/bash agent -c "devbox global add $AW_TOOL_PKG"; \
+    fi && \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      chown -R agent:agent /tmp/aw-build && \
+      su -s /bin/bash agent -c "cd /tmp/aw-build && devbox install"; \
+    fi && rm -rf /tmp/aw-build
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+RUN mkdir -p /Users && chown agent:agent /Users
+
+WORKDIR /workspace
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
