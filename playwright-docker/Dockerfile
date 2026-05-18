@@ -2,7 +2,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      git curl ca-certificates wget openssh-client sudo \
+      git curl ca-certificates wget openssh-client sudo xz-utils \
       # Playwright browser dependencies
       libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
       libdbus-1-3 libx11-6 libxcomposite1 libxdamage1 libxext6 \
@@ -11,19 +11,19 @@ RUN apt-get update && \
       libxkbcommon0 libatspi2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash claude && \
-    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN useradd -m -s /bin/bash agent && \
+    echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN su -s /bin/bash claude -c 'curl https://mise.jdx.dev/install.sh | sh'
+RUN su -s /bin/bash agent -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
 
-ENV PATH="/home/claude/.local/bin:/home/claude/.local/share/mise/shims:${PATH}"
+ENV PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-RUN mkdir -p /Users && chown claude:claude /Users
+RUN mkdir -p /Users && chown agent:agent /Users
 
 WORKDIR /workspace
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["claude"]
+CMD ["bash"]
