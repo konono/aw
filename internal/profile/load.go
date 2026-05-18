@@ -67,7 +67,7 @@ func Load() (*Config, error) {
 		merged.Source = ConfigSource{IsBuiltin: true}
 	}
 
-	applied := ApplyTopLevel(merged)
+	applied := ApplyDefaults(merged)
 	return &applied, nil
 }
 
@@ -93,7 +93,7 @@ func LoadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg := ApplyTopLevel(builtinConfig)
+			cfg := ApplyDefaults(builtinConfig)
 			cfg.Source = ConfigSource{IsBuiltin: true}
 			return &cfg, nil
 		}
@@ -107,7 +107,7 @@ func LoadFile(path string) (*Config, error) {
 
 	merged := MergeConfig(builtinConfig, *userCfg)
 	merged.Source = ConfigSource{FilePath: path}
-	applied := ApplyTopLevel(merged)
+	applied := ApplyDefaults(merged)
 	return &applied, nil
 }
 
