@@ -37,8 +37,8 @@ func TestEmbeddedEntrypointContent(t *testing.T) {
 	if !strings.Contains(content, "setpriv") {
 		t.Error("entrypoint.sh should use setpriv to switch user")
 	}
-	if !strings.Contains(content, "HOST_CLAUDE_HOME") {
-		t.Error("entrypoint.sh should reference HOST_CLAUDE_HOME")
+	if !strings.Contains(content, "AW_HOST_CONFIG_HOME") {
+		t.Error("entrypoint.sh should reference AW_HOST_CONFIG_HOME")
 	}
 }
 

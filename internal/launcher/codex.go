@@ -42,13 +42,9 @@ func (l *CodexLauncher) launchHostCodex(ec *pipeline.ExecutionContext) error {
 func (l *CodexLauncher) launchDockerCodex(ctx context.Context, ec *pipeline.ExecutionContext) error {
 	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
 
-	command := []string{"codex", "--full-auto"}
+	command := []string{"codex", "-a", "never"}
 
-	envVars := make(map[string]string, len(ec.EnvVars)+2)
-	for k, v := range ec.EnvVars {
-		envVars[k] = v
-	}
-	envVars["AW_LAUNCH_MODE"] = "codex"
+	envVars := buildContainerEnvVars(ec, "codex")
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 	runConfig := docker.RunConfig{

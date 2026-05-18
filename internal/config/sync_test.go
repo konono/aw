@@ -20,8 +20,8 @@ func TestSyncSettings_CopiesFiles(t *testing.T) {
 	}
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	// Verify settings.json was patched
@@ -55,8 +55,8 @@ func TestSyncSettings_SkipsMissingFiles(t *testing.T) {
 
 	// Don't create any source files
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	// settings.json should still be created with minimal content
@@ -87,8 +87,8 @@ func TestSyncSettings_CopiesDirectories(t *testing.T) {
 	}
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	// Verify directory and file were copied
@@ -124,8 +124,8 @@ func TestSyncSettings_ReplacesExistingDirectories(t *testing.T) {
 	}
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	// Old file should be gone
@@ -148,12 +148,12 @@ func TestSyncSettings_SkipsMissingDirectories(t *testing.T) {
 	containerHome := t.TempDir()
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	// Verify no directories were created
-	for _, d := range syncDirs {
+	for _, d := range ClaudeSyncSpec.Dirs {
 		if _, err := os.Stat(filepath.Join(containerHome, d)); !os.IsNotExist(err) {
 			t.Errorf("%s should not exist when source is missing", d)
 		}
@@ -165,8 +165,8 @@ func TestSyncSettings_CreatesContainerHome(t *testing.T) {
 	containerHome := filepath.Join(t.TempDir(), "nonexistent", "agent-workspace")
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	info, err := os.Stat(containerHome)
@@ -192,8 +192,8 @@ func TestSyncSettings_NestedDirectories(t *testing.T) {
 	}
 
 	syncer := NewSyncer()
-	if err := syncer.SyncSettings(claudeHome, containerHome); err != nil {
-		t.Fatalf("SyncSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(claudeHome, containerHome, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(containerHome, "plugins", "subdir", "plugin.json"))
@@ -218,8 +218,8 @@ func TestSyncCodexSettings_CopiesDirectory(t *testing.T) {
 	}
 
 	syncer := NewSyncer()
-	if err := syncer.SyncCodexSettings(codexHome, containerHome); err != nil {
-		t.Fatalf("SyncCodexSettings() error: %v", err)
+	if err := syncer.SyncToolSettings(codexHome, containerHome, CodexSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings(CodexSyncSpec) error: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(containerHome, "config.toml"))
@@ -243,8 +243,8 @@ func TestSyncCodexSettings_NoSourceDir(t *testing.T) {
 	containerHome := filepath.Join(t.TempDir(), "agent-workspace-codex")
 
 	syncer := NewSyncer()
-	if err := syncer.SyncCodexSettings("/nonexistent/codex", containerHome); err != nil {
-		t.Fatalf("SyncCodexSettings() should not error for missing source: %v", err)
+	if err := syncer.SyncToolSettings("/nonexistent/codex", containerHome, CodexSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings(CodexSyncSpec) should not error for missing source: %v", err)
 	}
 
 	// Container dir should be created even if source doesn't exist

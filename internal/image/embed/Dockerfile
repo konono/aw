@@ -2,24 +2,44 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      git curl ca-certificates wget openssh-client sudo && \
+      git curl ca-certificates wget openssh-client sudo xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash claude && \
-    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN useradd -m -s /bin/bash agent && \
+    echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# Install mise as claude user
-RUN su -s /bin/bash claude -c 'curl https://mise.jdx.dev/install.sh | sh'
+# Create /nix owned by agent for single-user Nix install
+RUN mkdir -p /nix && chown agent:agent /nix
 
-ENV PATH="/home/claude/.local/bin:/home/claude/.local/share/mise/shims:${PATH}"
+# Install Nix as agent user (single-user mode, no daemon)
+USER agent
+RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+USER root
+
+# Create default profile symlink that devbox expects
+RUN ln -s /home/agent/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
+
+# Install devbox
+RUN su -s /bin/bash agent -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
+
+ENV PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
+
+# Install AI tool and user packages at build time.
+ARG AW_TOOL_PKG=""
+COPY . /tmp/aw-build/
+RUN if [ -n "$AW_TOOL_PKG" ]; then \
+      su -s /bin/bash agent -c "devbox global add $AW_TOOL_PKG"; \
+    fi && \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      chown -R agent:agent /tmp/aw-build && \
+      su -s /bin/bash agent -c "cd /tmp/aw-build && devbox install"; \
+    fi && rm -rf /tmp/aw-build
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-# Create base directory for host path symlinks (owned by claude)
-RUN mkdir -p /Users && chown claude:claude /Users
+RUN mkdir -p /Users && chown agent:agent /Users
 
 WORKDIR /workspace
-# Note: WORKDIR is overridden at runtime via --workdir to match host path
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["claude"]
+CMD ["bash"]

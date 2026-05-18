@@ -10,12 +10,10 @@ import (
 
 func newTestOpts(homeDir, workDir string) MountOptions {
 	return MountOptions{
-		HomeDir:             homeDir,
-		WorkDir:             workDir,
-		ClaudeHome:          filepath.Join(homeDir, ".claude"),
-		ContainerClaudeHome: filepath.Join(homeDir, ".agent-workspace"),
-		ContainerClaudeJSON: filepath.Join(homeDir, ".agent-workspace.json"),
-		VolumeName:          "claude-code-local",
+		HomeDir:          homeDir,
+		WorkDir:          workDir,
+		ToolStageDir:     filepath.Join(homeDir, ".agent-workspace", "claude"),
+		ToolContainerDir: "/home/agent/.claude",
 	}
 }
 
@@ -39,28 +37,13 @@ func TestBuildMounts_FixedMountsAlwaysPresent(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	// Volume mount
-	vol := findMount(mounts, "/home/claude/.local")
-	if vol == nil {
-		t.Fatal("missing volume mount for /home/claude/.local")
-	}
-	if vol.Source != "claude-code-local" || !vol.IsVolume {
-		t.Errorf("volume mount = %+v, want source=claude-code-local, IsVolume=true", vol)
-	}
-
-	// Claude config mount
-	cfg := findMount(mounts, "/home/claude/.claude")
+	// Tool config mount
+	cfg := findMount(mounts, "/home/agent/.claude")
 	if cfg == nil {
-		t.Fatal("missing mount for /home/claude/.claude")
+		t.Fatal("missing mount for /home/agent/.claude")
 	}
-	if cfg.Source != opts.ContainerClaudeHome {
-		t.Errorf("claude config source = %q, want %q", cfg.Source, opts.ContainerClaudeHome)
-	}
-
-	// Claude JSON mount
-	json := findMount(mounts, "/home/claude/.claude.json")
-	if json == nil {
-		t.Fatal("missing mount for /home/claude/.claude.json")
+	if cfg.Source != opts.ToolStageDir {
+		t.Errorf("tool config source = %q, want %q", cfg.Source, opts.ToolStageDir)
 	}
 
 	// Workspace mount
@@ -89,7 +72,7 @@ func TestBuildMounts_GitconfigWhenPresent(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	m := findMount(mounts, "/home/claude/.gitconfig")
+	m := findMount(mounts, "/home/agent/.gitconfig")
 	if m == nil {
 		t.Fatal("missing .gitconfig mount")
 	}
@@ -109,7 +92,7 @@ func TestBuildMounts_NoGitconfigWhenMissing(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	if findMount(mounts, "/home/claude/.gitconfig") != nil {
+	if findMount(mounts, "/home/agent/.gitconfig") != nil {
 		t.Error(".gitconfig mount should not exist when file is missing")
 	}
 }
@@ -129,7 +112,7 @@ func TestBuildMounts_GhConfigWhenPresent(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	m := findMount(mounts, "/home/claude/.config/gh")
+	m := findMount(mounts, "/home/agent/.config/gh")
 	if m == nil {
 		t.Fatal("missing .config/gh mount")
 	}
@@ -150,7 +133,7 @@ func TestBuildMounts_SSHReadOnly(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	m := findMount(mounts, "/home/claude/.ssh-host")
+	m := findMount(mounts, "/home/agent/.ssh-host")
 	if m == nil {
 		t.Fatal("missing .ssh-host mount")
 	}
@@ -173,7 +156,7 @@ func TestBuildMounts_NoSSHWhenMissing(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	if findMount(mounts, "/home/claude/.ssh-host") != nil {
+	if findMount(mounts, "/home/agent/.ssh-host") != nil {
 		t.Error(".ssh-host mount should not exist when .ssh is missing")
 	}
 }
@@ -216,17 +199,21 @@ func TestBuildMounts_WorktreeAddsMount(t *testing.T) {
 	}
 }
 
-func TestBuildMounts_CodexSkipsClaudeMounts(t *testing.T) {
+func TestBuildMounts_CodexToolConfig(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()
-	codexHome := filepath.Join(homeDir, ".agent-workspace-codex")
-	if err := os.MkdirAll(codexHome, 0755); err != nil {
-		t.Fatalf("creating codex home: %v", err)
+	codexStageDir := filepath.Join(homeDir, ".agent-workspace", "codex")
+	if err := os.MkdirAll(codexStageDir, 0755); err != nil {
+		t.Fatalf("creating codex stage dir: %v", err)
 	}
 
-	opts := newTestOpts(homeDir, workDir)
-	opts.Tool = "codex"
-	opts.ContainerCodexHome = codexHome
+	opts := MountOptions{
+		HomeDir:          homeDir,
+		WorkDir:          workDir,
+
+		ToolStageDir:     codexStageDir,
+		ToolContainerDir: "/home/agent/.codex",
+	}
 
 	builder := NewBuilder()
 	mounts, err := builder.BuildMounts(opts)
@@ -234,39 +221,37 @@ func TestBuildMounts_CodexSkipsClaudeMounts(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	// Claude-specific mounts should NOT be present
-	if findMount(mounts, "/home/claude/.claude") != nil {
-		t.Error("claude config mount should not exist for codex tool")
-	}
-	if findMount(mounts, "/home/claude/.claude.json") != nil {
-		t.Error("claude json mount should not exist for codex tool")
-	}
-
-	// Codex mount should be present
-	codex := findMount(mounts, "/home/claude/.codex")
+	// Codex mount should be present at the correct path
+	codex := findMount(mounts, "/home/agent/.codex")
 	if codex == nil {
 		t.Fatal("missing codex config mount")
 	}
-	if codex.Source != codexHome {
-		t.Errorf("codex source = %q, want %q", codex.Source, codexHome)
+	if codex.Source != codexStageDir {
+		t.Errorf("codex source = %q, want %q", codex.Source, codexStageDir)
 	}
 
-	// Volume and workspace should still be present
-	if findMount(mounts, "/home/claude/.local") == nil {
-		t.Error("volume mount should still be present for codex")
+	// Claude-specific mounts should NOT be present
+	if findMount(mounts, "/home/agent/.claude") != nil {
+		t.Error("claude config mount should not exist for codex tool")
 	}
+
+	// Workspace should still be present
 	if findMount(mounts, workDir) == nil {
 		t.Error("workspace mount should still be present for codex")
 	}
 }
 
-func TestBuildMounts_CodexNoCodexHomeSkipsMount(t *testing.T) {
+func TestBuildMounts_NoToolConfigSkipsMount(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()
 
-	opts := newTestOpts(homeDir, workDir)
-	opts.Tool = "codex"
-	opts.ContainerCodexHome = ""
+	opts := MountOptions{
+		HomeDir:          homeDir,
+		WorkDir:          workDir,
+
+		ToolStageDir:     "",
+		ToolContainerDir: "",
+	}
 
 	builder := NewBuilder()
 	mounts, err := builder.BuildMounts(opts)
@@ -274,20 +259,19 @@ func TestBuildMounts_CodexNoCodexHomeSkipsMount(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	if findMount(mounts, "/home/claude/.codex") != nil {
-		t.Error("codex mount should not exist when ContainerCodexHome is empty")
+	if findMount(mounts, "/home/agent/.codex") != nil {
+		t.Error("codex mount should not exist when ToolStageDir is empty")
 	}
-	if findMount(mounts, "/home/claude/.claude") != nil {
-		t.Error("claude mount should not exist for codex tool")
+	if findMount(mounts, "/home/agent/.claude") != nil {
+		t.Error("claude mount should not exist when ToolStageDir is empty")
 	}
 }
 
-func TestBuildMounts_EmptyToolDefaultsToClaude(t *testing.T) {
+func TestBuildMounts_ToolConfigMountPresent(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()
 
 	opts := newTestOpts(homeDir, workDir)
-	// Tool is empty (default)
 
 	builder := NewBuilder()
 	mounts, err := builder.BuildMounts(opts)
@@ -295,12 +279,9 @@ func TestBuildMounts_EmptyToolDefaultsToClaude(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	// Claude mounts should be present
-	if findMount(mounts, "/home/claude/.claude") == nil {
-		t.Error("claude config mount should exist for default (empty) tool")
-	}
-	if findMount(mounts, "/home/claude/.claude.json") == nil {
-		t.Error("claude json mount should exist for default (empty) tool")
+	// Tool config mount should be present at the configured container dir
+	if findMount(mounts, "/home/agent/.claude") == nil {
+		t.Error("tool config mount should exist when ToolStageDir and ToolContainerDir are set")
 	}
 }
 
@@ -320,8 +301,8 @@ func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	// Should only have the 4 fixed mounts (no optional ones since homeDir is empty)
-	if len(mounts) != 4 {
-		t.Errorf("expected 4 mounts (fixed only), got %d: %+v", len(mounts), mounts)
+	// Should only have the 2 fixed mounts: tool config, workspace
+	if len(mounts) != 2 {
+		t.Errorf("expected 2 mounts (fixed only), got %d: %+v", len(mounts), mounts)
 	}
 }

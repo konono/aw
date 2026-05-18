@@ -34,6 +34,10 @@ var builtinConfig = Config{
 			Environment: EnvironmentContainer,
 			Launch:      LaunchCodex,
 		},
+		"opencode": {
+			Environment: EnvironmentContainer,
+			Launch:      LaunchOpenCode,
+		},
 		"worktree-zellij": {
 			Worktree:    &WorktreeConfig{},
 			Environment: EnvironmentContainer,

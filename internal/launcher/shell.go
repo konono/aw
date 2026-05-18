@@ -39,7 +39,6 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 
 	fmt.Fprintf(os.Stderr, "Opening shell in %s\n", ec.WorkDir)
 
-	// Use syscall.Exec to replace the current process
 	env := os.Environ()
 	return syscall.Exec(shellPath, []string{shell}, env)
 }
@@ -47,17 +46,11 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.ExecutionContext) error {
 	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
 
-	envVars := make(map[string]string, len(ec.EnvVars)+3)
-	for k, v := range ec.EnvVars {
-		envVars[k] = v
-	}
-	// Hardcoded vars always win — users cannot override these
 	tool := ec.Profile.EffectiveTool()
 	if tool == "" {
 		tool = "claude"
 	}
-	envVars["AW_LAUNCH_MODE"] = tool
-	envVars["HOST_CLAUDE_HOME"] = claudeHomePath(ec.HomeDir)
+	envVars := buildContainerEnvVars(ec, tool)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 	runConfig := docker.RunConfig{

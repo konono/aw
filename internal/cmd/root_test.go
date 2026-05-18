@@ -18,8 +18,8 @@ func TestBuildStages_DockerClaude(t *testing.T) {
 	if len(stages) != 3 {
 		t.Fatalf("got %d stages, want 3", len(stages))
 	}
-	if stages[0].Name() != "docker" {
-		t.Errorf("stage[0] = %q, want 'docker'", stages[0].Name())
+	if stages[0].Name() != "container" {
+		t.Errorf("stage[0] = %q, want 'container'", stages[0].Name())
 	}
 	if stages[1].Name() != "env" {
 		t.Errorf("stage[1] = %q, want 'env'", stages[1].Name())
@@ -64,8 +64,8 @@ func TestBuildStages_WorktreeDockerZellij(t *testing.T) {
 	if stages[0].Name() != "worktree" {
 		t.Errorf("stage[0] = %q, want 'worktree'", stages[0].Name())
 	}
-	if stages[1].Name() != "docker" {
-		t.Errorf("stage[1] = %q, want 'docker'", stages[1].Name())
+	if stages[1].Name() != "container" {
+		t.Errorf("stage[1] = %q, want 'container'", stages[1].Name())
 	}
 	if stages[2].Name() != "env" {
 		t.Errorf("stage[2] = %q, want 'env'", stages[2].Name())
