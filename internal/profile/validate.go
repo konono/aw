@@ -19,12 +19,12 @@ func Validate(p Profile) error {
 
 	// Validate launch mode
 	switch p.Launch {
-	case LaunchShell, LaunchClaude, LaunchCodex, LaunchZellij:
+	case LaunchShell, LaunchClaude, LaunchCodex, LaunchOpenCode, LaunchZellij:
 		// ok
 	case "":
-		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", or \"zellij\")")
+		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", \"opencode\", or \"zellij\")")
 	default:
-		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", or \"zellij\")", p.Launch)
+		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", \"opencode\", or \"zellij\")", p.Launch)
 	}
 
 	// Validate zellij config is only used with launch: zellij
@@ -35,10 +35,10 @@ func Validate(p Profile) error {
 	// Validate zellij tool field
 	if p.Zellij != nil && p.Zellij.Tool != "" {
 		switch p.Zellij.Tool {
-		case "claude", "codex":
+		case "claude", "codex", "opencode":
 			// ok
 		default:
-			return fmt.Errorf("unknown zellij tool: %q (must be \"claude\" or \"codex\")", p.Zellij.Tool)
+			return fmt.Errorf("unknown zellij tool: %q (must be \"claude\", \"codex\", or \"opencode\")", p.Zellij.Tool)
 		}
 	}
 

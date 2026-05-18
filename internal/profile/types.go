@@ -87,10 +87,11 @@ const (
 type LaunchMode string
 
 const (
-	LaunchShell  LaunchMode = "shell"
-	LaunchClaude LaunchMode = "claude"
-	LaunchCodex  LaunchMode = "codex"
-	LaunchZellij LaunchMode = "zellij"
+	LaunchShell    LaunchMode = "shell"
+	LaunchClaude   LaunchMode = "claude"
+	LaunchCodex    LaunchMode = "codex"
+	LaunchOpenCode LaunchMode = "opencode"
+	LaunchZellij   LaunchMode = "zellij"
 )
 
 // EffectiveTool returns the AI tool name ("claude" or "codex") based on
@@ -101,6 +102,8 @@ func (p *Profile) EffectiveTool() string {
 		return "claude"
 	case LaunchCodex:
 		return "codex"
+	case LaunchOpenCode:
+		return "opencode"
 	case LaunchZellij:
 		if p.Zellij != nil && p.Zellij.Tool != "" {
 			return p.Zellij.Tool
