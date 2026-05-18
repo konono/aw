@@ -190,6 +190,15 @@ func TestValidate(t *testing.T) {
 				Dockerfile:  "custom/Dockerfile",
 			},
 		},
+		{
+			name:    "valid container + ssh_agent_forwarding",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
+		},
+		{
+			name:    "ssh_agent_forwarding with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SSHAgentForwarding: &v} }(),
+			wantErr: "ssh_agent_forwarding is only valid with environment: container",
+		},
 	}
 
 	for _, tt := range tests {

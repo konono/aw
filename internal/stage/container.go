@@ -14,6 +14,7 @@ import (
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
 )
 
@@ -140,13 +141,27 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		})
 	}
 
+	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
+	sshAuthSock := ""
+	if sshAgentFwd && !ec.Profile.EffectiveMountSSH() {
+		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: ssh_agent_forwarding: %v\n", err)
+		} else {
+			sshAuthSock = agent.SocketPath
+			ec.SSHAgentCleanup = agent.Cleanup
+		}
+	}
+
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
-		HomeDir:          ec.HomeDir,
-		WorkDir:          ec.WorkDir,
-		ToolStageDir:     toolStageDir,
-		ToolContainerDir: toolContainerDir,
-		MountSSH:         ec.Profile.EffectiveMountSSH(),
-		ExtraMounts:      extraMounts,
+		HomeDir:            ec.HomeDir,
+		WorkDir:            ec.WorkDir,
+		ToolStageDir:       toolStageDir,
+		ToolContainerDir:   toolContainerDir,
+		MountSSH:           ec.Profile.EffectiveMountSSH(),
+		SSHAgentForwarding: sshAgentFwd,
+		SSHAuthSock:        sshAuthSock,
+		ExtraMounts:        extraMounts,
 	})
 	if err != nil {
 		return fmt.Errorf("building mounts: %w", err)

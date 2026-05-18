@@ -121,13 +121,20 @@ func Run(args []string) int {
 	pipe := pipeline.New(stages...)
 
 	if err := pipe.Execute(context.Background(), ec); err != nil {
-		runOnEndIfConfigured(ec)
+		runCleanups(ec)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
 
-	runOnEndIfConfigured(ec)
+	runCleanups(ec)
 	return 0
+}
+
+func runCleanups(ec *pipeline.ExecutionContext) {
+	if ec.SSHAgentCleanup != nil {
+		ec.SSHAgentCleanup()
+	}
+	runOnEndIfConfigured(ec)
 }
 
 func runOnEndIfConfigured(ec *pipeline.ExecutionContext) {

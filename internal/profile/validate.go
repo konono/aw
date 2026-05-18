@@ -73,6 +73,11 @@ func Validate(p Profile) error {
 		return fmt.Errorf("unknown container_runtime: %q (must be \"docker\" or \"podman\")", p.ContainerRuntime)
 	}
 
+	// Validate ssh_agent_forwarding is only used with environment: container
+	if p.EffectiveSSHAgentForwarding() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")
+	}
+
 	// Validate mounts are only used with environment: docker
 	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mounts are only valid with environment: docker")

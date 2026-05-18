@@ -59,6 +59,7 @@ At a high level, `aw` resolves configuration like this:
   - omitted: inherit
   - `true`: enable
   - `false`: disable
+- `ssh_agent_forwarding` uses the same tri-state behavior as `mount_ssh`
 - `os` and `dockerfile` are mutually exclusive at the final profile level; if one is inherited and the other is specified later, the later one clears the inherited counterpart
 
 ## YAML shape
@@ -102,6 +103,7 @@ default: worktree-zellij
 environment: container
 container_runtime: podman
 mount_ssh: false
+ssh_agent_forwarding: true
 env:
   CLAUDE_CODE_USE_VERTEX: "1"
 
@@ -155,6 +157,7 @@ Common top-level defaults include:
 - `container_runtime`
 - `env`
 - `mount_ssh`
+- `ssh_agent_forwarding`
 - `mounts`
 - `os`
 - `dockerfile`
@@ -244,9 +247,24 @@ If omitted, the effective runtime defaults to `docker`.
 
 ### `mount_ssh` (optional)
 
-Whether to mount host `~/.ssh` into the container as read-only input. The container entrypoint copies it to `/home/agent/.ssh` with fixed permissions.
+Whether to mount host `~/.ssh` into the container as read-only input. The container entrypoint copies it to `/home/agent/.ssh` with fixed permissions. Provides full SSH access (server login, key-based authentication, etc.).
 
 If omitted, the field inherits from top-level defaults. The built-in starter config sets this to `false`.
+
+### `ssh_agent_forwarding` (optional)
+
+Whether to forward the host's SSH agent into the container for Git SSH operations (push, clone, fetch). Unlike `mount_ssh`, this does not copy SSH key files into the container — only the SSH agent socket (`SSH_AUTH_SOCK`) is forwarded.
+
+Requires the host to have an SSH agent running with keys loaded (`ssh-add -l` to verify).
+
+If `mount_ssh: true` is also set, `ssh_agent_forwarding` is ignored because `mount_ssh` already provides full SSH access.
+
+If omitted, the field inherits from top-level defaults. The built-in starter config sets this to `false`.
+
+**Platform notes:**
+- Linux (Docker/Podman): works by mounting `$SSH_AUTH_SOCK` directly
+- macOS + Docker Desktop: works via Docker Desktop file sharing
+- macOS + Podman: `aw` automatically establishes an SSH tunnel into the Podman VM and installs a minimal SELinux policy module (`aw_agent_sock`) on first use. See the README for details on what is set up inside the VM.
 
 ### `mounts` (optional)
 
@@ -297,6 +315,7 @@ Current rules include:
 11. `container_runtime` must be `docker` or `podman`
 12. `mounts` are only valid with `environment: container`
 13. Every mount must include both `source` and `target`
+14. `ssh_agent_forwarding` is only valid with `environment: container`
 
 ## Host settings synced into containers
 
@@ -311,7 +330,7 @@ When using `environment: container`, `aw` automatically handles common host-side
 - `~/.claude/commands` -> `/home/agent/.claude/commands`
 - `~/.claude/agents` -> `/home/agent/.claude/agents`
 
-`~/.ssh` is not mounted by default. Set `mount_ssh: true` when a profile needs SSH access.
+`~/.ssh` is not mounted by default. Set `mount_ssh: true` for full SSH access, or `ssh_agent_forwarding: true` to forward only the SSH agent for Git operations.
 
 ## Tips
 

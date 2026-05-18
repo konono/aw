@@ -7,6 +7,9 @@ import (
 	"github.com/konono/aw/internal/docker"
 )
 
+// SSHAgentContainerPath is the fixed path where the SSH agent socket is mounted inside the container.
+const SSHAgentContainerPath = "/run/ssh-agent.sock"
+
 // MountOptions contains the parameters needed to construct Docker mounts.
 type MountOptions struct {
 	HomeDir          string         // host user home directory
@@ -14,6 +17,8 @@ type MountOptions struct {
 	ToolStageDir     string         // host staging dir for tool config (e.g. ~/.agent-workspace/claude)
 	ToolContainerDir string         // container target for tool config (e.g. /home/agent/.claude)
 	MountSSH         bool           // whether to mount host ~/.ssh into the container
+	SSHAgentForwarding bool         // whether to forward SSH agent socket
+	SSHAuthSock        string       // host SSH_AUTH_SOCK path
 	ExtraMounts      []docker.Mount // user-defined custom mounts
 }
 
@@ -47,6 +52,12 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 	})
 
 	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.MountSSH)...)
+
+	if opts.SSHAgentForwarding && !opts.MountSSH {
+		if m := sshAgentMount(opts.SSHAuthSock); m != nil {
+			mounts = append(mounts, *m)
+		}
+	}
 
 	worktreeMount, err := worktreeMount(opts.WorkDir)
 	if err != nil {
@@ -109,6 +120,16 @@ func worktreeMount(workDir string) (*docker.Mount, error) {
 		Source: mainGitDir,
 		Target: mainGitDir,
 	}, nil
+}
+
+func sshAgentMount(sshAuthSock string) *docker.Mount {
+	if sshAuthSock == "" {
+		return nil
+	}
+	return &docker.Mount{
+		Source: sshAuthSock,
+		Target: SSHAgentContainerPath,
+	}
 }
 
 func fileExists(path string) bool {

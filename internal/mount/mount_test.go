@@ -307,6 +307,108 @@ func TestBuildMounts_ToolConfigMountPresent(t *testing.T) {
 	}
 }
 
+func TestBuildMounts_SSHAgentForwardingMountsAgentSocket(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	// Create a fake socket file
+	sockPath := filepath.Join(t.TempDir(), "agent.sock")
+	if err := os.WriteFile(sockPath, []byte{}, 0600); err != nil {
+		t.Fatalf("creating fake socket: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.SSHAgentForwarding = true
+	opts.SSHAuthSock = sockPath
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	m := findMount(mounts, SSHAgentContainerPath)
+	if m == nil {
+		t.Fatal("missing SSH agent socket mount")
+	}
+	if m.Source != sockPath {
+		t.Errorf("source = %q, want %q", m.Source, sockPath)
+	}
+	if m.ReadOnly {
+		t.Error("SSH agent socket mount should not be read-only")
+	}
+}
+
+func TestBuildMounts_SSHAgentForwardingSkippedWhenMountSSHEnabled(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	sockPath := filepath.Join(t.TempDir(), "agent.sock")
+	if err := os.WriteFile(sockPath, []byte{}, 0600); err != nil {
+		t.Fatalf("creating fake socket: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(homeDir, ".ssh"), 0700); err != nil {
+		t.Fatalf("creating .ssh: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountSSH = true
+	opts.SSHAgentForwarding = true
+	opts.SSHAuthSock = sockPath
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, SSHAgentContainerPath) != nil {
+		t.Error("SSH agent socket should not be mounted when mount_ssh is enabled")
+	}
+	if findMount(mounts, "/home/agent/.ssh-host") == nil {
+		t.Error(".ssh-host should be mounted when mount_ssh is enabled")
+	}
+}
+
+func TestBuildMounts_SSHAgentForwardingNoSocketPath(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.SSHAgentForwarding = true
+	opts.SSHAuthSock = ""
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, SSHAgentContainerPath) != nil {
+		t.Error("SSH agent socket should not be mounted when SSHAuthSock is empty")
+	}
+}
+
+func TestBuildMounts_SSHAgentForwardingVMPath(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.SSHAgentForwarding = true
+	opts.SSHAuthSock = "/tmp/aw-ssh-agent.sock"
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	m := findMount(mounts, SSHAgentContainerPath)
+	if m == nil {
+		t.Fatal("SSH agent socket should be mounted even for VM-internal paths")
+	}
+	if m.Source != "/tmp/aw-ssh-agent.sock" {
+		t.Errorf("source = %q, want %q", m.Source, "/tmp/aw-ssh-agent.sock")
+	}
+}
+
 func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()
