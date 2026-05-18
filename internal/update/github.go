@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	repoOwner = "hiragram"
-	repoName  = "agent-workspace"
+	repoOwner = "konono"
+	repoName  = "aw"
 )
 
 // ReleaseInfo holds the relevant fields from a GitHub release.

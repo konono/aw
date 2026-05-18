@@ -167,25 +167,54 @@ profiles:
 	}
 }
 
+func assertStarterProfiles(t *testing.T, cfg *Config) {
+	t.Helper()
+
+	tests := []struct {
+		name   string
+		launch LaunchMode
+		os     OSTemplate
+	}{
+		{name: "shell", launch: LaunchShell, os: OSDebian12},
+		{name: "claude", launch: LaunchClaude, os: OSDebian12},
+		{name: "codex", launch: LaunchCodex, os: OSDebian12},
+		{name: "opencode", launch: LaunchOpenCode, os: OSDebian12},
+		{name: "ubi9-shell", launch: LaunchShell, os: OSUBI9},
+		{name: "ubi10-shell", launch: LaunchShell, os: OSUBI10},
+		{name: "ubuntu2604-shell", launch: LaunchShell, os: OSUbuntu2604},
+	}
+
+	for _, tt := range tests {
+		p, ok := cfg.Profiles[tt.name]
+		if !ok {
+			t.Errorf("expected %s profile in builtin default", tt.name)
+			continue
+		}
+		if p.Environment != EnvironmentContainer {
+			t.Errorf("%s.Environment = %q, want %q", tt.name, p.Environment, EnvironmentContainer)
+		}
+		if p.Launch != tt.launch {
+			t.Errorf("%s.Launch = %q, want %q", tt.name, p.Launch, tt.launch)
+		}
+		if p.OS != tt.os {
+			t.Errorf("%s.OS = %q, want %q", tt.name, p.OS, tt.os)
+		}
+		if p.ContainerRuntime != ContainerRuntimePodman {
+			t.Errorf("%s.ContainerRuntime = %q, want %q", tt.name, p.ContainerRuntime, ContainerRuntimePodman)
+		}
+	}
+}
+
 func TestLoadFile_NotFound(t *testing.T) {
 	cfg, err := LoadFile("/nonexistent/path/.agent-workspace.yml")
 	if err != nil {
 		t.Fatalf("LoadFile() should not error for missing file, got: %v", err)
 	}
 
-	// Should return builtin default
-	if cfg.Default != "worktree-zellij" {
-		t.Errorf("Default = %q, want %q", cfg.Default, "worktree-zellij")
+	if cfg.Default != "claude" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "claude")
 	}
-	if _, ok := cfg.Profiles["claude"]; !ok {
-		t.Error("expected claude profile in builtin default")
-	}
-	if _, ok := cfg.Profiles["codex"]; !ok {
-		t.Error("expected codex profile in builtin default")
-	}
-	if _, ok := cfg.Profiles["worktree-zellij"]; !ok {
-		t.Error("expected worktree-zellij profile in builtin default")
-	}
+	assertStarterProfiles(t, cfg)
 }
 
 func TestLoadFile_ValidFile(t *testing.T) {
@@ -212,13 +241,7 @@ profiles:
 		t.Errorf("Default = %q, want %q", cfg.Default, "my-profile")
 	}
 
-	// Builtin profiles should also be present after merge
-	if _, ok := cfg.Profiles["claude"]; !ok {
-		t.Error("builtin profile 'claude' should be preserved after merge")
-	}
-	if _, ok := cfg.Profiles["worktree-zellij"]; !ok {
-		t.Error("builtin profile 'worktree-zellij' should be preserved after merge")
-	}
+	assertStarterProfiles(t, cfg)
 	if _, ok := cfg.Profiles["my-profile"]; !ok {
 		t.Error("user profile 'my-profile' should be present")
 	}
@@ -396,9 +419,10 @@ func TestLoad_NoGitRepo_WithoutConfigInCwd(t *testing.T) {
 		t.Fatalf("Load() should not error when not in git repo, got: %v", err)
 	}
 
-	if cfg.Default != "worktree-zellij" {
-		t.Errorf("Default = %q, want %q", cfg.Default, "worktree-zellij")
+	if cfg.Default != "claude" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "claude")
 	}
+	assertStarterProfiles(t, cfg)
 	if !cfg.Source.IsBuiltin {
 		t.Error("Source should be builtin when no config file found")
 	}
@@ -498,6 +522,17 @@ profiles:
 	}
 	if p.Env["MY_VAR"] != "from-global" {
 		t.Errorf("Env[MY_VAR] = %q, want %q", p.Env["MY_VAR"], "from-global")
+	}
+
+	builtinClaude, ok := cfg.Profiles["claude"]
+	if !ok {
+		t.Fatal("expected builtin claude profile to be preserved")
+	}
+	if builtinClaude.ContainerRuntime != ContainerRuntimePodman {
+		t.Errorf("builtin claude ContainerRuntime = %q, want %q", builtinClaude.ContainerRuntime, ContainerRuntimePodman)
+	}
+	if builtinClaude.Env["MY_VAR"] != "from-global" {
+		t.Errorf("builtin claude Env[MY_VAR] = %q, want %q", builtinClaude.Env["MY_VAR"], "from-global")
 	}
 }
 
@@ -615,9 +650,10 @@ func TestLoad_NoGlobalNoProject(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.Default != "worktree-zellij" {
-		t.Errorf("Default = %q, want %q", cfg.Default, "worktree-zellij")
+	if cfg.Default != "claude" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "claude")
 	}
+	assertStarterProfiles(t, cfg)
 	if !cfg.Source.IsBuiltin {
 		t.Error("Source should be builtin when no config files found")
 	}

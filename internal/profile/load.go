@@ -22,31 +22,6 @@ var globalConfigDir = func() (string, error) {
 	return filepath.Join(home, ".config", "aw"), nil
 }
 
-// builtinConfig is used when no config file is found.
-var builtinConfig = Config{
-	Default: "worktree-zellij",
-	Profiles: map[string]Profile{
-		"claude": {
-			Environment: EnvironmentContainer,
-			Launch:      LaunchClaude,
-		},
-		"codex": {
-			Environment: EnvironmentContainer,
-			Launch:      LaunchCodex,
-		},
-		"opencode": {
-			Environment: EnvironmentContainer,
-			Launch:      LaunchOpenCode,
-		},
-		"worktree-zellij": {
-			Worktree:    &WorktreeConfig{},
-			Environment: EnvironmentContainer,
-			Launch:      LaunchZellij,
-			Zellij:      &ZellijConfig{Layout: "default"},
-		},
-	},
-}
-
 // Load finds and loads the config file.
 // It merges configs in order: builtin → ~/.config/aw/config.yml → .agent-workspace.yml.
 // Project config is looked up at the git repository root, or the current directory
@@ -118,7 +93,7 @@ func LoadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg := builtinConfig
+			cfg := ApplyTopLevel(builtinConfig)
 			cfg.Source = ConfigSource{IsBuiltin: true}
 			return &cfg, nil
 		}

@@ -4,7 +4,7 @@ This document describes the `.agent-workspace.yml` configuration file in detail.
 
 ## Overview
 
-`aw` reads its configuration from a file named `.agent-workspace.yml` placed at the root of your git repository. If no configuration file is found (or you're not in a git repository), a built-in default is used that runs Claude Code in Docker.
+`aw` reads its configuration from your project and optional global config files. If no configuration files are found (or you're not in a git repository), a built-in starter config is used. Its default profile launches Claude Code in a Debian 12 Podman container.
 
 ## File location
 
@@ -16,6 +16,16 @@ your-repo/
 ```
 
 `aw` finds the file by running `git rev-parse --show-toplevel` to locate the repository root, then looks for `.agent-workspace.yml` in that directory.
+
+## Resolution order
+
+`aw` merges configuration in this order:
+
+1. Built-in starter config
+2. `~/.config/aw/config.yml`
+3. `.agent-workspace.yml`
+
+Run `aw init` if you want to write the current built-in starter config to `~/.config/aw/config.yml` and customize it there. This step is optional; `aw` works without creating any config files.
 
 ## Minimal example
 
@@ -305,6 +315,7 @@ These are copied to `~/.agent-workspace/` to avoid conflicts with the host-side 
 ## Tips
 
 - Use `aw profiles` to see all available profiles and which config file they were loaded from.
+- Run `aw init` when you want to materialize the built-in starter config into `~/.config/aw/config.yml` for editing.
 - Profile names can be any valid YAML string. Keep them short and descriptive (e.g., `claude`, `worktree-shell`).
 - You can commit `.agent-workspace.yml` to your repository so all contributors share the same workspace profiles.
 - If you need different profiles for different machines, use separate branches or a gitignored override (not currently supported, but the built-in default handles the no-config case gracefully).
