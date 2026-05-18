@@ -9,16 +9,41 @@ import (
 	"path/filepath"
 )
 
-// syncFiles is the list of individual files to sync from claudeHome.
-var syncFiles = []string{"settings.json", "CLAUDE.md"}
+// Patcher transforms file content during sync (e.g. patching settings.json).
+type Patcher func([]byte) ([]byte, error)
 
-// syncDirs is the list of directories to sync from claudeHome.
-var syncDirs = []string{"hooks", "plugins", "commands", "agents"}
+// ToolSyncSpec defines which files/dirs to copy from the host tool config.
+// Files/dirs NOT listed here are preserved in the staging dir (session data etc.)
+type ToolSyncSpec struct {
+	Files []string            // individual files to sync
+	Dirs  []string            // directories to sync (remove & re-copy)
+	Patch map[string]Patcher  // file-specific patches
+}
 
-// Syncer syncs host AI tool settings to the container-side config directory.
+// ClaudeSyncSpec syncs Claude Code settings while preserving session data.
+var ClaudeSyncSpec = ToolSyncSpec{
+	Files: []string{"settings.json", "CLAUDE.md"},
+	Dirs:  []string{"hooks", "plugins", "commands", "agents"},
+	Patch: map[string]Patcher{
+		"settings.json": patchSettingsForContainer,
+	},
+}
+
+// CodexSyncSpec syncs Codex config while preserving session history.
+var CodexSyncSpec = ToolSyncSpec{
+	Files: []string{"config.toml", "auth.json", "AGENTS.md", "AGENTS.override.md"},
+	Dirs:  []string{"rules", "themes"},
+}
+
+// OpenCodeSyncSpec syncs OpenCode config while preserving session data.
+var OpenCodeSyncSpec = ToolSyncSpec{
+	Files: []string{"opencode.json", "opencode.jsonc", "tui.json", "AGENTS.md"},
+	Dirs:  []string{"agents", "commands", "plugins", "skills", "tools", "themes", "modes"},
+}
+
+// Syncer syncs host AI tool settings to the container-side staging directory.
 type Syncer interface {
-	SyncSettings(claudeHome, containerClaudeHome string) error
-	SyncCodexSettings(codexHome, containerCodexHome string) error
+	SyncToolSettings(srcDir, dstDir string, spec ToolSyncSpec) error
 	EnsureOnboardingState(path string) error
 }
 
@@ -30,17 +55,18 @@ func NewSyncer() *DefaultSyncer {
 	return &DefaultSyncer{}
 }
 
-// SyncSettings copies settings files and directories from claudeHome to containerClaudeHome.
-func (s *DefaultSyncer) SyncSettings(claudeHome, containerClaudeHome string) error {
-	if err := os.MkdirAll(containerClaudeHome, 0755); err != nil {
-		return fmt.Errorf("creating container claude home: %w", err)
+// SyncToolSettings copies specified files and directories from srcDir to dstDir.
+// Files/dirs not in the spec are left untouched in dstDir (preserving session data).
+func (s *DefaultSyncer) SyncToolSettings(srcDir, dstDir string, spec ToolSyncSpec) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return fmt.Errorf("creating staging dir: %w", err)
 	}
 
-	for _, f := range syncFiles {
-		src := filepath.Join(claudeHome, f)
-		dst := filepath.Join(containerClaudeHome, f)
-		if f == "settings.json" {
-			if err := syncSettingsJSON(src, dst); err != nil {
+	for _, f := range spec.Files {
+		src := filepath.Join(srcDir, f)
+		dst := filepath.Join(dstDir, f)
+		if patcher, ok := spec.Patch[f]; ok {
+			if err := syncPatchedFile(src, dst, patcher); err != nil {
 				return fmt.Errorf("syncing file %s: %w", f, err)
 			}
 		} else {
@@ -50,9 +76,9 @@ func (s *DefaultSyncer) SyncSettings(claudeHome, containerClaudeHome string) err
 		}
 	}
 
-	for _, d := range syncDirs {
-		src := filepath.Join(claudeHome, d)
-		dst := filepath.Join(containerClaudeHome, d)
+	for _, d := range spec.Dirs {
+		src := filepath.Join(srcDir, d)
+		dst := filepath.Join(dstDir, d)
 		if err := syncDirIfExists(src, dst); err != nil {
 			return fmt.Errorf("syncing directory %s: %w", d, err)
 		}
@@ -61,32 +87,6 @@ func (s *DefaultSyncer) SyncSettings(claudeHome, containerClaudeHome string) err
 	return nil
 }
 
-// SyncCodexSettings copies the Codex config directory from codexHome to containerCodexHome.
-// If codexHome does not exist, it creates an empty containerCodexHome directory.
-func (s *DefaultSyncer) SyncCodexSettings(codexHome, containerCodexHome string) error {
-	if err := os.MkdirAll(containerCodexHome, 0755); err != nil {
-		return fmt.Errorf("creating container codex home: %w", err)
-	}
-
-	info, err := os.Stat(codexHome)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-
-	if err := os.RemoveAll(containerCodexHome); err != nil {
-		return fmt.Errorf("removing old container codex home: %w", err)
-	}
-
-	return copyDir(codexHome, containerCodexHome)
-}
-
-// copyFileIfExists copies src to dst if src exists. Does nothing if src doesn't exist.
 func copyFileIfExists(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -112,7 +112,6 @@ func copyFileIfExists(src, dst string) error {
 	return err
 }
 
-// syncDirIfExists removes dst and copies src to dst recursively, if src exists.
 func syncDirIfExists(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
@@ -125,7 +124,6 @@ func syncDirIfExists(src, dst string) error {
 		return nil
 	}
 
-	// Remove old destination
 	if err := os.RemoveAll(dst); err != nil {
 		return fmt.Errorf("removing old %s: %w", dst, err)
 	}
@@ -133,7 +131,7 @@ func syncDirIfExists(src, dst string) error {
 	return copyDir(src, dst)
 }
 
-func syncSettingsJSON(src, dst string) error {
+func syncPatchedFile(src, dst string, patcher Patcher) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -143,9 +141,9 @@ func syncSettingsJSON(src, dst string) error {
 		}
 	}
 
-	patched, err := patchSettingsForContainer(data)
+	patched, err := patcher(data)
 	if err != nil {
-		return fmt.Errorf("patching settings.json: %w", err)
+		return fmt.Errorf("patching file: %w", err)
 	}
 
 	return os.WriteFile(dst, patched, 0644)
@@ -166,7 +164,6 @@ func patchSettingsForContainer(data []byte) ([]byte, error) {
 	return append(out, '\n'), nil
 }
 
-// copyDir recursively copies a directory from src to dst.
 func copyDir(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
