@@ -118,7 +118,7 @@ func TestBuildMounts_GhConfigWhenPresent(t *testing.T) {
 	}
 }
 
-func TestBuildMounts_SSHReadOnly(t *testing.T) {
+func TestBuildMounts_NoSSHByDefault(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()
 
@@ -127,6 +127,27 @@ func TestBuildMounts_SSHReadOnly(t *testing.T) {
 	}
 
 	opts := newTestOpts(homeDir, workDir)
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, "/home/agent/.ssh-host") != nil {
+		t.Fatal(".ssh-host mount should not exist unless mount_ssh is enabled")
+	}
+}
+
+func TestBuildMounts_SSHReadOnlyWhenEnabled(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(homeDir, ".ssh"), 0700); err != nil {
+		t.Fatalf("creating .ssh: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountSSH = true
 	builder := NewBuilder()
 	mounts, err := builder.BuildMounts(opts)
 	if err != nil {
@@ -150,6 +171,7 @@ func TestBuildMounts_NoSSHWhenMissing(t *testing.T) {
 	workDir := t.TempDir()
 
 	opts := newTestOpts(homeDir, workDir)
+	opts.MountSSH = true
 	builder := NewBuilder()
 	mounts, err := builder.BuildMounts(opts)
 	if err != nil {

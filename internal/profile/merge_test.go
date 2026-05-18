@@ -4,6 +4,10 @@ import (
 	"testing"
 )
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestMergeProfile_OverrideEnvironment(t *testing.T) {
 	base := Profile{
 		Environment: EnvironmentContainer,
@@ -331,6 +335,24 @@ func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ExplicitMountSSHOverride(t *testing.T) {
+	base := Profile{
+		MountSSH: boolPtr(true),
+	}
+	override := Profile{
+		MountSSH: boolPtr(false),
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.MountSSH == nil {
+		t.Fatal("MountSSH should not be nil")
+	}
+	if merged.EffectiveMountSSH() {
+		t.Error("EffectiveMountSSH() = true, want false")
+	}
+}
+
 func TestMergeProfile_OverrideOS(t *testing.T) {
 	base := Profile{
 		Environment: EnvironmentContainer,
@@ -459,6 +481,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 			Environment: EnvironmentHost,
 			Worktree:    &WorktreeConfig{Base: "origin/main", Dir: "~/.aw/wt"},
 			Env:         map[string]string{"A": "1"},
+			MountSSH:    boolPtr(true),
 		},
 		Profiles: map[string]Profile{
 			"shell": {
@@ -468,6 +491,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 				Environment: EnvironmentContainer,
 				Worktree:    &WorktreeConfig{Dir: "/tmp/wt"},
 				Env:         map[string]string{"B": "2"},
+				MountSSH:    boolPtr(false),
 			},
 		},
 	}
@@ -487,6 +511,9 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	if shell.Env["A"] != "1" {
 		t.Errorf("shell.Env[A] = %q, want %q", shell.Env["A"], "1")
 	}
+	if !shell.EffectiveMountSSH() {
+		t.Error("shell should inherit mount_ssh: true from top-level")
+	}
 
 	d := out.Profiles["docker-override"]
 	if d.Environment != EnvironmentContainer {
@@ -500,6 +527,9 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	}
 	if d.Env["A"] != "1" || d.Env["B"] != "2" {
 		t.Errorf("docker-override.Env = %+v, want both A and B", d.Env)
+	}
+	if d.EffectiveMountSSH() {
+		t.Error("docker-override should override inherited mount_ssh to false")
 	}
 }
 

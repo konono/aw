@@ -145,6 +145,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		WorkDir:          ec.WorkDir,
 		ToolStageDir:     toolStageDir,
 		ToolContainerDir: toolContainerDir,
+		MountSSH:         ec.Profile.EffectiveMountSSH(),
 		ExtraMounts:      extraMounts,
 	})
 	if err != nil {

@@ -39,6 +39,10 @@ func MergeProfile(base, override Profile) Profile {
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.MountSSH != nil {
+		v := *override.MountSSH
+		merged.MountSSH = &v
+	}
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
