@@ -55,8 +55,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	tool := ec.Profile.EffectiveTool()
+	osTemplate := ec.Profile.EffectiveOS()
 
-	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile)
+	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate)
 	if err != nil {
 		return fmt.Errorf("preparing build context: %w", err)
 	}
@@ -81,6 +82,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if dfBytes, err := os.ReadFile(hashSource); err == nil {
 		hashInput = string(dfBytes)
 	}
+	hashInput += "\n" + string(osTemplate)
 	toolPkg := toolinfo.DevboxPkg(tool)
 	hashInput += "\n" + toolPkg
 	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
@@ -101,7 +103,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
 	} else {
-		fmt.Fprintf(os.Stderr, "Building Docker image '%s'...\n", imageName)
+		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (os: %s)...\n", imageName, osTemplate)
 	}
 	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
 		return fmt.Errorf("building image: %w", err)

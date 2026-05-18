@@ -156,6 +156,16 @@ func TestDescribeProfile(t *testing.T) {
 			profile.Profile{Worktree: &profile.WorktreeConfig{}, Environment: profile.EnvironmentContainer, Launch: profile.LaunchZellij},
 			"worktree + container + zellij",
 		},
+		{
+			"container claude with os",
+			profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude, OS: profile.OSUBI9},
+			"container + claude + os:ubi9",
+		},
+		{
+			"container shell with os ubuntu",
+			profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchShell, OS: profile.OSUbuntu2604},
+			"container + shell + os:ubuntu2604",
+		},
 	}
 
 	for _, tt := range tests {

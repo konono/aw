@@ -208,6 +208,9 @@ func describeProfile(p profile.Profile) string {
 	}
 	parts = append(parts, string(p.Environment))
 	parts = append(parts, string(p.Launch))
+	if p.OS != "" {
+		parts = append(parts, "os:"+string(p.OS))
+	}
 	if p.Dockerfile != "" {
 		parts = append(parts, "dockerfile:"+p.Dockerfile)
 	}
