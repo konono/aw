@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 
+	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/toolinfo"
 )
@@ -27,6 +28,10 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 	}
 	if symlinks := toolinfo.DataSymlinks(tool); symlinks != "" {
 		envVars["AW_DATA_SYMLINKS"] = symlinks
+	}
+
+	if ec.Profile.EffectiveSSHAgentForwarding() && !ec.Profile.EffectiveMountSSH() {
+		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 
 	return envVars
