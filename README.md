@@ -26,12 +26,20 @@
 go install github.com/konono/aw@latest
 ```
 
+`aw` は `init` なしでも組み込みのスターター設定でそのまま使えます。設定を編集したくなったら `aw init` で `~/.config/aw/config.yml` に同じ内容を書き出せます。
+
+```bash
+aw        # 組み込みデフォルト（default: claude）で起動
+aw init   # 組み込みスターター設定を ~/.config/aw/config.yml に書き出す
+```
+
 ## 使い方
 
 ```bash
 aw                      # デフォルトプロファイルを実行
 aw <profile-name>       # 指定したプロファイルを実行
 aw profiles             # 利用可能なプロファイル一覧を表示
+aw init                 # 組み込みスターター設定をグローバル設定として書き出す
 aw default-dockerfile   # デフォルトの Dockerfile を出力
 aw update               # セルフアップデート
 aw --version            # バージョンを表示
@@ -54,6 +62,8 @@ aw --help               # ヘルプを表示
 | `.agent-workspace.yml` | プロジェクト固有の設定（git ルートまたはカレントディレクトリ） |
 
 後に読まれた設定が優先されます。`.agent-workspace.yml` がないディレクトリでも、グローバル設定のプロファイルを使えます。
+
+`go install` 直後は、このビルトイン設定だけで `aw` を起動できます。グローバル設定ファイルが欲しい場合だけ `aw init` を実行してください。
 
 以下は全パラメーターを含む設定例です（`.agent-workspace.yml` と `~/.config/aw/config.yml` の両方で同じ書式が使えます）:
 
@@ -117,7 +127,7 @@ profiles:
     launch: shell
 ```
 
-`.agent-workspace.yml` が見つからない場合、`aw` はビルトインのデフォルト設定を使用します。worktree を作成し、Docker ベースの Claude で zellij 開発環境を起動します。
+`.agent-workspace.yml` が見つからない場合、`aw` はビルトインのスターター設定を使用します。デフォルトでは `claude` プロファイル（Debian 12 + Podman）で起動し、`shell` / `codex` / `opencode` と `ubi9-shell` / `ubi10-shell` / `ubuntu2604-shell` もそのまま利用できます。必要なら `aw init` で同じ内容を `~/.config/aw/config.yml` に書き出して編集できます。
 
 ### プロファイルオプション
 
