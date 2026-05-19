@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/konono/aw/compare/v1.0.1...v1.1.0) (2026-05-19)
+
+
+### Features
+
+* harden container security against prompt injection ([863997d](https://github.com/konono/aw/commit/863997d53ced742ae358d13d09fc7526d3970d49))
+
+
+### Bug Fixes
+
+* remove unused sensitiveFieldLabels variable ([70ff2b0](https://github.com/konono/aw/commit/70ff2b0bf426dc31a7992ec843a1a818615a8caa))
+* remove unused syncDirIfExists replaced by syncDirOrRemove ([81dd88b](https://github.com/konono/aw/commit/81dd88beebf0d1034575037c592ad1db2f046b2e))
+* use sensitiveFieldDescriptions map in trust prompt ([1328624](https://github.com/konono/aw/commit/13286248fce9a78c1f5ec9768d72064d26493c75))
+
 ## [1.0.1](https://github.com/konono/aw/compare/v1.0.0...v1.0.1) (2026-05-19)
 
 
