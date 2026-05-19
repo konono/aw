@@ -37,11 +37,11 @@ func defaultLauncherFactory(mode profile.LaunchMode) (launcher.Launcher, error) 
 	case profile.LaunchShell:
 		return &launcher.ShellLauncher{}, nil
 	case profile.LaunchClaude:
-		return &launcher.ClaudeLauncher{}, nil
+		return &launcher.ToolLauncher{Tool: "claude"}, nil
 	case profile.LaunchCodex:
-		return &launcher.CodexLauncher{}, nil
+		return &launcher.ToolLauncher{Tool: "codex"}, nil
 	case profile.LaunchOpenCode:
-		return &launcher.OpenCodeLauncher{}, nil
+		return &launcher.ToolLauncher{Tool: "opencode"}, nil
 	case profile.LaunchZellij:
 		return &launcher.ZellijLauncher{}, nil
 	default:
