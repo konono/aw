@@ -62,6 +62,13 @@ if [ -d /home/agent/.ssh-host ]; then
   chmod 644 /home/agent/.ssh/config 2>/dev/null || true
 fi
 
+# Ensure ~/.ssh and known_hosts exist for SSH agent forwarding
+if [ -n "$SSH_AUTH_SOCK" ] && [ ! -d /home/agent/.ssh ]; then
+  mkdir -p /home/agent/.ssh
+  chmod 700 /home/agent/.ssh
+  ssh-keyscan github.com >> /home/agent/.ssh/known_hosts 2>/dev/null || true
+fi
+
 export HOME=/home/agent
 
 cat > "$AW_ENV_FILE" <<EOF
