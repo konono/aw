@@ -5,59 +5,104 @@ import (
 	"path/filepath"
 )
 
+// ToolSpec holds static per-tool metadata.
+type ToolSpec struct {
+	Binary            string
+	DisplayName       string
+	DevboxPkg         string
+	HomeEnvVar        string
+	DefaultHomeSubdir string
+	ContainerDir      string
+	DataSymlinks      string
+	InstallHint       string
+}
+
+var tools = map[string]ToolSpec{
+	"claude": {
+		Binary:            "claude",
+		DisplayName:       "Claude Code",
+		DevboxPkg:         "claude-code",
+		HomeEnvVar:        "CLAUDE_HOME",
+		DefaultHomeSubdir: ".claude",
+		ContainerDir:      "/home/agent/.claude",
+		InstallHint:       "Install Claude Code: https://claude.ai/install.sh",
+	},
+	"codex": {
+		Binary:            "codex",
+		DisplayName:       "Codex",
+		DevboxPkg:         "codex",
+		HomeEnvVar:        "CODEX_HOME",
+		DefaultHomeSubdir: ".codex",
+		ContainerDir:      "/home/agent/.codex",
+		InstallHint:       "Install Codex CLI: npm i -g @openai/codex",
+	},
+	"opencode": {
+		Binary:            "opencode",
+		DisplayName:       "OpenCode",
+		DevboxPkg:         "opencode",
+		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
+		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
+		ContainerDir:      "/home/agent/.config/opencode",
+		DataSymlinks:      "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data",
+		InstallHint:       "Install via: devbox add opencode",
+	},
+}
+
+// Lookup returns the ToolSpec for the given tool name.
+func Lookup(tool string) (ToolSpec, bool) {
+	spec, ok := tools[tool]
+	return spec, ok
+}
+
 func DevboxPkg(tool string) string {
-	switch tool {
-	case "claude":
-		return "claude-code"
-	case "codex":
-		return "codex"
-	case "opencode":
-		return "opencode"
-	default:
-		return ""
+	if spec, ok := Lookup(tool); ok {
+		return spec.DevboxPkg
 	}
+	return ""
 }
 
 func HomePath(tool, homeDir string) string {
-	switch tool {
-	case "claude":
-		if v := os.Getenv("CLAUDE_HOME"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".claude")
-	case "codex":
-		if v := os.Getenv("CODEX_HOME"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".codex")
-	case "opencode":
-		if v := os.Getenv("OPENCODE_CONFIG_DIR"); v != "" {
-			return v
-		}
-		return filepath.Join(homeDir, ".config", "opencode")
-	default:
+	spec, ok := Lookup(tool)
+	if !ok {
 		return ""
 	}
+	if spec.HomeEnvVar != "" {
+		if v := os.Getenv(spec.HomeEnvVar); v != "" {
+			return v
+		}
+	}
+	return filepath.Join(homeDir, spec.DefaultHomeSubdir)
 }
 
 func ContainerDir(tool string) string {
-	switch tool {
-	case "claude":
-		return "/home/agent/.claude"
-	case "codex":
-		return "/home/agent/.codex"
-	case "opencode":
-		return "/home/agent/.config/opencode"
-	default:
-		return ""
+	if spec, ok := Lookup(tool); ok {
+		return spec.ContainerDir
 	}
+	return ""
 }
 
 func DataSymlinks(tool string) string {
-	switch tool {
-	case "opencode":
-		return "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data"
-	default:
-		return ""
+	if spec, ok := Lookup(tool); ok {
+		return spec.DataSymlinks
 	}
+	return ""
+}
+
+// ContainerEnvVars returns the base set of tool-specific container environment
+// variables (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add their own
+// context-specific variables on top (e.g. HOST_WORKSPACE, SSH_AUTH_SOCK).
+func ContainerEnvVars(baseEnvVars map[string]string, tool string) map[string]string {
+	envVars := make(map[string]string, len(baseEnvVars)+4)
+	for k, v := range baseEnvVars {
+		envVars[k] = v
+	}
+
+	if dir := ContainerDir(tool); dir != "" {
+		envVars["AW_CONTAINER_CONFIG_DIR"] = dir
+	}
+	if symlinks := DataSymlinks(tool); symlinks != "" {
+		envVars["AW_DATA_SYMLINKS"] = symlinks
+	}
+
+	return envVars
 }
