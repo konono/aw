@@ -15,15 +15,13 @@ type Launcher interface {
 
 // buildContainerEnvVars creates the base set of environment variables for container execution.
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
-	envVars := make(map[string]string, len(ec.EnvVars)+5)
+	envVars := make(map[string]string, len(ec.EnvVars)+4)
 	for k, v := range ec.EnvVars {
 		envVars[k] = v
 	}
 
-	hostHome := toolinfo.HomePath(tool, ec.HomeDir)
 	containerDir := toolinfo.ContainerDir(tool)
-	if hostHome != "" && containerDir != "" {
-		envVars["AW_HOST_CONFIG_HOME"] = hostHome
+	if containerDir != "" {
 		envVars["AW_CONTAINER_CONFIG_DIR"] = containerDir
 	}
 	if symlinks := toolinfo.DataSymlinks(tool); symlinks != "" {

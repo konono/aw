@@ -65,6 +65,15 @@ func TestDockerfileForOS(t *testing.T) {
 			if !strings.Contains(string(df), "useradd") {
 				t.Error("Dockerfile should create agent user")
 			}
+			if !strings.Contains(string(df), `BASH_ENV="/home/agent/.aw_env.sh"`) {
+				t.Error("Dockerfile should set BASH_ENV to /home/agent/.aw_env.sh")
+			}
+			if !strings.Contains(string(df), "HOME=\"/home/agent\"") {
+				t.Error("Dockerfile should set HOME to /home/agent")
+			}
+			if lastAgent := strings.LastIndex(string(df), "USER agent"); lastAgent == -1 || lastAgent < strings.LastIndex(string(df), "USER root") {
+				t.Error("Dockerfile should end with USER agent")
+			}
 		})
 	}
 }
@@ -74,11 +83,14 @@ func TestEmbeddedEntrypointContent(t *testing.T) {
 	if !strings.HasPrefix(content, "#!/bin/bash") {
 		t.Error("entrypoint.sh should start with shebang")
 	}
-	if !strings.Contains(content, "setpriv") {
-		t.Error("entrypoint.sh should use setpriv to switch user")
+	if !strings.Contains(content, "/home/agent/.aw_env.sh") {
+		t.Error("entrypoint.sh should reference /home/agent/.aw_env.sh")
 	}
-	if !strings.Contains(content, "AW_HOST_CONFIG_HOME") {
-		t.Error("entrypoint.sh should reference AW_HOST_CONFIG_HOME")
+	if !strings.Contains(content, "AW_BASH_ENV_LOADED") {
+		t.Error("entrypoint.sh should guard against reloading .aw_env.sh")
+	}
+	if strings.Contains(content, "setpriv") {
+		t.Error("entrypoint.sh should not use setpriv")
 	}
 }
 

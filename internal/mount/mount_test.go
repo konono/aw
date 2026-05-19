@@ -425,8 +425,8 @@ func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	// Should only have the 2 fixed mounts: tool config, workspace
+	// Should only have the 2 fixed mounts: tool config and workspace
 	if len(mounts) != 2 {
-		t.Errorf("expected 2 mounts (fixed only), got %d: %+v", len(mounts), mounts)
+		t.Errorf("expected 2 mounts (tool and workspace), got %d: %+v", len(mounts), mounts)
 	}
 }

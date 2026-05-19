@@ -1,13 +1,15 @@
 #!/bin/bash
 set -e
 
-# Create symlink for host config path if needed.
-# Some tools (e.g. Claude plugins) reference host absolute paths in their config.
-if [ -n "$AW_HOST_CONFIG_HOME" ] && [ -n "$AW_CONTAINER_CONFIG_DIR" ] \
-   && [ "$AW_HOST_CONFIG_HOME" != "$AW_CONTAINER_CONFIG_DIR" ]; then
-  mkdir -p "$(dirname "$AW_HOST_CONFIG_HOME")"
-  ln -sfn "$AW_CONTAINER_CONFIG_DIR" "$AW_HOST_CONFIG_HOME"
-fi
+run_as_agent() {
+  local script="$1"
+
+  if [ "$(id -un)" = "agent" ]; then
+    /bin/bash -lc "$script"
+  else
+    su -s /bin/bash agent -c "$script"
+  fi
+}
 
 # Symlink .claude.json from staging dir to home (for onboarding state persistence)
 if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then
@@ -27,30 +29,32 @@ if [ -n "$AW_DATA_SYMLINKS" ]; then
 fi
 
 WORKSPACE="${HOST_WORKSPACE:-/workspace}"
+AW_ENV_FILE=/home/agent/.aw_env.sh
+BASHRC_FILE=/home/agent/.bashrc
+BASH_PROFILE_FILE=/home/agent/.bash_profile
 
 # AI tool is already installed at build time via Dockerfile.
 # Install project packages (supports both devbox.json and mise.toml)
 NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
 if [ -f "$WORKSPACE/devbox.json" ]; then
   echo "Installing packages from devbox.json..."
-  su -s /bin/bash agent -c "$NIX_ENV cd $WORKSPACE && devbox install"
-  if su -s /bin/bash agent -c "$NIX_ENV cd $WORKSPACE && devbox run --list 2>/dev/null" | grep -q '^install'; then
+  run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
+  if run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox run --list 2>/dev/null" | grep -q '^install'; then
     echo "Running devbox run install..."
-    su -s /bin/bash agent -c "$NIX_ENV cd $WORKSPACE && devbox run install"
+    run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox run install"
   fi
 elif [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
-  if ! su -s /bin/bash agent -c 'command -v mise' > /dev/null 2>&1; then
+  if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
     echo "Installing mise..."
-    su -s /bin/bash agent -c 'curl https://mise.jdx.dev/install.sh | sh'
+    run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
   fi
   MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
   mkdir -p /home/agent/.config/mise
-  chown -R agent:agent /home/agent/.config
   echo "Installing tools from mise.toml..."
-  su -s /bin/bash agent -c "$MISE_CMD && cd $WORKSPACE && mise trust --all && mise install"
-  if su -s /bin/bash agent -c "$MISE_CMD && cd $WORKSPACE && mise tasks 2>/dev/null | grep -q '^install '"; then
+  run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise trust --all && mise install"
+  if run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise tasks 2>/dev/null | grep -q '^install '"; then
     echo "Running mise run install..."
-    su -s /bin/bash agent -c "$MISE_CMD && cd $WORKSPACE && mise run install"
+    run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise run install"
   fi
 else
   echo "No devbox.json or mise.toml found. devbox is available for installing tools."
@@ -59,7 +63,6 @@ fi
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
 if [ -d /home/agent/.ssh-host ]; then
   cp -a /home/agent/.ssh-host /home/agent/.ssh 2>/dev/null || true
-  chown -R agent:agent /home/agent/.ssh
   chmod 700 /home/agent/.ssh
   chmod 600 /home/agent/.ssh/* 2>/dev/null || true
   chmod 644 /home/agent/.ssh/*.pub 2>/dev/null || true
@@ -67,32 +70,46 @@ if [ -d /home/agent/.ssh-host ]; then
   chmod 644 /home/agent/.ssh/config 2>/dev/null || true
 fi
 
-if [ -d /home/agent/.config ]; then
-  chown -R agent:agent /home/agent/.config
-fi
-if [ -f /home/agent/.gitconfig ]; then
-  chown agent:agent /home/agent/.gitconfig
-fi
-if [ -n "${HOST_WORKSPACE:-}" ]; then
-  mkdir -p "$HOST_WORKSPACE" 2>/dev/null || true
-  chown agent:agent "$HOST_WORKSPACE" 2>/dev/null || true
-else
-  chown agent:agent /workspace 2>/dev/null || true
-fi
-
 export HOME=/home/agent
 
-# Write devbox/nix PATH setup to .bashrc so all child processes (including
-# commands spawned by AI tools like `bash -c "uv sync"`) inherit the PATH.
-cat > /home/agent/.bashrc <<BASHRC
+cat > "$AW_ENV_FILE" <<EOF
+if [ -n "\${AW_BASH_ENV_LOADED:-}" ] || [ -n "\${AW_BASH_ENV_RECURSION_GUARD:-}" ]; then
+  return 0
+fi
+AW_BASH_ENV_LOADED=1
+export HOME=/home/agent
+
 . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
-eval "\$(devbox global shellenv --preserve-path-stack -r 2>/dev/null | grep '^export ')"
-export PATH="/home/agent/.local/share/mise/shims:\$PATH"
+case ":\${PATH}:" in
+  *:/home/agent/.nix-profile/bin:*) ;;
+  *) export PATH="/home/agent/.nix-profile/bin:\${PATH}" ;;
+esac
+case ":\${PATH}:" in
+  *:/home/agent/.local/bin:*) ;;
+  *) export PATH="/home/agent/.local/bin:\${PATH}" ;;
+esac
+export AW_BASH_ENV_RECURSION_GUARD=1
+eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
+unset AW_BASH_ENV_RECURSION_GUARD
+case ":\${PATH}:" in
+  *:/home/agent/.local/share/mise/shims:*) ;;
+  *) export PATH="/home/agent/.local/share/mise/shims:\${PATH}" ;;
+esac
 export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-/workspace}"
 export MISE_YES=1
-BASHRC
-chown agent:agent /home/agent/.bashrc
+EOF
 
-exec setpriv --reuid="$(id -u agent)" --regid="$(id -g agent)" --init-groups \
-  env HOME=/home/agent \
+cat > "$BASHRC_FILE" <<'BASHRC'
+if [ -f /home/agent/.aw_env.sh ]; then
+  . /home/agent/.aw_env.sh
+fi
+BASHRC
+
+cat > "$BASH_PROFILE_FILE" <<'BASH_PROFILE'
+if [ -f /home/agent/.bashrc ]; then
+  . /home/agent/.bashrc
+fi
+BASH_PROFILE
+
+exec env HOME=/home/agent BASH_ENV="$AW_ENV_FILE" \
   bash -lc 'exec "$@"' -- "$@"

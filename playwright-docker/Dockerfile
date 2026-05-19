@@ -28,13 +28,16 @@ RUN ln -s /home/agent/.local/state/nix/profiles/profile /nix/var/nix/profiles/de
 # Install devbox
 RUN su -s /bin/bash agent -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
 
-ENV PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
+ENV HOME="/home/agent" \
+    BASH_ENV="/home/agent/.aw_env.sh" \
+    PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-RUN mkdir -p /Users && chown agent:agent /Users
+RUN mkdir -p /Users /workspace && chown agent:agent /Users /workspace
 
+USER agent
 WORKDIR /workspace
 
 ENTRYPOINT ["/entrypoint.sh"]

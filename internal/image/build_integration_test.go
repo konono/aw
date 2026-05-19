@@ -102,8 +102,46 @@ func runInContainer(t *testing.T, runtime, imageName, script string) string {
 	return out.String()
 }
 
+func runDetachedContainer(t *testing.T, runtime, imageName string, command ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	args := []string{"run", "--rm", "-d", imageName}
+	args = append(args, command...)
+	cmd := exec.CommandContext(ctx, runtime, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("run detached %s", imageName)); err != nil {
+		t.Fatalf("run detached %s failed: %v\noutput: %s", imageName, err, out.String())
+	}
+
+	return strings.TrimSpace(out.String())
+}
+
+func execInContainer(t *testing.T, runtime, containerID string, args ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmdArgs := append([]string{"exec", containerID}, args...)
+	cmd := exec.CommandContext(ctx, runtime, cmdArgs...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("exec %s", strings.Join(args, " "))); err != nil {
+		t.Fatalf("exec in %s failed: %v\noutput: %s", containerID, err, out.String())
+	}
+	return out.String()
+}
+
 func removeImage(runtime, imageName string) {
 	_ = exec.Command(runtime, "rmi", "-f", imageName).Run()
+}
+
+func removeContainer(runtime, containerID string) {
+	_ = exec.Command(runtime, "rm", "-f", containerID).Run()
 }
 
 func TestIntegration_ShellPerOS(t *testing.T) {
@@ -127,6 +165,7 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 			buildImage(t, runtime, imageName, buildDir, nil)
 
 			out := runInContainer(t, runtime, imageName, `
+id -un
 whoami
 which git
 which curl
@@ -139,6 +178,48 @@ echo "SHELL_OK"
 			}
 			if !strings.Contains(out, "SHELL_OK") {
 				t.Error("shell test did not complete")
+			}
+
+			containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+			t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+			execUser := strings.TrimSpace(execInContainer(t, runtime, containerID, "id", "-un"))
+			if execUser != "agent" {
+				t.Errorf("exec user = %q, want %q", execUser, "agent")
+			}
+
+			loginOut := execInContainer(t, runtime, containerID, "bash", "-lc", `
+command -v devbox >/dev/null
+case ":$PATH:" in
+  *":/home/agent/.local/share/mise/shims:"*) ;;
+  *) echo PATH_MISSING; exit 1 ;;
+esac
+echo LOGIN_OK
+`)
+			if !strings.Contains(loginOut, "LOGIN_OK") {
+				t.Error("bash -lc did not complete with expected PATH")
+			}
+
+			interactiveOut := execInContainer(t, runtime, containerID, "bash", "-ic", `
+command -v devbox >/dev/null
+case ":$PATH:" in
+  *":/home/agent/.local/share/mise/shims:"*) ;;
+  *) echo PATH_MISSING; exit 1 ;;
+esac
+echo INTERACTIVE_OK
+`)
+			if !strings.Contains(interactiveOut, "INTERACTIVE_OK") {
+				t.Error("bash -ic did not complete with expected PATH")
+			}
+
+			rcOut := execInContainer(t, runtime, containerID, "bash", "-lc", `
+test -f /home/agent/.aw_env.sh
+grep -q '/home/agent/.aw_env.sh' /home/agent/.bashrc
+grep -q '/home/agent/.bashrc' /home/agent/.bash_profile
+echo RC_OK
+`)
+			if !strings.Contains(rcOut, "RC_OK") {
+				t.Error("bash startup files were not wired as expected")
 			}
 		})
 	}
@@ -176,6 +257,19 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 
 				if !strings.Contains(out, "TOOL_OK") {
 					t.Errorf("%s --version did not succeed on %s", tool, osTemplate)
+				}
+
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+				loginOut := execInContainer(t, runtime, containerID, "bash", "-lc", fmt.Sprintf("command -v %s >/dev/null && echo TOOL_LOGIN_OK", tool))
+				if !strings.Contains(loginOut, "TOOL_LOGIN_OK") {
+					t.Errorf("%s was not available from bash -lc on %s", tool, osTemplate)
+				}
+
+				interactiveOut := execInContainer(t, runtime, containerID, "bash", "-ic", fmt.Sprintf("command -v %s >/dev/null && echo TOOL_INTERACTIVE_OK", tool))
+				if !strings.Contains(interactiveOut, "TOOL_INTERACTIVE_OK") {
+					t.Errorf("%s was not available from bash -ic on %s", tool, osTemplate)
 				}
 			})
 		}
