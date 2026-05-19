@@ -135,25 +135,6 @@ func copyFileIfMissing(src, dst string) error {
 	return copyFileIfExists(src, dst)
 }
 
-func syncDirIfExists(src, dst string) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-
-	if err := os.RemoveAll(dst); err != nil {
-		return fmt.Errorf("removing old %s: %w", dst, err)
-	}
-
-	return copyDir(src, dst)
-}
-
 // syncDirOrRemove syncs a directory from src to dst. If src does not exist,
 // dst is removed to prevent stale content (e.g. hooks injected by a
 // compromised container) from persisting across runs.
