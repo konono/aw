@@ -38,30 +38,34 @@ func (s *EnvStage) Name() string { return "env" }
 func (s *EnvStage) Run(_ context.Context, ec *pipeline.ExecutionContext) error {
 	merged := make(map[string]string)
 
-	// 1. Start with .aw-profile-env (lowest priority, written by parent process)
 	cacheDir := profileEnvCacheDir(ec.HomeDir, ec.OrigWorkDir)
 	profileEnvFilePath := filepath.Join(cacheDir, profileEnvFileName)
-	profileFileEnv, err := envfile.ParseFile(profileEnvFilePath)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", profileEnvFileName, err)
-	}
-	for k, v := range profileFileEnv {
-		merged[k] = v
-	}
 
-	// 2. Overlay with current profile's env vars
-	for k, v := range ec.Profile.Env {
-		merged[k] = v
-	}
-
-	// 3. Write current profile env to .aw-profile-env for child processes
 	if len(ec.Profile.Env) > 0 {
+		// 1. Start with .aw-profile-env (lowest priority, written by parent process)
+		profileFileEnv, err := envfile.ParseFile(profileEnvFilePath)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", profileEnvFileName, err)
+		}
+		for k, v := range profileFileEnv {
+			merged[k] = v
+		}
+
+		// 2. Overlay with current profile's env vars
+		for k, v := range ec.Profile.Env {
+			merged[k] = v
+		}
+
+		// 3. Write current profile env to .aw-profile-env for child processes
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return fmt.Errorf("creating profile env cache dir: %w", err)
 		}
 		if err := envfile.WriteFile(profileEnvFilePath, ec.Profile.Env); err != nil {
 			return fmt.Errorf("writing %s: %w", profileEnvFileName, err)
 		}
+	} else {
+		// No env vars in current profile — remove stale cache from previous runs
+		_ = os.Remove(profileEnvFilePath)
 	}
 
 	// 4. Overlay with .aw-env file vars (highest priority, from on-create hook)

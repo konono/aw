@@ -156,8 +156,9 @@ func TestEnvStage_WritesProfileEnvFile(t *testing.T) {
 	}
 }
 
-func TestEnvStage_ReadsProfileEnvFile(t *testing.T) {
-	// Simulates child process: profile.Env is empty, but .aw-profile-env exists from parent
+func TestEnvStage_CleansStaleProfileEnvFile(t *testing.T) {
+	// When the current profile has no env vars, stale .aw-profile-env from a
+	// previous run should be deleted so its vars don't leak into this session.
 	dir := t.TempDir()
 	homeDir := t.TempDir()
 	cacheDir := profileEnvCacheDir(homeDir, dir)
@@ -165,12 +166,12 @@ func TestEnvStage_ReadsProfileEnvFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
-	if err := os.WriteFile(profileEnvFile, []byte("PARENT_KEY=parent_value\n"), 0644); err != nil {
+	if err := os.WriteFile(profileEnvFile, []byte("STALE_KEY=stale_value\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	ec := &pipeline.ExecutionContext{
-		Profile:     profile.Profile{}, // empty, like builtin "claude" profile
+		Profile:     profile.Profile{}, // empty — no env vars
 		HomeDir:     homeDir,
 		OrigWorkDir: dir,
 		WorkDir:     dir,
@@ -181,8 +182,11 @@ func TestEnvStage_ReadsProfileEnvFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ec.EnvVars["PARENT_KEY"] != "parent_value" {
-		t.Errorf("PARENT_KEY = %q, want %q", ec.EnvVars["PARENT_KEY"], "parent_value")
+	if len(ec.EnvVars) != 0 {
+		t.Errorf("got %d env vars, want 0 (stale cache should not leak)", len(ec.EnvVars))
+	}
+	if _, err := os.Stat(profileEnvFile); !os.IsNotExist(err) {
+		t.Error("stale .aw-profile-env should have been deleted")
 	}
 }
 
@@ -267,9 +271,20 @@ func TestEnvStage_AwEnvOverridesAll(t *testing.T) {
 	}
 }
 
-func TestEnvStage_NoWriteWhenProfileEnvEmpty(t *testing.T) {
+func TestEnvStage_DeletesCacheWhenProfileEnvEmpty(t *testing.T) {
 	dir := t.TempDir()
 	homeDir := t.TempDir()
+
+	// Seed a stale cache file
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
+	if err := os.WriteFile(profileEnvFile, []byte("OLD=value\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	ec := &pipeline.ExecutionContext{
 		Profile:     profile.Profile{}, // no Env
 		HomeDir:     homeDir,
@@ -282,10 +297,8 @@ func TestEnvStage_NoWriteWhenProfileEnvEmpty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cacheDir := profileEnvCacheDir(homeDir, dir)
-	profileEnvFile := filepath.Join(cacheDir, ".aw-profile-env")
 	if _, err := os.Stat(profileEnvFile); !os.IsNotExist(err) {
-		t.Error(".aw-profile-env should not be created when profile.Env is empty")
+		t.Error(".aw-profile-env should be deleted when profile.Env is empty")
 	}
 }
 
