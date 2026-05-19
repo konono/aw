@@ -48,6 +48,10 @@ func Load() (*Config, error) {
 			if err != nil {
 				return nil, err
 			}
+			projectCfg, err = CheckProjectTrust(projectPath, data, projectCfg)
+			if err != nil {
+				return nil, fmt.Errorf("checking project config trust: %w", err)
+			}
 		} else if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("reading config file: %w", err)
 		}
