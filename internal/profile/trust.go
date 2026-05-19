@@ -9,16 +9,6 @@ import (
 	"strings"
 )
 
-// sensitiveFields describes which project config fields require trust approval.
-// These fields can execute commands on the host, mount host paths, or inject env vars.
-var sensitiveFieldLabels = map[string]string{
-	"worktree.on-create": "Runs a shell command on the HOST after worktree creation",
-	"worktree.on-end":    "Runs a shell command on the HOST after process exits",
-	"mounts":             "Mounts host directories into the container",
-	"dockerfile":         "Uses a custom Dockerfile for the container image",
-	"env":                "Sets environment variables inside the container",
-}
-
 // hasSensitiveFields checks whether a parsed project config contains any
 // security-sensitive fields (at top level or in any profile).
 func hasSensitiveFields(cfg *Config) []string {
