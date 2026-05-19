@@ -122,7 +122,7 @@ func runDetachedContainer(t *testing.T, runtime, imageName string, command ...st
 
 func execInContainer(t *testing.T, runtime, containerID string, args ...string) string {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	cmdArgs := append([]string{"exec", containerID}, args...)
@@ -274,6 +274,73 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestIntegration_Smoke is a quick sanity check using a single debian12 image.
+// It verifies shell basics, the pre-installed tool (claude), and dynamically
+// installs codex to confirm devbox-based tool installation works at runtime.
+//
+//	go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
+func TestIntegration_Smoke(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	imageName := "aw-inttest-smoke"
+	t.Cleanup(func() { removeImage(runtime, imageName) })
+
+	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12)
+	if err != nil {
+		t.Fatalf("PrepareBuildContext: %v", err)
+	}
+	defer cleanup()
+
+	buildImage(t, runtime, imageName, buildDir, map[string]string{
+		"AW_TOOL_PKG": toolinfo.DevboxPkg("claude"),
+	})
+
+	containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+	t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+	t.Run("shell", func(t *testing.T) {
+		out := execInContainer(t, runtime, containerID, "bash", "-lc", `
+id -un
+which git
+which curl
+which devbox
+case ":$PATH:" in
+  *":/home/agent/.local/share/mise/shims:"*) ;;
+  *) echo PATH_MISSING; exit 1 ;;
+esac
+test -f /home/agent/.aw_env.sh
+grep -q '/home/agent/.aw_env.sh' /home/agent/.bashrc
+grep -q '/home/agent/.bashrc' /home/agent/.bash_profile
+echo SHELL_OK
+`)
+		if !strings.Contains(out, "agent") {
+			t.Error("expected user 'agent'")
+		}
+		if !strings.Contains(out, "SHELL_OK") {
+			t.Error("shell environment check did not complete")
+		}
+	})
+
+	t.Run("claude", func(t *testing.T) {
+		out := execInContainer(t, runtime, containerID, "bash", "-lc",
+			"command -v claude >/dev/null && claude --version && echo CLAUDE_OK")
+		if !strings.Contains(out, "CLAUDE_OK") {
+			t.Error("claude was not available")
+		}
+	})
+
+	t.Run("codex", func(t *testing.T) {
+		execInContainer(t, runtime, containerID, "bash", "-lc",
+			"devbox global add "+toolinfo.DevboxPkg("codex"))
+		out := execInContainer(t, runtime, containerID, "bash", "-lc",
+			"command -v codex >/dev/null && codex --version && echo CODEX_OK")
+		if !strings.Contains(out, "CODEX_OK") {
+			t.Error("codex was not available")
+		}
+	})
 }
 
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
