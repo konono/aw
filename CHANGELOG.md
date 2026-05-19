@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/konono/aw/compare/v1.1.0...v1.1.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **ssh:** fix SSH agent forwarding reliability ([b18f508](https://github.com/konono/aw/commit/b18f508a993a0a79d4aef4f3d7c3819f8f862881))
+
 ## [1.1.0](https://github.com/konono/aw/compare/v1.0.1...v1.1.0) (2026-05-19)
 
 
