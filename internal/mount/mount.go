@@ -16,6 +16,7 @@ type MountOptions struct {
 	WorkDir          string         // host working directory (workspace)
 	ToolStageDir     string         // host staging dir for tool config (e.g. ~/.agent-workspace/claude)
 	ToolContainerDir string         // container target for tool config (e.g. /home/agent/.claude)
+	MountGH          bool           // whether to mount host ~/.config/gh into the container
 	MountSSH         bool           // whether to mount host ~/.ssh into the container
 	SSHAgentForwarding bool         // whether to forward SSH agent socket
 	SSHAuthSock        string       // host SSH_AUTH_SOCK path
@@ -51,7 +52,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		Target: opts.WorkDir,
 	})
 
-	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.MountSSH)...)
+	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.MountGH, opts.MountSSH)...)
 
 	if opts.SSHAgentForwarding && !opts.MountSSH {
 		if m := sshAgentMount(opts.SSHAuthSock); m != nil {
@@ -72,22 +73,24 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 	return mounts, nil
 }
 
-func optionalMounts(homeDir string, mountSSH bool) []docker.Mount {
+func optionalMounts(homeDir string, mountGH, mountSSH bool) []docker.Mount {
 	var mounts []docker.Mount
 
 	gitconfig := filepath.Join(homeDir, ".gitconfig")
 	if fileExists(gitconfig) {
 		mounts = append(mounts, docker.Mount{
-			Source: gitconfig,
-			Target: "/home/agent/.gitconfig",
+			Source:   gitconfig,
+			Target:   "/home/agent/.gitconfig",
+			ReadOnly: true,
 		})
 	}
 
 	ghConfig := filepath.Join(homeDir, ".config", "gh")
-	if dirExists(ghConfig) {
+	if mountGH && dirExists(ghConfig) {
 		mounts = append(mounts, docker.Mount{
-			Source: ghConfig,
-			Target: "/home/agent/.config/gh",
+			Source:   ghConfig,
+			Target:   "/home/agent/.config/gh",
+			ReadOnly: true,
 		})
 	}
 

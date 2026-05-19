@@ -71,9 +71,16 @@ func TestRunConfigBuildArgs(t *testing.T) {
 
 	args := BuildRunArgs(config)
 
-	// Should start with run -it --rm
-	if args[0] != "run" || args[1] != "-it" || args[2] != "--rm" {
-		t.Errorf("expected args to start with [run -it --rm], got %v", args[:3])
+	// Should start with run -it --rm --pids-limit 1000
+	expected := []string{"run", "-it", "--rm", "--pids-limit", "1000"}
+	if len(args) < len(expected) {
+		t.Fatalf("expected args to start with %v, got %v", expected, args)
+	}
+	for i, e := range expected {
+		if args[i] != e {
+			t.Errorf("args[%d] = %q, want %q (full prefix: %v)", i, args[i], e, args[:len(expected)])
+			break
+		}
 	}
 
 	// Should contain the image name
@@ -158,5 +165,65 @@ func TestBuildRunArgsNoOptionalFields(t *testing.T) {
 		if a == "-e" {
 			t.Error("expected no -e when EnvVars is empty/nil")
 		}
+	}
+}
+
+func TestBuildRunArgs_MountOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		mount    Mount
+		wantArg  string
+	}{
+		{
+			name:    "rw no options",
+			mount:   Mount{Source: "/src", Target: "/dst"},
+			wantArg: "/src:/dst",
+		},
+		{
+			name:    "ro no options",
+			mount:   Mount{Source: "/src", Target: "/dst", ReadOnly: true},
+			wantArg: "/src:/dst:ro",
+		},
+		{
+			name:    "rw with selinux",
+			mount:   Mount{Source: "/src", Target: "/dst", Options: "z"},
+			wantArg: "/src:/dst:z",
+		},
+		{
+			name:    "ro with selinux",
+			mount:   Mount{Source: "/src", Target: "/dst", ReadOnly: true, Options: "Z"},
+			wantArg: "/src:/dst:ro,Z",
+		},
+		{
+			name:    "rw with multiple options",
+			mount:   Mount{Source: "/src", Target: "/dst", Options: "z,nocopy"},
+			wantArg: "/src:/dst:z,nocopy",
+		},
+		{
+			name:    "ro with multiple options",
+			mount:   Mount{Source: "/src", Target: "/dst", ReadOnly: true, Options: "Z,nocopy"},
+			wantArg: "/src:/dst:ro,Z,nocopy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := RunConfig{
+				ImageName: "img",
+				Mounts:    []Mount{tt.mount},
+				Command:   []string{"sh"},
+			}
+			args := BuildRunArgs(config)
+			found := false
+			for i, a := range args {
+				if a == "-v" && i+1 < len(args) && args[i+1] == tt.wantArg {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected mount arg %q, got args: %v", tt.wantArg, args)
+			}
+		})
 	}
 }

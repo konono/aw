@@ -39,10 +39,6 @@ NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix
 if [ -f "$WORKSPACE/devbox.json" ]; then
   echo "Installing packages from devbox.json..."
   run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
-  if run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox run --list 2>/dev/null" | grep -q '^install'; then
-    echo "Running devbox run install..."
-    run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox run install"
-  fi
 elif [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
     echo "Installing mise..."
@@ -51,11 +47,7 @@ elif [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
   mkdir -p /home/agent/.config/mise
   echo "Installing tools from mise.toml..."
-  run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise trust --all && mise install"
-  if run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise tasks 2>/dev/null | grep -q '^install '"; then
-    echo "Running mise run install..."
-    run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise run install"
-  fi
+  run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise install"
 else
   echo "No devbox.json or mise.toml found. devbox is available for installing tools."
 fi

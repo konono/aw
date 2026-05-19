@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"strings"
 )
 
 // Mount represents a Docker mount (bind mount or named volume).
@@ -14,7 +15,8 @@ type Mount struct {
 	Source   string
 	Target   string
 	ReadOnly bool
-	IsVolume bool // true = named volume, false = bind mount
+	IsVolume bool   // true = named volume, false = bind mount
+	Options  string // extra mount options (e.g. "z", "Z,nocopy")
 }
 
 // RunConfig holds the configuration for running a Docker container.
@@ -107,7 +109,12 @@ func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error
 // BuildRunArgs constructs the docker CLI arguments for a RunConfig.
 // This is exported for testing.
 func BuildRunArgs(config RunConfig) []string {
-	args := []string{"run", "-it", "--rm"}
+	// --pids-limit: prevent fork bombs. 1000 is generous enough for
+	// typical AI agent workloads (mise install, npm ci, parallel builds)
+	// while still capping runaway process creation.
+	args := []string{"run", "-it", "--rm",
+		"--pids-limit", "1000",
+	}
 
 	for key, val := range config.EnvVars {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, val))
@@ -115,8 +122,8 @@ func BuildRunArgs(config RunConfig) []string {
 
 	for _, m := range config.Mounts {
 		mountArg := fmt.Sprintf("%s:%s", m.Source, m.Target)
-		if m.ReadOnly {
-			mountArg += ":ro"
+		if suffix := mountSuffix(m); suffix != "" {
+			mountArg += ":" + suffix
 		}
 		args = append(args, "-v", mountArg)
 	}
@@ -129,6 +136,19 @@ func BuildRunArgs(config RunConfig) []string {
 	args = append(args, config.Command...)
 
 	return args
+}
+
+// mountSuffix builds the colon-separated suffix for a -v mount argument
+// by combining the access mode (ro/rw) with any extra options (z, Z, nocopy, etc.).
+func mountSuffix(m Mount) string {
+	var parts []string
+	if m.ReadOnly {
+		parts = append(parts, "ro")
+	}
+	if m.Options != "" {
+		parts = append(parts, m.Options)
+	}
+	return strings.Join(parts, ",")
 }
 
 // Run runs a Docker container interactively with the given RunConfig.

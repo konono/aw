@@ -560,14 +560,18 @@ profiles:
 }
 
 // mockLoadEnv sets up findGitRoot and globalConfigDir mocks, restoring them on cleanup.
+// It also auto-approves trust prompts so tests with env/mounts/hooks are not blocked.
 func mockLoadEnv(t *testing.T, gitRoot string, gitErr bool, globalDir string) {
 	t.Helper()
 	origGit := findGitRoot
 	origGlobal := globalConfigDir
+	origPrompt := promptTrust
 	t.Cleanup(func() {
 		findGitRoot = origGit
 		globalConfigDir = origGlobal
+		promptTrust = origPrompt
 	})
+	promptTrust = func(_ string, _ []string) bool { return true }
 
 	if gitErr {
 		findGitRoot = func() (string, error) { return "", fmt.Errorf("not in a git repository") }

@@ -93,7 +93,7 @@ func (s *DefaultSyncer) SyncToolSettings(srcDir, dstDir string, spec ToolSyncSpe
 	for _, d := range spec.Dirs {
 		src := filepath.Join(srcDir, d)
 		dst := filepath.Join(dstDir, d)
-		if err := syncDirIfExists(src, dst); err != nil {
+		if err := syncDirOrRemove(src, dst); err != nil {
 			return fmt.Errorf("syncing directory %s: %w", d, err)
 		}
 	}
@@ -135,15 +135,20 @@ func copyFileIfMissing(src, dst string) error {
 	return copyFileIfExists(src, dst)
 }
 
-func syncDirIfExists(src, dst string) error {
+// syncDirOrRemove syncs a directory from src to dst. If src does not exist,
+// dst is removed to prevent stale content (e.g. hooks injected by a
+// compromised container) from persisting across runs.
+func syncDirOrRemove(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
+			_ = os.RemoveAll(dst)
 			return nil
 		}
 		return err
 	}
 	if !info.IsDir() {
+		_ = os.RemoveAll(dst)
 		return nil
 	}
 

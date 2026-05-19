@@ -138,7 +138,8 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		extraMounts = append(extraMounts, docker.Mount{
 			Source:   source,
 			Target:   m.Target,
-			ReadOnly: m.ReadOnly,
+			ReadOnly: m.IsReadOnly(),
+			Options:  m.Options,
 		})
 	}
 
@@ -159,6 +160,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		WorkDir:            ec.WorkDir,
 		ToolStageDir:       toolStageDir,
 		ToolContainerDir:   toolContainerDir,
+		MountGH:            ec.Profile.EffectiveMountGH(),
 		MountSSH:           ec.Profile.EffectiveMountSSH(),
 		SSHAgentForwarding: sshAgentFwd,
 		SSHAuthSock:        sshAuthSock,

