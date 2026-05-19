@@ -1,3 +1,9 @@
+---
+description: Release rules and commit conventions for aw
+globs:
+alwaysApply: true
+---
+
 # Development
 
 - Run tests: `go test ./...`
