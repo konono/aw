@@ -45,6 +45,10 @@ func MergeProfile(base, override Profile) Profile {
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.MountGH != nil {
+		v := *override.MountGH
+		merged.MountGH = &v
+	}
 	if override.MountSSH != nil {
 		v := *override.MountSSH
 		merged.MountSSH = &v
@@ -223,6 +227,10 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		relative.ContainerRuntime = effective.ContainerRuntime
 	}
 	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
+	if !equalBoolPtr(effective.MountGH, defaults.MountGH) && effective.MountGH != nil {
+		v := *effective.MountGH
+		relative.MountGH = &v
+	}
 	if !equalBoolPtr(effective.MountSSH, defaults.MountSSH) && effective.MountSSH != nil {
 		v := *effective.MountSSH
 		relative.MountSSH = &v

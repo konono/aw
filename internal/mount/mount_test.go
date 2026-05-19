@@ -14,6 +14,7 @@ func newTestOpts(homeDir, workDir string) MountOptions {
 		WorkDir:          workDir,
 		ToolStageDir:     filepath.Join(homeDir, ".agent-workspace", "claude"),
 		ToolContainerDir: "/home/agent/.claude",
+		MountGH:          true,
 	}
 }
 
@@ -79,6 +80,9 @@ func TestBuildMounts_GitconfigWhenPresent(t *testing.T) {
 	if m.Source != filepath.Join(homeDir, ".gitconfig") {
 		t.Errorf("source = %q, want %q", m.Source, filepath.Join(homeDir, ".gitconfig"))
 	}
+	if !m.ReadOnly {
+		t.Error(".gitconfig mount should be read-only")
+	}
 }
 
 func TestBuildMounts_NoGitconfigWhenMissing(t *testing.T) {
@@ -115,6 +119,30 @@ func TestBuildMounts_GhConfigWhenPresent(t *testing.T) {
 	m := findMount(mounts, "/home/agent/.config/gh")
 	if m == nil {
 		t.Fatal("missing .config/gh mount")
+	}
+	if !m.ReadOnly {
+		t.Error(".config/gh mount should be read-only")
+	}
+}
+
+func TestBuildMounts_GhConfigDisabled(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(homeDir, ".config", "gh"), 0755); err != nil {
+		t.Fatalf("creating .config/gh: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountGH = false
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, "/home/agent/.config/gh") != nil {
+		t.Error(".config/gh mount should not exist when MountGH is false")
 	}
 }
 

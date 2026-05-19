@@ -47,6 +47,7 @@ type Profile struct {
 	OS               OSTemplate        `yaml:"os,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	MountGH          *bool             `yaml:"mount_gh,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
@@ -77,11 +78,26 @@ func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	return shared
 }
 
+// MountMode specifies the access mode for a custom mount.
+type MountMode string
+
+const (
+	MountModeRO MountMode = "ro"
+	MountModeRW MountMode = "rw"
+)
+
 // CustomMount represents a user-defined bind mount for Docker containers.
+// Mounts are read-only by default; set mode: rw to allow writes.
 type CustomMount struct {
-	Source   string `yaml:"source"`
-	Target   string `yaml:"target"`
-	ReadOnly bool   `yaml:"readonly,omitempty"`
+	Source  string    `yaml:"source"`
+	Target  string    `yaml:"target"`
+	Mode    MountMode `yaml:"mode,omitempty"`    // "ro" (default) or "rw"
+	Options string    `yaml:"options,omitempty"` // extra mount options (e.g. "z", "Z,nocopy", "cached")
+}
+
+// IsReadOnly returns whether this mount should be read-only.
+func (m CustomMount) IsReadOnly() bool {
+	return m.Mode != MountModeRW
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.
@@ -98,6 +114,13 @@ func (p *Profile) EffectiveContainerRuntime() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+// EffectiveMountGH returns whether the host ~/.config/gh directory should be mounted.
+// Defaults to false; the gh token is readable by the AI agent and can be
+// exfiltrated via prompt injection attacks.
+func (p *Profile) EffectiveMountGH() bool {
+	return p != nil && p.MountGH != nil && *p.MountGH
 }
 
 // EffectiveMountSSH returns whether the host ~/.ssh directory should be mounted.
