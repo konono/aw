@@ -109,6 +109,9 @@ func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error
 // BuildRunArgs constructs the docker CLI arguments for a RunConfig.
 // This is exported for testing.
 func BuildRunArgs(config RunConfig) []string {
+	// --pids-limit: prevent fork bombs. 1000 is generous enough for
+	// typical AI agent workloads (mise install, npm ci, parallel builds)
+	// while still capping runaway process creation.
 	args := []string{"run", "-it", "--rm",
 		"--pids-limit", "1000",
 	}

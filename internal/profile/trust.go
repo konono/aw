@@ -95,6 +95,8 @@ func contentHash(data []byte) string {
 }
 
 // isTrusted checks if the given config file content has been previously approved.
+// The hash covers the entire file content intentionally: even whitespace or comment
+// changes trigger re-approval, erring on the side of security over convenience.
 func isTrusted(configPath string, data []byte) (bool, error) {
 	fp, err := trustFilePath(configPath)
 	if err != nil {
