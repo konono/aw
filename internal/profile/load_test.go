@@ -590,7 +590,7 @@ func TestLoad_NoGitRepo_WithoutConfigInCwd(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -628,7 +628,7 @@ profiles:
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -674,7 +674,7 @@ profiles:
 	if err := os.Chdir(cwdDir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -751,7 +751,7 @@ profiles:
 	if err := os.Chdir(projectDir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -804,7 +804,7 @@ func TestLoad_GlobalConfigParseError(t *testing.T) {
 	if err := os.Chdir(cwdDir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, err := Load()
 	if err == nil {
@@ -821,7 +821,7 @@ func TestLoad_NoGlobalNoProject(t *testing.T) {
 	if err := os.Chdir(cwdDir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cfg, err := Load()
 	if err != nil {
