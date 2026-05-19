@@ -709,6 +709,49 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ZellijToolOverride(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchZellij,
+		Zellij:      &ZellijConfig{Layout: "default", Tool: "claude"},
+	}
+	override := Profile{
+		Zellij: &ZellijConfig{Tool: "codex"},
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Zellij == nil {
+		t.Fatal("Zellij should not be nil")
+	}
+	if merged.Zellij.Layout != "default" {
+		t.Errorf("Zellij.Layout = %q, want %q (preserved from base)", merged.Zellij.Layout, "default")
+	}
+	if merged.Zellij.Tool != "codex" {
+		t.Errorf("Zellij.Tool = %q, want %q (override)", merged.Zellij.Tool, "codex")
+	}
+}
+
+func TestMergeProfile_ZellijToolPreservedFromBase(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchZellij,
+		Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
+	}
+	override := Profile{
+		Zellij: &ZellijConfig{Layout: "custom"},
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Zellij.Tool != "codex" {
+		t.Errorf("Zellij.Tool = %q, want %q (preserved from base)", merged.Zellij.Tool, "codex")
+	}
+	if merged.Zellij.Layout != "custom" {
+		t.Errorf("Zellij.Layout = %q, want %q (override)", merged.Zellij.Layout, "custom")
+	}
+}
+
 func TestMergeProfile_WorktreeDeepMerge(t *testing.T) {
 	base := Profile{
 		Worktree: &WorktreeConfig{Base: "origin/main", Dir: "/base/wt"},

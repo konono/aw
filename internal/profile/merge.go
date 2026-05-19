@@ -102,6 +102,9 @@ func mergeZellij(base, override *ZellijConfig) *ZellijConfig {
 	if override.Layout != "" {
 		merged.Layout = override.Layout
 	}
+	if override.Tool != "" {
+		merged.Tool = override.Tool
+	}
 	return &merged
 }
 
