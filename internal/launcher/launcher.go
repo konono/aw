@@ -15,18 +15,7 @@ type Launcher interface {
 
 // buildContainerEnvVars creates the base set of environment variables for container execution.
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
-	envVars := make(map[string]string, len(ec.EnvVars)+4)
-	for k, v := range ec.EnvVars {
-		envVars[k] = v
-	}
-
-	containerDir := toolinfo.ContainerDir(tool)
-	if containerDir != "" {
-		envVars["AW_CONTAINER_CONFIG_DIR"] = containerDir
-	}
-	if symlinks := toolinfo.DataSymlinks(tool); symlinks != "" {
-		envVars["AW_DATA_SYMLINKS"] = symlinks
-	}
+	envVars := toolinfo.ContainerEnvVars(ec.EnvVars, tool)
 
 	if ec.Profile.EffectiveSSHAgentForwarding() && !ec.Profile.EffectiveMountSSH() {
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath

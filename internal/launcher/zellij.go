@@ -13,6 +13,7 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/toolinfo"
 )
 
 // layoutData holds template variables for the zellij layout.
@@ -73,11 +74,8 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 	tool := ec.Profile.EffectiveTool()
 	agentCmd := l.buildAgentCommand(ec, tool)
 	agentName := "Claude Code"
-	switch tool {
-	case "codex":
-		agentName = "Codex"
-	case "opencode":
-		agentName = "OpenCode"
+	if spec, ok := toolinfo.Lookup(tool); ok {
+		agentName = spec.DisplayName
 	}
 
 	// Render and write layout template
@@ -104,15 +102,7 @@ func (l *ZellijLauncher) prepareFiles(ec *pipeline.ExecutionContext, sessionName
 }
 
 func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool string) string {
-	agentCmd := "claude --permission-mode bypassPermissions"
-	agentBin := "claude"
-	if tool == "codex" {
-		agentCmd = "codex -a never"
-		agentBin = "codex"
-	} else if tool == "opencode" {
-		agentCmd = "opencode"
-		agentBin = "opencode"
-	}
+	agentCmd, agentBin := zellijToolCommand(tool)
 
 	switch ec.Profile.Environment {
 	case profile.EnvironmentContainer:
@@ -176,4 +166,22 @@ func (l *ZellijLauncher) launchZellij(workDir, dir, sessionName, baseRef string)
 		cmd.Env = append(cmd.Env, "AW_BASE_REF="+baseRef)
 	}
 	return cmd.Run()
+}
+
+// zellijToolCommand returns the shell command string and binary name for a tool
+// when launched inside a zellij pane. The command differs from the normal
+// launcher because zellij wraps it in "bash -c '<cmd>; exec bash -i'".
+func zellijToolCommand(tool string) (cmd string, bin string) {
+	spec, ok := toolinfo.Lookup(tool)
+	if !ok {
+		return "claude --permission-mode bypassPermissions", "claude"
+	}
+	switch tool {
+	case "claude":
+		return "claude --permission-mode bypassPermissions", spec.Binary
+	case "codex":
+		return "codex -a never", spec.Binary
+	default:
+		return spec.Binary, spec.Binary
+	}
 }
