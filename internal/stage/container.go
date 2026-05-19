@@ -151,6 +151,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 			fmt.Fprintf(os.Stderr, "Warning: ssh_agent_forwarding: %v\n", err)
 		} else {
 			sshAuthSock = agent.SocketPath
+			ec.SSHAgentReady = true
 			ec.SSHAgentCleanup = agent.Cleanup
 		}
 	}

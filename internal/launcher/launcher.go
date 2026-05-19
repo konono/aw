@@ -17,7 +17,7 @@ type Launcher interface {
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
 	envVars := toolinfo.ContainerEnvVars(ec.EnvVars, tool)
 
-	if ec.Profile.EffectiveSSHAgentForwarding() && !ec.Profile.EffectiveMountSSH() {
+	if ec.SSHAgentReady {
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 

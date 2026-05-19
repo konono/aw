@@ -29,5 +29,6 @@ type ExecutionContext struct {
 	EnvVars map[string]string // custom env vars to pass into Docker container
 
 	// Set by DockerStage for SSH agent forwarding cleanup
+	SSHAgentReady   bool
 	SSHAgentCleanup func()
 }
