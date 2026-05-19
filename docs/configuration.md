@@ -1,70 +1,70 @@
-# Configuration Guide
+# 設定リファレンス
 
-This document describes how `aw` loads, merges, and validates `.agent-workspace.yml` style configuration.
+`aw` が `.agent-workspace.yml` 形式の設定をどのように読み込み、マージし、バリデーションするかを説明します。
 
-## Overview
+## 概要
 
-`aw` can launch built-in starter profiles with no config files at all. When config files are present, it merges them with the built-in starter config and then materializes an effective profile for the requested profile name.
+`aw` は設定ファイルがなくても組み込みのスタータープロファイルで起動できます。設定ファイルがある場合は、組み込み設定とマージして、指定されたプロファイル名の有効なプロファイルを生成します。
 
-## File locations
+## ファイルの場所
 
-`aw` reads configuration from these locations:
+`aw` は以下の場所から設定を読み込みます:
 
-1. Built-in starter config embedded in the binary
+1. バイナリに埋め込まれた組み込みスターター設定
 2. `~/.config/aw/config.yml`
-3. `<git-root>/.agent-workspace.yml`
+3. `<git ルート>/.agent-workspace.yml`
 
-If `git rev-parse --show-toplevel` fails, `aw` falls back to `.agent-workspace.yml` in the current directory.
+`git rev-parse --show-toplevel` が失敗した場合、カレントディレクトリの `.agent-workspace.yml` にフォールバックします。
 
-Run `aw init` if you want to write the current built-in starter config to `~/.config/aw/config.yml` and customize it there.
+組み込みスターター設定を `~/.config/aw/config.yml` に書き出してカスタマイズしたい場合は `aw init` を実行してください。
 
-## Resolution And Precedence
+## 解決と優先順位
 
-There are two precedence axes:
+優先順位は2つの軸で決まります:
 
-1. **Source precedence**
-   Built-in starter config < global config < project config
-2. **Within a single file**
-   Top-level shared defaults < `profiles.<name>`
+1. **ソース優先順位**
+   組み込みスターター設定 < グローバル設定 < プロジェクト設定
+2. **同じファイル内**
+   トップレベルの共有デフォルト < `profiles.<name>`
 
-That means a later file wins over an earlier one, and within the same file an explicit field on `profiles.<name>` wins over the top-level value for that field.
+つまり、後に読まれたファイルが優先され、同じファイル内では `profiles.<name>` の明示的なフィールドがトップレベルの値より優先されます。
 
-### Setting points
+### 設定ポイント
 
-Configuration can come from the following places:
+設定は以下の場所から来ます:
 
-- The embedded starter config in `internal/profile/embed/config.yml`
+- `internal/profile/embed/config.yml` に埋め込まれたスターター設定
 - `~/.config/aw/config.yml`
 - `.agent-workspace.yml`
-- Top-level shared defaults in any of those files
-- Per-profile overrides under `profiles.<name>`
+- 上記いずれかのファイルのトップレベル共有デフォルト
+- `profiles.<name>` のプロファイルごとのオーバーライド
 
-### Merge model
+### マージモデル
 
-At a high level, `aw` resolves configuration like this:
+`aw` は設定を以下の手順で解決します:
 
-1. Read the built-in starter config
-2. Overlay `~/.config/aw/config.yml` if present
-3. Overlay `.agent-workspace.yml` if present
-4. Apply the final top-level shared defaults to every profile
-5. Validate the resulting effective profiles
+1. 組み込みスターター設定を読み込む
+2. `~/.config/aw/config.yml` があればオーバーレイ
+3. `.agent-workspace.yml` があればオーバーレイ
+4. 最終的なトップレベル共有デフォルトを全プロファイルに適用
+5. 結果の有効なプロファイルをバリデーション
 
-### Field-specific merge rules
+### フィールドごとのマージルール
 
-- `env` is merged key by key, with later values winning
-- `worktree` is merged field by field
-- `zellij` is merged field by field
-- `mounts` is replaced as a whole when specified
-- `mount_ssh` uses explicit tri-state behavior:
-  - omitted: inherit
-  - `true`: enable
-  - `false`: disable
-- `ssh_agent_forwarding` uses the same tri-state behavior as `mount_ssh`
-- `os` and `dockerfile` are mutually exclusive at the final profile level; if one is inherited and the other is specified later, the later one clears the inherited counterpart
+- `env` はキーごとにマージ（後の値が優先）
+- `worktree` はフィールドごとにマージ
+- `zellij` はフィールドごとにマージ
+- `mounts` は指定時に全体を置換
+- `mount_ssh` は明示的な三値動作:
+  - 省略: 継承
+  - `true`: 有効化
+  - `false`: 無効化
+- `ssh_agent_forwarding` は `mount_ssh` と同じ三値動作
+- `os` と `dockerfile` は最終的なプロファイルレベルで排他的。片方が継承され、もう片方が後から指定された場合、継承された側はクリアされる
 
-## YAML shape
+## YAML の構造
 
-There is no nested `defaults:` block. Shared defaults stay flat at the top level:
+ネストした `defaults:` ブロックはありません。共有デフォルトはトップレベルにフラットに置きます:
 
 ```yaml
 default: claude
@@ -81,12 +81,12 @@ profiles:
     launch: shell
 ```
 
-`profiles.<name>` uses the same field names as the top level. The difference is semantic:
+`profiles.<name>` はトップレベルと同じフィールド名を使います。違いはセマンティクスです:
 
-- top-level fields are shared defaults
-- `profiles.<name>` fields are profile-specific overrides
+- トップレベルのフィールドは共有デフォルト
+- `profiles.<name>` のフィールドはプロファイル固有のオーバーライド
 
-## Minimal example
+## 最小限の例
 
 ```yaml
 profiles:
@@ -95,7 +95,7 @@ profiles:
     launch: claude
 ```
 
-## Full example
+## フルの例
 
 ```yaml
 default: worktree-zellij
@@ -156,17 +156,17 @@ profiles:
         readonly: true
 ```
 
-## Top-level keys
+## トップレベルキー
 
 ### `default`
 
-The profile name used when you run `aw` without arguments. If omitted, `aw` lists available profiles instead of launching one.
+引数なしで `aw` を実行したときに使用するプロファイル名。省略した場合、`aw` は起動せずに利用可能なプロファイル一覧を表示します。
 
-### Shared defaults
+### 共有デフォルト
 
-Any profile field can also appear at the top level. These top-level fields become shared defaults for every profile in the merged config.
+プロファイルのフィールドはトップレベルにも置けます。トップレベルのフィールドはマージ後の全プロファイルの共有デフォルトになります。
 
-Common top-level defaults include:
+よく使われるトップレベルデフォルト:
 
 - `environment`
 - `container_runtime`
@@ -182,20 +182,20 @@ Common top-level defaults include:
 
 ### `profiles`
 
-A required map of named profiles. Each key is a profile name, and each value is a partial or complete profile definition.
+名前付きプロファイルの必須マップ。各キーがプロファイル名、各値が部分的または完全なプロファイル定義です。
 
-## Profile fields
+## プロファイルフィールド
 
-### `environment` (required)
+### `environment`（必須）
 
-Controls where the main process runs.
+メインプロセスの実行場所を制御します。
 
-- `host` - run directly on the host
-- `container` - run inside the aw container image
+- `host` — ホスト上で直接実行
+- `container` — aw コンテナイメージ内で実行
 
-### `launch` (required)
+### `launch`（必須）
 
-Controls what `aw` launches.
+`aw` が起動するものを制御します。
 
 - `shell`
 - `claude`
@@ -203,20 +203,20 @@ Controls what `aw` launches.
 - `opencode`
 - `zellij`
 
-### `worktree` (optional)
+### `worktree`（任意）
 
-If present, `aw` creates a git worktree before launch.
+指定した場合、`aw` は起動前に git worktree を作成します。
 
-`worktree: {}` enables worktree mode with defaults.
+`worktree: {}` でデフォルト設定の worktree モードを有効化します。
 
-Supported fields:
+サポートされるフィールド:
 
-- `base` - default `origin/main`
-- `dir` - directory to host worktrees
-- `on-create` - shell command run after creating the worktree
-- `on-end` - shell command run after the launched process exits
+- `base` — デフォルト `origin/main`
+- `dir` — worktree を作成するディレクトリ
+- `on-create` — worktree 作成後に実行するシェルコマンド
+- `on-end` — 起動プロセス終了後に実行するシェルコマンド
 
-Available environment variables for hooks:
+フックで利用可能な環境変数:
 
 - `AW_WORKTREE_PATH`
 - `AW_WORKTREE_BRANCH`
@@ -224,39 +224,30 @@ Available environment variables for hooks:
 - `AW_PROFILE_NAME`
 - `AW_ENVIRONMENT`
 
-### `zellij` (optional)
+### `zellij`（任意）
 
-Only valid when `launch: zellij`.
+`launch: zellij` の場合のみ有効です。
 
-Supported fields:
+サポートされるフィールド:
 
-- `layout` - default `default`
-- `tool` - one of `claude`, `codex`, or `opencode`
+- `layout` — デフォルト `default`
+- `tool` — `claude`、`codex`、または `opencode` のいずれか
 
-### `auth` (optional)
+### `auth`（任意）
 
-Controls how `aw auth ...` behaves for the profile, plus an optional launch-time
-status check.
+プロファイルに対する `aw auth ...` の動作と、起動時の認証状態チェック（任意）を制御します。
 
-In normal use, `aw auth login claude|codex|opencode` is the primary entrypoint.
-That command uses a default Debian container auth workspace, so it works even if
-the tool is not installed on the host.
+通常は `aw auth login claude|codex|opencode` がメインのエントリポイントです。このコマンドはデフォルトの Debian コンテナを使うため、ホストにツールがインストールされていなくても動作します。
 
-For Codex, `aw auth login codex` defaults to `codex login --device-auth`
-because browser callback login is fragile inside containers and Podman machine
-setups. Set `auth.codex.login_mode: browser` only when you explicitly want the
-localhost callback flow.
+Codex の場合、`aw auth login codex` はデフォルトで `codex login --device-auth` を実行します。コンテナや Podman machine 内ではブラウザコールバックが不安定なためです。明示的に localhost コールバックフローを使いたい場合のみ `auth.codex.login_mode: browser` を設定してください。
 
-Use `aw auth ... --profile <name>` only when auth must run with a specific
-profile's `env`, `mounts`, or runtime settings.
+特定プロファイルの `env`、`mounts`、runtime 設定で認証を実行する必要がある場合のみ `aw auth ... --profile <name>` を使用してください。
 
-`auth` does not store tokens or API keys. Those stay in each CLI's own
-credential store or in external cloud credentials.
+`auth` はトークンや API key を保存しません。それらは各 CLI 独自の認証ストアまたは外部クラウド認証情報に保存されます。
 
-If the profile uses external auth via `env`, `mounts`, or provider-specific
-credentials, omit `auth` entirely.
+`env`、`mounts`、プロバイダー固有の認証情報による外部認証を使うプロファイルでは、`auth` を完全に省略してください。
 
-Example:
+例:
 
 ```yaml
 profiles:
@@ -275,85 +266,85 @@ profiles:
           - --device-auth
 ```
 
-Supported fields:
+サポートされるフィールド:
 
-- `on_launch.check` - `none`, `warn`, or `require`
-  - `none`: skip the check
-  - `warn`: warn if auth appears missing, but still launch
-  - `require`: fail the launch if auth appears missing
-  - This is only a status check; it does not log in automatically.
-- `codex.login_mode` - `browser`, `device`, `api-key`, or `access-token`
-- `codex.credentials_store` - `file`, `keyring`, or `auto`
-- `codex.seed_from_host` - `if_missing`, `always`, or `never`
-- `codex.persist_auth` - currently only `stage`
-- `codex.login_args` - extra arguments appended to `codex login`
-- `claude.login_mode` - `browser`, `console`, `email`, or `sso`
-- `claude.login_args` - extra arguments appended to `claude auth login`
-- `opencode.provider` / `opencode.method` - defaults forwarded to `opencode auth login`
-- `opencode.login_args` - extra arguments appended to `opencode auth login`
+- `on_launch.check` — `none`、`warn`、または `require`
+  - `none`: チェックをスキップ
+  - `warn`: 認証がなさそうなら警告するが起動は続行
+  - `require`: 認証がなさそうなら起動を停止
+  - これは status check のみであり、自動ログインはしません
+- `codex.login_mode` — `browser`、`device`、`api-key`、または `access-token`
+- `codex.credentials_store` — `file`、`keyring`、または `auto`
+- `codex.seed_from_host` — `if_missing`、`always`、または `never`
+- `codex.persist_auth` — 現在は `stage` のみ
+- `codex.login_args` — `codex login` に追加する引数
+- `claude.login_mode` — `browser`、`console`、`email`、または `sso`
+- `claude.login_args` — `claude auth login` に追加する引数
+- `opencode.provider` / `opencode.method` — `opencode auth login` に渡すデフォルト値
+- `opencode.login_args` — `opencode auth login` に追加する引数
 
-### `env` (optional)
+### `env`（任意）
 
-Additional environment variables passed into the launched environment. Top-level and per-profile `env` values are merged.
+起動環境に渡す追加の環境変数。トップレベルとプロファイルごとの `env` はマージされます。
 
-### `os` (optional)
+### `os`（任意）
 
-Built-in container OS template. Valid values:
+組み込みのコンテナ OS テンプレート。有効な値:
 
 - `debian12`
 - `ubi9`
 - `ubi10`
 - `ubuntu2604`
 
-Only valid with `environment: container`. Mutually exclusive with `dockerfile`.
+`environment: container` の場合のみ有効。`dockerfile` と排他的です。
 
-### `dockerfile` (optional)
+### `dockerfile`（任意）
 
-Path to a custom Dockerfile, relative to the git root unless absolute. Only valid with `environment: container`. Mutually exclusive with `os`.
+カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os` と排他的です。
 
-### `container_runtime` (optional)
+### `container_runtime`（任意）
 
-Container CLI to use:
+使用するコンテナ CLI:
 
 - `docker`
 - `podman`
 
-If omitted, the effective runtime defaults to `docker`.
+省略した場合、デフォルトは `docker` です。
 
-### `mount_ssh` (optional)
+### `mount_ssh`（任意）
 
-Whether to mount host `~/.ssh` into the container as read-only input. The container entrypoint copies it to `/home/agent/.ssh` with fixed permissions. Provides full SSH access (server login, key-based authentication, etc.).
+ホストの `~/.ssh` を読み取り専用でコンテナにマウントするかどうか。コンテナのエントリポイントが `/home/agent/.ssh` にコピーしてパーミッションを修正します。フル SSH アクセス（サーバーログイン、鍵ベースの認証など）を提供します。
 
-If omitted, the field inherits from top-level defaults. The built-in starter config sets this to `false`.
+省略した場合、トップレベルのデフォルトから継承します。組み込みスターター設定では `false` です。
 
-### `ssh_agent_forwarding` (optional)
+### `ssh_agent_forwarding`（任意）
 
-Whether to forward the host's SSH agent into the container for Git SSH operations (push, clone, fetch). Unlike `mount_ssh`, this does not copy SSH key files into the container — only the SSH agent socket (`SSH_AUTH_SOCK`) is forwarded.
+ホストの SSH Agent をコンテナに転送し、Git SSH 操作（push、clone、fetch）を有効にするかどうか。`mount_ssh` と異なり、SSH 鍵ファイルはコンテナにコピーされません — SSH Agent ソケット（`SSH_AUTH_SOCK`）のみが転送されます。
 
-Requires the host to have an SSH agent running with keys loaded (`ssh-add -l` to verify).
+ホスト側で SSH Agent が起動し、鍵が登録されている必要があります（`ssh-add -l` で確認）。
 
-If `mount_ssh: true` is also set, `ssh_agent_forwarding` is ignored because `mount_ssh` already provides full SSH access.
+`mount_ssh: true` も設定されている場合、`ssh_agent_forwarding` は無視されます（`mount_ssh` が既にフル SSH アクセスを提供するため）。
 
-If omitted, the field inherits from top-level defaults. The built-in starter config sets this to `false`.
+省略した場合、トップレベルのデフォルトから継承します。組み込みスターター設定では `false` です。
 
-**Platform notes:**
-- Linux (Docker/Podman): works by mounting `$SSH_AUTH_SOCK` directly
-- macOS + Docker Desktop: works via Docker Desktop file sharing
-- macOS + Podman: `aw` automatically establishes an SSH tunnel into the Podman VM and installs a minimal SELinux policy module (`aw_agent_sock`) on first use. See the README for details on what is set up inside the VM.
+**プラットフォームごとの動作:**
+- Linux (Docker/Podman): `$SSH_AUTH_SOCK` を直接マウント
+- macOS + Docker Desktop: Docker Desktop のファイル共有経由で動作
+- macOS + Podman: `aw` が自動的に Podman VM への SSH トンネルを確立し、初回使用時に最小限の SELinux ポリシーモジュール（`aw_agent_sock`）をインストール。詳細は [コンテナ同期ガイド](container-sync.md) を参照
 
-### `mounts` (optional)
+### `mounts`（任意）
 
-Additional bind mounts for container profiles.
+コンテナプロファイル用の追加バインドマウント。
 
-Each mount supports:
+各マウントでサポートされるフィールド:
 
-- `source`
-- `target`
-- `readonly`
+- `source` — ホストパス（`~` 展開に対応）
+- `target` — コンテナパス
+- `readonly` — 読み取り専用でマウント（デフォルト: `false`）
 
-## Built-in starter config
+## 組み込みスターター設定
 
-When no config files exist, `aw` behaves as if the built-in starter config were loaded. The starter config currently provides:
+設定ファイルがない場合、`aw` は組み込みスターター設定が読み込まれたかのように動作します。スターター設定は現在以下を提供します:
 
 - `claude`
 - `shell`
@@ -363,59 +354,59 @@ When no config files exist, `aw` behaves as if the built-in starter config were 
 - `ubi10-shell`
 - `ubuntu2604-shell`
 
-The built-in default profile is `claude`.
+組み込みのデフォルトプロファイルは `claude` です。
 
-You can materialize the current starter config into `~/.config/aw/config.yml` with:
+現在のスターター設定を `~/.config/aw/config.yml` に書き出すには:
 
 ```bash
 aw init
 ```
 
-## Validation rules
+## バリデーションルール
 
-`aw` validates effective profiles on each run.
+`aw` は実行のたびに有効なプロファイルをバリデーションします。
 
-Current rules include:
+現在のルール:
 
-1. At least one profile must exist
-2. `default`, if set, must point to an existing profile
-3. `environment` is required and must be `host` or `container`
-4. `launch` is required and must be `shell`, `claude`, `codex`, `opencode`, or `zellij`
-5. `zellij` is only valid with `launch: zellij`
-6. `zellij.tool` must be `claude`, `codex`, or `opencode`
-7. `os` must be one of the supported built-in templates
-8. `os` is only valid with `environment: container`
-9. `dockerfile` is only valid with `environment: container`
-10. `os` and `dockerfile` are mutually exclusive
-11. `container_runtime` must be `docker` or `podman`
-12. `mounts` are only valid with `environment: container`
-13. Every mount must include both `source` and `target`
-14. `ssh_agent_forwarding` is only valid with `environment: container`
-15. `auth.on_launch.check`, if set, must be `none`, `warn`, or `require`
-16. `auth.codex.login_mode`, if set, must be `browser`, `device`, `api-key`, or `access-token`
-17. `auth.codex.credentials_store`, if set, must be `file`, `keyring`, or `auto`
-18. `auth.codex.seed_from_host`, if set, must be `if_missing`, `always`, or `never`
-19. `auth.codex.persist_auth`, if set, must currently be `stage`
-20. `auth.claude.login_mode`, if set, must be `browser`, `console`, `email`, or `sso`
+1. 少なくとも1つのプロファイルが存在すること
+2. `default` が設定されている場合、既存のプロファイルを指していること
+3. `environment` は必須で `host` または `container` であること
+4. `launch` は必須で `shell`、`claude`、`codex`、`opencode`、`zellij` のいずれかであること
+5. `zellij` は `launch: zellij` の場合のみ有効
+6. `zellij.tool` は `claude`、`codex`、`opencode` のいずれかであること
+7. `os` はサポートされている組み込みテンプレートのいずれかであること
+8. `os` は `environment: container` の場合のみ有効
+9. `dockerfile` は `environment: container` の場合のみ有効
+10. `os` と `dockerfile` は排他的
+11. `container_runtime` は `docker` または `podman` であること
+12. `mounts` は `environment: container` の場合のみ有効
+13. すべてのマウントに `source` と `target` の両方が必要
+14. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+15. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+16. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+17. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+18. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+19. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+20. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
 
-## Host settings synced into containers
+## コンテナに同期されるホスト設定
 
-When using `environment: container`, `aw` automatically handles common host-side settings:
+`environment: container` を使用する場合、`aw` は以下のホスト設定を自動的に処理します:
 
-- `~/.gitconfig` -> `/home/agent/.gitconfig`
-- `~/.config/gh` -> `/home/agent/.config/gh`
-- `~/.claude/settings.json` -> `/home/agent/.claude/settings.json`
-- `~/.claude/CLAUDE.md` -> `/home/agent/.claude/CLAUDE.md`
-- `~/.claude/hooks` -> `/home/agent/.claude/hooks`
-- `~/.claude/plugins` -> `/home/agent/.claude/plugins`
-- `~/.claude/commands` -> `/home/agent/.claude/commands`
-- `~/.claude/agents` -> `/home/agent/.claude/agents`
+- `~/.gitconfig` → `/home/agent/.gitconfig`
+- `~/.config/gh` → `/home/agent/.config/gh`
+- `~/.claude/settings.json` → `/home/agent/.claude/settings.json`
+- `~/.claude/CLAUDE.md` → `/home/agent/.claude/CLAUDE.md`
+- `~/.claude/hooks` → `/home/agent/.claude/hooks`
+- `~/.claude/plugins` → `/home/agent/.claude/plugins`
+- `~/.claude/commands` → `/home/agent/.claude/commands`
+- `~/.claude/agents` → `/home/agent/.claude/agents`
 
-`~/.ssh` is not mounted by default. Set `mount_ssh: true` for full SSH access, or `ssh_agent_forwarding: true` to forward only the SSH agent for Git operations.
+`~/.ssh` はデフォルトではマウントされません。フル SSH アクセスには `mount_ssh: true`、Git 操作のみなら `ssh_agent_forwarding: true` を設定してください。
 
 ## Tips
 
-- Use `aw profiles` to see available profiles and where they were loaded from
-- Use `aw init` to create a starting global config only when you want to customize it
-- Keep profile names short and descriptive
-- Commit `.agent-workspace.yml` when the team should share the same profiles
+- `aw profiles` で利用可能なプロファイルとその読み込み元を確認できます
+- `aw init` はカスタマイズしたい場合のみ実行してください
+- プロファイル名は短く、わかりやすくしましょう
+- チームで共有する場合は `.agent-workspace.yml` をコミットしてください
