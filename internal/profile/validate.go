@@ -89,6 +89,12 @@ func Validate(p Profile) error {
 		if m.Target == "" {
 			return fmt.Errorf("mount[%d]: target is required", i)
 		}
+		switch m.Mode {
+		case "", MountModeRO, MountModeRW:
+			// ok
+		default:
+			return fmt.Errorf("mount[%d]: unknown mode %q (must be \"ro\" or \"rw\")", i, m.Mode)
+		}
 	}
 
 	if err := validateAuth(p.Auth); err != nil {
