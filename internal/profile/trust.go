@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// sensitiveFieldDescriptions maps field names to human-readable risk descriptions
+// displayed in the trust prompt.
+var sensitiveFieldDescriptions = map[string]string{
+	"worktree.on-create": "execute shell commands on your HOST machine",
+	"worktree.on-end":    "execute shell commands on your HOST machine",
+	"mounts":             "expose host directories to the container",
+	"dockerfile":         "use a custom Dockerfile for the container image",
+	"env":                "set environment variables inside the container",
+}
+
 // hasSensitiveFields checks whether a parsed project config contains any
 // security-sensitive fields (at top level or in any profile).
 func hasSensitiveFields(cfg *Config) []string {
@@ -124,11 +134,15 @@ var promptTrust = func(configPath string, fields []string) bool {
 	for _, f := range fields {
 		fmt.Fprintf(os.Stderr, "  - %s\n", f)
 	}
-	fmt.Fprintf(os.Stderr, "\n")
-	fmt.Fprintf(os.Stderr, "  worktree.on-create/on-end: execute shell commands on your HOST machine\n")
-	fmt.Fprintf(os.Stderr, "  mounts: expose host directories to the container\n")
-	fmt.Fprintf(os.Stderr, "  dockerfile: use a custom Dockerfile for the container image\n")
-	fmt.Fprintf(os.Stderr, "  env: set environment variables inside the container\n")
+	fmt.Fprintf(os.Stderr, "\nWhat these settings can do:\n")
+	seen := make(map[string]bool)
+	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "dockerfile", "env"} {
+		desc := sensitiveFieldDescriptions[key]
+		if !seen[desc] {
+			fmt.Fprintf(os.Stderr, "  %s: %s\n", key, desc)
+			seen[desc] = true
+		}
+	}
 	fmt.Fprintf(os.Stderr, "\nDo you trust this project config? [y/N] ")
 
 	scanner := bufio.NewScanner(os.Stdin)
