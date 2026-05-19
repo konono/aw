@@ -357,22 +357,35 @@ allow container_t user_tmp_t:sock_file { read write getattr };
 
 `gh` コマンド（PR 作成、Issue 管理など）が既存の認証で動作します。
 
-### Claude Code 設定 — 同期（コピー、マウントではない）
+### Claude Code 設定 — 同期して stage をマウント
 
 | ホスト | コンテナ | 方法 |
 |--------|----------|------|
-| `~/.claude/settings.json` | `/home/agent/.claude/settings.json` | `~/.agent-workspace/` にコピーしてからマウント |
+| `~/.claude/settings.json` | `/home/agent/.claude/settings.json` | `~/.agent-workspace/claude/` に同期してからマウント |
 | `~/.claude/CLAUDE.md` | `/home/agent/.claude/CLAUDE.md` | 同上 |
 | `~/.claude/hooks/` | `/home/agent/.claude/hooks/` | 同上 |
 | `~/.claude/plugins/` | `/home/agent/.claude/plugins/` | 同上 |
 | `~/.claude/commands/` | `/home/agent/.claude/commands/` | 同上 |
 | `~/.claude/agents/` | `/home/agent/.claude/agents/` | 同上 |
 
-これらはホスト上の `~/.agent-workspace/` に**コピー**（直接マウントではなく）され、それがコンテナにマウントされます。Linux コンテナ内で動作しない macOS キーチェーンベースの認証情報との競合を避けるためです。
+これらはホスト上の `~/.agent-workspace/claude/` に**同期**され、その stage がコンテナの `/home/agent/.claude/` にマウントされます。ホストの `~/.claude/` 本体を直接マウントしないのは、container 用の patch を入れつつ、Linux コンテナ内で動作しない macOS キーチェーン系の状態と切り離すためです。
+
+container 内で Claude Code が設定や補助ファイルを書き換えた場合、その変更は `~/.agent-workspace/claude/` に保存されます。ホストの `~/.claude/` へ自動で書き戻しはしません。
+
+`settings.json` の `statusLine.command` や hooks などで Claude 設定配下のファイルを参照する場合は、host の絶対パス（例: `/Users/name/.claude/...`）ではなく、`~/.claude/...` または相対パスを使ってください。container 内の正式な設定パスは `/home/agent/.claude/...` です。
 
 ### Claude Code 認証 — コンテナごとに独立
 
 OAuth トークンはホストからは同期**されません**。コンテナの Claude Code は初回実行時に独自の OAuth ログインを行います。認証情報は永続ボリューム（`claude-code-local`）に保存されるため、認証は一度だけで済みます。
+
+### Codex 設定と認証 — stage に永続化
+
+Codex は `~/.codex/` の一部を `~/.agent-workspace/codex/` にコピーしてからコンテナへマウントします。
+
+- `config.toml` は毎回同期しつつ、container 側では `cli_auth_credentials_store = "file"` を既定にします。
+- `auth.json` はホストから**毎回上書きしません**。既定では stage 側に無ければ seed し、以降は container で更新されたものを保持します。
+- そのため、container 内で `codex login` した結果や token refresh の結果は、次回 `aw codex` でも使い続けられます。
+- `auth.codex.seed_from_host` で `if_missing` / `always` / `never` を切り替えられます。
 
 ### カスタムマウント — 手動設定
 
@@ -393,8 +406,10 @@ OAuth トークンはホストからは同期**されません**。コンテナ�
 
 | パス | 用途 |
 |------|------|
-| `~/.agent-workspace/` | コンテナ側の Claude 設定（`~/.claude/` からコピー） |
-| `~/.agent-workspace.json` | オンボーディング状態 |
+| `~/.agent-workspace/claude/` | Claude 設定の stage（`~/.claude/` から同期。container の書き込みもここに保存） |
+| `~/.agent-workspace/codex/` | Codex 設定と認証状態の stage |
+| `~/.agent-workspace/opencode/` | OpenCode 設定とデータの stage |
+| `~/.agent-workspace/claude/.claude.json` | Claude のオンボーディング状態 |
 | ボリューム `claude-code-local` | Claude Code のインストール + mise ツールキャッシュ + OAuth 認証情報（実行間で永続化） |
 
 ## アンインストール
@@ -404,7 +419,7 @@ OAuth トークンはホストからは同期**されません**。コンテナ�
 rm ~/go/bin/aw
 
 # データの削除
-rm -rf ~/.agent-workspace ~/.agent-workspace.json
+rm -rf ~/.agent-workspace
 
 # Docker の場合
 docker rmi claude-code-docker
