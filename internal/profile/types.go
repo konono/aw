@@ -42,6 +42,7 @@ type Profile struct {
 	Environment      Environment       `yaml:"environment"`
 	Launch           LaunchMode        `yaml:"launch"`
 	Zellij           *ZellijConfig     `yaml:"zellij,omitempty"`
+	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
@@ -109,6 +110,15 @@ func (p *Profile) EffectiveSSHAgentForwarding() bool {
 	return p != nil && p.SSHAgentForwarding != nil && *p.SSHAgentForwarding
 }
 
+// EffectiveAuthOnLaunchCheck returns the configured launch-time auth check mode.
+// Empty means disabled.
+func (p *Profile) EffectiveAuthOnLaunchCheck() AuthOnLaunchCheck {
+	if p == nil || p.Auth == nil || p.Auth.OnLaunch == nil {
+		return ""
+	}
+	return p.Auth.OnLaunch.Check
+}
+
 // WorktreeConfig controls git worktree creation.
 type WorktreeConfig struct {
 	Base     string `yaml:"base,omitempty"`      // default: "origin/main"
@@ -129,6 +139,88 @@ func (w *WorktreeConfig) EffectiveBase() string {
 type ZellijConfig struct {
 	Layout string `yaml:"layout,omitempty"` // "default" or custom path (future)
 	Tool   string `yaml:"tool,omitempty"`   // AI tool to use: "claude" (default) or "codex"
+}
+
+// AuthConfig ties authentication behavior to a profile. It does not store
+// tokens or API keys; those remain in each tool's own credential store.
+type AuthConfig struct {
+	OnLaunch *OnLaunchAuthConfig `yaml:"on_launch,omitempty"`
+	Codex    *CodexAuthConfig    `yaml:"codex,omitempty"`
+	Claude   *ClaudeAuthConfig   `yaml:"claude,omitempty"`
+	OpenCode *OpenCodeAuthConfig `yaml:"opencode,omitempty"`
+}
+
+// OnLaunchAuthConfig controls optional auth checks before a normal `aw <profile>`
+// launch. This does not run login automatically; it only checks status.
+type OnLaunchAuthConfig struct {
+	Check AuthOnLaunchCheck `yaml:"check,omitempty"`
+}
+
+type AuthOnLaunchCheck string
+
+const (
+	AuthOnLaunchCheckNone    AuthOnLaunchCheck = "none"
+	AuthOnLaunchCheckWarn    AuthOnLaunchCheck = "warn"
+	AuthOnLaunchCheckRequire AuthOnLaunchCheck = "require"
+)
+
+type CodexAuthConfig struct {
+	LoginMode        CodexLoginMode        `yaml:"login_mode,omitempty"`
+	CredentialsStore CodexCredentialsStore `yaml:"credentials_store,omitempty"`
+	SeedFromHost     AuthSeedFromHostMode  `yaml:"seed_from_host,omitempty"`
+	PersistAuth      AuthPersistMode       `yaml:"persist_auth,omitempty"`
+	LoginArgs        []string              `yaml:"login_args,omitempty"`
+}
+
+type CodexLoginMode string
+
+const (
+	CodexLoginModeBrowser     CodexLoginMode = "browser"
+	CodexLoginModeDevice      CodexLoginMode = "device"
+	CodexLoginModeAPIKey      CodexLoginMode = "api-key"
+	CodexLoginModeAccessToken CodexLoginMode = "access-token"
+)
+
+type CodexCredentialsStore string
+
+const (
+	CodexCredentialsStoreFile    CodexCredentialsStore = "file"
+	CodexCredentialsStoreKeyring CodexCredentialsStore = "keyring"
+	CodexCredentialsStoreAuto    CodexCredentialsStore = "auto"
+)
+
+type AuthSeedFromHostMode string
+
+const (
+	AuthSeedFromHostIfMissing AuthSeedFromHostMode = "if_missing"
+	AuthSeedFromHostAlways    AuthSeedFromHostMode = "always"
+	AuthSeedFromHostNever     AuthSeedFromHostMode = "never"
+)
+
+type AuthPersistMode string
+
+const (
+	AuthPersistModeStage AuthPersistMode = "stage"
+)
+
+type ClaudeAuthConfig struct {
+	LoginMode ClaudeLoginMode `yaml:"login_mode,omitempty"`
+	LoginArgs []string        `yaml:"login_args,omitempty"`
+}
+
+type ClaudeLoginMode string
+
+const (
+	ClaudeLoginModeBrowser ClaudeLoginMode = "browser"
+	ClaudeLoginModeConsole ClaudeLoginMode = "console"
+	ClaudeLoginModeEmail   ClaudeLoginMode = "email"
+	ClaudeLoginModeSSO     ClaudeLoginMode = "sso"
+)
+
+type OpenCodeAuthConfig struct {
+	Provider  string   `yaml:"provider,omitempty"`
+	Method    string   `yaml:"method,omitempty"`
+	LoginArgs []string `yaml:"login_args,omitempty"`
 }
 
 // Environment specifies where the main process runs.

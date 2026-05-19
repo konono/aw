@@ -353,6 +353,46 @@ func TestMergeProfile_ExplicitMountSSHOverride(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_AuthDeepMerge(t *testing.T) {
+	base := Profile{
+		Auth: &AuthConfig{
+			OnLaunch: &OnLaunchAuthConfig{Check: AuthOnLaunchCheckWarn},
+			Codex: &CodexAuthConfig{
+				CredentialsStore: CodexCredentialsStoreFile,
+				SeedFromHost:     AuthSeedFromHostIfMissing,
+			},
+		},
+	}
+	override := Profile{
+		Auth: &AuthConfig{
+			Codex: &CodexAuthConfig{
+				LoginMode: CodexLoginModeDevice,
+			},
+			Claude: &ClaudeAuthConfig{
+				LoginMode: ClaudeLoginModeConsole,
+			},
+		},
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Auth == nil || merged.Auth.Codex == nil {
+		t.Fatal("merged auth.codex should not be nil")
+	}
+	if merged.Auth.OnLaunch == nil || merged.Auth.OnLaunch.Check != AuthOnLaunchCheckWarn {
+		t.Fatalf("auth.on_launch = %+v, want warn", merged.Auth.OnLaunch)
+	}
+	if merged.Auth.Codex.LoginMode != CodexLoginModeDevice {
+		t.Errorf("auth.codex.login_mode = %q, want %q", merged.Auth.Codex.LoginMode, CodexLoginModeDevice)
+	}
+	if merged.Auth.Codex.CredentialsStore != CodexCredentialsStoreFile {
+		t.Errorf("auth.codex.credentials_store = %q, want %q", merged.Auth.Codex.CredentialsStore, CodexCredentialsStoreFile)
+	}
+	if merged.Auth.Claude == nil || merged.Auth.Claude.LoginMode != ClaudeLoginModeConsole {
+		t.Fatalf("auth.claude = %+v, want console", merged.Auth.Claude)
+	}
+}
+
 func TestMergeProfile_OverrideOS(t *testing.T) {
 	base := Profile{
 		Environment: EnvironmentContainer,

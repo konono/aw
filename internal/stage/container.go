@@ -14,6 +14,7 @@ import (
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
 )
@@ -114,7 +115,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	toolStageDir := ""
 	toolContainerDir := ""
 
-	spec := toolSyncSpec(tool)
+	spec := toolSyncSpec(tool, ec.Profile)
 	if spec != nil {
 		srcDir := toolinfo.HomePath(tool, ec.HomeDir)
 		toolStageDir = filepath.Join(stageDir, tool)
@@ -173,12 +174,23 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
-func toolSyncSpec(tool string) *config.ToolSyncSpec {
+func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
 	switch tool {
 	case "claude":
 		return &config.ClaudeSyncSpec
 	case "codex":
-		return &config.CodexSyncSpec
+		credentialsStore := "file"
+		seedFromHost := "if_missing"
+		if p.Auth != nil && p.Auth.Codex != nil {
+			if p.Auth.Codex.CredentialsStore != "" {
+				credentialsStore = string(p.Auth.Codex.CredentialsStore)
+			}
+			if p.Auth.Codex.SeedFromHost != "" {
+				seedFromHost = string(p.Auth.Codex.SeedFromHost)
+			}
+		}
+		spec := config.CodexSyncSpecWithOptions(credentialsStore, seedFromHost)
+		return &spec
 	case "opencode":
 		return &config.OpenCodeSyncSpec
 	default:

@@ -226,8 +226,8 @@ func TestSyncCodexSettings_CopiesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading config.toml: %v", err)
 	}
-	if string(content) != "[auth]\napi_key = \"test\"" {
-		t.Errorf("config.toml = %q, want %q", string(content), "[auth]\napi_key = \"test\"")
+	if string(content) != "[auth]\napi_key = \"test\"\ncli_auth_credentials_store = \"file\"\n" {
+		t.Errorf("config.toml = %q, want credentials_store patch", string(content))
 	}
 
 	content, err = os.ReadFile(filepath.Join(containerHome, "auth.json"))
@@ -254,6 +254,62 @@ func TestSyncCodexSettings_NoSourceDir(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Error("container codex home should be a directory")
+	}
+}
+
+func TestSyncCodexSettings_SeedAuthOnlyWhenMissing(t *testing.T) {
+	codexHome := t.TempDir()
+	containerHome := filepath.Join(t.TempDir(), "agent-workspace-codex")
+
+	if err := os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"token":"host"}`), 0644); err != nil {
+		t.Fatalf("writing source auth.json: %v", err)
+	}
+	if err := os.MkdirAll(containerHome, 0755); err != nil {
+		t.Fatalf("creating container home: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(containerHome, "auth.json"), []byte(`{"token":"stage"}`), 0644); err != nil {
+		t.Fatalf("writing existing container auth.json: %v", err)
+	}
+
+	syncer := NewSyncer()
+	if err := syncer.SyncToolSettings(codexHome, containerHome, CodexSyncSpecWithOptions("file", "if_missing")); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(containerHome, "auth.json"))
+	if err != nil {
+		t.Fatalf("reading auth.json: %v", err)
+	}
+	if string(content) != `{"token":"stage"}` {
+		t.Errorf("auth.json = %q, want existing stage copy to be preserved", string(content))
+	}
+}
+
+func TestSyncCodexSettings_AlwaysCopiesAuthWhenConfigured(t *testing.T) {
+	codexHome := t.TempDir()
+	containerHome := filepath.Join(t.TempDir(), "agent-workspace-codex")
+
+	if err := os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"token":"host"}`), 0644); err != nil {
+		t.Fatalf("writing source auth.json: %v", err)
+	}
+	if err := os.MkdirAll(containerHome, 0755); err != nil {
+		t.Fatalf("creating container home: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(containerHome, "auth.json"), []byte(`{"token":"stage"}`), 0644); err != nil {
+		t.Fatalf("writing existing container auth.json: %v", err)
+	}
+
+	syncer := NewSyncer()
+	if err := syncer.SyncToolSettings(codexHome, containerHome, CodexSyncSpecWithOptions("file", "always")); err != nil {
+		t.Fatalf("SyncToolSettings() error: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(containerHome, "auth.json"))
+	if err != nil {
+		t.Fatalf("reading auth.json: %v", err)
+	}
+	if string(content) != `{"token":"host"}` {
+		t.Errorf("auth.json = %q, want host copy to replace stage copy", string(content))
 	}
 }
 

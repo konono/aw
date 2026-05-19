@@ -113,6 +113,13 @@ profiles:
 
   codex:
     launch: codex
+    auth:
+      on_launch:
+        check: warn
+      codex:
+        login_mode: device
+        credentials_store: file
+        seed_from_host: if_missing
 
   opencode:
     launch: opencode
@@ -131,6 +138,14 @@ profiles:
   ubi10-shell:
     launch: shell
     os: ubi10
+
+  claude-vertex:
+    launch: claude
+    env:
+      CLAUDE_CODE_USE_VERTEX: "1"
+    mounts:
+      - source: "~/.config/gcloud"
+        target: "/home/agent/.config/gcloud"
 
   playwright:
     launch: claude
@@ -155,6 +170,7 @@ Common top-level defaults include:
 
 - `environment`
 - `container_runtime`
+- `auth`
 - `env`
 - `mount_ssh`
 - `ssh_agent_forwarding`
@@ -216,6 +232,65 @@ Supported fields:
 
 - `layout` - default `default`
 - `tool` - one of `claude`, `codex`, or `opencode`
+
+### `auth` (optional)
+
+Controls how `aw auth ...` behaves for the profile, plus an optional launch-time
+status check.
+
+In normal use, `aw auth login claude|codex|opencode` is the primary entrypoint.
+That command uses a default Debian container auth workspace, so it works even if
+the tool is not installed on the host.
+
+For Codex, `aw auth login codex` defaults to `codex login --device-auth`
+because browser callback login is fragile inside containers and Podman machine
+setups. Set `auth.codex.login_mode: browser` only when you explicitly want the
+localhost callback flow.
+
+Use `aw auth ... --profile <name>` only when auth must run with a specific
+profile's `env`, `mounts`, or runtime settings.
+
+`auth` does not store tokens or API keys. Those stay in each CLI's own
+credential store or in external cloud credentials.
+
+If the profile uses external auth via `env`, `mounts`, or provider-specific
+credentials, omit `auth` entirely.
+
+Example:
+
+```yaml
+profiles:
+  codex:
+    environment: container
+    launch: codex
+    auth:
+      on_launch:
+        check: warn
+      codex:
+        login_mode: device
+        credentials_store: file
+        seed_from_host: if_missing
+        persist_auth: stage
+        login_args:
+          - --device-auth
+```
+
+Supported fields:
+
+- `on_launch.check` - `none`, `warn`, or `require`
+  - `none`: skip the check
+  - `warn`: warn if auth appears missing, but still launch
+  - `require`: fail the launch if auth appears missing
+  - This is only a status check; it does not log in automatically.
+- `codex.login_mode` - `browser`, `device`, `api-key`, or `access-token`
+- `codex.credentials_store` - `file`, `keyring`, or `auto`
+- `codex.seed_from_host` - `if_missing`, `always`, or `never`
+- `codex.persist_auth` - currently only `stage`
+- `codex.login_args` - extra arguments appended to `codex login`
+- `claude.login_mode` - `browser`, `console`, `email`, or `sso`
+- `claude.login_args` - extra arguments appended to `claude auth login`
+- `opencode.provider` / `opencode.method` - defaults forwarded to `opencode auth login`
+- `opencode.login_args` - extra arguments appended to `opencode auth login`
 
 ### `env` (optional)
 
@@ -316,6 +391,12 @@ Current rules include:
 12. `mounts` are only valid with `environment: container`
 13. Every mount must include both `source` and `target`
 14. `ssh_agent_forwarding` is only valid with `environment: container`
+15. `auth.on_launch.check`, if set, must be `none`, `warn`, or `require`
+16. `auth.codex.login_mode`, if set, must be `browser`, `device`, `api-key`, or `access-token`
+17. `auth.codex.credentials_store`, if set, must be `file`, `keyring`, or `auto`
+18. `auth.codex.seed_from_host`, if set, must be `if_missing`, `always`, or `never`
+19. `auth.codex.persist_auth`, if set, must currently be `stage`
+20. `auth.claude.login_mode`, if set, must be `browser`, `console`, `email`, or `sso`
 
 ## Host settings synced into containers
 

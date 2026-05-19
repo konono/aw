@@ -91,6 +91,63 @@ func Validate(p Profile) error {
 		}
 	}
 
+	if err := validateAuth(p.Auth); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateAuth(auth *AuthConfig) error {
+	if auth == nil {
+		return nil
+	}
+
+	if auth.OnLaunch != nil {
+		switch auth.OnLaunch.Check {
+		case "", AuthOnLaunchCheckNone, AuthOnLaunchCheckWarn, AuthOnLaunchCheckRequire:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.on_launch.check: %q (must be \"none\", \"warn\", or \"require\")", auth.OnLaunch.Check)
+		}
+	}
+
+	if auth.Codex != nil {
+		switch auth.Codex.LoginMode {
+		case "", CodexLoginModeBrowser, CodexLoginModeDevice, CodexLoginModeAPIKey, CodexLoginModeAccessToken:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.codex.login_mode: %q (must be \"browser\", \"device\", \"api-key\", or \"access-token\")", auth.Codex.LoginMode)
+		}
+		switch auth.Codex.CredentialsStore {
+		case "", CodexCredentialsStoreFile, CodexCredentialsStoreKeyring, CodexCredentialsStoreAuto:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.codex.credentials_store: %q (must be \"file\", \"keyring\", or \"auto\")", auth.Codex.CredentialsStore)
+		}
+		switch auth.Codex.SeedFromHost {
+		case "", AuthSeedFromHostIfMissing, AuthSeedFromHostAlways, AuthSeedFromHostNever:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.codex.seed_from_host: %q (must be \"if_missing\", \"always\", or \"never\")", auth.Codex.SeedFromHost)
+		}
+		switch auth.Codex.PersistAuth {
+		case "", AuthPersistModeStage:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.codex.persist_auth: %q (must be \"stage\")", auth.Codex.PersistAuth)
+		}
+	}
+
+	if auth.Claude != nil {
+		switch auth.Claude.LoginMode {
+		case "", ClaudeLoginModeBrowser, ClaudeLoginModeConsole, ClaudeLoginModeEmail, ClaudeLoginModeSSO:
+			// ok
+		default:
+			return fmt.Errorf("unknown auth.claude.login_mode: %q (must be \"browser\", \"console\", \"email\", or \"sso\")", auth.Claude.LoginMode)
+		}
+	}
+
 	return nil
 }
 

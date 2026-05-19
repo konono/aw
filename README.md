@@ -38,6 +38,11 @@ aw init   # 組み込みスターター設定を ~/.config/aw/config.yml に書�
 ```bash
 aw                      # デフォルトプロファイルを実行
 aw <profile-name>       # 指定したプロファイルを実行
+aw auth login claude    # Claude を認証（host に claude がなくても container で実行可能）
+aw auth login codex     # Codex を認証
+aw auth login opencode  # OpenCode を認証
+aw auth status claude   # 認証状態確認
+aw login claude         # `aw auth login claude` の短縮
 aw profiles             # 利用可能なプロファイル一覧を表示
 aw init                 # 組み込みスターター設定をグローバル設定として書き出す
 aw default-dockerfile   # デフォルトの Dockerfile を出力
@@ -45,6 +50,41 @@ aw update               # セルフアップデート
 aw --version            # バージョンを表示
 aw --help               # ヘルプを表示
 ```
+
+## 認証
+
+`aw auth` は、**host 側に `claude` / `codex` / `opencode` が入っていなくても、そのアプリの認証を通すためのコマンド**です。
+
+- `aw auth login claude|codex|opencode` は、既定では Debian container 側でその CLI の login を実行します。
+- そのため、host 側に対象 CLI が未インストールでも認証できます。
+- `aw auth login --profile <name>` を使うと、特定 profile の env / mounts / runtime を使って認証を実行できます。
+- `auth` は token や API key を YAML に保存する場所ではありません。
+
+### ツール別の早見表
+
+- `codex`
+  `aw auth login codex` は既定で `codex login --device-auth` を実行します。container や Podman machine では browser callback より安定するためです。`auth.codex.login_mode` で `browser` / `device` / `api-key` / `access-token` を選べます。container では `cli_auth_credentials_store = "file"` を既定にし、`auth.json` はホストから毎回上書きせず、必要時だけ seed します。
+
+- `claude`
+  `aw auth login claude` は `claude auth login` を実行します。通常の Claude CLI 認証状態は `~/.agent-workspace/claude` 経由で共有されるため、いったん container で認証すると、他の Claude container profile でもその状態を再利用できます。`CLAUDE_CODE_USE_VERTEX=1` や Bedrock / Foundry / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` のような外部認証を使う場合は、`aw auth` ではなく `env` / `mounts` で管理してください。
+
+- `opencode`
+  `aw auth login opencode` は `opencode auth login` を実行します。`auth.opencode.provider` / `auth.opencode.method` を書くと対話プロンプトを減らせます。`aw auth status opencode` は `opencode auth list` を流します。
+
+### `auth.on_launch.check` とは
+
+これは `aw auth login ...` の設定ではなく、**通常の `aw <profile>` 起動直前に認証状態を status check する設定**です。
+
+- `none`
+  何もしません。
+
+- `warn`
+  未認証っぽければ警告だけ出して、そのまま起動します。
+
+- `require`
+  未認証っぽければ起動を止めます。
+
+重要なのは、`auth.on_launch.check` は **status check だけ**であり、ログインを自動実行しないことです。CLI 管理の browser/device login に対して使う想定で、Vertex / Bedrock / API key のような external auth profile には付けないでください。
 
 ## 設定
 
@@ -112,6 +152,34 @@ profiles:
         target: "/data"
         readonly: true
 
+  codex:
+    environment: container
+    launch: codex
+    auth:                          # 認証の振る舞い（任意）
+      on_launch:
+        check: warn                # 通常の `aw codex` 起動前に status check。warn は警告だけで続行
+      codex:
+        login_mode: device         # browser | device | api-key | access-token
+        credentials_store: file    # file | keyring | auto
+        seed_from_host: if_missing # if_missing | always | never
+        persist_auth: stage        # 現在は stage 永続化のみ対応
+        login_args:
+          - --device-auth
+
+  claude-vertex:
+    environment: container
+    launch: claude
+    env:
+      CLAUDE_CODE_USE_VERTEX: "1"
+      CLOUD_ML_REGION: "us-east5"
+      ANTHROPIC_VERTEX_PROJECT_ID: "my-gcp-project"
+      GCP_PROJECT_ID: "my-gcp-project"
+    mounts:
+      - source: "~/.config/gcloud"
+        target: "/home/agent/.config/gcloud"
+        readonly: true
+    # Vertex のような external auth profile では auth は書かない
+
   worktree-claude:
     worktree:                      # git worktree 設定（任意）
       base: origin/main            #   ベース ref（デフォルト: origin/main）
@@ -149,6 +217,14 @@ profiles:
 - **`environment`**（必須）: `"host"` または `"container"` — メインプロセスの実行環境。
 - **`launch`**（必須）: `"shell"`、`"claude"`、`"codex"`、`"opencode"`、または `"zellij"` — 起動するもの。
 - **`zellij`**（任意）: Zellij セッション設定。`launch: zellij` の場合のみ有効。`tool` には `"claude"`、`"codex"`、`"opencode"` を指定できます。
+- **`auth`**（任意）: `aw auth ...` の既定動作と、必要なら通常起動前の認証チェックを指定します。秘密情報はここに書きません。
+  - `on_launch.check` — 通常の `aw <profile>` 起動前に status check を行うかどうか。`none` / `warn` / `require`。
+  - `codex.login_mode` — `browser` / `device` / `api-key` / `access-token`
+  - `codex.credentials_store` — `file` / `keyring` / `auto`
+  - `codex.seed_from_host` — `if_missing` / `always` / `never`
+  - `claude.login_mode` — `browser` / `console` / `email` / `sso`
+  - `opencode.provider` / `opencode.method` — `opencode auth login` の既定値
+  - Vertex / Bedrock / API key など env/mounts ベースの外部認証では、`auth` を省略するのが基本です。
 - **`container_runtime`**（任意）: `"docker"` または `"podman"`。デフォルトは `"docker"`。
 - **`mount_ssh`**（任意）: ホストの `~/.ssh` を読み取り専用でコンテナへ持ち込む明示 opt-in。デフォルトは `false`。トップレベルに置けば全プロファイルの既定値になり、各プロファイルで `true` / `false` を個別に上書きできます。
 - **`ssh_agent_forwarding`**（任意）: ホストの SSH Agent ソケットをコンテナに転送し、Git SSH 操作（push/clone/fetch）を有効化。`mount_ssh` と異なり、鍵ファイルはコンテナにコピーされません。ホスト側で SSH Agent が起動している必要があります（`ssh-add -l` で確認）。`mount_ssh: true` の場合は無視されます（`mount_ssh` が上位互換）。デフォルトは `false`。

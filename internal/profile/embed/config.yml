@@ -14,13 +14,18 @@ profiles:
     launch: shell             # "shell", "claude", "codex", "opencode", "zellij"
 
   claude:
-    launch: claude
+    launch: claude            # `aw auth login claude` -> `claude auth login`
+                              # Claude を Vertex / Bedrock / API key / OAuth token で使う場合は
+                              # auth は書かず、env / mounts / 外部資格情報で認証するのが基本
+                              # 通常の Claude CLI 認証は ~/.agent-workspace/claude に保存され、
+                              # 他の Claude container profile でも再利用される
 
   codex:
-    launch: codex
+    launch: codex             # `aw auth login codex` -> `codex login --device-auth`
+                              # browser callback が必要なら auth.codex.login_mode: browser を指定
 
   opencode:
-    launch: opencode
+    launch: opencode          # `aw auth login opencode` -> `opencode auth login`
 
   ubi9-shell:
     os: ubi9
@@ -46,8 +51,47 @@ profiles:
   #     FOO: bar
   #   mounts:
   #     - source: ~/.config/gcloud
-  #       target: /home/claude/.config/gcloud
+  #       target: /home/agent/.config/gcloud
   #       readonly: true
+  #   auth:
+  #     on_launch:
+  #       # Optional status check before a normal `aw <profile>` launch.
+  #       # `none`    -> skip the check entirely.
+  #       # `warn`    -> print a warning if auth looks missing, but still launch.
+  #       # `require` -> fail the launch if auth looks missing.
+  #       #
+  #       # Important:
+  #       # - This is only a status check. It does NOT log in automatically.
+  #       # - Use it only for CLI-managed auth such as Codex / Claude browser login.
+  #       # - Omit it for external auth profiles (Vertex, Bedrock, API keys, etc.).
+  #       check: warn
+  #     codex:
+  #       login_mode: device          # browser | device | api-key | access-token
+  #       credentials_store: file     # file | keyring | auto
+  #       seed_from_host: if_missing  # if_missing | always | never
+  #       persist_auth: stage         # current behavior: keep auth in ~/.agent-workspace
+  #       login_args:
+  #         - --device-auth
+  #     claude:
+  #       login_mode: console         # browser | console | email | sso
+  #       login_args: []
+  #     opencode:
+  #       provider: openai
+  #       method: api-key
+  #       login_args: []
+  #
+  #   # Example: external auth profile for Claude Vertex.
+  #   # In this case auth is intentionally omitted because aw does not manage the
+  #   # login flow; Claude reads the cloud credentials from env + mounts.
+  #   #
+  #   # env:
+  #   #   CLAUDE_CODE_USE_VERTEX: "1"
+  #   #   CLOUD_ML_REGION: "us-east5"
+  #   #   ANTHROPIC_VERTEX_PROJECT_ID: "my-gcp-project"
+  #   #   GCP_PROJECT_ID: "my-gcp-project"
+  #   # mounts:
+  #   #   - source: ~/.config/gcloud
+  #   #     target: /home/agent/.config/gcloud
   #   worktree:
   #     base: origin/main
   #     dir: ~/worktrees/my-project

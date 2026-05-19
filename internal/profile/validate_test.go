@@ -199,6 +199,55 @@ func TestValidate(t *testing.T) {
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SSHAgentForwarding: &v} }(),
 			wantErr: "ssh_agent_forwarding is only valid with environment: container",
 		},
+		{
+			name: "valid auth config",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchCodex,
+				Auth: &AuthConfig{
+					OnLaunch: &OnLaunchAuthConfig{Check: AuthOnLaunchCheckWarn},
+					Codex: &CodexAuthConfig{
+						LoginMode:        CodexLoginModeDevice,
+						CredentialsStore: CodexCredentialsStoreFile,
+						SeedFromHost:     AuthSeedFromHostIfMissing,
+						PersistAuth:      AuthPersistModeStage,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid auth on_launch check",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchCodex,
+				Auth: &AuthConfig{
+					OnLaunch: &OnLaunchAuthConfig{Check: "block"},
+				},
+			},
+			wantErr: "unknown auth.on_launch.check",
+		},
+		{
+			name: "invalid codex login mode",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchCodex,
+				Auth: &AuthConfig{
+					Codex: &CodexAuthConfig{LoginMode: "console"},
+				},
+			},
+			wantErr: "unknown auth.codex.login_mode",
+		},
+		{
+			name: "invalid claude login mode",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Auth: &AuthConfig{
+					Claude: &ClaudeAuthConfig{LoginMode: "device"},
+				},
+			},
+			wantErr: "unknown auth.claude.login_mode",
+		},
 	}
 
 	for _, tt := range tests {

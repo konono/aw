@@ -91,6 +91,27 @@ func TestBuildStages_HostClaude(t *testing.T) {
 	}
 }
 
+func TestBuildStages_AddsAuthCheckBeforeLaunch(t *testing.T) {
+	p := profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchCodex,
+		Auth: &profile.AuthConfig{
+			OnLaunch: &profile.OnLaunchAuthConfig{Check: profile.AuthOnLaunchCheckWarn},
+		},
+	}
+	stages := buildStages(p)
+
+	if len(stages) != 4 {
+		t.Fatalf("got %d stages, want 4", len(stages))
+	}
+	if stages[2].Name() != "auth-check" {
+		t.Errorf("stage[2] = %q, want 'auth-check'", stages[2].Name())
+	}
+	if stages[3].Name() != "launch" {
+		t.Errorf("stage[3] = %q, want 'launch'", stages[3].Name())
+	}
+}
+
 func TestRunOnEndIfConfigured_SkipsWhenNoWorktree(t *testing.T) {
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{

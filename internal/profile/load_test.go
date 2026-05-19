@@ -483,6 +483,46 @@ profiles:
 	}
 }
 
+func TestParse_AuthConfig(t *testing.T) {
+	yaml := `
+profiles:
+  codex:
+    environment: container
+    launch: codex
+    auth:
+      on_launch:
+        check: warn
+      codex:
+        login_mode: device
+        credentials_store: file
+        seed_from_host: if_missing
+        persist_auth: stage
+        login_args:
+          - --device-auth
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	p := cfg.Profiles["codex"]
+	if p.Auth == nil || p.Auth.Codex == nil {
+		t.Fatal("auth.codex should not be nil")
+	}
+	if p.Auth.OnLaunch == nil || p.Auth.OnLaunch.Check != AuthOnLaunchCheckWarn {
+		t.Fatalf("auth.on_launch = %+v, want warn", p.Auth.OnLaunch)
+	}
+	if p.Auth.Codex.LoginMode != CodexLoginModeDevice {
+		t.Errorf("auth.codex.login_mode = %q, want %q", p.Auth.Codex.LoginMode, CodexLoginModeDevice)
+	}
+	if p.Auth.Codex.CredentialsStore != CodexCredentialsStoreFile {
+		t.Errorf("auth.codex.credentials_store = %q, want %q", p.Auth.Codex.CredentialsStore, CodexCredentialsStoreFile)
+	}
+	if len(p.Auth.Codex.LoginArgs) != 1 || p.Auth.Codex.LoginArgs[0] != "--device-auth" {
+		t.Errorf("auth.codex.login_args = %#v, want [--device-auth]", p.Auth.Codex.LoginArgs)
+	}
+}
+
 func TestLoadFile_TopLevelSSHAgentForwardingOverridesBuiltinProfiles(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".agent-workspace.yml")

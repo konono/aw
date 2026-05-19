@@ -46,6 +46,14 @@ func Run(args []string) int {
 		return runInit(args[1:])
 	}
 
+	if len(args) > 0 && args[0] == "auth" {
+		return runAuth(args[1:])
+	}
+
+	if len(args) > 0 && args[0] == "login" {
+		return runAuth(append([]string{"login"}, args[1:]...))
+	}
+
 	// Determine profile name
 	profileName := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -89,24 +97,10 @@ func Run(args []string) int {
 	}
 
 	// Build execution context
-	homeDir, err := os.UserHomeDir()
+	ec, err := buildExecutionContext(profileName, p)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
-	}
-
-	workDir, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-
-	ec := &pipeline.ExecutionContext{
-		Profile:     p,
-		ProfileName: profileName,
-		HomeDir:     homeDir,
-		OrigWorkDir: workDir,
-		WorkDir:     workDir,
 	}
 
 	// Warn about on-end limitations
@@ -169,7 +163,12 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 		stages = append(stages, &stage.EnvStage{})
 	}
 
-	// Stage 4: Launch (always)
+	// Stage 4: Optional auth preflight before normal launch.
+	if p.EffectiveAuthOnLaunchCheck() != "" && p.EffectiveAuthOnLaunchCheck() != profile.AuthOnLaunchCheckNone {
+		stages = append(stages, &stage.AuthCheckStage{})
+	}
+
+	// Stage 5: Launch (always)
 	stages = append(stages, &stage.LaunchStage{})
 
 	return stages
@@ -264,6 +263,8 @@ func printHelp() {
 	fmt.Println("  aw <profile>            Run a specific profile")
 	fmt.Println("  aw profiles             List available profiles")
 	fmt.Println("  aw init                 Write the built-in config to ~/.config/aw/config.yml")
+	fmt.Println("  aw auth <action> <tool> Run auth login/logout/status for a tool")
+	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
