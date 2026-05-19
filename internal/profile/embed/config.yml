@@ -1,31 +1,43 @@
-# Starter config used when no config files exist.
-# Run `aw init` to write this file to ~/.config/aw/config.yml and edit it.
+# aw - agent-workspace configuration
 #
-# Top-level fields here act as defaults for all profiles below.
+# Run `aw init` to write this file to ~/.config/aw/config.yml.
+# Top-level fields act as defaults for all profiles below.
+#
+# Config is loaded in order: built-in → ~/.config/aw/config.yml → .agent-workspace.yml
+# Project-level .agent-workspace.yml can override these settings. If a project
+# config contains security-sensitive fields (mounts, env, dockerfile,
+# worktree.on-create, worktree.on-end), aw will prompt you to trust it on
+# first use.
+
 default: claude
+
+# ── Container settings ────────────────────────────────────────────────
 environment: container        # "host" or "container"
 os: debian12                  # "debian12", "ubi9", "ubi10", "ubuntu2604"
 container_runtime: podman     # "docker" or "podman"
-mount_ssh: false              # opt-in: set true to mount host ~/.ssh read-only
-ssh_agent_forwarding: false   # opt-in: set true to forward SSH agent for git push/clone
+
+# ── Host resource mounts ─────────────────────────────────────────────
+# mount_gh: false             # mount ~/.config/gh read-only (default: false)
+                              # ⚠ gh token is readable by the AI agent; enable only with scoped tokens
+mount_ssh: false              # mount ~/.ssh read-only (default: false)
+ssh_agent_forwarding: false   # forward SSH agent socket (default: false, preferred over mount_ssh)
 
 profiles:
   shell:
     launch: shell             # "shell", "claude", "codex", "opencode", "zellij"
 
   claude:
-    launch: claude            # `aw auth login claude` -> `claude auth login`
-                              # Claude を Vertex / Bedrock / API key / OAuth token で使う場合は
-                              # auth は書かず、env / mounts / 外部資格情報で認証するのが基本
-                              # 通常の Claude CLI 認証は ~/.agent-workspace/claude に保存され、
-                              # 他の Claude container profile でも再利用される
+    launch: claude
+    # `aw auth login claude` -> `claude auth login`
+    # Vertex / Bedrock / API key で使う場合は auth を省略し、env / mounts で認証
 
   codex:
-    launch: codex             # `aw auth login codex` -> `codex login --device-auth`
-                              # browser callback が必要なら auth.codex.login_mode: browser を指定
+    launch: codex
+    # `aw auth login codex` -> `codex login --device-auth`
 
   opencode:
-    launch: opencode          # `aw auth login opencode` -> `opencode auth login`
+    launch: opencode
+    # `aw auth login opencode` -> `opencode auth login`
 
   ubi9-shell:
     os: ubi9
@@ -39,7 +51,7 @@ profiles:
     os: ubuntu2604
     launch: shell
 
-  # Example with additional optional fields you can use in any profile:
+  # ── Example: full-featured profile ────────────────────────────────
   #
   # custom:
   #   environment: container
@@ -47,29 +59,36 @@ profiles:
   #   os: ubuntu2604
   #   container_runtime: podman
   #   dockerfile: docker/Dockerfile.custom   # use either os or dockerfile
+  #
+  #   # ── Environment variables (passed into the container) ─────────
   #   env:
   #     FOO: bar
+  #
+  #   # ── Custom bind mounts ────────────────────────────────────────
+  #   # Mounts are read-only by default. Set mode: rw to allow writes.
+  #   # Use options for Docker/Podman mount flags (SELinux, nocopy, etc.)
   #   mounts:
   #     - source: ~/.config/gcloud
   #       target: /home/agent/.config/gcloud
-  #       readonly: true
+  #       # mode: ro                  # "ro" (default) or "rw"
+  #       # options: "z"              # SELinux, nocopy, cached, etc.
+  #
+  #   # ── Host resource mounts ──────────────────────────────────────
+  #   # mount_gh: true               # mount ~/.config/gh read-only (default: false)
+  #   # mount_ssh: true              # mount ~/.ssh read-only (default: false)
+  #   # ssh_agent_forwarding: true   # forward SSH agent (preferred over mount_ssh)
+  #
+  #   # ── Auth configuration ────────────────────────────────────────
   #   auth:
   #     on_launch:
-  #       # Optional status check before a normal `aw <profile>` launch.
-  #       # `none`    -> skip the check entirely.
-  #       # `warn`    -> print a warning if auth looks missing, but still launch.
-  #       # `require` -> fail the launch if auth looks missing.
-  #       #
-  #       # Important:
-  #       # - This is only a status check. It does NOT log in automatically.
-  #       # - Use it only for CLI-managed auth such as Codex / Claude browser login.
-  #       # - Omit it for external auth profiles (Vertex, Bedrock, API keys, etc.).
+  #       # Optional auth check before launch (does NOT log in automatically).
+  #       # "none" | "warn" | "require"
   #       check: warn
   #     codex:
   #       login_mode: device          # browser | device | api-key | access-token
   #       credentials_store: file     # file | keyring | auto
   #       seed_from_host: if_missing  # if_missing | always | never
-  #       persist_auth: stage         # current behavior: keep auth in ~/.agent-workspace
+  #       persist_auth: stage
   #       login_args:
   #         - --device-auth
   #     claude:
@@ -80,23 +99,28 @@ profiles:
   #       method: api-key
   #       login_args: []
   #
-  #   # Example: external auth profile for Claude Vertex.
-  #   # In this case auth is intentionally omitted because aw does not manage the
-  #   # login flow; Claude reads the cloud credentials from env + mounts.
-  #   #
-  #   # env:
-  #   #   CLAUDE_CODE_USE_VERTEX: "1"
-  #   #   CLOUD_ML_REGION: "us-east5"
-  #   #   ANTHROPIC_VERTEX_PROJECT_ID: "my-gcp-project"
-  #   #   GCP_PROJECT_ID: "my-gcp-project"
-  #   # mounts:
-  #   #   - source: ~/.config/gcloud
-  #   #     target: /home/agent/.config/gcloud
+  #   # ── Git worktree automation ───────────────────────────────────
+  #   # on-create and on-end run shell commands on the HOST.
+  #   # Project configs that set these will trigger a trust prompt.
   #   worktree:
   #     base: origin/main
   #     dir: ~/worktrees/my-project
   #     on-create: ./scripts/setup.sh
   #     on-end: ./scripts/cleanup.sh
+  #
+  #   # ── Zellij settings ───────────────────────────────────────────
   #   zellij:
   #     layout: default
-  #     tool: claude                        # "claude", "codex", "opencode"
+  #     tool: claude                  # "claude", "codex", "opencode"
+  #
+  #   # ── Example: Claude on Vertex (external auth) ─────────────────
+  #   # Auth is omitted because Claude reads credentials from env + mounts.
+  #   #
+  #   # env:
+  #   #   CLAUDE_CODE_USE_VERTEX: "1"
+  #   #   CLOUD_ML_REGION: "us-east5"
+  #   #   ANTHROPIC_VERTEX_PROJECT_ID: "my-gcp-project"
+  #   # mounts:
+  #   #   - source: ~/.config/gcloud
+  #   #     target: /home/agent/.config/gcloud
+  #   #     options: "z"
