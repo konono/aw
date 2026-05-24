@@ -162,7 +162,7 @@ profiles:
     mounts:
       - source: "~/.config/gcloud"
         target: "/home/agent/.config/gcloud"
-        readonly: true
+        mode: ro
 ```
 
 ## トップレベルキー
@@ -358,7 +358,8 @@ profiles:
 
 - `source` — ホストパス（`~` 展開に対応）
 - `target` — コンテナパス
-- `readonly` — 読み取り専用でマウント（デフォルト: `false`）
+- `mode` — `ro`（デフォルト）または `rw`
+- `options` — Docker/Podman のマウントオプション（例: `"z"`, `"Z,nocopy"`, `"cached"`）
 
 ## 組み込みスターター設定
 
