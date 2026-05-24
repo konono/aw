@@ -263,6 +263,7 @@ func printHelp() {
 	fmt.Println("  aw <profile>            Run a specific profile")
 	fmt.Println("  aw profiles             List available profiles")
 	fmt.Println("  aw init                 Write the built-in config to ~/.config/aw/config.yml")
+	fmt.Println("  aw init --update        Migrate existing config to the latest template")
 	fmt.Println("  aw auth <action> <tool> Run auth login/logout/status for a tool")
 	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
