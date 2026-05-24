@@ -36,7 +36,7 @@ aw    # 使い捨て Debian コンテナで Claude Code が自律起動。あと
 - **git worktree 自動生成** — 実行するたびに独立ブランチで作業。壊しても消せば終わり
 - **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
 - **SSH Agent 転送** — 鍵ファイルをコンテナに入れずに Git 操作
-- **ホスト設定の自動同期** — Git / GitHub CLI / Claude 設定を引き継ぎ
+- **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
 
 ## クイックスタート
 
