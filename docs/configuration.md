@@ -55,11 +55,12 @@
 - `worktree` はフィールドごとにマージ
 - `zellij` はフィールドごとにマージ
 - `mounts` は指定時に全体を置換
-- `mount_ssh` は明示的な三値動作:
+- `mount_gh` は明示的な三値動作:
   - 省略: 継承
   - `true`: 有効化
   - `false`: 無効化
-- `ssh_agent_forwarding` は `mount_ssh` と同じ三値動作
+- `mount_ssh` は `mount_gh` と同じ三値動作
+- `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
 - `os` と `dockerfile` は最終的なプロファイルレベルで排他的。片方が継承され、もう片方が後から指定された場合、継承された側はクリアされる
 
 ## YAML の構造
@@ -172,6 +173,7 @@ profiles:
 - `container_runtime`
 - `auth`
 - `env`
+- `mount_gh`
 - `mount_ssh`
 - `ssh_agent_forwarding`
 - `mounts`
@@ -311,6 +313,14 @@ profiles:
 
 省略した場合、デフォルトは `docker` です。
 
+### `mount_gh`（任意）
+
+ホストの `~/.config/gh` を読み取り専用でコンテナにマウントするかどうか。`gh` コマンド（PR 作成、Issue 管理など）をコンテナ内で使う場合に有効化します。
+
+**デフォルト: `false`（無効）**。gh トークンは AI エージェントから読み取り可能であり、プロンプトインジェクション攻撃により外部に流出するリスクがあります。有効にする場合は、スコープを絞ったトークンの使用を推奨します。
+
+省略した場合、トップレベルのデフォルトから継承します。組み込みスターター設定では `false` です。
+
 ### `mount_ssh`（任意）
 
 ホストの `~/.ssh` を読み取り専用でコンテナにマウントするかどうか。コンテナのエントリポイントが `/home/agent/.ssh` にコピーしてパーミッションを修正します。フル SSH アクセス（サーバーログイン、鍵ベースの認証など）を提供します。
@@ -394,7 +404,7 @@ aw init
 `environment: container` を使用する場合、`aw` は以下のホスト設定を自動的に処理します:
 
 - `~/.gitconfig` → `/home/agent/.gitconfig`
-- `~/.config/gh` → `/home/agent/.config/gh`
+- `~/.config/gh` → `/home/agent/.config/gh`（`mount_gh: true` の場合のみ。デフォルト無効）
 - `~/.claude/settings.json` → `/home/agent/.claude/settings.json`
 - `~/.claude/CLAUDE.md` → `/home/agent/.claude/CLAUDE.md`
 - `~/.claude/hooks` → `/home/agent/.claude/hooks`
