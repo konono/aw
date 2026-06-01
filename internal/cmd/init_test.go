@@ -179,7 +179,7 @@ profiles:
 
 	stdout, stderr := captureOutput(t, func() {
 		if code := Run([]string{"init", "--update"}); code != 0 {
-			t.Fatalf("Run(init --update) = %d, want 0\nstderr: %s", code, stderr)
+			t.Fatalf("Run(init --update) = %d, want 0", code)
 		}
 	})
 
