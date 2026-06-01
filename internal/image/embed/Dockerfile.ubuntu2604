@@ -23,14 +23,21 @@ ENV HOME="/home/agent" \
     PATH="/home/agent/.nix-profile/bin:/home/agent/.local/bin:${PATH}"
 
 ARG AW_TOOL_PKG=""
-ARG AW_USER_PKGS=""
 COPY . /tmp/aw-build/
 RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
     if [ -n "$AW_TOOL_PKG" ]; then \
       su -s /bin/bash agent -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
     fi && \
-    if [ -n "$AW_USER_PKGS" ]; then \
-      su -s /bin/bash agent -c "$DEVBOX_SHELLENV; devbox global add $AW_USER_PKGS"; \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      chown -R agent:agent /tmp/aw-build && \
+      su -s /bin/bash agent -c "$DEVBOX_SHELLENV; cd /tmp/aw-build && devbox install"; \
+    fi && \
+    if [ -f /tmp/aw-build/mise.toml ]; then \
+      su -s /bin/bash agent -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
+      mkdir -p /home/agent/.config/mise && \
+      cp /tmp/aw-build/mise.toml /home/agent/.config/mise/config.toml && \
+      chown -R agent:agent /home/agent/.config/mise && \
+      su -s /bin/bash agent -c 'export MISE_YES=1 && /home/agent/.local/bin/mise install'; \
     fi && rm -rf /tmp/aw-build
 
 COPY entrypoint.sh /entrypoint.sh

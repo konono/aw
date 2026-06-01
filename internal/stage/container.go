@@ -3,7 +3,6 @@ package stage
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -113,10 +112,6 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
-	if userPkgs := parseDevboxPackages(userDevboxJSON); userPkgs != "" {
-		buildArgs["AW_USER_PKGS"] = userPkgs
-	}
-
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
 	} else {
@@ -251,34 +246,6 @@ func resolveDockerfilePath(dockerfilePath string) (string, error) {
 	return filepath.Join(repoRoot, dockerfilePath), nil
 }
 
-func parseDevboxPackages(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	var cfg struct {
-		Packages json.RawMessage `json:"packages"`
-	}
-	if json.Unmarshal(data, &cfg) != nil || cfg.Packages == nil {
-		return ""
-	}
-
-	var pkgs []string
-	if json.Unmarshal(cfg.Packages, &pkgs) == nil {
-		return strings.Join(pkgs, " ")
-	}
-
-	var pkgMap map[string]json.RawMessage
-	if json.Unmarshal(cfg.Packages, &pkgMap) == nil {
-		var names []string
-		for name := range pkgMap {
-			names = append(names, name)
-		}
-		return strings.Join(names, " ")
-	}
-
-	return ""
-}
 
 func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) error {
 	if toolStageDir == "" {

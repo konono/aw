@@ -221,43 +221,6 @@ func TestAppendContainerContext_PreservesExistingContent(t *testing.T) {
 	}
 }
 
-func TestParseDevboxPackages_Array(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "devbox.json")
-	os.WriteFile(path, []byte(`{"packages":["docker-compose@latest","docker-client@latest"]}`), 0644)
-
-	got := parseDevboxPackages(path)
-	if got != "docker-compose@latest docker-client@latest" {
-		t.Errorf("parseDevboxPackages() = %q, want %q", got, "docker-compose@latest docker-client@latest")
-	}
-}
-
-func TestParseDevboxPackages_Map(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "devbox.json")
-	os.WriteFile(path, []byte(`{"packages":{"docker-compose":"latest"}}`), 0644)
-
-	got := parseDevboxPackages(path)
-	if got != "docker-compose" {
-		t.Errorf("parseDevboxPackages() = %q, want %q", got, "docker-compose")
-	}
-}
-
-func TestParseDevboxPackages_Missing(t *testing.T) {
-	got := parseDevboxPackages("/nonexistent/devbox.json")
-	if got != "" {
-		t.Errorf("parseDevboxPackages() = %q, want empty", got)
-	}
-}
-
-func TestParseDevboxPackages_Empty(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "devbox.json")
-	os.WriteFile(path, []byte(`{"packages":[]}`), 0644)
-
-	got := parseDevboxPackages(path)
-	if got != "" {
-		t.Errorf("parseDevboxPackages() = %q, want empty", got)
-	}
-}
-
 func TestDockerStage_NewDockerStage(t *testing.T) {
 	s := NewDockerStage()
 	// DockerClient is nil by default; initialized lazily in Run() from profile's container_runtime
