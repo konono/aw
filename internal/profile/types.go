@@ -50,6 +50,7 @@ type Profile struct {
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
+	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
 }
 
@@ -131,6 +132,11 @@ func (p *Profile) EffectiveMountSSH() bool {
 // EffectiveSSHAgentForwarding returns whether SSH agent forwarding should be enabled.
 func (p *Profile) EffectiveSSHAgentForwarding() bool {
 	return p != nil && p.SSHAgentForwarding != nil && *p.SSHAgentForwarding
+}
+
+// EffectiveMountContainerSock returns whether the container runtime socket should be mounted.
+func (p *Profile) EffectiveMountContainerSock() bool {
+	return p != nil && p.MountContainerSock != nil && *p.MountContainerSock
 }
 
 // EffectiveAuthOnLaunchCheck returns the configured launch-time auth check mode.

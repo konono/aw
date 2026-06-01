@@ -69,11 +69,12 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 	runConfig := docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Mounts:    ec.DockerMounts,
-		EnvVars:   envVars,
-		WorkDir:   ec.WorkDir,
-		Command:   command,
+		ImageName:    ec.DockerImage,
+		Mounts:       ec.DockerMounts,
+		EnvVars:      envVars,
+		WorkDir:      ec.WorkDir,
+		Command:      command,
+		SecurityOpts: ec.DockerSecurityOpts,
 	}
 
 	return client.Run(ctx, runConfig)

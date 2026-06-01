@@ -110,11 +110,12 @@ func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool s
 		envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 		runConfig := docker.RunConfig{
-			ImageName: ec.DockerImage,
-			Mounts:    ec.DockerMounts,
-			EnvVars:   envVars,
-			WorkDir:   ec.WorkDir,
-			Command:   []string{"bash", "-c", agentCmd + "; exec bash -i"},
+			ImageName:    ec.DockerImage,
+			Mounts:       ec.DockerMounts,
+			EnvVars:      envVars,
+			WorkDir:      ec.WorkDir,
+			Command:      []string{"bash", "-c", agentCmd + "; exec bash -i"},
+			SecurityOpts: ec.DockerSecurityOpts,
 		}
 		args := docker.BuildRunArgs(runConfig)
 		return ec.Profile.EffectiveContainerRuntime() + " " + shellJoin(args)

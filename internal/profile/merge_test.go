@@ -353,6 +353,24 @@ func TestMergeProfile_ExplicitMountSSHOverride(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ExplicitMountContainerSockOverride(t *testing.T) {
+	base := Profile{
+		MountContainerSock: boolPtr(true),
+	}
+	override := Profile{
+		MountContainerSock: boolPtr(false),
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.MountContainerSock == nil {
+		t.Fatal("MountContainerSock should not be nil")
+	}
+	if merged.EffectiveMountContainerSock() {
+		t.Error("EffectiveMountContainerSock() = true, want false")
+	}
+}
+
 func TestMergeProfile_AuthDeepMerge(t *testing.T) {
 	base := Profile{
 		Auth: &AuthConfig{
@@ -649,24 +667,26 @@ func TestMergeConfig_TopLevelMerged(t *testing.T) {
 
 func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	defaults := Profile{
-		Environment:      EnvironmentContainer,
-		Launch:           LaunchClaude,
-		Worktree:         &WorktreeConfig{Base: "origin/main", Dir: "/base"},
-		Zellij:           &ZellijConfig{Layout: "default", Tool: "claude"},
-		Env:              map[string]string{"A": "1"},
-		OS:               OSDebian12,
-		ContainerRuntime: ContainerRuntimePodman,
-		MountSSH:         boolPtr(true),
-		Mounts:           []CustomMount{{Source: "/src", Target: "/dst"}},
+		Environment:        EnvironmentContainer,
+		Launch:             LaunchClaude,
+		Worktree:           &WorktreeConfig{Base: "origin/main", Dir: "/base"},
+		Zellij:             &ZellijConfig{Layout: "default", Tool: "claude"},
+		Env:                map[string]string{"A": "1"},
+		OS:                 OSDebian12,
+		ContainerRuntime:   ContainerRuntimePodman,
+		MountSSH:           boolPtr(true),
+		MountContainerSock: boolPtr(false),
+		Mounts:             []CustomMount{{Source: "/src", Target: "/dst"}},
 	}
 	effective := MergeProfile(defaults, Profile{
-		Launch:     LaunchZellij,
-		Worktree:   &WorktreeConfig{Dir: "/override"},
-		Zellij:     &ZellijConfig{Tool: "codex"},
-		Env:        map[string]string{"B": "2"},
-		Dockerfile: "Dockerfile.custom",
-		MountSSH:   boolPtr(false),
-		Mounts:     []CustomMount{},
+		Launch:             LaunchZellij,
+		Worktree:           &WorktreeConfig{Dir: "/override"},
+		Zellij:             &ZellijConfig{Tool: "codex"},
+		Env:                map[string]string{"B": "2"},
+		Dockerfile:         "Dockerfile.custom",
+		MountSSH:           boolPtr(false),
+		MountContainerSock: boolPtr(true),
+		Mounts:             []CustomMount{},
 	})
 
 	relative := RelativeProfile(defaults, effective)
@@ -698,6 +718,9 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	}
 	if roundTrip.EffectiveMountSSH() != effective.EffectiveMountSSH() {
 		t.Errorf("EffectiveMountSSH() = %v, want %v", roundTrip.EffectiveMountSSH(), effective.EffectiveMountSSH())
+	}
+	if roundTrip.EffectiveMountContainerSock() != effective.EffectiveMountContainerSock() {
+		t.Errorf("EffectiveMountContainerSock() = %v, want %v", roundTrip.EffectiveMountContainerSock(), effective.EffectiveMountContainerSock())
 	}
 	if len(roundTrip.Mounts) != len(effective.Mounts) {
 		t.Fatalf("Mounts = %+v, want %+v", roundTrip.Mounts, effective.Mounts)

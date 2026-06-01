@@ -21,6 +21,8 @@ container_runtime: podman     # "docker" or "podman"
                               # ⚠ gh token is readable by the AI agent; enable only with scoped tokens
 mount_ssh: false              # mount ~/.ssh read-only (default: false)
 ssh_agent_forwarding: false   # forward SSH agent socket (default: false, preferred over mount_ssh)
+# mount_container_sock: false  # mount container runtime socket (default: false)
+                               # enables docker-compose / docker CLI inside the container (DooD)
 
 profiles:
   shell:

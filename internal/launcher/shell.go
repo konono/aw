@@ -54,11 +54,12 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
 	runConfig := docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Mounts:    ec.DockerMounts,
-		EnvVars:   envVars,
-		WorkDir:   ec.WorkDir,
-		Command:   []string{"/bin/bash"},
+		ImageName:    ec.DockerImage,
+		Mounts:       ec.DockerMounts,
+		EnvVars:      envVars,
+		WorkDir:      ec.WorkDir,
+		Command:      []string{"/bin/bash"},
+		SecurityOpts: ec.DockerSecurityOpts,
 	}
 
 	return client.Run(ctx, runConfig)

@@ -69,6 +69,7 @@
   - `false`: 無効化
 - `mount_ssh` は `mount_gh` と同じ三値動作
 - `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
+- `mount_container_sock` は `mount_gh` と同じ三値動作
 - `os` と `dockerfile` は最終的なプロファイルレベルで排他的。片方が継承され、もう片方が後から指定された場合、継承された側はクリアされる
 
 ## YAML の構造
@@ -184,6 +185,7 @@ profiles:
 - `mount_gh`
 - `mount_ssh`
 - `ssh_agent_forwarding`
+- `mount_container_sock`
 - `mounts`
 - `os`
 - `dockerfile`
@@ -350,6 +352,24 @@ profiles:
 - macOS + Docker Desktop: Docker Desktop のファイル共有経由で動作
 - macOS + Podman: `aw` が自動的に Podman VM への SSH トンネルを確立し、初回使用時に最小限の SELinux ポリシーモジュール（`aw_agent_sock`）をインストール。詳細は [コンテナ同期ガイド](container-sync.md) を参照
 
+### `mount_container_sock`（任意）
+
+コンテナランタイム（Docker/Podman）のソケットをコンテナにマウントし、docker-compose 等によるコンテナ操作を有効にするかどうか（DooD: Docker outside of Docker 方式）。
+
+コンテナ内に `DOCKER_HOST=unix:///run/container.sock` が自動設定されます。docker-compose / docker CLI はユーザーが devbox.json やカスタム Dockerfile で別途インストールしてください。
+
+**デフォルト: `false`（無効）**。
+
+省略した場合、トップレベルのデフォルトから継承します。
+
+**プラットフォームごとの動作:**
+- Linux + Docker: `/var/run/docker.sock` を直接マウント
+- macOS + Docker Desktop: Docker Desktop のファイル共有経由で動作
+- Linux + Podman: `podman info` でソケットパスを自動検出（rootless 対応）
+- macOS + Podman: Podman VM 内の `/run/podman/podman.sock` をマウント
+
+**⚠ セキュリティ:** AI エージェントがホスト（または Podman VM）のコンテナランタイムにフルアクセスできるようになります。有効化時に Warning ログが出力されます。
+
 ### `mounts`（任意）
 
 コンテナプロファイル用の追加バインドマウント。
@@ -401,6 +421,7 @@ aw init
 12. `mounts` は `environment: container` の場合のみ有効
 13. すべてのマウントに `source` と `target` の両方が必要
 14. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+15. `mount_container_sock` は `environment: container` の場合のみ有効
 15. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
 16. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
 17. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること

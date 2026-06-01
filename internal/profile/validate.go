@@ -78,6 +78,11 @@ func Validate(p Profile) error {
 		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")
 	}
 
+	// Validate mount_container_sock is only used with environment: container
+	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("mount_container_sock is only valid with environment: container")
+	}
+
 	// Validate mounts are only used with environment: docker
 	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mounts are only valid with environment: docker")

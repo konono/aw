@@ -166,6 +166,34 @@ func TestBuildRunArgsNoOptionalFields(t *testing.T) {
 			t.Error("expected no -e when EnvVars is empty/nil")
 		}
 	}
+
+	// Should not contain --security-opt
+	for _, a := range args {
+		if a == "--security-opt" {
+			t.Error("expected no --security-opt when SecurityOpts is empty")
+		}
+	}
+}
+
+func TestBuildRunArgs_SecurityOpts(t *testing.T) {
+	config := RunConfig{
+		ImageName:    "test-image",
+		Command:      []string{"sh"},
+		SecurityOpts: []string{"label=disable"},
+	}
+
+	args := BuildRunArgs(config)
+
+	found := false
+	for i, a := range args {
+		if a == "--security-opt" && i+1 < len(args) && args[i+1] == "label=disable" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --security-opt label=disable, got args: %v", args)
+	}
 }
 
 func TestBuildRunArgs_MountOptions(t *testing.T) {

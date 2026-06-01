@@ -21,5 +21,9 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 
+	if ec.ContainerSockReady {
+		envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+	}
+
 	return envVars
 }
