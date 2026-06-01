@@ -57,6 +57,10 @@ func MergeProfile(base, override Profile) Profile {
 		v := *override.SSHAgentForwarding
 		merged.SSHAgentForwarding = &v
 	}
+	if override.MountContainerSock != nil {
+		v := *override.MountContainerSock
+		merged.MountContainerSock = &v
+	}
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
@@ -238,6 +242,10 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if !equalBoolPtr(effective.SSHAgentForwarding, defaults.SSHAgentForwarding) && effective.SSHAgentForwarding != nil {
 		v := *effective.SSHAgentForwarding
 		relative.SSHAgentForwarding = &v
+	}
+	if !equalBoolPtr(effective.MountContainerSock, defaults.MountContainerSock) && effective.MountContainerSock != nil {
+		v := *effective.MountContainerSock
+		relative.MountContainerSock = &v
 	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)

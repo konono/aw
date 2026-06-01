@@ -3,6 +3,7 @@ package stage
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -101,6 +102,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
+	if userPkgs := parseDevboxPackages(userDevboxJSON); userPkgs != "" {
+		buildArgs["AW_USER_PKGS"] = userPkgs
+	}
 
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
@@ -156,6 +160,22 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		}
 	}
 
+	containerSockPath := ""
+	if ec.Profile.EffectiveMountContainerSock() {
+		sockPath, err := mount.DetectContainerSock(ec.Profile.EffectiveContainerRuntime())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock: %v\n", err)
+		} else {
+			containerSockPath = sockPath
+			ec.ContainerSockReady = true
+			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock is enabled — the AI agent has full access to the container runtime\n")
+		}
+	}
+
+	if err := appendContainerContext(toolStageDir, ec); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: appending container context: %v\n", err)
+	}
+
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
 		HomeDir:            ec.HomeDir,
 		WorkDir:            ec.WorkDir,
@@ -165,6 +185,8 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		MountSSH:           ec.Profile.EffectiveMountSSH(),
 		SSHAgentForwarding: sshAgentFwd,
 		SSHAuthSock:        sshAuthSock,
+		MountContainerSock: ec.Profile.EffectiveMountContainerSock(),
+		ContainerSockPath:  containerSockPath,
 		ExtraMounts:        extraMounts,
 	})
 	if err != nil {
@@ -173,6 +195,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 	ec.DockerImage = imageName
 	ec.DockerMounts = mounts
+	if ec.ContainerSockReady {
+		ec.DockerSecurityOpts = append(ec.DockerSecurityOpts, "label=disable")
+	}
 
 	return nil
 }
@@ -213,6 +238,83 @@ func resolveDockerfilePath(dockerfilePath string) (string, error) {
 	}
 	repoRoot := strings.TrimSpace(string(out))
 	return filepath.Join(repoRoot, dockerfilePath), nil
+}
+
+func parseDevboxPackages(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var cfg struct {
+		Packages json.RawMessage `json:"packages"`
+	}
+	if json.Unmarshal(data, &cfg) != nil || cfg.Packages == nil {
+		return ""
+	}
+
+	var pkgs []string
+	if json.Unmarshal(cfg.Packages, &pkgs) == nil {
+		return strings.Join(pkgs, " ")
+	}
+
+	var pkgMap map[string]json.RawMessage
+	if json.Unmarshal(cfg.Packages, &pkgMap) == nil {
+		var names []string
+		for name := range pkgMap {
+			names = append(names, name)
+		}
+		return strings.Join(names, " ")
+	}
+
+	return ""
+}
+
+func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) error {
+	if toolStageDir == "" {
+		return nil
+	}
+	claudeMD := filepath.Join(toolStageDir, "CLAUDE.md")
+
+	var sections []string
+
+	sections = append(sections, `## Package Managers
+
+- devbox: Nix-based package manager. Use "devbox global add <pkg>" to install packages
+- mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
+- Both are pre-installed and available in PATH`)
+
+	if ec.ContainerSockReady {
+		sections = append(sections, `## Docker / Podman (DooD)
+
+Container runtime socket is mounted at /run/container.sock.
+DOCKER_HOST is pre-configured. docker and docker-compose are available in PATH via devbox.
+
+- Use docker-compose / docker commands directly — do NOT try to install Docker or start a daemon
+- Containers created via docker-compose are sibling containers on the host`)
+	}
+
+	if ec.Profile.EffectiveMountGH() {
+		sections = append(sections, `## GitHub CLI
+
+Host gh configuration is mounted (read-only). gh commands (gh pr, gh issue, etc.) work directly.`)
+	}
+
+	if ec.SSHAgentReady {
+		sections = append(sections, `## SSH Agent
+
+SSH agent is forwarded. Git SSH operations (push, clone, fetch) work without additional setup.`)
+	}
+
+	content := "\n\n# aw Container Environment\n\nThis session runs inside an aw container.\n\n" +
+		strings.Join(sections, "\n\n") + "\n"
+
+	f, err := os.OpenFile(claudeMD, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	_, err = f.WriteString(content)
+	return err
 }
 
 func expandTilde(path, homeDir string) string {

@@ -200,6 +200,15 @@ func TestValidate(t *testing.T) {
 			wantErr: "ssh_agent_forwarding is only valid with environment: container",
 		},
 		{
+			name:    "valid container + mount_container_sock",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountContainerSock: &v} }(),
+		},
+		{
+			name:    "mount_container_sock with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountContainerSock: &v} }(),
+			wantErr: "mount_container_sock is only valid with environment: container",
+		},
+		{
 			name: "valid auth config",
 			profile: Profile{
 				Environment: EnvironmentContainer,

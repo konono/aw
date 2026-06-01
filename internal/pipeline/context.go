@@ -21,9 +21,10 @@ type ExecutionContext struct {
 	RepoRoot       string // git repository root path
 
 	// Set by DockerStage (if applicable)
-	DockerImage  string
-	DockerMounts []docker.Mount
-	DockerVolume string
+	DockerImage        string
+	DockerMounts       []docker.Mount
+	DockerVolume       string
+	DockerSecurityOpts []string
 
 	// Set by EnvStage (if applicable)
 	EnvVars map[string]string // custom env vars to pass into Docker container
@@ -31,4 +32,7 @@ type ExecutionContext struct {
 	// Set by DockerStage for SSH agent forwarding cleanup
 	SSHAgentReady   bool
 	SSHAgentCleanup func()
+
+	// Set by DockerStage for container runtime socket mounting
+	ContainerSockReady bool
 }

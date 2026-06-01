@@ -21,11 +21,12 @@ type Mount struct {
 
 // RunConfig holds the configuration for running a Docker container.
 type RunConfig struct {
-	ImageName string
-	Mounts    []Mount
-	EnvVars   map[string]string
-	WorkDir   string
-	Command   []string
+	ImageName    string
+	Mounts       []Mount
+	EnvVars      map[string]string
+	WorkDir      string
+	Command      []string
+	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 }
 
 // Client is the interface for Docker operations.
@@ -114,6 +115,10 @@ func BuildRunArgs(config RunConfig) []string {
 	// while still capping runaway process creation.
 	args := []string{"run", "-it", "--rm",
 		"--pids-limit", "1000",
+	}
+
+	for _, opt := range config.SecurityOpts {
+		args = append(args, "--security-opt", opt)
 	}
 
 	for key, val := range config.EnvVars {

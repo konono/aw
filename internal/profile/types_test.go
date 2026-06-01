@@ -98,6 +98,43 @@ func TestProfile_EffectiveTool(t *testing.T) {
 	}
 }
 
+func TestProfile_EffectiveMountContainerSock(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile *Profile
+		want    bool
+	}{
+		{
+			name:    "nil profile defaults to false",
+			profile: nil,
+			want:    false,
+		},
+		{
+			name:    "unset defaults to false",
+			profile: &Profile{},
+			want:    false,
+		},
+		{
+			name:    "explicit false stays false",
+			profile: &Profile{MountContainerSock: boolPtr(false)},
+			want:    false,
+		},
+		{
+			name:    "explicit true enables container sock mount",
+			profile: &Profile{MountContainerSock: boolPtr(true)},
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.profile.EffectiveMountContainerSock(); got != tt.want {
+				t.Errorf("EffectiveMountContainerSock() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProfile_EffectiveMountSSH(t *testing.T) {
 	tests := []struct {
 		name    string

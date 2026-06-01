@@ -20,6 +20,8 @@ type MountOptions struct {
 	MountSSH         bool           // whether to mount host ~/.ssh into the container
 	SSHAgentForwarding bool         // whether to forward SSH agent socket
 	SSHAuthSock        string       // host SSH_AUTH_SOCK path
+	MountContainerSock bool         // whether to mount the container runtime socket
+	ContainerSockPath  string       // host (or VM-internal) path to the container runtime socket
 	ExtraMounts      []docker.Mount // user-defined custom mounts
 }
 
@@ -56,6 +58,12 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 
 	if opts.SSHAgentForwarding && !opts.MountSSH {
 		if m := sshAgentMount(opts.SSHAuthSock); m != nil {
+			mounts = append(mounts, *m)
+		}
+	}
+
+	if opts.MountContainerSock {
+		if m := containerSockMount(opts.ContainerSockPath); m != nil {
 			mounts = append(mounts, *m)
 		}
 	}
@@ -123,6 +131,17 @@ func worktreeMount(workDir string) (*docker.Mount, error) {
 		Source: mainGitDir,
 		Target: mainGitDir,
 	}, nil
+}
+
+func containerSockMount(sockPath string) *docker.Mount {
+	if sockPath == "" {
+		return nil
+	}
+	return &docker.Mount{
+		Source:  sockPath,
+		Target:  ContainerSockContainerPath,
+		Options: "z",
+	}
 }
 
 func sshAgentMount(sshAuthSock string) *docker.Mount {

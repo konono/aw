@@ -437,6 +437,95 @@ func TestBuildMounts_SSHAgentForwardingVMPath(t *testing.T) {
 	}
 }
 
+func TestBuildMounts_ContainerSockMountsSocket(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountContainerSock = true
+	opts.ContainerSockPath = "/var/run/docker.sock"
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	m := findMount(mounts, ContainerSockContainerPath)
+	if m == nil {
+		t.Fatal("missing container socket mount")
+	}
+	if m.Source != "/var/run/docker.sock" {
+		t.Errorf("source = %q, want %q", m.Source, "/var/run/docker.sock")
+	}
+	if m.ReadOnly {
+		t.Error("container socket mount should not be read-only")
+	}
+	if m.Options != "z" {
+		t.Errorf("container socket mount options = %q, want %q", m.Options, "z")
+	}
+}
+
+func TestBuildMounts_ContainerSockNoPath(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountContainerSock = true
+	opts.ContainerSockPath = ""
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, ContainerSockContainerPath) != nil {
+		t.Error("container socket mount should not exist when ContainerSockPath is empty")
+	}
+}
+
+func TestBuildMounts_ContainerSockDisabled(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountContainerSock = false
+	opts.ContainerSockPath = "/var/run/docker.sock"
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	if findMount(mounts, ContainerSockContainerPath) != nil {
+		t.Error("container socket mount should not exist when MountContainerSock is false")
+	}
+}
+
+func TestBuildMounts_ContainerSockPodmanVMPath(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, workDir)
+	opts.MountContainerSock = true
+	opts.ContainerSockPath = "/run/podman/podman.sock"
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	m := findMount(mounts, ContainerSockContainerPath)
+	if m == nil {
+		t.Fatal("container socket should be mounted for VM-internal paths")
+	}
+	if m.Source != "/run/podman/podman.sock" {
+		t.Errorf("source = %q, want %q", m.Source, "/run/podman/podman.sock")
+	}
+	if m.Options != "z" {
+		t.Errorf("container socket mount options = %q, want %q", m.Options, "z")
+	}
+}
+
 func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()

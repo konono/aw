@@ -3,6 +3,8 @@ package stage
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -107,6 +109,152 @@ func TestDockerStage_DockerNotAvailable(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "container runtime is not available") {
 		t.Errorf("error = %q, want containing 'container runtime is not available'", err.Error())
+	}
+}
+
+func TestAppendContainerContext_EmptyStageDir(t *testing.T) {
+	ec := &pipeline.ExecutionContext{}
+	err := appendContainerContext("", ec)
+	if err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+}
+
+func TestAppendContainerContext_BaseOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "# aw Container Environment") {
+		t.Error("missing header")
+	}
+	if !strings.Contains(content, "## Package Managers") {
+		t.Error("missing Package Managers section")
+	}
+	if strings.Contains(content, "## Docker / Podman") {
+		t.Error("Docker section should not be present")
+	}
+	if strings.Contains(content, "## GitHub CLI") {
+		t.Error("GitHub CLI section should not be present")
+	}
+	if strings.Contains(content, "## SSH Agent") {
+		t.Error("SSH Agent section should not be present")
+	}
+}
+
+func TestAppendContainerContext_AllFeatures(t *testing.T) {
+	tmpDir := t.TempDir()
+	mountGH := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			MountGH: &mountGH,
+		},
+		SSHAgentReady:      true,
+		ContainerSockReady: true,
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## Package Managers") {
+		t.Error("missing Package Managers section")
+	}
+	if !strings.Contains(content, "## Docker / Podman (DooD)") {
+		t.Error("missing Docker section")
+	}
+	if !strings.Contains(content, "## GitHub CLI") {
+		t.Error("missing GitHub CLI section")
+	}
+	if !strings.Contains(content, "## SSH Agent") {
+		t.Error("missing SSH Agent section")
+	}
+}
+
+func TestAppendContainerContext_PreservesExistingContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	existing := "# Existing CLAUDE.md content\n\nSome instructions here.\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(existing), 0644); err != nil {
+		t.Fatalf("writing existing CLAUDE.md: %v", err)
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile:            profile.Profile{},
+		ContainerSockReady: true,
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.HasPrefix(content, existing) {
+		t.Error("existing content should be preserved at the beginning")
+	}
+	if !strings.Contains(content, "# aw Container Environment") {
+		t.Error("container context should be appended")
+	}
+	if !strings.Contains(content, "## Docker / Podman (DooD)") {
+		t.Error("Docker section should be present")
+	}
+}
+
+func TestParseDevboxPackages_Array(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devbox.json")
+	os.WriteFile(path, []byte(`{"packages":["docker-compose@latest","docker-client@latest"]}`), 0644)
+
+	got := parseDevboxPackages(path)
+	if got != "docker-compose@latest docker-client@latest" {
+		t.Errorf("parseDevboxPackages() = %q, want %q", got, "docker-compose@latest docker-client@latest")
+	}
+}
+
+func TestParseDevboxPackages_Map(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devbox.json")
+	os.WriteFile(path, []byte(`{"packages":{"docker-compose":"latest"}}`), 0644)
+
+	got := parseDevboxPackages(path)
+	if got != "docker-compose" {
+		t.Errorf("parseDevboxPackages() = %q, want %q", got, "docker-compose")
+	}
+}
+
+func TestParseDevboxPackages_Missing(t *testing.T) {
+	got := parseDevboxPackages("/nonexistent/devbox.json")
+	if got != "" {
+		t.Errorf("parseDevboxPackages() = %q, want empty", got)
+	}
+}
+
+func TestParseDevboxPackages_Empty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devbox.json")
+	os.WriteFile(path, []byte(`{"packages":[]}`), 0644)
+
+	got := parseDevboxPackages(path)
+	if got != "" {
+		t.Errorf("parseDevboxPackages() = %q, want empty", got)
 	}
 }
 
