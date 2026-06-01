@@ -148,6 +148,108 @@ func TestRunInit_ForceOverwritesExistingConfig(t *testing.T) {
 	}
 }
 
+func TestRunInit_UpdateMigratesExistingConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	configPath := filepath.Join(home, ".config", "aw", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	userConfig := []byte(`default: shell
+environment: container
+os: debian12
+container_runtime: docker
+mount_ssh: true
+profiles:
+  shell:
+    launch: shell
+  claude:
+    launch: claude
+  my-project:
+    environment: host
+    launch: shell
+    env:
+      FOO: bar
+`)
+	if err := os.WriteFile(configPath, userConfig, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr := captureOutput(t, func() {
+		if code := Run([]string{"init", "--update"}); code != 0 {
+			t.Fatalf("Run(init --update) = %d, want 0", code)
+		}
+	})
+
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Updated") {
+		t.Errorf("stdout missing Updated message, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "config.yml.bak") {
+		t.Errorf("stdout missing backup message, got: %q", stdout)
+	}
+
+	backupPath := configPath + ".bak"
+	backup, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("backup file should exist: %v", err)
+	}
+	if !bytes.Equal(backup, userConfig) {
+		t.Error("backup should contain original config")
+	}
+
+	migrated, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("reading migrated config: %v", err)
+	}
+
+	cfg, err := profile.Parse(migrated)
+	if err != nil {
+		t.Fatalf("parsing migrated config: %v", err)
+	}
+
+	if cfg.Default != "shell" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "shell")
+	}
+	if cfg.Defaults.ContainerRuntime != "docker" {
+		t.Errorf("ContainerRuntime = %q, want %q", cfg.Defaults.ContainerRuntime, "docker")
+	}
+	if _, ok := cfg.Profiles["my-project"]; !ok {
+		t.Error("user profile 'my-project' should be preserved")
+	}
+}
+
+func TestRunInit_UpdateWithNoConfigCreatesNew(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	stdout, stderr := captureOutput(t, func() {
+		if code := Run([]string{"init", "--update"}); code != 0 {
+			t.Fatalf("Run(init --update) = %d, want 0", code)
+		}
+	})
+
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	configPath := filepath.Join(home, ".config", "aw", "config.yml")
+	got, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("config should be created: %v", err)
+	}
+	if !bytes.Equal(got, profile.DefaultConfigYAML()) {
+		t.Fatalf("created config does not match embedded default")
+	}
+	if !strings.Contains(stdout, "Created") {
+		t.Errorf("stdout missing Created message, got: %q", stdout)
+	}
+}
+
 func TestHelpIncludesInit(t *testing.T) {
 	stdout, stderr := captureOutput(t, func() {
 		if code := Run([]string{"--help"}); code != 0 {
