@@ -24,7 +24,7 @@ mise.toml / devbox.json にコミット
 | `mise.toml` / `.mise.toml` がある | `mise install` を実行 |
 | どちらもない | devbox がアドホックに利用可能（`devbox global add` で随時追加できる） |
 
-`devbox.json` と `mise.toml` の両方がある場合は `devbox.json` が優先されます。
+`devbox.json` と `mise.toml` の両方がある場合は、両方とも実行されます。
 
 ## mise を使う場合
 
@@ -80,9 +80,30 @@ run = "npm ci"
 
 `devbox.json` に `install` スクリプトが定義されていれば、パッケージインストール後に自動実行されます。
 
+### グローバル mise 設定
+
+`~/.config/aw/mise.toml` を作成すると、全コンテナイメージのビルド時にこの設定が組み込まれます。全プロジェクト共通で使うツール（言語ランタイム、CLI ツールなど）を定義する場所です。
+
+```toml
+[tools]
+python = "3.14"
+go = "1.23"
+gh = "latest"
+```
+
+プロジェクトに `mise.toml` がある場合、グローバル設定と両方が適用されます。同じツールが定義されている場合はプロジェクト側が優先されます。
+
+`aw init` を実行するとテンプレートファイルが `~/.config/aw/mise.toml` に生成されます。
+
 ### グローバル devbox 設定
 
 `~/.config/aw/devbox.json` を作成すると、全コンテナイメージのビルド時にこの設定が組み込まれます。全プロジェクト共通で使うツールを定義する場所です。
+
+`aw init` を実行するとテンプレートファイルが `~/.config/aw/devbox.json` に生成されます。
+
+### グローバル設定の組み合わせ
+
+`~/.config/aw/mise.toml` と `~/.config/aw/devbox.json` は同時に使用できます。mise は言語バージョン管理（node, python, go）、devbox は Nix パッケージ（より幅広いツール群）と使い分けるのが自然です。
 
 ## キャッシュ
 

@@ -74,6 +74,14 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		}
 	}
 
+	// Copy user's global mise.toml into build context if it exists
+	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
+	if data, err := os.ReadFile(userMiseToml); err == nil {
+		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
+			return fmt.Errorf("copying user mise.toml to build context: %w", err)
+		}
+	}
+
 	dockerfilePath := customDockerfile
 	hashSource := filepath.Join(buildDir, "Dockerfile")
 	if dockerfilePath != "" {
@@ -90,6 +98,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	hashInput += "\n" + toolPkg
 	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
 		hashInput += "\n" + string(devboxData)
+	}
+	if miseData, err := os.ReadFile(userMiseToml); err == nil {
+		hashInput += "\n" + string(miseData)
 	}
 
 	imageName := defaultImageName

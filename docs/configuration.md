@@ -16,7 +16,15 @@
 
 `git rev-parse --show-toplevel` が失敗した場合、カレントディレクトリの `.agent-workspace.yml` にフォールバックします。
 
-組み込みスターター設定を `~/.config/aw/config.yml` に書き出してカスタマイズしたい場合は `aw init` を実行してください。
+`~/.config/aw/` には設定ファイルに加えて、グローバルなパッケージ管理ファイルも配置できます:
+
+| ファイル | 用途 |
+|---------|------|
+| `config.yml` | プロファイル設定 |
+| `mise.toml` | 全コンテナ共通の mise ツール定義（ビルド時にイメージに組み込み） |
+| `devbox.json` | 全コンテナ共通の devbox パッケージ定義（ビルド時にイメージに組み込み） |
+
+`aw init` を実行すると、これらのテンプレートファイルが `~/.config/aw/` に生成されます。
 
 ## 解決と優先順位
 
@@ -155,7 +163,7 @@ profiles:
     mounts:
       - source: "~/.config/gcloud"
         target: "/home/agent/.config/gcloud"
-        readonly: true
+        mode: ro
 ```
 
 ## トップレベルキー
@@ -370,7 +378,8 @@ profiles:
 
 - `source` — ホストパス（`~` 展開に対応）
 - `target` — コンテナパス
-- `readonly` — 読み取り専用でマウント（デフォルト: `false`）
+- `mode` — `ro`（デフォルト）または `rw`
+- `options` — Docker/Podman のマウントオプション（例: `"z"`, `"Z,nocopy"`, `"cached"`）
 
 ## 組み込みスターター設定
 

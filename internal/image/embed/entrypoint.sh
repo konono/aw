@@ -36,10 +36,13 @@ BASH_PROFILE_FILE=/home/agent/.bash_profile
 # AI tool is already installed at build time via Dockerfile.
 # Install project packages (supports both devbox.json and mise.toml)
 NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+AW_PKG_FOUND=0
 if [ -f "$WORKSPACE/devbox.json" ]; then
   echo "Installing packages from devbox.json..."
   run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
-elif [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
+  AW_PKG_FOUND=1
+fi
+if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
     echo "Installing mise..."
     run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
@@ -48,7 +51,9 @@ elif [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   mkdir -p /home/agent/.config/mise
   echo "Installing tools from mise.toml..."
   run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise install"
-else
+  AW_PKG_FOUND=1
+fi
+if [ "$AW_PKG_FOUND" = "0" ]; then
   echo "No devbox.json or mise.toml found. devbox is available for installing tools."
 fi
 
