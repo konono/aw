@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/konono/aw/compare/v1.2.0...v1.3.0) (2026-06-01)
+
+
+### Features
+
+* **init:** add --update flag for config migration ([d16243a](https://github.com/konono/aw/commit/d16243ab38e653dd465d156b964694d3d6918b25))
+
+
+### Bug Fixes
+
+* resolve merge conflict with main branch ([9609fed](https://github.com/konono/aw/commit/9609fededaf1b00a876c3657382f083156d50f8e))
+
 ## [1.2.0](https://github.com/konono/aw/compare/v1.1.1...v1.2.0) (2026-05-24)
 
 
