@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/konono/aw/compare/v1.1.1...v1.2.0) (2026-05-24)
+
+
+### Features
+
+* support global mise.toml in ~/.config/aw/ ([eca2022](https://github.com/konono/aw/commit/eca2022b32fccda0f03fdd40c42a9565e9dd724e))
+* support global mise.toml in ~/.config/aw/ ([216dd2b](https://github.com/konono/aw/commit/216dd2b1a487686a784f1a391ee8dcec94e73edd))
+
 ## [1.1.1](https://github.com/konono/aw/compare/v1.1.0...v1.1.1) (2026-05-19)
 
 
