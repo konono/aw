@@ -74,6 +74,13 @@ SSHCFG
   chmod 644 /home/agent/.ssh/config
 fi
 
+# Fix container socket permissions and create docker.sock symlink
+if [ -S /run/container.sock ]; then
+  sudo chmod 666 /run/container.sock
+  sudo mkdir -p /var/run
+  sudo ln -sfn /run/container.sock /var/run/docker.sock
+fi
+
 export HOME=/home/agent
 
 cat > "$AW_ENV_FILE" <<EOF
@@ -94,6 +101,9 @@ case ":\${PATH}:" in
 esac
 export AW_BASH_ENV_RECURSION_GUARD=1
 eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
+if [ -f "${WORKSPACE}/devbox.json" ]; then
+  eval "\$(cd "${WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+fi
 unset AW_BASH_ENV_RECURSION_GUARD
 case ":\${PATH}:" in
   *:/home/agent/.local/share/mise/shims:*) ;;
@@ -101,6 +111,9 @@ case ":\${PATH}:" in
 esac
 export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-/workspace}"
 export MISE_YES=1
+if [ -z "\${DOCKER_HOST:-}" ] && [ -S /run/container.sock ]; then
+  export DOCKER_HOST="unix:///run/container.sock"
+fi
 EOF
 
 cat > "$BASHRC_FILE" <<'BASHRC'
