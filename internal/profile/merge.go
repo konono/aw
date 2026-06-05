@@ -60,6 +60,14 @@ func MergeProfile(base, override Profile) Profile {
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.SkipDevboxInstall != nil {
+		v := *override.SkipDevboxInstall
+		merged.SkipDevboxInstall = &v
+	}
+	if override.SkipMiseInstall != nil {
+		v := *override.SkipMiseInstall
+		merged.SkipMiseInstall = &v
+	}
 	if override.MountGH != nil {
 		v := *override.MountGH
 		merged.MountGH = &v
@@ -249,6 +257,14 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		relative.ContainerRuntime = effective.ContainerRuntime
 	}
 	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
+	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
+		v := *effective.SkipDevboxInstall
+		relative.SkipDevboxInstall = &v
+	}
+	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
+		v := *effective.SkipMiseInstall
+		relative.SkipMiseInstall = &v
+	}
 	if !equalBoolPtr(effective.MountGH, defaults.MountGH) && effective.MountGH != nil {
 		v := *effective.MountGH
 		relative.MountGH = &v

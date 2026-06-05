@@ -228,6 +228,24 @@ func TestValidate(t *testing.T) {
 			wantErr: "image and dockerfile are mutually exclusive",
 		},
 		{
+			name:    "valid container + skip_devbox_install",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipDevboxInstall: &v} }(),
+		},
+		{
+			name:    "skip_devbox_install with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipDevboxInstall: &v} }(),
+			wantErr: "skip_devbox_install is only valid with environment: container",
+		},
+		{
+			name:    "valid container + skip_mise_install",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipMiseInstall: &v} }(),
+		},
+		{
+			name:    "skip_mise_install with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipMiseInstall: &v} }(),
+			wantErr: "skip_mise_install is only valid with environment: container",
+		},
+		{
 			name:    "valid container + ssh_agent_forwarding",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
 		},
