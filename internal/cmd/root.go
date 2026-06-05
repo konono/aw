@@ -42,6 +42,10 @@ func Run(args []string) int {
 		return runDefaultDockerfile()
 	}
 
+	if len(args) > 0 && args[0] == "export" {
+		return runExport(args[1:])
+	}
+
 	if len(args) > 0 && args[0] == "init" {
 		return runInit(args[1:])
 	}
@@ -221,6 +225,9 @@ func describeProfile(p profile.Profile) string {
 	if p.OS != "" {
 		parts = append(parts, "os:"+string(p.OS))
 	}
+	if p.Image != "" {
+		parts = append(parts, "image:"+p.Image)
+	}
 	if p.Dockerfile != "" {
 		parts = append(parts, "dockerfile:"+p.Dockerfile)
 	}
@@ -266,6 +273,7 @@ func printHelp() {
 	fmt.Println("  aw init --update        Migrate existing config to the latest template")
 	fmt.Println("  aw auth <action> <tool> Run auth login/logout/status for a tool")
 	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
+	fmt.Println("  aw export <profile>     Build and export a profile's image as a tar archive")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
