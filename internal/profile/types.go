@@ -45,6 +45,7 @@ type Profile struct {
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
+	Image            string            `yaml:"image,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
@@ -75,6 +76,7 @@ func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	shared := d
 	shared.Environment = ""
 	shared.OS = ""
+	shared.Image = ""
 	shared.Dockerfile = ""
 	return shared
 }

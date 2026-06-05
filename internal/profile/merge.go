@@ -30,16 +30,31 @@ func MergeProfile(base, override Profile) Profile {
 		}
 		merged.Env = envCopy
 	}
+	if override.Image != "" {
+		merged.Image = override.Image
+		if override.OS == "" {
+			merged.OS = ""
+		}
+		if override.Dockerfile == "" {
+			merged.Dockerfile = ""
+		}
+	}
 	if override.OS != "" {
 		merged.OS = override.OS
 		if override.Dockerfile == "" {
 			merged.Dockerfile = ""
+		}
+		if override.Image == "" {
+			merged.Image = ""
 		}
 	}
 	if override.Dockerfile != "" {
 		merged.Dockerfile = override.Dockerfile
 		if override.OS == "" {
 			merged.OS = ""
+		}
+		if override.Image == "" {
+			merged.Image = ""
 		}
 	}
 	if override.ContainerRuntime != "" {
@@ -223,6 +238,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	relative.Env = relativeEnv(defaults.Env, effective.Env)
 	if effective.OS != defaults.OS {
 		relative.OS = effective.OS
+	}
+	if effective.Image != defaults.Image {
+		relative.Image = effective.Image
 	}
 	if effective.Dockerfile != defaults.Dockerfile {
 		relative.Dockerfile = effective.Dockerfile

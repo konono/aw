@@ -191,6 +191,43 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid container + image",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+			},
+		},
+		{
+			name: "image with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Image:       "my-image:latest",
+			},
+			wantErr: "image is only valid with environment: container",
+		},
+		{
+			name: "image and os mutually exclusive",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+				OS:          OSDebian12,
+			},
+			wantErr: "image and os are mutually exclusive",
+		},
+		{
+			name: "image and dockerfile mutually exclusive",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+				Dockerfile:  "custom/Dockerfile",
+			},
+			wantErr: "image and dockerfile are mutually exclusive",
+		},
+		{
 			name:    "valid container + ssh_agent_forwarding",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
 		},

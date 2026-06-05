@@ -60,6 +60,21 @@ func Validate(p Profile) error {
 		return fmt.Errorf("os and dockerfile are mutually exclusive; use os for built-in templates or dockerfile for a custom Dockerfile")
 	}
 
+	// Validate image is only used with environment: container
+	if p.Image != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("image is only valid with environment: container")
+	}
+
+	// Validate image and os are mutually exclusive
+	if p.Image != "" && p.OS != "" {
+		return fmt.Errorf("image and os are mutually exclusive; use image for a pre-built image or os for built-in templates")
+	}
+
+	// Validate image and dockerfile are mutually exclusive
+	if p.Image != "" && p.Dockerfile != "" {
+		return fmt.Errorf("image and dockerfile are mutually exclusive; use image for a pre-built image or dockerfile for a custom Dockerfile")
+	}
+
 	// Validate dockerfile is only used with environment: docker
 	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: docker")

@@ -793,6 +793,111 @@ func TestMergeProfile_WorktreeDeepMerge(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ImageOverrideClearsInheritedOS(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		OS:          OSDebian12,
+	}
+	override := Profile{
+		Image: "my-image:latest",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
+	}
+	if merged.OS != "" {
+		t.Errorf("OS = %q, want empty (cleared by image override)", merged.OS)
+	}
+}
+
+func TestMergeProfile_ImageOverrideClearsInheritedDockerfile(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Dockerfile:  "base/Dockerfile",
+	}
+	override := Profile{
+		Image: "my-image:latest",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
+	}
+	if merged.Dockerfile != "" {
+		t.Errorf("Dockerfile = %q, want empty (cleared by image override)", merged.Dockerfile)
+	}
+}
+
+func TestMergeProfile_OSOverrideClearsInheritedImage(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Image:       "my-image:latest",
+	}
+	override := Profile{
+		OS: OSUBI9,
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
+	}
+	if merged.Image != "" {
+		t.Errorf("Image = %q, want empty (cleared by OS override)", merged.Image)
+	}
+}
+
+func TestMergeProfile_DockerfileOverrideClearsInheritedImage(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Image:       "my-image:latest",
+	}
+	override := Profile{
+		Dockerfile: "custom/Dockerfile",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Dockerfile != "custom/Dockerfile" {
+		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
+	}
+	if merged.Image != "" {
+		t.Errorf("Image = %q, want empty (cleared by dockerfile override)", merged.Image)
+	}
+}
+
+func TestApplyTopLevel_ProfileImageOverridesTopLevelOS(t *testing.T) {
+	cfg := Config{
+		Defaults: ProfileDefaults{
+			Environment: EnvironmentContainer,
+			OS:          OSDebian12,
+		},
+		Profiles: map[string]Profile{
+			"airgap": {
+				Launch: LaunchClaude,
+				Image:  "my-image:latest",
+			},
+		},
+	}
+
+	out := ApplyTopLevel(cfg)
+	p := out.Profiles["airgap"]
+
+	if p.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", p.Image, "my-image:latest")
+	}
+	if p.OS != "" {
+		t.Errorf("OS = %q, want empty (top-level OS should be cleared)", p.OS)
+	}
+}
+
 func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 	builtin := Config{
 		Profiles: map[string]Profile{
