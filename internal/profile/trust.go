@@ -16,6 +16,7 @@ var sensitiveFieldDescriptions = map[string]string{
 	"worktree.on-end":    "execute shell commands on your HOST machine",
 	"mounts":             "expose host directories to the container",
 	"dockerfile":         "use a custom Dockerfile for the container image",
+	"image":              "use a pre-built container image",
 	"env":                "set environment variables inside the container",
 }
 
@@ -60,6 +61,9 @@ func profileSensitiveFields(profileName string, p Profile) []string {
 	}
 	if p.Dockerfile != "" {
 		found = append(found, fmt.Sprintf("%sdockerfile = %q", prefix, p.Dockerfile))
+	}
+	if p.Image != "" {
+		found = append(found, fmt.Sprintf("%simage = %q", prefix, p.Image))
 	}
 	if len(p.Env) > 0 {
 		for k, v := range p.Env {
@@ -138,7 +142,7 @@ var promptTrust = func(configPath string, fields []string) bool {
 	}
 	fmt.Fprintf(os.Stderr, "\nWhat these settings can do:\n")
 	seen := make(map[string]bool)
-	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "dockerfile", "env"} {
+	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "dockerfile", "image", "env"} {
 		desc := sensitiveFieldDescriptions[key]
 		if !seen[desc] {
 			fmt.Fprintf(os.Stderr, "  %s: %s\n", key, desc)
@@ -180,6 +184,7 @@ func stripProfileSensitive(p Profile) Profile {
 	}
 	p.Mounts = nil
 	p.Dockerfile = ""
+	p.Image = ""
 	p.Env = nil
 	return p
 }

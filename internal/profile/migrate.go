@@ -72,6 +72,9 @@ func applyTopLevelScalars(root *yaml.Node, user, template *Config) {
 	if defs.OS != "" && defs.OS != tmplDefs.OS {
 		setMappingScalar(root, "os", string(defs.OS))
 	}
+	if defs.Image != "" && defs.Image != tmplDefs.Image {
+		setMappingScalar(root, "image", defs.Image)
+	}
 	if defs.Dockerfile != "" && defs.Dockerfile != tmplDefs.Dockerfile {
 		setMappingScalar(root, "dockerfile", defs.Dockerfile)
 	}
@@ -201,8 +204,11 @@ func isEmptyProfile(p Profile) bool {
 		p.Auth == nil &&
 		p.Env == nil &&
 		p.OS == "" &&
+		p.Image == "" &&
 		p.Dockerfile == "" &&
 		p.ContainerRuntime == "" &&
+		p.SkipDevboxInstall == nil &&
+		p.SkipMiseInstall == nil &&
 		p.MountGH == nil &&
 		p.MountSSH == nil &&
 		p.SSHAgentForwarding == nil &&
