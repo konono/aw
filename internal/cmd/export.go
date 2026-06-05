@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,29 +12,21 @@ import (
 	"github.com/konono/aw/internal/stage"
 )
 
-func runExport(args []string) int {
-	outputPath := ""
-	profileName := ""
+type exportOptions struct {
+	ProfileName string
+	OutputPath  string
+}
 
-	for i := 0; i < len(args); i++ {
-		switch {
-		case args[i] == "-o" && i+1 < len(args):
-			outputPath = args[i+1]
-			i++
-		case args[i] == "--help" || args[i] == "-h":
+var errExportHelp = errors.New("export help requested")
+
+func runExport(args []string) int {
+	opts, err := parseExportArgs(args)
+	if err != nil {
+		if errors.Is(err, errExportHelp) {
 			printExportHelp()
 			return 0
-		case !strings.HasPrefix(args[i], "-"):
-			profileName = args[i]
-		default:
-			fmt.Fprintf(os.Stderr, "Error: unknown flag %q\n", args[i])
-			printExportHelp()
-			return 1
 		}
-	}
-
-	if profileName == "" {
-		fmt.Fprintf(os.Stderr, "Error: profile name is required\n")
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		printExportHelp()
 		return 1
 	}
@@ -44,23 +37,23 @@ func runExport(args []string) int {
 		return 1
 	}
 
-	p, ok := cfg.Profiles[profileName]
+	p, ok := cfg.Profiles[opts.ProfileName]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: profile %q not found\n", profileName)
+		fmt.Fprintf(os.Stderr, "Error: profile %q not found\n", opts.ProfileName)
 		return 1
 	}
 
 	if p.Environment != profile.EnvironmentContainer {
-		fmt.Fprintf(os.Stderr, "Error: profile %q uses environment: %s (export requires environment: container)\n", profileName, p.Environment)
+		fmt.Fprintf(os.Stderr, "Error: profile %q uses environment: %s (export requires environment: container)\n", opts.ProfileName, p.Environment)
 		return 1
 	}
 
 	if p.Image != "" {
-		fmt.Fprintf(os.Stderr, "Error: profile %q uses a pre-built image (%s); there is nothing to build and export\n", profileName, p.Image)
+		fmt.Fprintf(os.Stderr, "Error: profile %q uses a pre-built image (%s); there is nothing to build and export\n", opts.ProfileName, p.Image)
 		return 1
 	}
 
-	ec, err := buildExecutionContext(profileName, p)
+	ec, err := buildExecutionContext(opts.ProfileName, p)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
@@ -72,6 +65,7 @@ func runExport(args []string) int {
 		return 1
 	}
 
+	outputPath := opts.OutputPath
 	if outputPath == "" {
 		safe := strings.NewReplacer(":", "-", "/", "-").Replace(ec.DockerImage)
 		outputPath = safe + ".tar"
@@ -89,6 +83,37 @@ func runExport(args []string) int {
 	printConfigSnippet(ec.DockerImage, runtime, string(p.Launch), outputPath)
 
 	return 0
+}
+
+func parseExportArgs(args []string) (exportOptions, error) {
+	opts := exportOptions{}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "-o":
+			if i+1 >= len(args) {
+				return exportOptions{}, fmt.Errorf("%s requires an output path", arg)
+			}
+			opts.OutputPath = args[i+1]
+			i++
+		case "--help", "-h":
+			return exportOptions{}, errExportHelp
+		default:
+			if strings.HasPrefix(arg, "-") {
+				return exportOptions{}, fmt.Errorf("unknown flag %q", arg)
+			}
+			if opts.ProfileName != "" {
+				return exportOptions{}, fmt.Errorf("too many export targets")
+			}
+			opts.ProfileName = arg
+		}
+	}
+
+	if opts.ProfileName == "" {
+		return exportOptions{}, fmt.Errorf("profile name is required")
+	}
+
+	return opts, nil
 }
 
 func printConfigSnippet(imageName, runtime, launch, tarPath string) {
