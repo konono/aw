@@ -47,80 +47,28 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("container runtime is not available: %w", err)
 	}
 
-	customDockerfile := ""
-	if ec.Profile.Dockerfile != "" {
-		resolved, err := resolveDockerfilePath(ec.Profile.Dockerfile)
-		if err != nil {
-			return fmt.Errorf("resolving dockerfile path: %w", err)
+	var imageName string
+	var err error
+
+	if ec.Profile.Image != "" {
+		imageName = ec.Profile.Image
+		exists, eerr := s.DockerClient.ImageExists(ctx, imageName)
+		if eerr != nil {
+			return fmt.Errorf("checking image %q: %w", imageName, eerr)
 		}
-		customDockerfile = resolved
+		if !exists {
+			return fmt.Errorf("image %q not found; load it via '%s load'",
+				imageName, ec.Profile.EffectiveContainerRuntime())
+		}
+		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
+	} else {
+		imageName, err = s.buildImage(ctx, ec)
+		if err != nil {
+			return err
+		}
 	}
 
 	tool := ec.Profile.EffectiveTool()
-	osTemplate := ec.Profile.EffectiveOS()
-
-	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate)
-	if err != nil {
-		return fmt.Errorf("preparing build context: %w", err)
-	}
-	defer cleanup()
-
-	// Copy user's global devbox.json into build context if it exists
-	userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
-	if data, err := os.ReadFile(userDevboxJSON); err == nil {
-		if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
-			return fmt.Errorf("copying user devbox.json to build context: %w", err)
-		}
-	}
-
-	// Copy user's global mise.toml into build context if it exists
-	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
-	if data, err := os.ReadFile(userMiseToml); err == nil {
-		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
-			return fmt.Errorf("copying user mise.toml to build context: %w", err)
-		}
-	}
-
-	dockerfilePath := customDockerfile
-	hashSource := filepath.Join(buildDir, "Dockerfile")
-	if dockerfilePath != "" {
-		hashSource = dockerfilePath
-	}
-
-	// Include tool name and user devbox.json in image hash
-	hashInput := ""
-	if dfBytes, err := os.ReadFile(hashSource); err == nil {
-		hashInput = string(dfBytes)
-	}
-	hashInput += "\n" + string(osTemplate)
-	toolPkg := toolinfo.DevboxPkg(tool)
-	hashInput += "\n" + toolPkg
-	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
-		hashInput += "\n" + string(devboxData)
-	}
-	if miseData, err := os.ReadFile(userMiseToml); err == nil {
-		hashInput += "\n" + string(miseData)
-	}
-
-	imageName := defaultImageName
-	if hashInput != "" {
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
-		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
-	}
-
-	buildArgs := map[string]string{}
-	if toolPkg != "" {
-		buildArgs["AW_TOOL_PKG"] = toolPkg
-	}
-	if customDockerfile != "" {
-		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
-	} else {
-		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (os: %s)...\n", imageName, osTemplate)
-	}
-	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
-		return fmt.Errorf("building image: %w", err)
-	}
-
 	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
 	toolStageDir := ""
 	toolContainerDir := ""
@@ -206,6 +154,81 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	return nil
+}
+
+func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
+	customDockerfile := ""
+	if ec.Profile.Dockerfile != "" {
+		resolved, err := resolveDockerfilePath(ec.Profile.Dockerfile)
+		if err != nil {
+			return "", fmt.Errorf("resolving dockerfile path: %w", err)
+		}
+		customDockerfile = resolved
+	}
+
+	tool := ec.Profile.EffectiveTool()
+	osTemplate := ec.Profile.EffectiveOS()
+
+	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate)
+	if err != nil {
+		return "", fmt.Errorf("preparing build context: %w", err)
+	}
+	defer cleanup()
+
+	userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
+	if data, err := os.ReadFile(userDevboxJSON); err == nil {
+		if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
+			return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
+		}
+	}
+
+	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
+	if data, err := os.ReadFile(userMiseToml); err == nil {
+		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
+			return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
+		}
+	}
+
+	dockerfilePath := customDockerfile
+	hashSource := filepath.Join(buildDir, "Dockerfile")
+	if dockerfilePath != "" {
+		hashSource = dockerfilePath
+	}
+
+	hashInput := ""
+	if dfBytes, err := os.ReadFile(hashSource); err == nil {
+		hashInput = string(dfBytes)
+	}
+	hashInput += "\n" + string(osTemplate)
+	toolPkg := toolinfo.DevboxPkg(tool)
+	hashInput += "\n" + toolPkg
+	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
+		hashInput += "\n" + string(devboxData)
+	}
+	if miseData, err := os.ReadFile(userMiseToml); err == nil {
+		hashInput += "\n" + string(miseData)
+	}
+
+	imageName := defaultImageName
+	if hashInput != "" {
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
+		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
+	}
+
+	buildArgs := map[string]string{}
+	if toolPkg != "" {
+		buildArgs["AW_TOOL_PKG"] = toolPkg
+	}
+	if customDockerfile != "" {
+		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
+	} else {
+		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (os: %s)...\n", imageName, osTemplate)
+	}
+	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
+		return "", fmt.Errorf("building image: %w", err)
+	}
+
+	return imageName, nil
 }
 
 func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {

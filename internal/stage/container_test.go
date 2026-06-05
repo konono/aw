@@ -238,6 +238,70 @@ func TestAppendContainerContext_PreservesExistingContent(t *testing.T) {
 	}
 }
 
+func TestDockerStage_PrebuiltImage_SkipsBuild(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "my-image:latest",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.buildCalled {
+		t.Error("Build should not be called when image is set")
+	}
+	if !dc.imageExistsCalled {
+		t.Error("ImageExists should be called when image is set")
+	}
+	if ec.DockerImage != "my-image:latest" {
+		t.Errorf("DockerImage = %q, want %q", ec.DockerImage, "my-image:latest")
+	}
+}
+
+func TestDockerStage_PrebuiltImage_NotFound(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: false}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "nonexistent:v1",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err == nil {
+		t.Fatal("Run() should return error when image not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error = %q, want containing 'not found'", err.Error())
+	}
+	if !strings.Contains(err.Error(), "docker load") {
+		t.Errorf("error = %q, want containing 'docker load'", err.Error())
+	}
+}
+
 func TestDockerStage_NewDockerStage(t *testing.T) {
 	s := NewDockerStage()
 	// DockerClient is nil by default; initialized lazily in Run() from profile's container_runtime
