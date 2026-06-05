@@ -125,7 +125,7 @@ func printConfigSnippet(imageName, runtime, launch, tarPath string) {
 	fmt.Fprintf(os.Stderr, "#     airgap:\n")
 	fmt.Fprintf(os.Stderr, "#       environment: container\n")
 	fmt.Fprintf(os.Stderr, "#       launch: %s\n", launch)
-	fmt.Fprintf(os.Stderr, "#       image: %s\n", imageName)
+	fmt.Fprintf(os.Stderr, "#       image: '%s'\n", imageName)
 	fmt.Fprintf(os.Stderr, "#       # For offline/air-gapped environments, add:\n")
 	fmt.Fprintf(os.Stderr, "#       # skip_devbox_install: true\n")
 	fmt.Fprintf(os.Stderr, "#       # skip_mise_install: true\n")
