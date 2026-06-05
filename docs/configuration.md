@@ -70,7 +70,9 @@
 - `mount_ssh` は `mount_gh` と同じ三値動作
 - `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
 - `mount_container_sock` は `mount_gh` と同じ三値動作
-- `os` と `dockerfile` は最終的なプロファイルレベルで排他的。片方が継承され、もう片方が後から指定された場合、継承された側はクリアされる
+- `skip_devbox_install` は `mount_gh` と同じ三値動作
+- `skip_mise_install` は `mount_gh` と同じ三値動作
+- `os`、`dockerfile`、`image` は最終的なプロファイルレベルで排他的。いずれかが継承され、別のものが後から指定された場合、継承された側はクリアされる
 
 ## YAML の構造
 
@@ -164,6 +166,12 @@ profiles:
       - source: "~/.config/gcloud"
         target: "/home/agent/.config/gcloud"
         mode: ro
+
+  airgap:
+    launch: claude
+    image: 'aw-container:a1b2c3d4e5f6'
+    skip_devbox_install: true
+    skip_mise_install: true
 ```
 
 ## トップレベルキー
@@ -308,11 +316,29 @@ profiles:
 - `ubi10`
 - `ubuntu2604`
 
-`environment: container` の場合のみ有効。`dockerfile` と排他的です。
+`environment: container` の場合のみ有効。`dockerfile`、`image` と排他的です。
+
+### `image`（任意）
+
+事前にビルド済みのコンテナイメージ名。`environment: container` の場合のみ有効。`os`、`dockerfile` と排他的です。
+
+指定した場合、`aw` はビルドをスキップし、このイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`aw export` でイメージを tar に書き出し、`docker load` で持ち込む使い方を想定しています。
 
 ### `dockerfile`（任意）
 
-カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os` と排他的です。
+カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os`、`image` と排他的です。
+
+### `skip_devbox_install`（任意）
+
+コンテナ起動時のプロジェクト devbox.json のインストールをスキップするかどうか。`environment: container` の場合のみ有効。
+
+省略した場合、トップレベルのデフォルトから継承します。
+
+### `skip_mise_install`（任意）
+
+コンテナ起動時のプロジェクト mise.toml のインストール（および mise 未インストール時の curl フォールバック）をスキップするかどうか。`environment: container` の場合のみ有効。
+
+省略した場合、トップレベルのデフォルトから継承します。
 
 ### `container_runtime`（任意）
 
@@ -416,8 +442,11 @@ aw init
 7. `os` はサポートされている組み込みテンプレートのいずれかであること
 8. `os` は `environment: container` の場合のみ有効
 9. `dockerfile` は `environment: container` の場合のみ有効
-10. `os` と `dockerfile` は排他的
-11. `container_runtime` は `docker` または `podman` であること
+10. `image` は `environment: container` の場合のみ有効
+11. `os`、`dockerfile`、`image` は排他的（同時に1つのみ指定可能）
+12. `container_runtime` は `docker` または `podman` であること
+13. `skip_devbox_install` は `environment: container` の場合のみ有効
+14. `skip_mise_install` は `environment: container` の場合のみ有効
 12. `mounts` は `environment: container` の場合のみ有効
 13. すべてのマウントに `source` と `target` の両方が必要
 14. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
