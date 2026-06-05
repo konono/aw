@@ -23,6 +23,7 @@ type mockDockerClient struct {
 	runConfig         docker.RunConfig
 	imageExists       bool
 	imageExistsCalled bool
+	imageExistsErr    error
 	saveCalled        bool
 	saveImageName     string
 	saveOutputPath    string
@@ -42,7 +43,7 @@ func (m *mockDockerClient) Build(_ context.Context, _, _, _ string, _ map[string
 
 func (m *mockDockerClient) ImageExists(_ context.Context, _ string) (bool, error) {
 	m.imageExistsCalled = true
-	return m.imageExists, nil
+	return m.imageExists, m.imageExistsErr
 }
 
 func (m *mockDockerClient) Save(_ context.Context, imageName, outputPath string) error {
@@ -299,6 +300,39 @@ func TestDockerStage_PrebuiltImage_NotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "docker load") {
 		t.Errorf("error = %q, want containing 'docker load'", err.Error())
+	}
+}
+
+func TestDockerStage_PrebuiltImage_ImageInspectError(t *testing.T) {
+	dc := &mockDockerClient{
+		available:      true,
+		imageExistsErr: fmt.Errorf("docker image inspect \"bad::ref\" failed: invalid reference format"),
+	}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "bad::ref",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err == nil {
+		t.Fatal("Run() should return error when image inspect fails")
+	}
+	if !strings.Contains(err.Error(), "invalid reference format") {
+		t.Errorf("error = %q, want containing 'invalid reference format'", err.Error())
+	}
+	if strings.Contains(err.Error(), "docker load") {
+		t.Errorf("error = %q, should not suggest docker load for inspect errors", err.Error())
 	}
 }
 

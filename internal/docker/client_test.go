@@ -1,17 +1,58 @@
 package docker
 
-import (
-	"testing"
-)
+import "testing"
+
+func TestIsImageInspectNotFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{
+			name:   "docker no such image",
+			output: "Error response from daemon: No such image: missing:latest",
+			want:   true,
+		},
+		{
+			name:   "docker no such object",
+			output: "Error: No such object: missing:latest",
+			want:   true,
+		},
+		{
+			name:   "podman image not known",
+			output: "Error: missing:latest: image not known",
+			want:   true,
+		},
+		{
+			name:   "invalid reference format",
+			output: "Error response from daemon: invalid reference format",
+			want:   false,
+		},
+		{
+			name:   "permission denied",
+			output: "permission denied while trying to connect to the Docker daemon socket",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isImageInspectNotFound([]byte(tt.output))
+			if got != tt.want {
+				t.Fatalf("isImageInspectNotFound(%q) = %v, want %v", tt.output, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestMountToString(t *testing.T) {
 	tests := []struct {
-		name     string
-		mount    Mount
-		wantSrc  string
-		wantTgt  string
-		wantRO   bool
-		wantVol  bool
+		name    string
+		mount   Mount
+		wantSrc string
+		wantTgt string
+		wantRO  bool
+		wantVol bool
 	}{
 		{
 			name:    "bind mount",
@@ -198,9 +239,9 @@ func TestBuildRunArgs_SecurityOpts(t *testing.T) {
 
 func TestBuildRunArgs_MountOptions(t *testing.T) {
 	tests := []struct {
-		name     string
-		mount    Mount
-		wantArg  string
+		name    string
+		mount   Mount
+		wantArg string
 	}{
 		{
 			name:    "rw no options",

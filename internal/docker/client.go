@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -97,12 +98,38 @@ func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfi
 // ImageExists checks whether an image exists locally.
 func (c *ShellClient) ImageExists(ctx context.Context, imageName string) (bool, error) {
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), "image", "inspect", imageName)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	if err := cmd.Run(); err != nil {
-		return false, nil
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if isImageInspectNotFound(output) {
+			return false, nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			msg := strings.TrimSpace(string(output))
+			if msg == "" {
+				msg = exitErr.Error()
+			}
+			return false, fmt.Errorf("%s image inspect %q failed: %s", c.dockerCmd(), imageName, msg)
+		}
+		return false, err
 	}
 	return true, nil
+}
+
+func isImageInspectNotFound(output []byte) bool {
+	msg := strings.ToLower(strings.TrimSpace(string(output)))
+	for _, marker := range []string{
+		"no such image",
+		"no such object",
+		"image not known",
+		"image unknown",
+		"unable to find image",
+	} {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // Save exports a container image to a tar archive.
