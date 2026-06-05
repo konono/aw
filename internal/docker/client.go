@@ -33,6 +33,8 @@ type RunConfig struct {
 type Client interface {
 	CheckAvailable() error
 	Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error
+	ImageExists(ctx context.Context, imageName string) (bool, error)
+	Save(ctx context.Context, imageName, outputPath string) error
 	VolumeCreate(ctx context.Context, volumeName string) error
 	Run(ctx context.Context, config RunConfig) error
 }
@@ -87,6 +89,25 @@ func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfi
 	}
 	args = append(args, contextDir)
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// ImageExists checks whether an image exists locally.
+func (c *ShellClient) ImageExists(ctx context.Context, imageName string) (bool, error) {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "image", "inspect", imageName)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+// Save exports a container image to a tar archive.
+func (c *ShellClient) Save(ctx context.Context, imageName, outputPath string) error {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "save", "-o", outputPath, imageName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

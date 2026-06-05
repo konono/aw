@@ -16,11 +16,16 @@ import (
 )
 
 type mockDockerClient struct {
-	available    bool
-	buildCalled  bool
-	volumeCalled bool
-	runCalled    bool
-	runConfig    docker.RunConfig
+	available         bool
+	buildCalled       bool
+	volumeCalled      bool
+	runCalled         bool
+	runConfig         docker.RunConfig
+	imageExists       bool
+	imageExistsCalled bool
+	saveCalled        bool
+	saveImageName     string
+	saveOutputPath    string
 }
 
 func (m *mockDockerClient) CheckAvailable() error {
@@ -32,6 +37,18 @@ func (m *mockDockerClient) CheckAvailable() error {
 
 func (m *mockDockerClient) Build(_ context.Context, _, _, _ string, _ map[string]string) error {
 	m.buildCalled = true
+	return nil
+}
+
+func (m *mockDockerClient) ImageExists(_ context.Context, _ string) (bool, error) {
+	m.imageExistsCalled = true
+	return m.imageExists, nil
+}
+
+func (m *mockDockerClient) Save(_ context.Context, imageName, outputPath string) error {
+	m.saveCalled = true
+	m.saveImageName = imageName
+	m.saveOutputPath = outputPath
 	return nil
 }
 
