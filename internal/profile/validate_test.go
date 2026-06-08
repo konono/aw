@@ -208,24 +208,22 @@ func TestValidate(t *testing.T) {
 			wantErr: "image is only valid with environment: container",
 		},
 		{
-			name: "image and os mutually exclusive",
+			name: "image and os coexist (image takes priority)",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
 				Image:       "my-image:latest",
 				OS:          OSDebian12,
 			},
-			wantErr: "image and os are mutually exclusive",
 		},
 		{
-			name: "image and dockerfile mutually exclusive",
+			name: "image and dockerfile coexist (image takes priority)",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
 				Image:       "my-image:latest",
 				Dockerfile:  "custom/Dockerfile",
 			},
-			wantErr: "image and dockerfile are mutually exclusive",
 		},
 		{
 			name:    "valid container + skip_devbox_install",
