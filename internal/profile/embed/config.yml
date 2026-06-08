@@ -120,6 +120,15 @@ profiles:
   #     layout: default
   #     tool: claude                  # "claude", "codex", "opencode"
   #
+  #   # ── Export settings (aw export) ───────────────────────────────
+  #   # export:
+  #   #   snapshot: true              # run setup in temp container and commit
+  #   #   include:                    # copy host dirs into the image
+  #   #     - src: ./certs
+  #   #       dst: /usr/local/share/ca-certificates
+  #   #   env:                        # bake env vars into the image
+  #   #     HTTP_PROXY: http://proxy.corp:8080
+  #
   #   # ── Example: Claude on Vertex (external auth) ─────────────────
   #   # Auth is omitted because Claude reads credentials from env + mounts.
   #   #
