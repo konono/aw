@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -55,10 +56,7 @@ func runExport(args []string) int {
 		return 1
 	}
 
-	if p.Image != "" {
-		fmt.Fprintf(os.Stderr, "Error: profile %q uses a pre-built image (%s); there is nothing to build and export\n", opts.ProfileName, p.Image)
-		return 1
-	}
+	p.Image = ""
 
 	ec, err := buildExecutionContext(opts.ProfileName, p)
 	if err != nil {
@@ -125,9 +123,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 	fmt.Fprintf(os.Stderr, "Snapshotting image '%s'...\n", ec.DockerImage)
 
 	rc := docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Command:   []string{"/bin/bash", "-c", snapshotScript},
-		EnvVars:   make(map[string]string),
+		ImageName:  ec.DockerImage,
+		Entrypoint: "/bin/bash",
+		Command:    []string{"-c", snapshotScript},
+		EnvVars:    make(map[string]string),
 	}
 
 	rc.Mounts = append(rc.Mounts, docker.Mount{
@@ -167,7 +166,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		return fmt.Errorf("snapshot container failed: %w", err)
 	}
 
-	var changes []string
+	changes := []string{
+		`ENTRYPOINT ["/entrypoint.sh"]`,
+		`CMD ["bash"]`,
+	}
 	for k, v := range envVars {
 		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, v))
 	}
@@ -346,12 +348,15 @@ func applyExportResult(configPath, profileName, imageName string, snapshot bool)
 	setYAMLMapBool(targetProfile, "skip_devbox_install", snapshot)
 	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
 
-	out, err := yaml.Marshal(&doc)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
 		return fmt.Errorf("encoding config: %w", err)
 	}
+	_ = enc.Close()
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
+	if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
