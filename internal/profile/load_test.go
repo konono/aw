@@ -839,11 +839,13 @@ func TestFindProfileSource_GlobalOnly(t *testing.T) {
 	mockLoadEnv(t, "", true, globalDir)
 
 	globalPath := filepath.Join(globalDir, "config.yml")
-	os.WriteFile(globalPath, []byte(`profiles:
+	if err := os.WriteFile(globalPath, []byte(`profiles:
   my-global:
     environment: container
     launch: claude
-`), 0644)
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	origDir, _ := os.Getwd()
 	if err := os.Chdir(cwdDir); err != nil {
@@ -868,23 +870,27 @@ func TestFindProfileSource_ProjectOverridesGlobal(t *testing.T) {
 	mockLoadEnv(t, projectDir, false, globalDir)
 
 	globalPath := filepath.Join(globalDir, "config.yml")
-	os.WriteFile(globalPath, []byte(`profiles:
+	if err := os.WriteFile(globalPath, []byte(`profiles:
   shared:
     environment: container
     launch: claude
   global-only:
     environment: container
     launch: shell
-`), 0644)
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	projectPath := filepath.Join(projectDir, ".agent-workspace.yml")
-	os.WriteFile(projectPath, []byte(`profiles:
+	if err := os.WriteFile(projectPath, []byte(`profiles:
   shared:
     launch: codex
   project-only:
     environment: host
     launch: shell
-`), 0644)
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	result := FindProfileSource("shared")
 	if result != projectPath {
