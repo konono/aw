@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -347,12 +348,15 @@ func applyExportResult(configPath, profileName, imageName string, snapshot bool)
 	setYAMLMapBool(targetProfile, "skip_devbox_install", snapshot)
 	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
 
-	out, err := yaml.Marshal(&doc)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
 		return fmt.Errorf("encoding config: %w", err)
 	}
+	_ = enc.Close()
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
+	if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
