@@ -282,11 +282,13 @@ func TestApplyExportResult(t *testing.T) {
 	t.Run("adds image to profile", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`# comment
+		if err := os.WriteFile(cfgPath, []byte(`# comment
 profiles:
   dev:
     launch: shell
-`), 0644)
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "dev", "aw-container:abc123", false); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
@@ -305,10 +307,12 @@ profiles:
 	t.Run("adds skip flags when snapshot", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`profiles:
+		if err := os.WriteFile(cfgPath, []byte(`profiles:
   dev:
     launch: shell
-`), 0644)
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "dev", "aw-container:abc123", true); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
@@ -327,11 +331,13 @@ profiles:
 	t.Run("updates existing image", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`profiles:
+		if err := os.WriteFile(cfgPath, []byte(`profiles:
   dev:
     launch: shell
     image: old-image:123
-`), 0644)
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "dev", "aw-container:new456", false); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
@@ -350,10 +356,12 @@ profiles:
 	t.Run("creates profile if not in file", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`profiles:
+		if err := os.WriteFile(cfgPath, []byte(`profiles:
   shell:
     launch: shell
-`), 0644)
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "newprofile", "img:123", true); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
@@ -375,8 +383,10 @@ profiles:
 	t.Run("creates profiles section if missing", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`default: claude
-`), 0644)
+		if err := os.WriteFile(cfgPath, []byte(`default: claude
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "dev", "img:456", false); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
@@ -395,13 +405,15 @@ profiles:
 	t.Run("clears skip flags when not snapshot", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
-		os.WriteFile(cfgPath, []byte(`profiles:
+		if err := os.WriteFile(cfgPath, []byte(`profiles:
   dev:
     launch: shell
     image: old:123
     skip_devbox_install: true
     skip_mise_install: true
-`), 0644)
+`), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := applyExportResult(cfgPath, "dev", "new:456", false); err != nil {
 			t.Fatalf("applyExportResult() error = %v", err)
