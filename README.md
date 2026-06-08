@@ -80,7 +80,7 @@ aw auth login claude|codex|opencode   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
-aw export <profile> [-o file]  # イメージをビルドして tar 出力
+aw export <profile> [options]   # イメージをビルドして tar 出力
 aw default-dockerfile          # デフォルト Dockerfile を出力
 aw update                      # セルフアップデート
 aw --version                   # バージョン表示
@@ -170,10 +170,23 @@ profiles:
 ネットワークのある環境でイメージを書き出し、オフライン環境に持ち込む:
 
 ```bash
-aw export claude -o my-image.tar        # ビルドして tar 出力
+# 基本的なエクスポート
+aw export claude -o my-image.tar
+
+# --snapshot: ワークスペースのパッケージもイメージに焼き込み
+aw export claude --snapshot -o my-image.tar
+
+# --include: ホストのディレクトリをイメージにコピー（--snapshot を暗黙有効化）
+aw export claude --include ./certs:/usr/local/share/ca-certificates
+
+# --env: 環境変数をイメージに焼き込み（--snapshot を暗黙有効化）
+aw export claude --env HTTP_PROXY=http://proxy.corp:8080
+
 # USB 等で転送
 docker load -i my-image.tar             # オフライン環境でロード
 ```
+
+export オプションはプロファイルの `export:` セクションでも指定できる:
 
 ```yaml
 profiles:
@@ -183,6 +196,13 @@ profiles:
     image: 'aw-container:a1b2c3d4e5f6'
     skip_devbox_install: true            # プロジェクトの devbox install をスキップ
     skip_mise_install: true              # プロジェクトの mise install をスキップ
+    export:
+      snapshot: true
+      include:
+        - src: ./certs
+          dst: /usr/local/share/ca-certificates
+      env:
+        HTTP_PROXY: http://proxy.corp:8080
 ```
 
 ### カスタム Dockerfile（Playwright）

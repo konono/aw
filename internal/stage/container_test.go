@@ -64,6 +64,18 @@ func (m *mockDockerClient) Run(_ context.Context, config docker.RunConfig) error
 	return nil
 }
 
+func (m *mockDockerClient) RunOneShot(_ context.Context, config docker.RunConfig) (string, error) {
+	return "aw-snapshot-mock", nil
+}
+
+func (m *mockDockerClient) Commit(_ context.Context, _, _ string, _ []string) error {
+	return nil
+}
+
+func (m *mockDockerClient) RemoveContainer(_ context.Context, _ string) error {
+	return nil
+}
+
 type mockConfigSyncer struct {
 	syncCalled    bool
 	onboardCalled bool

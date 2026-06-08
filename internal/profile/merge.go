@@ -87,6 +87,7 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
+	merged.Export = mergeExport(merged.Export, override.Export)
 
 	return merged
 }
@@ -283,6 +284,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
+	}
+	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
+		relative.Export = cloneExport(effective.Export)
 	}
 	return relative
 }
@@ -552,4 +556,76 @@ func cloneOpenCodeAuth(cfg *OpenCodeAuthConfig) *OpenCodeAuthConfig {
 	clone := *cfg
 	clone.LoginArgs = slices.Clone(cfg.LoginArgs)
 	return &clone
+}
+
+func mergeExport(base, override *ExportConfig) *ExportConfig {
+	if override == nil {
+		return cloneExport(base)
+	}
+	if base == nil {
+		return cloneExport(override)
+	}
+	merged := *base
+	if override.Snapshot {
+		merged.Snapshot = true
+	}
+	if override.Include != nil {
+		merged.Include = cloneExportIncludes(override.Include)
+	}
+	if override.Env != nil {
+		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
+		for k, v := range merged.Env {
+			envCopy[k] = v
+		}
+		for k, v := range override.Env {
+			envCopy[k] = v
+		}
+		merged.Env = envCopy
+	}
+	return &merged
+}
+
+func cloneExport(cfg *ExportConfig) *ExportConfig {
+	if cfg == nil {
+		return nil
+	}
+	clone := *cfg
+	clone.Include = cloneExportIncludes(cfg.Include)
+	clone.Env = maps.Clone(cfg.Env)
+	return &clone
+}
+
+func cloneExportIncludes(includes []ExportInclude) []ExportInclude {
+	if includes == nil {
+		return nil
+	}
+	cloned := make([]ExportInclude, len(includes))
+	copy(cloned, includes)
+	return cloned
+}
+
+func equalExport(a, b *ExportConfig) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Snapshot != b.Snapshot {
+		return false
+	}
+	if len(a.Include) != len(b.Include) {
+		return false
+	}
+	for i := range a.Include {
+		if a.Include[i] != b.Include[i] {
+			return false
+		}
+	}
+	if len(a.Env) != len(b.Env) {
+		return false
+	}
+	for k, v := range a.Env {
+		if bv, ok := b.Env[k]; !ok || v != bv {
+			return false
+		}
+	}
+	return true
 }

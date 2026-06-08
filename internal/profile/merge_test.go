@@ -922,3 +922,107 @@ func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentContainer)
 	}
 }
+
+func TestMergeProfile_ExportMerge(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: false,
+			Include:  []ExportInclude{{Src: "./old", Dst: "/old"}},
+			Env:      map[string]string{"A": "1", "B": "2"},
+		},
+	}
+	override := Profile{
+		Export: &ExportConfig{
+			Snapshot: true,
+			Include:  []ExportInclude{{Src: "./new", Dst: "/new"}},
+			Env:      map[string]string{"B": "override", "C": "3"},
+		},
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Export == nil {
+		t.Fatal("Export should not be nil")
+	}
+	if !merged.Export.Snapshot {
+		t.Error("Snapshot should be true after override")
+	}
+	if len(merged.Export.Include) != 1 || merged.Export.Include[0].Src != "./new" {
+		t.Errorf("Include should be replaced by override, got %v", merged.Export.Include)
+	}
+	if merged.Export.Env["A"] != "1" {
+		t.Errorf("Env[A] = %q, want %q (preserved from base)", merged.Export.Env["A"], "1")
+	}
+	if merged.Export.Env["B"] != "override" {
+		t.Errorf("Env[B] = %q, want %q (overridden)", merged.Export.Env["B"], "override")
+	}
+	if merged.Export.Env["C"] != "3" {
+		t.Errorf("Env[C] = %q, want %q (added from override)", merged.Export.Env["C"], "3")
+	}
+}
+
+func TestMergeProfile_ExportNilOverridePreservesBase(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: true,
+			Env:      map[string]string{"X": "1"},
+		},
+	}
+	override := Profile{}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Export == nil {
+		t.Fatal("Export should be preserved from base")
+	}
+	if !merged.Export.Snapshot {
+		t.Error("Snapshot should be preserved from base")
+	}
+	if merged.Export.Env["X"] != "1" {
+		t.Errorf("Env[X] = %q, want %q", merged.Export.Env["X"], "1")
+	}
+}
+
+func TestRelativeProfile_Export(t *testing.T) {
+	defaults := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+	}
+	effective := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: true,
+			Include:  []ExportInclude{{Src: "./certs", Dst: "/certs"}},
+		},
+	}
+
+	relative := RelativeProfile(defaults, effective)
+
+	if relative.Export == nil {
+		t.Fatal("Export should appear in relative since defaults has none")
+	}
+	if !relative.Export.Snapshot {
+		t.Error("Snapshot should be true in relative")
+	}
+
+	// When defaults and effective are the same, Export should be nil in relative
+	sameDefaults := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export:      &ExportConfig{Snapshot: true},
+	}
+	sameEffective := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export:      &ExportConfig{Snapshot: true},
+	}
+	relative2 := RelativeProfile(sameDefaults, sameEffective)
+	if relative2.Export != nil {
+		t.Error("Export should be nil when defaults and effective match")
+	}
+}

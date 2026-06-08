@@ -131,6 +131,31 @@ func Validate(p Profile) error {
 		return err
 	}
 
+	if err := validateExport(p.Export, p.Environment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateExport(export *ExportConfig, env Environment) error {
+	if export == nil {
+		return nil
+	}
+	if env != EnvironmentContainer {
+		return fmt.Errorf("export is only valid with environment: container")
+	}
+	for i, inc := range export.Include {
+		if inc.Src == "" {
+			return fmt.Errorf("export.include[%d]: src is required", i)
+		}
+		if inc.Dst == "" {
+			return fmt.Errorf("export.include[%d]: dst is required", i)
+		}
+		if !strings.HasPrefix(inc.Dst, "/") {
+			return fmt.Errorf("export.include[%d]: dst must be an absolute path", i)
+		}
+	}
 	return nil
 }
 

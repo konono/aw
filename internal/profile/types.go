@@ -55,6 +55,7 @@ type Profile struct {
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
+	Export           *ExportConfig     `yaml:"export,omitempty"`
 }
 
 // ProfileDefaults describes top-level defaults shared by all profiles.
@@ -103,6 +104,19 @@ type CustomMount struct {
 // IsReadOnly returns whether this mount should be read-only.
 func (m CustomMount) IsReadOnly() bool {
 	return m.Mode != MountModeRW
+}
+
+// ExportInclude represents a file/directory to copy into a snapshot image.
+type ExportInclude struct {
+	Src string `yaml:"src"`
+	Dst string `yaml:"dst"`
+}
+
+// ExportConfig holds settings for the `aw export` command.
+type ExportConfig struct {
+	Snapshot bool              `yaml:"snapshot,omitempty"`
+	Include  []ExportInclude   `yaml:"include,omitempty"`
+	Env      map[string]string `yaml:"env,omitempty"`
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.

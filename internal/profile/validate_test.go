@@ -312,6 +312,62 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "unknown auth.claude.login_mode",
 		},
+		{
+			name: "valid export config",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Snapshot: true,
+					Include: []ExportInclude{
+						{Src: "./certs", Dst: "/usr/local/share/ca-certificates"},
+					},
+					Env: map[string]string{"FOO": "bar"},
+				},
+			},
+		},
+		{
+			name: "export with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Export:       &ExportConfig{Snapshot: true},
+			},
+			wantErr: "export is only valid with environment: container",
+		},
+		{
+			name: "export include missing src",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Dst: "/home/agent/test"}},
+				},
+			},
+			wantErr: "export.include[0]: src is required",
+		},
+		{
+			name: "export include missing dst",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Src: "./test"}},
+				},
+			},
+			wantErr: "export.include[0]: dst is required",
+		},
+		{
+			name: "export include non-absolute dst",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Src: "./test", Dst: "relative/path"}},
+				},
+			},
+			wantErr: "export.include[0]: dst must be an absolute path",
+		},
 	}
 
 	for _, tt := range tests {

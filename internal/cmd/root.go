@@ -273,6 +273,7 @@ func printHelp() {
 	fmt.Println("  aw auth <action> <tool> Run auth login/logout/status for a tool")
 	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
 	fmt.Println("  aw export <profile>     Build and export a profile's image as a tar archive")
+	fmt.Println("                          Use --snapshot to bake runtime setup into the image")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()

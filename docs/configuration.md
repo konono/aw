@@ -407,6 +407,32 @@ profiles:
 - `mode` — `ro`（デフォルト）または `rw`
 - `options` — Docker/Podman のマウントオプション（例: `"z"`, `"Z,nocopy"`, `"cached"`）
 
+### `export`（任意）
+
+`aw export` コマンド用の設定。`environment: container` の場合のみ有効。
+
+サポートされるフィールド:
+
+- `snapshot` — `true` の場合、一時コンテナでワークスペースのパッケージインストールや環境ファイル生成を実行し、その状態を `docker commit` でイメージに焼き込む
+- `include` — ホストのディレクトリをイメージ内にコピーするリスト。各エントリは `src`（ホストパス）と `dst`（コンテナ内の絶対パス）を持つ
+- `env` — イメージに焼き込む環境変数のマップ
+
+```yaml
+profiles:
+  airgap:
+    environment: container
+    launch: claude
+    export:
+      snapshot: true
+      include:
+        - src: ./certs
+          dst: /usr/local/share/ca-certificates
+      env:
+        HTTP_PROXY: http://proxy.corp:8080
+```
+
+CLI フラグ（`--snapshot`, `--include`, `--env`）でも指定でき、設定ファイルの値とマージされます。`--include` や `--env` を指定すると `--snapshot` が暗黙的に有効になります。
+
 ## 組み込みスターター設定
 
 設定ファイルがない場合、`aw` は組み込みスターター設定が読み込まれたかのように動作します。スターター設定は現在以下を提供します:

@@ -3,6 +3,8 @@ package cmd
 import (
 	"errors"
 	"testing"
+
+	"github.com/konono/aw/internal/profile"
 )
 
 func TestParseExportArgs(t *testing.T) {
@@ -64,6 +66,197 @@ func TestParseExportArgs(t *testing.T) {
 		_, err := parseExportArgs([]string{"claude", "codex"})
 		if err == nil || err.Error() != "too many export targets" {
 			t.Fatalf("parseExportArgs() error = %v, want too many export targets", err)
+		}
+	})
+
+	t.Run("snapshot flag", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--snapshot"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if !opts.Snapshot {
+			t.Fatal("Snapshot should be true")
+		}
+	})
+
+	t.Run("include single", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--include", "./certs:/usr/local/share/ca-certificates"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if len(opts.Include) != 1 {
+			t.Fatalf("Include len = %d, want 1", len(opts.Include))
+		}
+		if opts.Include[0].Src != "./certs" || opts.Include[0].Dst != "/usr/local/share/ca-certificates" {
+			t.Fatalf("Include[0] = %+v, want {./certs /usr/local/share/ca-certificates}", opts.Include[0])
+		}
+	})
+
+	t.Run("include multiple", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--include", "./a:/a", "--include", "./b:/b"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if len(opts.Include) != 2 {
+			t.Fatalf("Include len = %d, want 2", len(opts.Include))
+		}
+	})
+
+	t.Run("include missing value", func(t *testing.T) {
+		_, err := parseExportArgs([]string{"claude", "--include"})
+		if err == nil || err.Error() != "--include requires src:dst argument" {
+			t.Fatalf("parseExportArgs() error = %v, want missing arg error", err)
+		}
+	})
+
+	t.Run("include bad format", func(t *testing.T) {
+		_, err := parseExportArgs([]string{"claude", "--include", "nodelimiter"})
+		if err == nil || err.Error() != "--include requires format src:dst" {
+			t.Fatalf("parseExportArgs() error = %v, want format error", err)
+		}
+	})
+
+	t.Run("env single", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--env", "FOO=bar"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if opts.Env["FOO"] != "bar" {
+			t.Fatalf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar")
+		}
+	})
+
+	t.Run("env with equals in value", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--env", "FOO=bar=baz"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if opts.Env["FOO"] != "bar=baz" {
+			t.Fatalf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar=baz")
+		}
+	})
+
+	t.Run("env missing value", func(t *testing.T) {
+		_, err := parseExportArgs([]string{"claude", "--env"})
+		if err == nil || err.Error() != "--env requires KEY=VAL argument" {
+			t.Fatalf("parseExportArgs() error = %v, want missing arg error", err)
+		}
+	})
+
+	t.Run("env bad format", func(t *testing.T) {
+		_, err := parseExportArgs([]string{"claude", "--env", "NOEQUALS"})
+		if err == nil || err.Error() != "--env requires format KEY=VAL" {
+			t.Fatalf("parseExportArgs() error = %v, want format error", err)
+		}
+	})
+
+	t.Run("all flags combined", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{
+			"claude", "--snapshot",
+			"--include", "./certs:/certs",
+			"--env", "FOO=bar",
+			"-o", "out.tar",
+		})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if opts.ProfileName != "claude" {
+			t.Errorf("ProfileName = %q, want %q", opts.ProfileName, "claude")
+		}
+		if !opts.Snapshot {
+			t.Error("Snapshot should be true")
+		}
+		if len(opts.Include) != 1 {
+			t.Errorf("Include len = %d, want 1", len(opts.Include))
+		}
+		if opts.Env["FOO"] != "bar" {
+			t.Errorf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar")
+		}
+		if opts.OutputPath != "out.tar" {
+			t.Errorf("OutputPath = %q, want %q", opts.OutputPath, "out.tar")
+		}
+	})
+}
+
+func TestMergeExportOptions(t *testing.T) {
+	t.Run("cli only snapshot", func(t *testing.T) {
+		opts := exportOptions{Snapshot: true}
+		snap, inc, env := mergeExportOptions(opts, nil)
+		if !snap {
+			t.Error("snapshot should be true")
+		}
+		if len(inc) != 0 {
+			t.Errorf("includes should be empty, got %v", inc)
+		}
+		if len(env) != 0 {
+			t.Errorf("env should be empty, got %v", env)
+		}
+	})
+
+	t.Run("config only", func(t *testing.T) {
+		cfg := &profile.ExportConfig{
+			Snapshot: true,
+			Include:  []profile.ExportInclude{{Src: "./a", Dst: "/a"}},
+			Env:      map[string]string{"X": "1"},
+		}
+		snap, inc, env := mergeExportOptions(exportOptions{}, cfg)
+		if !snap {
+			t.Error("snapshot should be true from config")
+		}
+		if len(inc) != 1 || inc[0].Src != "./a" {
+			t.Errorf("includes = %v, want [{./a /a}]", inc)
+		}
+		if env["X"] != "1" {
+			t.Errorf("env[X] = %q, want %q", env["X"], "1")
+		}
+	})
+
+	t.Run("cli overrides config env", func(t *testing.T) {
+		cfg := &profile.ExportConfig{
+			Env: map[string]string{"A": "from-config", "B": "keep"},
+		}
+		opts := exportOptions{
+			Env: map[string]string{"A": "from-cli"},
+		}
+		_, _, env := mergeExportOptions(opts, cfg)
+		if env["A"] != "from-cli" {
+			t.Errorf("env[A] = %q, want %q (cli should override)", env["A"], "from-cli")
+		}
+		if env["B"] != "keep" {
+			t.Errorf("env[B] = %q, want %q (should be preserved)", env["B"], "keep")
+		}
+	})
+
+	t.Run("include implies snapshot", func(t *testing.T) {
+		opts := exportOptions{
+			Include: []profile.ExportInclude{{Src: "./x", Dst: "/x"}},
+		}
+		snap, _, _ := mergeExportOptions(opts, nil)
+		if !snap {
+			t.Error("snapshot should be implicitly true when includes are present")
+		}
+	})
+
+	t.Run("env implies snapshot", func(t *testing.T) {
+		opts := exportOptions{
+			Env: map[string]string{"K": "V"},
+		}
+		snap, _, _ := mergeExportOptions(opts, nil)
+		if !snap {
+			t.Error("snapshot should be implicitly true when env vars are present")
+		}
+	})
+
+	t.Run("cli and config includes combine", func(t *testing.T) {
+		cfg := &profile.ExportConfig{
+			Include: []profile.ExportInclude{{Src: "./from-config", Dst: "/config"}},
+		}
+		opts := exportOptions{
+			Include: []profile.ExportInclude{{Src: "./from-cli", Dst: "/cli"}},
+		}
+		_, inc, _ := mergeExportOptions(opts, cfg)
+		if len(inc) != 2 {
+			t.Errorf("includes len = %d, want 2 (config + cli)", len(inc))
 		}
 	})
 }

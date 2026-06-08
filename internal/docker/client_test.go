@@ -237,6 +237,65 @@ func TestBuildRunArgs_SecurityOpts(t *testing.T) {
 	}
 }
 
+func TestBuildOneShotRunArgs(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Mounts: []Mount{
+			{Source: "/host/ws", Target: "/workspace", ReadOnly: true},
+		},
+		EnvVars: map[string]string{
+			"FOO": "bar",
+		},
+		Command: []string{"/bin/bash", "-c", "echo hello"},
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-abcd", config)
+
+	expected := []string{"run", "--name", "aw-snapshot-abcd", "--pids-limit", "1000"}
+	if len(args) < len(expected) {
+		t.Fatalf("expected args to start with %v, got %v", expected, args)
+	}
+	for i, e := range expected {
+		if args[i] != e {
+			t.Errorf("args[%d] = %q, want %q", i, args[i], e)
+		}
+	}
+
+	// Should NOT contain -it or --rm
+	for _, a := range args {
+		if a == "-it" {
+			t.Error("one-shot args should not contain -it")
+		}
+		if a == "--rm" {
+			t.Error("one-shot args should not contain --rm")
+		}
+	}
+
+	// Should contain env var
+	foundEnv := false
+	for i, a := range args {
+		if a == "-e" && i+1 < len(args) && args[i+1] == "FOO=bar" {
+			foundEnv = true
+			break
+		}
+	}
+	if !foundEnv {
+		t.Errorf("expected -e FOO=bar, got %v", args)
+	}
+
+	// Should contain mount
+	foundMount := false
+	for i, a := range args {
+		if a == "-v" && i+1 < len(args) && args[i+1] == "/host/ws:/workspace:ro" {
+			foundMount = true
+			break
+		}
+	}
+	if !foundMount {
+		t.Errorf("expected mount /host/ws:/workspace:ro, got %v", args)
+	}
+}
+
 func TestBuildRunArgs_MountOptions(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"maps"
@@ -38,6 +39,9 @@ type Client interface {
 	Save(ctx context.Context, imageName, outputPath string) error
 	VolumeCreate(ctx context.Context, volumeName string) error
 	Run(ctx context.Context, config RunConfig) error
+	RunOneShot(ctx context.Context, config RunConfig) (containerID string, err error)
+	Commit(ctx context.Context, containerID, imageName string, changes []string) error
+	RemoveContainer(ctx context.Context, containerID string) error
 }
 
 // ShellClient implements Client by shelling out to the docker CLI.
@@ -81,7 +85,7 @@ func (c *ShellClient) CheckAvailable() error {
 // If dockerfilePath is non-empty, it is passed via -f to specify the Dockerfile.
 // buildArgs are passed as --build-arg KEY=VALUE.
 func (c *ShellClient) Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error {
-	args := []string{"build", "-t", imageName}
+	args := []string{"build", "--load", "-t", imageName}
 	if dockerfilePath != "" {
 		args = append(args, "-f", dockerfilePath)
 	}
@@ -211,5 +215,76 @@ func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// BuildOneShotRunArgs constructs docker CLI arguments for a non-interactive,
+// non-auto-remove container run. The container is given a unique name so it
+// can be committed and removed later.
+func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
+	args := []string{"run", "--name", containerName, "--pids-limit", "1000"}
+
+	for _, opt := range config.SecurityOpts {
+		args = append(args, "--security-opt", opt)
+	}
+
+	for key, val := range config.EnvVars {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", key, val))
+	}
+
+	for _, m := range config.Mounts {
+		mountArg := fmt.Sprintf("%s:%s", m.Source, m.Target)
+		if suffix := mountSuffix(m); suffix != "" {
+			mountArg += ":" + suffix
+		}
+		args = append(args, "-v", mountArg)
+	}
+
+	if config.WorkDir != "" {
+		args = append(args, "--workdir", config.WorkDir)
+	}
+
+	args = append(args, config.ImageName)
+	args = append(args, config.Command...)
+
+	return args
+}
+
+// RunOneShot runs a container non-interactively and returns the container name.
+// The container is NOT automatically removed so it can be committed.
+func (c *ShellClient) RunOneShot(ctx context.Context, config RunConfig) (string, error) {
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	containerName := fmt.Sprintf("aw-snapshot-%x", b)
+
+	args := BuildOneShotRunArgs(containerName, config)
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return containerName, err
+	}
+	return containerName, nil
+}
+
+// Commit creates an image from a container's changes.
+// changes are Dockerfile instructions (e.g. "ENV FOO=bar").
+func (c *ShellClient) Commit(ctx context.Context, containerID, imageName string, changes []string) error {
+	args := []string{"commit"}
+	for _, ch := range changes {
+		args = append(args, "--change", ch)
+	}
+	args = append(args, containerID, imageName)
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
+	cmd.Stdout = nil
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// RemoveContainer removes a stopped container.
+func (c *ShellClient) RemoveContainer(ctx context.Context, containerID string) error {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "rm", containerID)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	return cmd.Run()
 }
