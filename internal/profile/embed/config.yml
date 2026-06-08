@@ -5,7 +5,7 @@
 #
 # Config is loaded in order: built-in → ~/.config/aw/config.yml → .agent-workspace.yml
 # Project-level .agent-workspace.yml can override these settings. If a project
-# config contains security-sensitive fields (mounts, env, dockerfile,
+# config contains security-sensitive fields (mounts, env, dockerfile, image,
 # worktree.on-create, worktree.on-end), aw will prompt you to trust it on
 # first use.
 
@@ -60,7 +60,8 @@ profiles:
   #   launch: zellij
   #   os: ubuntu2604
   #   container_runtime: podman
-  #   dockerfile: docker/Dockerfile.custom   # use either os or dockerfile
+  #   dockerfile: docker/Dockerfile.custom   # use either os, dockerfile, or image
+  #   # image: 'aw-container:hash'          # pre-built image (mutually exclusive with os/dockerfile)
   #
   #   # ── Environment variables (passed into the container) ─────────
   #   env:
@@ -74,6 +75,10 @@ profiles:
   #       target: /home/agent/.config/gcloud
   #       # mode: ro                  # "ro" (default) or "rw"
   #       # options: "z"              # SELinux, nocopy, cached, etc.
+  #
+  #   # ── Entrypoint install control ──────────────────────────────────
+  #   # skip_devbox_install: true          # skip project devbox install on startup
+  #   # skip_mise_install: true            # skip project mise install on startup
   #
   #   # ── Host resource mounts ──────────────────────────────────────
   #   # mount_gh: true               # mount ~/.config/gh read-only (default: false)
@@ -114,6 +119,15 @@ profiles:
   #   zellij:
   #     layout: default
   #     tool: claude                  # "claude", "codex", "opencode"
+  #
+  #   # ── Export settings (aw export) ───────────────────────────────
+  #   # export:
+  #   #   snapshot: true              # run setup in temp container and commit
+  #   #   include:                    # copy host dirs into the image
+  #   #     - src: ./certs
+  #   #       dst: /usr/local/share/ca-certificates
+  #   #   env:                        # bake env vars into the image
+  #   #     HTTP_PROXY: http://proxy.corp:8080
   #
   #   # ── Example: Claude on Vertex (external auth) ─────────────────
   #   # Auth is omitted because Claude reads credentials from env + mounts.

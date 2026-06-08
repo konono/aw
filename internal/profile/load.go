@@ -129,6 +129,45 @@ func Parse(data []byte) (*Config, error) {
 	return &cfg, nil
 }
 
+// FindProfileSource returns the config file path where the given profile is
+// defined. It checks project config first, then global config, following the
+// same priority as Load(). Returns empty string if the profile only exists in
+// the builtin config.
+func FindProfileSource(profileName string) string {
+	if repoRoot, err := findGitRoot(); err == nil {
+		path := filepath.Join(repoRoot, configFileName)
+		if data, err := os.ReadFile(path); err == nil {
+			if cfg, err := Parse(data); err == nil {
+				if _, ok := cfg.Profiles[profileName]; ok {
+					return path
+				}
+			}
+		}
+	} else if cwd, err := os.Getwd(); err == nil {
+		path := filepath.Join(cwd, configFileName)
+		if data, err := os.ReadFile(path); err == nil {
+			if cfg, err := Parse(data); err == nil {
+				if _, ok := cfg.Profiles[profileName]; ok {
+					return path
+				}
+			}
+		}
+	}
+
+	if dir, err := globalConfigDir(); err == nil {
+		path := filepath.Join(dir, globalConfigFileName)
+		if data, err := os.ReadFile(path); err == nil {
+			if cfg, err := Parse(data); err == nil {
+				if _, ok := cfg.Profiles[profileName]; ok {
+					return path
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 // findGitRoot returns the top-level directory of the current git repository.
 var findGitRoot = func() (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")

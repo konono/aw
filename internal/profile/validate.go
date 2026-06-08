@@ -60,6 +60,11 @@ func Validate(p Profile) error {
 		return fmt.Errorf("os and dockerfile are mutually exclusive; use os for built-in templates or dockerfile for a custom Dockerfile")
 	}
 
+	// Validate image is only used with environment: container
+	if p.Image != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("image is only valid with environment: container")
+	}
+
 	// Validate dockerfile is only used with environment: docker
 	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: docker")
@@ -71,6 +76,16 @@ func Validate(p Profile) error {
 		// ok
 	default:
 		return fmt.Errorf("unknown container_runtime: %q (must be \"docker\" or \"podman\")", p.ContainerRuntime)
+	}
+
+	// Validate skip_devbox_install is only used with environment: container
+	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("skip_devbox_install is only valid with environment: container")
+	}
+
+	// Validate skip_mise_install is only used with environment: container
+	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("skip_mise_install is only valid with environment: container")
 	}
 
 	// Validate ssh_agent_forwarding is only used with environment: container
@@ -106,6 +121,31 @@ func Validate(p Profile) error {
 		return err
 	}
 
+	if err := validateExport(p.Export, p.Environment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateExport(export *ExportConfig, env Environment) error {
+	if export == nil {
+		return nil
+	}
+	if env != EnvironmentContainer {
+		return fmt.Errorf("export is only valid with environment: container")
+	}
+	for i, inc := range export.Include {
+		if inc.Src == "" {
+			return fmt.Errorf("export.include[%d]: src is required", i)
+		}
+		if inc.Dst == "" {
+			return fmt.Errorf("export.include[%d]: dst is required", i)
+		}
+		if !strings.HasPrefix(inc.Dst, "/") {
+			return fmt.Errorf("export.include[%d]: dst must be an absolute path", i)
+		}
+	}
 	return nil
 }
 

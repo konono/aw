@@ -38,19 +38,27 @@ BASH_PROFILE_FILE=/home/agent/.bash_profile
 NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
 AW_PKG_FOUND=0
 if [ -f "$WORKSPACE/devbox.json" ]; then
-  echo "Installing packages from devbox.json..."
-  run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
+  if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
+    echo "Skipping devbox install (skip_devbox_install is enabled)"
+  else
+    echo "Installing packages from devbox.json..."
+    run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
+  fi
   AW_PKG_FOUND=1
 fi
 if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
-  if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
-    echo "Installing mise..."
-    run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
+  if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
+    echo "Skipping mise install (skip_mise_install is enabled)"
+  else
+    if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
+      echo "Installing mise..."
+      run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
+    fi
+    MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
+    mkdir -p /home/agent/.config/mise
+    echo "Installing tools from mise.toml..."
+    run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise install"
   fi
-  MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
-  mkdir -p /home/agent/.config/mise
-  echo "Installing tools from mise.toml..."
-  run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise install"
   AW_PKG_FOUND=1
 fi
 if [ "$AW_PKG_FOUND" = "0" ]; then

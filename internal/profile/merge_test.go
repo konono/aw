@@ -793,6 +793,111 @@ func TestMergeProfile_WorktreeDeepMerge(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ImageOverrideClearsInheritedOS(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		OS:          OSDebian12,
+	}
+	override := Profile{
+		Image: "my-image:latest",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
+	}
+	if merged.OS != "" {
+		t.Errorf("OS = %q, want empty (cleared by image override)", merged.OS)
+	}
+}
+
+func TestMergeProfile_ImageOverrideClearsInheritedDockerfile(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Dockerfile:  "base/Dockerfile",
+	}
+	override := Profile{
+		Image: "my-image:latest",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
+	}
+	if merged.Dockerfile != "" {
+		t.Errorf("Dockerfile = %q, want empty (cleared by image override)", merged.Dockerfile)
+	}
+}
+
+func TestMergeProfile_OSOverrideClearsInheritedImage(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Image:       "my-image:latest",
+	}
+	override := Profile{
+		OS: OSUBI9,
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.OS != OSUBI9 {
+		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
+	}
+	if merged.Image != "" {
+		t.Errorf("Image = %q, want empty (cleared by OS override)", merged.Image)
+	}
+}
+
+func TestMergeProfile_DockerfileOverrideClearsInheritedImage(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Image:       "my-image:latest",
+	}
+	override := Profile{
+		Dockerfile: "custom/Dockerfile",
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Dockerfile != "custom/Dockerfile" {
+		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
+	}
+	if merged.Image != "" {
+		t.Errorf("Image = %q, want empty (cleared by dockerfile override)", merged.Image)
+	}
+}
+
+func TestApplyTopLevel_ProfileImageOverridesTopLevelOS(t *testing.T) {
+	cfg := Config{
+		Defaults: ProfileDefaults{
+			Environment: EnvironmentContainer,
+			OS:          OSDebian12,
+		},
+		Profiles: map[string]Profile{
+			"airgap": {
+				Launch: LaunchClaude,
+				Image:  "my-image:latest",
+			},
+		},
+	}
+
+	out := ApplyTopLevel(cfg)
+	p := out.Profiles["airgap"]
+
+	if p.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", p.Image, "my-image:latest")
+	}
+	if p.OS != "" {
+		t.Errorf("OS = %q, want empty (top-level OS should be cleared)", p.OS)
+	}
+}
+
 func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 	builtin := Config{
 		Profiles: map[string]Profile{
@@ -815,5 +920,109 @@ func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
 	}
 	if p.Environment != EnvironmentContainer {
 		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentContainer)
+	}
+}
+
+func TestMergeProfile_ExportMerge(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: false,
+			Include:  []ExportInclude{{Src: "./old", Dst: "/old"}},
+			Env:      map[string]string{"A": "1", "B": "2"},
+		},
+	}
+	override := Profile{
+		Export: &ExportConfig{
+			Snapshot: true,
+			Include:  []ExportInclude{{Src: "./new", Dst: "/new"}},
+			Env:      map[string]string{"B": "override", "C": "3"},
+		},
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Export == nil {
+		t.Fatal("Export should not be nil")
+	}
+	if !merged.Export.Snapshot {
+		t.Error("Snapshot should be true after override")
+	}
+	if len(merged.Export.Include) != 1 || merged.Export.Include[0].Src != "./new" {
+		t.Errorf("Include should be replaced by override, got %v", merged.Export.Include)
+	}
+	if merged.Export.Env["A"] != "1" {
+		t.Errorf("Env[A] = %q, want %q (preserved from base)", merged.Export.Env["A"], "1")
+	}
+	if merged.Export.Env["B"] != "override" {
+		t.Errorf("Env[B] = %q, want %q (overridden)", merged.Export.Env["B"], "override")
+	}
+	if merged.Export.Env["C"] != "3" {
+		t.Errorf("Env[C] = %q, want %q (added from override)", merged.Export.Env["C"], "3")
+	}
+}
+
+func TestMergeProfile_ExportNilOverridePreservesBase(t *testing.T) {
+	base := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: true,
+			Env:      map[string]string{"X": "1"},
+		},
+	}
+	override := Profile{}
+
+	merged := MergeProfile(base, override)
+
+	if merged.Export == nil {
+		t.Fatal("Export should be preserved from base")
+	}
+	if !merged.Export.Snapshot {
+		t.Error("Snapshot should be preserved from base")
+	}
+	if merged.Export.Env["X"] != "1" {
+		t.Errorf("Env[X] = %q, want %q", merged.Export.Env["X"], "1")
+	}
+}
+
+func TestRelativeProfile_Export(t *testing.T) {
+	defaults := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+	}
+	effective := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export: &ExportConfig{
+			Snapshot: true,
+			Include:  []ExportInclude{{Src: "./certs", Dst: "/certs"}},
+		},
+	}
+
+	relative := RelativeProfile(defaults, effective)
+
+	if relative.Export == nil {
+		t.Fatal("Export should appear in relative since defaults has none")
+	}
+	if !relative.Export.Snapshot {
+		t.Error("Snapshot should be true in relative")
+	}
+
+	// When defaults and effective are the same, Export should be nil in relative
+	sameDefaults := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export:      &ExportConfig{Snapshot: true},
+	}
+	sameEffective := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Export:      &ExportConfig{Snapshot: true},
+	}
+	relative2 := RelativeProfile(sameDefaults, sameEffective)
+	if relative2.Export != nil {
+		t.Error("Export should be nil when defaults and effective match")
 	}
 }

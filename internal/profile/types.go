@@ -45,13 +45,17 @@ type Profile struct {
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
+	Image            string            `yaml:"image,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
-	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	ContainerRuntime   ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
+	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
+	Export           *ExportConfig     `yaml:"export,omitempty"`
 }
 
 // ProfileDefaults describes top-level defaults shared by all profiles.
@@ -75,6 +79,7 @@ func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	shared := d
 	shared.Environment = ""
 	shared.OS = ""
+	shared.Image = ""
 	shared.Dockerfile = ""
 	return shared
 }
@@ -99,6 +104,19 @@ type CustomMount struct {
 // IsReadOnly returns whether this mount should be read-only.
 func (m CustomMount) IsReadOnly() bool {
 	return m.Mode != MountModeRW
+}
+
+// ExportInclude represents a file/directory to copy into a snapshot image.
+type ExportInclude struct {
+	Src string `yaml:"src"`
+	Dst string `yaml:"dst"`
+}
+
+// ExportConfig holds settings for the `aw export` command.
+type ExportConfig struct {
+	Snapshot bool              `yaml:"snapshot,omitempty"`
+	Include  []ExportInclude   `yaml:"include,omitempty"`
+	Env      map[string]string `yaml:"env,omitempty"`
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.
@@ -137,6 +155,16 @@ func (p *Profile) EffectiveSSHAgentForwarding() bool {
 // EffectiveMountContainerSock returns whether the container runtime socket should be mounted.
 func (p *Profile) EffectiveMountContainerSock() bool {
 	return p != nil && p.MountContainerSock != nil && *p.MountContainerSock
+}
+
+// EffectiveSkipDevboxInstall returns whether devbox install should be skipped in the entrypoint.
+func (p *Profile) EffectiveSkipDevboxInstall() bool {
+	return p != nil && p.SkipDevboxInstall != nil && *p.SkipDevboxInstall
+}
+
+// EffectiveSkipMiseInstall returns whether mise install should be skipped in the entrypoint.
+func (p *Profile) EffectiveSkipMiseInstall() bool {
+	return p != nil && p.SkipMiseInstall != nil && *p.SkipMiseInstall
 }
 
 // EffectiveAuthOnLaunchCheck returns the configured launch-time auth check mode.

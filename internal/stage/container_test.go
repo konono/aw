@@ -16,11 +16,17 @@ import (
 )
 
 type mockDockerClient struct {
-	available    bool
-	buildCalled  bool
-	volumeCalled bool
-	runCalled    bool
-	runConfig    docker.RunConfig
+	available         bool
+	buildCalled       bool
+	volumeCalled      bool
+	runCalled         bool
+	runConfig         docker.RunConfig
+	imageExists       bool
+	imageExistsCalled bool
+	imageExistsErr    error
+	saveCalled        bool
+	saveImageName     string
+	saveOutputPath    string
 }
 
 func (m *mockDockerClient) CheckAvailable() error {
@@ -35,6 +41,18 @@ func (m *mockDockerClient) Build(_ context.Context, _, _, _ string, _ map[string
 	return nil
 }
 
+func (m *mockDockerClient) ImageExists(_ context.Context, _ string) (bool, error) {
+	m.imageExistsCalled = true
+	return m.imageExists, m.imageExistsErr
+}
+
+func (m *mockDockerClient) Save(_ context.Context, imageName, outputPath string) error {
+	m.saveCalled = true
+	m.saveImageName = imageName
+	m.saveOutputPath = outputPath
+	return nil
+}
+
 func (m *mockDockerClient) VolumeCreate(_ context.Context, _ string) error {
 	m.volumeCalled = true
 	return nil
@@ -43,6 +61,18 @@ func (m *mockDockerClient) VolumeCreate(_ context.Context, _ string) error {
 func (m *mockDockerClient) Run(_ context.Context, config docker.RunConfig) error {
 	m.runCalled = true
 	m.runConfig = config
+	return nil
+}
+
+func (m *mockDockerClient) RunOneShot(_ context.Context, config docker.RunConfig) (string, error) {
+	return "aw-snapshot-mock", nil
+}
+
+func (m *mockDockerClient) Commit(_ context.Context, _, _ string, _ []string) error {
+	return nil
+}
+
+func (m *mockDockerClient) RemoveContainer(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -218,6 +248,103 @@ func TestAppendContainerContext_PreservesExistingContent(t *testing.T) {
 	}
 	if !strings.Contains(content, "## Docker / Podman (DooD)") {
 		t.Error("Docker section should be present")
+	}
+}
+
+func TestDockerStage_PrebuiltImage_SkipsBuild(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "my-image:latest",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.buildCalled {
+		t.Error("Build should not be called when image is set")
+	}
+	if !dc.imageExistsCalled {
+		t.Error("ImageExists should be called when image is set")
+	}
+	if ec.DockerImage != "my-image:latest" {
+		t.Errorf("DockerImage = %q, want %q", ec.DockerImage, "my-image:latest")
+	}
+}
+
+func TestDockerStage_PrebuiltImage_NotFound(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: false}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "nonexistent:v1",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err == nil {
+		t.Fatal("Run() should return error when image not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error = %q, want containing 'not found'", err.Error())
+	}
+	if !strings.Contains(err.Error(), "docker load") {
+		t.Errorf("error = %q, want containing 'docker load'", err.Error())
+	}
+}
+
+func TestDockerStage_PrebuiltImage_ImageInspectError(t *testing.T) {
+	dc := &mockDockerClient{
+		available:      true,
+		imageExistsErr: fmt.Errorf("docker image inspect \"bad::ref\" failed: invalid reference format"),
+	}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "bad::ref",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	err := s.Run(context.Background(), ec)
+	if err == nil {
+		t.Fatal("Run() should return error when image inspect fails")
+	}
+	if !strings.Contains(err.Error(), "invalid reference format") {
+		t.Errorf("error = %q, want containing 'invalid reference format'", err.Error())
+	}
+	if strings.Contains(err.Error(), "docker load") {
+		t.Errorf("error = %q, should not suggest docker load for inspect errors", err.Error())
 	}
 }
 

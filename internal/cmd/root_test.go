@@ -187,6 +187,11 @@ func TestDescribeProfile(t *testing.T) {
 			profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchShell, OS: profile.OSUbuntu2604},
 			"container + shell + os:ubuntu2604",
 		},
+		{
+			"container claude with image",
+			profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude, Image: "my-image:latest"},
+			"container + claude + image:my-image:latest",
+		},
 	}
 
 	for _, tt := range tests {

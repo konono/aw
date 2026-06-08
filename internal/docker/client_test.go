@@ -1,17 +1,58 @@
 package docker
 
-import (
-	"testing"
-)
+import "testing"
+
+func TestIsImageInspectNotFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{
+			name:   "docker no such image",
+			output: "Error response from daemon: No such image: missing:latest",
+			want:   true,
+		},
+		{
+			name:   "docker no such object",
+			output: "Error: No such object: missing:latest",
+			want:   true,
+		},
+		{
+			name:   "podman image not known",
+			output: "Error: missing:latest: image not known",
+			want:   true,
+		},
+		{
+			name:   "invalid reference format",
+			output: "Error response from daemon: invalid reference format",
+			want:   false,
+		},
+		{
+			name:   "permission denied",
+			output: "permission denied while trying to connect to the Docker daemon socket",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isImageInspectNotFound([]byte(tt.output))
+			if got != tt.want {
+				t.Fatalf("isImageInspectNotFound(%q) = %v, want %v", tt.output, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestMountToString(t *testing.T) {
 	tests := []struct {
-		name     string
-		mount    Mount
-		wantSrc  string
-		wantTgt  string
-		wantRO   bool
-		wantVol  bool
+		name    string
+		mount   Mount
+		wantSrc string
+		wantTgt string
+		wantRO  bool
+		wantVol bool
 	}{
 		{
 			name:    "bind mount",
@@ -196,11 +237,70 @@ func TestBuildRunArgs_SecurityOpts(t *testing.T) {
 	}
 }
 
+func TestBuildOneShotRunArgs(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Mounts: []Mount{
+			{Source: "/host/ws", Target: "/workspace", ReadOnly: true},
+		},
+		EnvVars: map[string]string{
+			"FOO": "bar",
+		},
+		Command: []string{"/bin/bash", "-c", "echo hello"},
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-abcd", config)
+
+	expected := []string{"run", "--name", "aw-snapshot-abcd", "--pids-limit", "1000"}
+	if len(args) < len(expected) {
+		t.Fatalf("expected args to start with %v, got %v", expected, args)
+	}
+	for i, e := range expected {
+		if args[i] != e {
+			t.Errorf("args[%d] = %q, want %q", i, args[i], e)
+		}
+	}
+
+	// Should NOT contain -it or --rm
+	for _, a := range args {
+		if a == "-it" {
+			t.Error("one-shot args should not contain -it")
+		}
+		if a == "--rm" {
+			t.Error("one-shot args should not contain --rm")
+		}
+	}
+
+	// Should contain env var
+	foundEnv := false
+	for i, a := range args {
+		if a == "-e" && i+1 < len(args) && args[i+1] == "FOO=bar" {
+			foundEnv = true
+			break
+		}
+	}
+	if !foundEnv {
+		t.Errorf("expected -e FOO=bar, got %v", args)
+	}
+
+	// Should contain mount
+	foundMount := false
+	for i, a := range args {
+		if a == "-v" && i+1 < len(args) && args[i+1] == "/host/ws:/workspace:ro" {
+			foundMount = true
+			break
+		}
+	}
+	if !foundMount {
+		t.Errorf("expected mount /host/ws:/workspace:ro, got %v", args)
+	}
+}
+
 func TestBuildRunArgs_MountOptions(t *testing.T) {
 	tests := []struct {
-		name     string
-		mount    Mount
-		wantArg  string
+		name    string
+		mount   Mount
+		wantArg string
 	}{
 		{
 			name:    "rw no options",

@@ -30,10 +30,22 @@ func MergeProfile(base, override Profile) Profile {
 		}
 		merged.Env = envCopy
 	}
+	if override.Image != "" {
+		merged.Image = override.Image
+		if override.OS == "" {
+			merged.OS = ""
+		}
+		if override.Dockerfile == "" {
+			merged.Dockerfile = ""
+		}
+	}
 	if override.OS != "" {
 		merged.OS = override.OS
 		if override.Dockerfile == "" {
 			merged.Dockerfile = ""
+		}
+		if override.Image == "" {
+			merged.Image = ""
 		}
 	}
 	if override.Dockerfile != "" {
@@ -41,9 +53,20 @@ func MergeProfile(base, override Profile) Profile {
 		if override.OS == "" {
 			merged.OS = ""
 		}
+		if override.Image == "" {
+			merged.Image = ""
+		}
 	}
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
+	}
+	if override.SkipDevboxInstall != nil {
+		v := *override.SkipDevboxInstall
+		merged.SkipDevboxInstall = &v
+	}
+	if override.SkipMiseInstall != nil {
+		v := *override.SkipMiseInstall
+		merged.SkipMiseInstall = &v
 	}
 	if override.MountGH != nil {
 		v := *override.MountGH
@@ -64,6 +87,7 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
+	merged.Export = mergeExport(merged.Export, override.Export)
 
 	return merged
 }
@@ -224,6 +248,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if effective.OS != defaults.OS {
 		relative.OS = effective.OS
 	}
+	if effective.Image != defaults.Image {
+		relative.Image = effective.Image
+	}
 	if effective.Dockerfile != defaults.Dockerfile {
 		relative.Dockerfile = effective.Dockerfile
 	}
@@ -231,6 +258,14 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		relative.ContainerRuntime = effective.ContainerRuntime
 	}
 	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
+	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
+		v := *effective.SkipDevboxInstall
+		relative.SkipDevboxInstall = &v
+	}
+	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
+		v := *effective.SkipMiseInstall
+		relative.SkipMiseInstall = &v
+	}
 	if !equalBoolPtr(effective.MountGH, defaults.MountGH) && effective.MountGH != nil {
 		v := *effective.MountGH
 		relative.MountGH = &v
@@ -249,6 +284,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
+	}
+	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
+		relative.Export = cloneExport(effective.Export)
 	}
 	return relative
 }
@@ -518,4 +556,76 @@ func cloneOpenCodeAuth(cfg *OpenCodeAuthConfig) *OpenCodeAuthConfig {
 	clone := *cfg
 	clone.LoginArgs = slices.Clone(cfg.LoginArgs)
 	return &clone
+}
+
+func mergeExport(base, override *ExportConfig) *ExportConfig {
+	if override == nil {
+		return cloneExport(base)
+	}
+	if base == nil {
+		return cloneExport(override)
+	}
+	merged := *base
+	if override.Snapshot {
+		merged.Snapshot = true
+	}
+	if override.Include != nil {
+		merged.Include = cloneExportIncludes(override.Include)
+	}
+	if override.Env != nil {
+		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
+		for k, v := range merged.Env {
+			envCopy[k] = v
+		}
+		for k, v := range override.Env {
+			envCopy[k] = v
+		}
+		merged.Env = envCopy
+	}
+	return &merged
+}
+
+func cloneExport(cfg *ExportConfig) *ExportConfig {
+	if cfg == nil {
+		return nil
+	}
+	clone := *cfg
+	clone.Include = cloneExportIncludes(cfg.Include)
+	clone.Env = maps.Clone(cfg.Env)
+	return &clone
+}
+
+func cloneExportIncludes(includes []ExportInclude) []ExportInclude {
+	if includes == nil {
+		return nil
+	}
+	cloned := make([]ExportInclude, len(includes))
+	copy(cloned, includes)
+	return cloned
+}
+
+func equalExport(a, b *ExportConfig) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Snapshot != b.Snapshot {
+		return false
+	}
+	if len(a.Include) != len(b.Include) {
+		return false
+	}
+	for i := range a.Include {
+		if a.Include[i] != b.Include[i] {
+			return false
+		}
+	}
+	if len(a.Env) != len(b.Env) {
+		return false
+	}
+	for k, v := range a.Env {
+		if bv, ok := b.Env[k]; !ok || v != bv {
+			return false
+		}
+	}
+	return true
 }

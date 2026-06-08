@@ -34,6 +34,7 @@ aw    # 使い捨て Debian コンテナで Claude Code が自律起動。あと
 - **Docker / Podman 両対応** — `container_runtime: podman` で切り替え
 - **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
 - **git worktree 自動生成** — 実行するたびに独立ブランチで作業。壊しても消せば終わり
+- **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
 - **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
 - **SSH Agent 転送** — 鍵ファイルをコンテナに入れずに Git 操作
 - **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
@@ -79,6 +80,7 @@ aw auth login claude|codex|opencode   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
+aw export <profile> [options]   # イメージをビルドして tar 出力
 aw default-dockerfile          # デフォルト Dockerfile を出力
 aw update                      # セルフアップデート
 aw --version                   # バージョン表示
@@ -161,6 +163,46 @@ profiles:
       - source: "~/.config/gcloud"
         target: "/home/agent/.config/gcloud"
         readonly: true
+```
+
+### プレビルドイメージ（エアギャップ環境）
+
+ネットワークのある環境でイメージを書き出し、オフライン環境に持ち込む:
+
+```bash
+# 基本的なエクスポート
+aw export claude -o my-image.tar
+
+# --snapshot: ワークスペースのパッケージもイメージに焼き込み
+aw export claude --snapshot -o my-image.tar
+
+# --include: ホストのディレクトリをイメージにコピー（--snapshot を暗黙有効化）
+aw export claude --include ./certs:/usr/local/share/ca-certificates
+
+# --env: 環境変数をイメージに焼き込み（--snapshot を暗黙有効化）
+aw export claude --env HTTP_PROXY=http://proxy.corp:8080
+
+# USB 等で転送
+docker load -i my-image.tar             # オフライン環境でロード
+```
+
+export オプションはプロファイルの `export:` セクションでも指定できる:
+
+```yaml
+profiles:
+  airgap:
+    environment: container
+    launch: claude
+    image: 'aw-container:a1b2c3d4e5f6'
+    skip_devbox_install: true            # プロジェクトの devbox install をスキップ
+    skip_mise_install: true              # プロジェクトの mise install をスキップ
+    export:
+      snapshot: true
+      include:
+        - src: ./certs
+          dst: /usr/local/share/ca-certificates
+      env:
+        HTTP_PROXY: http://proxy.corp:8080
 ```
 
 ### カスタム Dockerfile（Playwright）

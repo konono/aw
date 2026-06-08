@@ -25,5 +25,12 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 		envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
 	}
 
+	if ec.Profile.EffectiveSkipDevboxInstall() {
+		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
+	}
+	if ec.Profile.EffectiveSkipMiseInstall() {
+		envVars["AW_SKIP_MISE_INSTALL"] = "1"
+	}
+
 	return envVars
 }

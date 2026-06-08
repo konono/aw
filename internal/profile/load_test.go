@@ -816,6 +816,103 @@ func TestLoad_GlobalConfigParseError(t *testing.T) {
 	}
 }
 
+func TestFindProfileSource_BuiltinOnly(t *testing.T) {
+	globalDir := t.TempDir()
+	cwdDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	result := FindProfileSource("claude")
+	if result != "" {
+		t.Errorf("FindProfileSource(claude) = %q, want empty (builtin only)", result)
+	}
+}
+
+func TestFindProfileSource_GlobalOnly(t *testing.T) {
+	globalDir := t.TempDir()
+	cwdDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	globalPath := filepath.Join(globalDir, "config.yml")
+	if err := os.WriteFile(globalPath, []byte(`profiles:
+  my-global:
+    environment: container
+    launch: claude
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	result := FindProfileSource("my-global")
+	if result != globalPath {
+		t.Errorf("FindProfileSource(my-global) = %q, want %q", result, globalPath)
+	}
+
+	result = FindProfileSource("claude")
+	if result != "" {
+		t.Errorf("FindProfileSource(claude) = %q, want empty (not in global file)", result)
+	}
+}
+
+func TestFindProfileSource_ProjectOverridesGlobal(t *testing.T) {
+	globalDir := t.TempDir()
+	projectDir := t.TempDir()
+	mockLoadEnv(t, projectDir, false, globalDir)
+
+	globalPath := filepath.Join(globalDir, "config.yml")
+	if err := os.WriteFile(globalPath, []byte(`profiles:
+  shared:
+    environment: container
+    launch: claude
+  global-only:
+    environment: container
+    launch: shell
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".agent-workspace.yml")
+	if err := os.WriteFile(projectPath, []byte(`profiles:
+  shared:
+    launch: codex
+  project-only:
+    environment: host
+    launch: shell
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := FindProfileSource("shared")
+	if result != projectPath {
+		t.Errorf("FindProfileSource(shared) = %q, want %q (project takes priority)", result, projectPath)
+	}
+
+	result = FindProfileSource("global-only")
+	if result != globalPath {
+		t.Errorf("FindProfileSource(global-only) = %q, want %q", result, globalPath)
+	}
+
+	result = FindProfileSource("project-only")
+	if result != projectPath {
+		t.Errorf("FindProfileSource(project-only) = %q, want %q", result, projectPath)
+	}
+
+	result = FindProfileSource("nonexistent")
+	if result != "" {
+		t.Errorf("FindProfileSource(nonexistent) = %q, want empty", result)
+	}
+}
+
 func TestLoad_NoGlobalNoProject(t *testing.T) {
 	globalDir := t.TempDir()
 	cwdDir := t.TempDir()

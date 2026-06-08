@@ -191,6 +191,59 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid container + image",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+			},
+		},
+		{
+			name: "image with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Image:       "my-image:latest",
+			},
+			wantErr: "image is only valid with environment: container",
+		},
+		{
+			name: "image and os coexist (image takes priority)",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+				OS:          OSDebian12,
+			},
+		},
+		{
+			name: "image and dockerfile coexist (image takes priority)",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+				Dockerfile:  "custom/Dockerfile",
+			},
+		},
+		{
+			name:    "valid container + skip_devbox_install",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipDevboxInstall: &v} }(),
+		},
+		{
+			name:    "skip_devbox_install with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipDevboxInstall: &v} }(),
+			wantErr: "skip_devbox_install is only valid with environment: container",
+		},
+		{
+			name:    "valid container + skip_mise_install",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipMiseInstall: &v} }(),
+		},
+		{
+			name:    "skip_mise_install with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipMiseInstall: &v} }(),
+			wantErr: "skip_mise_install is only valid with environment: container",
+		},
+		{
 			name:    "valid container + ssh_agent_forwarding",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
 		},
@@ -256,6 +309,62 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: "unknown auth.claude.login_mode",
+		},
+		{
+			name: "valid export config",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Snapshot: true,
+					Include: []ExportInclude{
+						{Src: "./certs", Dst: "/usr/local/share/ca-certificates"},
+					},
+					Env: map[string]string{"FOO": "bar"},
+				},
+			},
+		},
+		{
+			name: "export with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Export:       &ExportConfig{Snapshot: true},
+			},
+			wantErr: "export is only valid with environment: container",
+		},
+		{
+			name: "export include missing src",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Dst: "/home/agent/test"}},
+				},
+			},
+			wantErr: "export.include[0]: src is required",
+		},
+		{
+			name: "export include missing dst",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Src: "./test"}},
+				},
+			},
+			wantErr: "export.include[0]: dst is required",
+		},
+		{
+			name: "export include non-absolute dst",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Include: []ExportInclude{{Src: "./test", Dst: "relative/path"}},
+				},
+			},
+			wantErr: "export.include[0]: dst must be an absolute path",
 		},
 	}
 
