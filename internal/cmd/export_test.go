@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/internal/profile"
@@ -150,11 +153,22 @@ func TestParseExportArgs(t *testing.T) {
 		}
 	})
 
+	t.Run("apply flag", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--apply"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if !opts.Apply {
+			t.Fatal("Apply should be true")
+		}
+	})
+
 	t.Run("all flags combined", func(t *testing.T) {
 		opts, err := parseExportArgs([]string{
 			"claude", "--snapshot",
 			"--include", "./certs:/certs",
 			"--env", "FOO=bar",
+			"--apply",
 			"-o", "out.tar",
 		})
 		if err != nil {
@@ -165,6 +179,9 @@ func TestParseExportArgs(t *testing.T) {
 		}
 		if !opts.Snapshot {
 			t.Error("Snapshot should be true")
+		}
+		if !opts.Apply {
+			t.Error("Apply should be true")
 		}
 		if len(opts.Include) != 1 {
 			t.Errorf("Include len = %d, want 1", len(opts.Include))
@@ -257,6 +274,146 @@ func TestMergeExportOptions(t *testing.T) {
 		_, inc, _ := mergeExportOptions(opts, cfg)
 		if len(inc) != 2 {
 			t.Errorf("includes len = %d, want 2 (config + cli)", len(inc))
+		}
+	})
+}
+
+func TestApplyExportResult(t *testing.T) {
+	t.Run("adds image to profile", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`# comment
+profiles:
+  dev:
+    launch: shell
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "dev", "aw-container:abc123", false); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "image: aw-container:abc123") {
+			t.Errorf("config should contain image, got:\n%s", content)
+		}
+		if !strings.Contains(content, "# comment") {
+			t.Error("comment should be preserved")
+		}
+	})
+
+	t.Run("adds skip flags when snapshot", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`profiles:
+  dev:
+    launch: shell
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "dev", "aw-container:abc123", true); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "skip_devbox_install: true") {
+			t.Errorf("config should contain skip_devbox_install, got:\n%s", content)
+		}
+		if !strings.Contains(content, "skip_mise_install: true") {
+			t.Errorf("config should contain skip_mise_install, got:\n%s", content)
+		}
+	})
+
+	t.Run("updates existing image", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`profiles:
+  dev:
+    launch: shell
+    image: old-image:123
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "dev", "aw-container:new456", false); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "image: aw-container:new456") {
+			t.Errorf("image should be updated, got:\n%s", content)
+		}
+		if strings.Contains(content, "old-image") {
+			t.Error("old image should be replaced")
+		}
+	})
+
+	t.Run("creates profile if not in file", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`profiles:
+  shell:
+    launch: shell
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "newprofile", "img:123", true); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "newprofile") {
+			t.Errorf("new profile should be added, got:\n%s", content)
+		}
+		if !strings.Contains(content, "image: img:123") {
+			t.Errorf("image should be set, got:\n%s", content)
+		}
+		if !strings.Contains(content, "launch: shell") {
+			t.Error("existing profile should be preserved")
+		}
+	})
+
+	t.Run("creates profiles section if missing", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`default: claude
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "dev", "img:456", false); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "profiles") {
+			t.Errorf("profiles section should be created, got:\n%s", content)
+		}
+		if !strings.Contains(content, "image: img:456") {
+			t.Errorf("image should be set, got:\n%s", content)
+		}
+	})
+
+	t.Run("clears skip flags when not snapshot", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		os.WriteFile(cfgPath, []byte(`profiles:
+  dev:
+    launch: shell
+    image: old:123
+    skip_devbox_install: true
+    skip_mise_install: true
+`), 0644)
+
+		if err := applyExportResult(cfgPath, "dev", "new:456", false); err != nil {
+			t.Fatalf("applyExportResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if strings.Contains(content, "skip_devbox_install: true") {
+			t.Errorf("skip_devbox_install should be false, got:\n%s", content)
+		}
+		if strings.Contains(content, "skip_mise_install: true") {
+			t.Errorf("skip_mise_install should be false, got:\n%s", content)
 		}
 	})
 }

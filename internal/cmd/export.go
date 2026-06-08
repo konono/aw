@@ -12,12 +12,14 @@ import (
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
+	"gopkg.in/yaml.v3"
 )
 
 type exportOptions struct {
 	ProfileName string
 	OutputPath  string
 	Snapshot    bool
+	Apply       bool
 	Include     []profile.ExportInclude
 	Env         map[string]string
 }
@@ -95,7 +97,26 @@ func runExport(args []string) int {
 	}
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
-	printConfigSnippet(ec.DockerImage, runtime, string(p.Launch), outputPath, snapshot)
+
+	if opts.Apply {
+		targetFile := profile.FindProfileSource(opts.ProfileName)
+		if targetFile == "" {
+			targetFile = cfg.Source.FilePath
+		}
+		if targetFile == "" {
+			fmt.Fprintf(os.Stderr, "Error: --apply requires a config file. Run `aw init` first.\n")
+			return 1
+		}
+		if err := applyExportResult(targetFile, opts.ProfileName, ec.DockerImage, snapshot); err != nil {
+			fmt.Fprintf(os.Stderr, "Error applying export result: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", ec.DockerImage, opts.ProfileName, targetFile)
+		fmt.Fprintf(os.Stderr, "# Load on target machine:\n")
+		fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, outputPath)
+	} else {
+		printConfigSnippet(ec.DockerImage, runtime, string(p.Launch), outputPath, snapshot)
+	}
 
 	return 0
 }
@@ -203,6 +224,8 @@ func parseExportArgs(args []string) (exportOptions, error) {
 			i++
 		case "--snapshot":
 			opts.Snapshot = true
+		case "--apply":
+			opts.Apply = true
 		case "--include":
 			if i+1 >= len(args) {
 				return exportOptions{}, fmt.Errorf("--include requires src:dst argument")
@@ -277,7 +300,105 @@ func printExportHelp() {
 	fmt.Println("  --snapshot         Run setup in a temporary container and commit the result")
 	fmt.Println("  --include src:dst  Copy host path into the image (repeatable; implies --snapshot)")
 	fmt.Println("  --env KEY=VAL      Bake environment variable into the image (repeatable; implies --snapshot)")
+	fmt.Println("  --apply            Write image name back to the config file")
 	fmt.Println("  -h, --help         Show this help")
+}
+
+func applyExportResult(configPath, profileName, imageName string, snapshot bool) error {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("reading config file: %w", err)
+	}
+
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("parsing config file: %w", err)
+	}
+
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return fmt.Errorf("config file has unexpected structure")
+	}
+
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return fmt.Errorf("config root is not a mapping")
+	}
+
+	profileNode := findYAMLMapValue(root, "profiles")
+	if profileNode == nil {
+		profileNode = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "profiles", Tag: "!!str"},
+			profileNode,
+		)
+	}
+
+	targetProfile := findYAMLMapValue(profileNode, profileName)
+	if targetProfile == nil {
+		targetProfile = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		profileNode.Content = append(profileNode.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: profileName, Tag: "!!str"},
+			targetProfile,
+		)
+	}
+
+	setYAMLMapValue(targetProfile, "image", imageName)
+	setYAMLMapBool(targetProfile, "skip_devbox_install", snapshot)
+	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
+
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return fmt.Errorf("encoding config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, out, 0644); err != nil {
+		return fmt.Errorf("writing config file: %w", err)
+	}
+
+	return nil
+}
+
+func findYAMLMapValue(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	return nil
+}
+
+func setYAMLMapValue(mapping *yaml.Node, key, value string) {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			mapping.Content[i+1].Value = value
+			mapping.Content[i+1].Tag = "!!str"
+			mapping.Content[i+1].Style = 0
+			return
+		}
+	}
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: key, Tag: "!!str"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: value, Tag: "!!str"},
+	)
+}
+
+func setYAMLMapBool(mapping *yaml.Node, key string, value bool) {
+	v := "false"
+	if value {
+		v = "true"
+	}
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			mapping.Content[i+1].Value = v
+			mapping.Content[i+1].Tag = "!!bool"
+			mapping.Content[i+1].Style = 0
+			return
+		}
+	}
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: key, Tag: "!!str"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: v, Tag: "!!bool"},
+	)
 }
 
 const snapshotScript = `set -e
@@ -296,16 +417,21 @@ run_as_agent() {
   fi
 }
 
+WORK="/tmp/aw-snapshot-work"
+mkdir -p "$WORK"
+cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
+chown -R agent:agent "$WORK"
+
 NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
-if [ -f "$WORKSPACE/devbox.json" ]; then
+if [ -f "$WORK/devbox.json" ]; then
   if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
     echo "Skipping devbox install (skip_devbox_install is enabled)"
   else
     echo "Installing packages from devbox.json..."
-    run_as_agent "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
+    run_as_agent "$NIX_ENV cd \"$WORK\" && devbox install"
   fi
 fi
-if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
+if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
   if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
     echo "Skipping mise install (skip_mise_install is enabled)"
   else
@@ -313,12 +439,12 @@ if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
       echo "Installing mise..."
       run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
     fi
-    MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORKSPACE && export MISE_YES=1"
+    MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORK && export MISE_YES=1"
     mkdir -p /home/agent/.config/mise
     echo "Installing tools from mise.toml..."
-    run_as_agent "$MISE_CMD && cd \"$WORKSPACE\" && mise install"
-    MISE_TOML="$WORKSPACE/mise.toml"
-    [ ! -f "$MISE_TOML" ] && MISE_TOML="$WORKSPACE/.mise.toml"
+    run_as_agent "$MISE_CMD && cd \"$WORK\" && mise install"
+    MISE_TOML="$WORK/mise.toml"
+    [ ! -f "$MISE_TOML" ] && MISE_TOML="$WORK/.mise.toml"
     if [ -f "$MISE_TOML" ]; then
       echo "Registering tools globally for snapshot..."
       cp "$MISE_TOML" /home/agent/.config/mise/config.toml
@@ -390,5 +516,6 @@ fi
 BASH_PROFILE
 
 chown agent:agent "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+rm -rf "$WORK"
 echo "Snapshot setup complete."
 `
