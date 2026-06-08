@@ -55,10 +55,7 @@ func runExport(args []string) int {
 		return 1
 	}
 
-	if p.Image != "" {
-		fmt.Fprintf(os.Stderr, "Error: profile %q uses a pre-built image (%s); there is nothing to build and export\n", opts.ProfileName, p.Image)
-		return 1
-	}
+	p.Image = ""
 
 	ec, err := buildExecutionContext(opts.ProfileName, p)
 	if err != nil {
