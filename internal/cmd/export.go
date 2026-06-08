@@ -168,7 +168,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		return fmt.Errorf("snapshot container failed: %w", err)
 	}
 
-	var changes []string
+	changes := []string{
+		`ENTRYPOINT ["/entrypoint.sh"]`,
+		`CMD ["bash"]`,
+	}
 	for k, v := range envVars {
 		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, v))
 	}
