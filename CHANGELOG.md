@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.1](https://github.com/konono/aw/compare/v1.4.0...v1.4.1) (2026-06-08)
+
+
+### Bug Fixes
+
+* **export:** allow re-export when image is already set in profile ([b100890](https://github.com/konono/aw/commit/b1008908a35c057aeccbc6667b43b2810a74eafe))
+* **export:** bypass entrypoint.sh during snapshot ([dc388b4](https://github.com/konono/aw/commit/dc388b4b874e24871e032924fd987941aec1ecd1))
+* **export:** bypass entrypoint.sh during snapshot to avoid ro filesystem error ([4e04663](https://github.com/konono/aw/commit/4e04663f8cbe68780dd10c6331084011ff0d6e5f))
+* **export:** restore ENTRYPOINT and CMD after snapshot commit ([fc3bcb1](https://github.com/konono/aw/commit/fc3bcb1b13299c3801cd2f608d97e3a3baf0f3ff))
+* **export:** use 2-space indent for YAML output in --apply ([499c67a](https://github.com/konono/aw/commit/499c67a98154afaecb6b432e83cce855b9cfbffd))
+
 ## [1.4.0](https://github.com/konono/aw/compare/v1.3.0...v1.4.0) (2026-06-08)
 
 
