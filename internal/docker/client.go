@@ -28,6 +28,7 @@ type RunConfig struct {
 	EnvVars      map[string]string
 	WorkDir      string
 	Command      []string
+	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 }
 
@@ -242,6 +243,10 @@ func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
 
 	if config.WorkDir != "" {
 		args = append(args, "--workdir", config.WorkDir)
+	}
+
+	if config.Entrypoint != "" {
+		args = append(args, "--entrypoint", config.Entrypoint)
 	}
 
 	args = append(args, config.ImageName)

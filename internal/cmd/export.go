@@ -125,9 +125,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 	fmt.Fprintf(os.Stderr, "Snapshotting image '%s'...\n", ec.DockerImage)
 
 	rc := docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Command:   []string{"/bin/bash", "-c", snapshotScript},
-		EnvVars:   make(map[string]string),
+		ImageName:  ec.DockerImage,
+		Entrypoint: "/bin/bash",
+		Command:    []string{"-c", snapshotScript},
+		EnvVars:    make(map[string]string),
 	}
 
 	rc.Mounts = append(rc.Mounts, docker.Mount{
