@@ -1,0 +1,117 @@
+set -e
+
+WORKSPACE="{{.Workspace}}"
+AW_ENV_FILE={{.Home}}/.aw_env.sh
+BASHRC_FILE={{.Home}}/.bashrc
+BASH_PROFILE_FILE={{.Home}}/.bash_profile
+
+run_as_user() {
+  local script="$1"
+  if [ "$(id -un)" = "{{.User}}" ]; then
+    /bin/bash -lc "$script"
+  else
+    su -s /bin/bash {{.User}} -c "$script"
+  fi
+}
+
+WORK="/tmp/aw-snapshot-work"
+mkdir -p "$WORK"
+cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
+chown -R {{.User}}:{{.User}} "$WORK"
+
+NIX_ENV="export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+if [ -f "$WORK/devbox.json" ]; then
+  if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
+    echo "Skipping devbox install (skip_devbox_install is enabled)"
+  else
+    echo "Installing packages from devbox.json..."
+    run_as_user "$NIX_ENV cd \"$WORK\" && devbox install"
+  fi
+fi
+if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
+  if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
+    echo "Skipping mise install (skip_mise_install is enabled)"
+  else
+    if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
+      echo "Installing mise..."
+      run_as_user 'curl https://mise.jdx.dev/install.sh | sh'
+    fi
+    MISE_CMD="export HOME={{.Home}} && export MISE_DATA_DIR={{.Home}}/.local/share/mise && export MISE_CONFIG_DIR={{.Home}}/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORK && export MISE_YES=1"
+    mkdir -p {{.Home}}/.config/mise
+    echo "Installing tools from mise.toml..."
+    run_as_user "$MISE_CMD && cd \"$WORK\" && mise install"
+    MISE_TOML="$WORK/mise.toml"
+    [ ! -f "$MISE_TOML" ] && MISE_TOML="$WORK/.mise.toml"
+    if [ -f "$MISE_TOML" ]; then
+      echo "Registering tools globally for snapshot..."
+      cp "$MISE_TOML" {{.Home}}/.config/mise/config.toml
+      chown {{.User}}:{{.User}} {{.Home}}/.config/mise/config.toml
+    fi
+  fi
+fi
+
+# Copy included files
+i=0
+while true; do
+  dst_var="AW_INCLUDE_${i}_DST"
+  dst="${!dst_var}"
+  [ -z "$dst" ] && break
+  src="/tmp/aw-include-${i}"
+  if [ -d "$src" ]; then
+    mkdir -p "$dst"
+    cp -a "$src/." "$dst/"
+    chown -R {{.User}}:{{.User}} "$dst"
+    echo "Copied include $i -> $dst"
+  fi
+  i=$((i + 1))
+done
+
+# Generate env files
+cat > "$AW_ENV_FILE" <<'ENVEOF'
+if [ -n "${AW_BASH_ENV_LOADED:-}" ] || [ -n "${AW_BASH_ENV_RECURSION_GUARD:-}" ]; then
+  return 0
+fi
+AW_BASH_ENV_LOADED=1
+export HOME={{.Home}}
+
+. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+case ":${PATH}:" in
+  *:{{.Home}}/.nix-profile/bin:*) ;;
+  *) export PATH="{{.Home}}/.nix-profile/bin:${PATH}" ;;
+esac
+case ":${PATH}:" in
+  *:{{.Home}}/.local/bin:*) ;;
+  *) export PATH="{{.Home}}/.local/bin:${PATH}" ;;
+esac
+export AW_BASH_ENV_RECURSION_GUARD=1
+eval "$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
+if [ -f "{{.Workspace}}/devbox.json" ]; then
+  eval "$(cd "{{.Workspace}}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+fi
+unset AW_BASH_ENV_RECURSION_GUARD
+case ":${PATH}:" in
+  *:{{.Home}}/.local/share/mise/shims:*) ;;
+  *) export PATH="{{.Home}}/.local/share/mise/shims:${PATH}" ;;
+esac
+export MISE_TRUSTED_CONFIG_PATHS="{{.Workspace}}"
+export MISE_YES=1
+if [ -z "${DOCKER_HOST:-}" ] && [ -S /run/container.sock ]; then
+  export DOCKER_HOST="unix:///run/container.sock"
+fi
+ENVEOF
+
+cat > "$BASHRC_FILE" <<BASHRC
+if [ -f {{.Home}}/.aw_env.sh ]; then
+  . {{.Home}}/.aw_env.sh
+fi
+BASHRC
+
+cat > "$BASH_PROFILE_FILE" <<BASH_PROFILE
+if [ -f {{.Home}}/.bashrc ]; then
+  . {{.Home}}/.bashrc
+fi
+BASH_PROFILE
+
+chown {{.User}}:{{.User}} "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+rm -rf "$WORK"
+echo "Snapshot setup complete."

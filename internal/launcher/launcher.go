@@ -15,7 +15,7 @@ type Launcher interface {
 
 // buildContainerEnvVars creates the base set of environment variables for container execution.
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
-	envVars := toolinfo.ContainerEnvVars(ec.EnvVars, tool)
+	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, ec.ContainerEnv)
 
 	if ec.SSHAgentReady {
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath

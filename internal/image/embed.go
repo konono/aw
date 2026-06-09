@@ -1,44 +1,65 @@
 package image
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
+	"text/template"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/profile"
 )
 
-//go:embed embed/Dockerfile.debian12
-var dockerfileDebian12 []byte
+//go:embed embed/Dockerfile.debian12.tmpl
+var dockerfileDebian12Tmpl string
 
-//go:embed embed/Dockerfile.ubi9
-var dockerfileUBI9 []byte
+//go:embed embed/Dockerfile.ubi9.tmpl
+var dockerfileUBI9Tmpl string
 
-//go:embed embed/Dockerfile.ubi10
-var dockerfileUBI10 []byte
+//go:embed embed/Dockerfile.ubi10.tmpl
+var dockerfileUBI10Tmpl string
 
-//go:embed embed/Dockerfile.ubuntu2604
-var dockerfileUbuntu2604 []byte
+//go:embed embed/Dockerfile.ubuntu2604.tmpl
+var dockerfileUbuntu2604Tmpl string
 
-//go:embed embed/entrypoint.sh
-var entrypointSh []byte
+//go:embed embed/entrypoint.sh.tmpl
+var entrypointShTmpl string
 
-var dockerfiles = map[profile.OSTemplate][]byte{
-	profile.OSDebian12:   dockerfileDebian12,
-	profile.OSUBI9:       dockerfileUBI9,
-	profile.OSUBI10:      dockerfileUBI10,
-	profile.OSUbuntu2604: dockerfileUbuntu2604,
+var dockerfileTmpls = map[profile.OSTemplate]string{
+	profile.OSDebian12:   dockerfileDebian12Tmpl,
+	profile.OSUBI9:       dockerfileUBI9Tmpl,
+	profile.OSUBI10:      dockerfileUBI10Tmpl,
+	profile.OSUbuntu2604: dockerfileUbuntu2604Tmpl,
 }
 
-// DockerfileForOS returns the embedded Dockerfile for the given OS template.
-func DockerfileForOS(os profile.OSTemplate) ([]byte, error) {
-	df, ok := dockerfiles[os]
+func RenderDockerfile(os profile.OSTemplate, cenv containerenv.Config) ([]byte, error) {
+	tmplStr, ok := dockerfileTmpls[os]
 	if !ok {
 		return nil, fmt.Errorf("unknown OS template: %q", os)
 	}
-	return df, nil
+	return renderTemplate("Dockerfile", tmplStr, cenv)
 }
 
-// DefaultDockerfile returns the content of the embedded default (Debian) Dockerfile.
+func RenderEntrypoint(cenv containerenv.Config) ([]byte, error) {
+	return renderTemplate("entrypoint.sh", entrypointShTmpl, cenv)
+}
+
 func DefaultDockerfile() []byte {
-	return dockerfileDebian12
+	b, err := RenderDockerfile(profile.OSDebian12, containerenv.Default())
+	if err != nil {
+		panic(fmt.Sprintf("rendering default Dockerfile: %v", err))
+	}
+	return b
+}
+
+func renderTemplate(name, tmplStr string, data interface{}) ([]byte, error) {
+	t, err := template.New(name).Parse(tmplStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s template: %w", name, err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return nil, fmt.Errorf("rendering %s template: %w", name, err)
+	}
+	return buf.Bytes(), nil
 }

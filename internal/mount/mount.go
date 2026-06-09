@@ -14,6 +14,7 @@ const SSHAgentContainerPath = "/run/ssh-agent.sock"
 type MountOptions struct {
 	HomeDir          string         // host user home directory
 	WorkDir          string         // host working directory (workspace)
+	ContainerHome    string         // container user home directory (e.g. /home/agent)
 	ToolStageDir     string         // host staging dir for tool config (e.g. ~/.agent-workspace/claude)
 	ToolContainerDir string         // container target for tool config (e.g. /home/agent/.claude)
 	MountGH          bool           // whether to mount host ~/.config/gh into the container
@@ -54,7 +55,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		Target: opts.WorkDir,
 	})
 
-	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.MountGH, opts.MountSSH)...)
+	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.ContainerHome, opts.MountGH, opts.MountSSH)...)
 
 	if opts.SSHAgentForwarding && !opts.MountSSH {
 		if m := sshAgentMount(opts.SSHAuthSock); m != nil {
@@ -81,14 +82,14 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 	return mounts, nil
 }
 
-func optionalMounts(homeDir string, mountGH, mountSSH bool) []docker.Mount {
+func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []docker.Mount {
 	var mounts []docker.Mount
 
 	gitconfig := filepath.Join(homeDir, ".gitconfig")
 	if fileExists(gitconfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   gitconfig,
-			Target:   "/home/agent/.gitconfig",
+			Target:   filepath.Join(containerHome, ".gitconfig"),
 			ReadOnly: true,
 		})
 	}
@@ -97,7 +98,7 @@ func optionalMounts(homeDir string, mountGH, mountSSH bool) []docker.Mount {
 	if mountGH && dirExists(ghConfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   ghConfig,
-			Target:   "/home/agent/.config/gh",
+			Target:   filepath.Join(containerHome, ".config", "gh"),
 			ReadOnly: true,
 		})
 	}
@@ -106,7 +107,7 @@ func optionalMounts(homeDir string, mountGH, mountSSH bool) []docker.Mount {
 	if mountSSH && dirExists(sshDir) {
 		mounts = append(mounts, docker.Mount{
 			Source:   sshDir,
-			Target:   "/home/agent/.ssh-host",
+			Target:   filepath.Join(containerHome, ".ssh-host"),
 			ReadOnly: true,
 		})
 	}

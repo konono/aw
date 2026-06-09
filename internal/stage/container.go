@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/konono/aw/internal/config"
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/mount"
@@ -47,6 +48,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("container runtime is not available: %w", err)
 	}
 
+	cenv := containerenv.FromUser(ec.Profile.EffectiveContainerUser())
+	ec.ContainerEnv = cenv
+
 	var imageName string
 	var err error
 
@@ -62,7 +66,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		}
 		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
 	} else {
-		imageName, err = s.buildImage(ctx, ec)
+		imageName, err = s.buildImage(ctx, ec, cenv)
 		if err != nil {
 			return err
 		}
@@ -77,7 +81,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	if spec != nil {
 		srcDir := toolinfo.HomePath(tool, ec.HomeDir)
 		toolStageDir = filepath.Join(stageDir, tool)
-		toolContainerDir = toolinfo.ContainerDir(tool)
+		toolContainerDir = toolinfo.ContainerDirFor(tool, cenv)
 		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
 			return fmt.Errorf("syncing %s settings: %w", tool, err)
 		}
@@ -133,6 +137,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
 		HomeDir:            ec.HomeDir,
 		WorkDir:            ec.WorkDir,
+		ContainerHome:      cenv.Home,
 		ToolStageDir:       toolStageDir,
 		ToolContainerDir:   toolContainerDir,
 		MountGH:            ec.Profile.EffectiveMountGH(),
@@ -156,7 +161,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
-func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
+func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
 	customDockerfile := ""
 	if ec.Profile.Dockerfile != "" {
 		resolved, err := resolveDockerfilePath(ec.Profile.Dockerfile)
@@ -169,7 +174,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	tool := ec.Profile.EffectiveTool()
 	osTemplate := ec.Profile.EffectiveOS()
 
-	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate)
+	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate, cenv)
 	if err != nil {
 		return "", fmt.Errorf("preparing build context: %w", err)
 	}
@@ -200,6 +205,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput = string(dfBytes)
 	}
 	hashInput += "\n" + string(osTemplate)
+	hashInput += "\n" + cenv.User
 	toolPkg := toolinfo.DevboxPkg(tool)
 	hashInput += "\n" + toolPkg
 	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {

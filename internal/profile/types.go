@@ -48,6 +48,7 @@ type Profile struct {
 	Image            string            `yaml:"image,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
 	ContainerRuntime   ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	ContainerUser      string            `yaml:"container_user,omitempty"`
 	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
 	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
@@ -133,6 +134,13 @@ func (p *Profile) EffectiveContainerRuntime() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+func (p *Profile) EffectiveContainerUser() string {
+	if p.ContainerUser != "" {
+		return p.ContainerUser
+	}
+	return "agent"
 }
 
 // EffectiveMountGH returns whether the host ~/.config/gh directory should be mounted.
