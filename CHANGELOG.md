@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/konono/aw/compare/v1.4.5...v1.5.0) (2026-06-09)
+
+
+### Features
+
+* add --recent, -C/--cwd, and directory history ([4663a12](https://github.com/konono/aw/commit/4663a1249138147ee4856c672ae7698fcbf7b78c))
+* add --recent, -C/--cwd, and directory history for quick project switching ([47b14e4](https://github.com/konono/aw/commit/47b14e4a1e589b7ff2d631981edbe4adf2fdd4ab))
+
+
+### Bug Fixes
+
+* handle errcheck lint errors in dirhistory tests ([94da255](https://github.com/konono/aw/commit/94da2555dd079bab38486104edcedfa547be09ca))
+
 ## [1.4.5](https://github.com/konono/aw/compare/v1.4.4...v1.4.5) (2026-06-09)
 
 
