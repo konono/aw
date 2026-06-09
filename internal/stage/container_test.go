@@ -251,6 +251,39 @@ func TestAppendContainerContext_PreservesExistingContent(t *testing.T) {
 	}
 }
 
+func TestAppendContainerContext_Idempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	existing := "# Existing CLAUDE.md content\n\nSome instructions here.\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(existing), 0644); err != nil {
+		t.Fatalf("writing existing CLAUDE.md: %v", err)
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile:            profile.Profile{},
+		ContainerSockReady: true,
+	}
+
+	for i := 0; i < 5; i++ {
+		if err := appendContainerContext(tmpDir, ec); err != nil {
+			t.Fatalf("appendContainerContext() iteration %d error: %v", i, err)
+		}
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	count := strings.Count(content, "# aw Container Environment")
+	if count != 1 {
+		t.Errorf("expected exactly 1 container context block, got %d", count)
+	}
+	if !strings.HasPrefix(content, existing) {
+		t.Error("existing content should be preserved at the beginning")
+	}
+}
+
 func TestDockerStage_PrebuiltImage_SkipsBuild(t *testing.T) {
 	dc := &mockDockerClient{available: true, imageExists: true}
 	s := &DockerStage{

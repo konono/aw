@@ -283,6 +283,8 @@ func resolveDockerfilePath(dockerfilePath string) (string, error) {
 }
 
 
+const containerContextMarker = "\n# aw Container Environment\n"
+
 func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) error {
 	if toolStageDir == "" {
 		return nil
@@ -319,16 +321,16 @@ Host gh configuration is mounted (read-only). gh commands (gh pr, gh issue, etc.
 SSH agent is forwarded. Git SSH operations (push, clone, fetch) work without additional setup.`)
 	}
 
-	content := "\n\n# aw Container Environment\n\nThis session runs inside an aw container.\n\n" +
+	suffix := "\n# aw Container Environment\n\nThis session runs inside an aw container.\n\n" +
 		strings.Join(sections, "\n\n") + "\n"
 
-	f, err := os.OpenFile(claudeMD, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+	existing, _ := os.ReadFile(claudeMD)
+	base := string(existing)
+	if idx := strings.Index(base, containerContextMarker); idx >= 0 {
+		base = base[:idx]
 	}
-	defer func() { _ = f.Close() }()
-	_, err = f.WriteString(content)
-	return err
+
+	return os.WriteFile(claudeMD, []byte(base+suffix), 0644)
 }
 
 func expandTilde(path, homeDir string) string {
