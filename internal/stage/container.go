@@ -181,16 +181,19 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	defer cleanup()
 
 	userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
-	if data, err := os.ReadFile(userDevboxJSON); err == nil {
-		if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
-			return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
-		}
-	}
-
 	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
-	if data, err := os.ReadFile(userMiseToml); err == nil {
-		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
-			return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
+
+	if customDockerfile == "" {
+		if data, err := os.ReadFile(userDevboxJSON); err == nil {
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
+				return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
+			}
+		}
+
+		if data, err := os.ReadFile(userMiseToml); err == nil {
+			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
+				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
+			}
 		}
 	}
 
@@ -206,13 +209,17 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	hashInput += "\n" + string(osTemplate)
 	hashInput += "\n" + cenv.User
-	toolPkg := toolinfo.DevboxPkg(tool)
-	hashInput += "\n" + toolPkg
-	if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
-		hashInput += "\n" + string(devboxData)
-	}
-	if miseData, err := os.ReadFile(userMiseToml); err == nil {
-		hashInput += "\n" + string(miseData)
+
+	toolPkg := ""
+	if customDockerfile == "" {
+		toolPkg = toolinfo.DevboxPkg(tool)
+		hashInput += "\n" + toolPkg
+		if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
+			hashInput += "\n" + string(devboxData)
+		}
+		if miseData, err := os.ReadFile(userMiseToml); err == nil {
+			hashInput += "\n" + string(miseData)
+		}
 	}
 
 	imageName := defaultImageName

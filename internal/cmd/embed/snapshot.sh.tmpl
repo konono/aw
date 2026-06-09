@@ -19,13 +19,18 @@ mkdir -p "$WORK"
 cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
 chown -R {{.User}}:{{.User}} "$WORK"
 
-NIX_ENV="export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+NIX_ENV=""
+if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
+  NIX_ENV="export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+fi
 if [ -f "$WORK/devbox.json" ]; then
   if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
     echo "Skipping devbox install (skip_devbox_install is enabled)"
-  else
+  elif command -v devbox >/dev/null 2>&1 || run_as_user "$NIX_ENV command -v devbox" >/dev/null 2>&1; then
     echo "Installing packages from devbox.json..."
     run_as_user "$NIX_ENV cd \"$WORK\" && devbox install"
+  else
+    echo "devbox.json found but devbox is not installed, skipping"
   fi
 fi
 if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
@@ -74,7 +79,9 @@ fi
 AW_BASH_ENV_LOADED=1
 export HOME={{.Home}}
 
-. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
+  . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+fi
 case ":${PATH}:" in
   *:{{.Home}}/.nix-profile/bin:*) ;;
   *) export PATH="{{.Home}}/.nix-profile/bin:${PATH}" ;;
@@ -83,12 +90,14 @@ case ":${PATH}:" in
   *:{{.Home}}/.local/bin:*) ;;
   *) export PATH="{{.Home}}/.local/bin:${PATH}" ;;
 esac
-export AW_BASH_ENV_RECURSION_GUARD=1
-eval "$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
-if [ -f "{{.Workspace}}/devbox.json" ]; then
-  eval "$(cd "{{.Workspace}}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+if command -v devbox >/dev/null 2>&1; then
+  export AW_BASH_ENV_RECURSION_GUARD=1
+  eval "$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
+  if [ -f "{{.Workspace}}/devbox.json" ]; then
+    eval "$(cd "{{.Workspace}}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+  fi
+  unset AW_BASH_ENV_RECURSION_GUARD
 fi
-unset AW_BASH_ENV_RECURSION_GUARD
 case ":${PATH}:" in
   *:{{.Home}}/.local/share/mise/shims:*) ;;
   *) export PATH="{{.Home}}/.local/share/mise/shims:${PATH}" ;;
