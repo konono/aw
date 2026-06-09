@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.5](https://github.com/konono/aw/compare/v1.4.4...v1.4.5) (2026-06-09)
+
+
+### Bug Fixes
+
+* **image:** chmod devbox binary after root install ([6f73d77](https://github.com/konono/aw/commit/6f73d778ff7ec27f1431dfeda3b4e7cf9370ace8))
+* **image:** chown ~/.local/share for both devbox and mise ([2b3849a](https://github.com/konono/aw/commit/2b3849a3b6360eeb72b80251ee284a58311a2448))
+* **image:** chown ~/.local/share for devbox and mise permissions ([1156779](https://github.com/konono/aw/commit/11567794cbb0e6bb4fc37d56d08091d3a7a4a8c0))
+* **image:** install devbox as root to avoid sudo PAM failure on UBI ([f9b4f64](https://github.com/konono/aw/commit/f9b4f64df166cecb60fa9715931dbf6dda3fed92))
+* **image:** use devbox launcher instead of installer to avoid sudo ([36b890d](https://github.com/konono/aw/commit/36b890dade45bbb6dc1a310eb64a43b76d4d253c))
+
 ## [1.4.4](https://github.com/konono/aw/compare/v1.4.3...v1.4.4) (2026-06-09)
 
 
