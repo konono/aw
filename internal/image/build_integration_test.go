@@ -386,6 +386,111 @@ echo DEVBOX_JSON_OK
 	}
 }
 
+// runContainerCommand runs a command through the image's entrypoint, just
+// like `docker run <image> <command...>` in production.
+func runContainerCommand(t *testing.T, runtime, imageName string, command ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	args := []string{"run", "--rm", imageName}
+	args = append(args, command...)
+	cmd := exec.CommandContext(ctx, runtime, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("run %s %s", imageName, strings.Join(command, " "))); err != nil {
+		t.Fatalf("run %s %v failed: %v\noutput: %s", imageName, command, err, out.String())
+	}
+	return out.String()
+}
+
+// TestIntegration_E2E replicates the real `aw claude` flow: build an image
+// with devbox.json, mise.toml, and a tool package, then launch the tool
+// through entrypoint.sh. If this test passes, `aw <tool>` will work.
+//
+// This catches the full class of build/permission/entrypoint bugs that
+// cannot be detected by unit tests or script-injection tests.
+//
+//	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E
+func TestIntegration_E2E(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	for _, osTemplate := range allOSTemplates {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			imageName := fmt.Sprintf("aw-inttest-e2e-%s", osTemplate)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
+
+			cenv := containerenv.Default()
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
+			if err != nil {
+				t.Fatalf("PrepareBuildContext: %v", err)
+			}
+			defer cleanup()
+
+			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
+				t.Fatalf("writing devbox.json: %v", err)
+			}
+
+			miseToml := []byte("[tools]\njq = \"latest\"\n")
+			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
+				t.Fatalf("writing mise.toml: %v", err)
+			}
+
+			buildImage(t, runtime, imageName, buildDir, map[string]string{
+				"AW_TOOL_PKG": toolinfo.DevboxPkg("claude"),
+			})
+
+			// Core E2E: launch tool through entrypoint.sh, exactly
+			// like `aw claude` does. This single check verifies the
+			// entire chain: image build → entrypoint → env setup →
+			// tool execution.
+			t.Run("tool_launch", func(t *testing.T) {
+				out := runContainerCommand(t, runtime, imageName, "claude", "--version")
+				if !strings.Contains(strings.ToLower(out), "claude") {
+					t.Errorf("claude --version did not produce expected output:\n%s", out)
+				}
+			})
+
+			// Verify tools from devbox.json and mise.toml with --version.
+			t.Run("config_tools", func(t *testing.T) {
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+				// devbox.json tool
+				out := execInContainer(t, runtime, containerID, "bash", "-lc",
+					"hello --version")
+				if !strings.Contains(out, "hello") {
+					t.Errorf("hello --version (devbox.json) failed: %s", out)
+				}
+
+				// mise.toml tool
+				out = execInContainer(t, runtime, containerID, "bash", "-lc",
+					"jq --version")
+				if !strings.Contains(out, "jq") {
+					t.Errorf("jq --version (mise.toml) failed: %s", out)
+				}
+			})
+
+			// Verify runtime package installation works.
+			t.Run("runtime_install", func(t *testing.T) {
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+				execInContainer(t, runtime, containerID, "bash", "-lc",
+					"devbox global add "+toolinfo.DevboxPkg("codex"))
+				out := execInContainer(t, runtime, containerID, "bash", "-lc",
+					"codex --version")
+				if !strings.Contains(out, "codex") {
+					t.Errorf("codex --version after runtime install failed: %s", out)
+				}
+			})
+		})
+	}
+}
+
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
 	for _, os := range allOSTemplates {
 		if _, ok := dockerfileTmpls[os]; !ok {
