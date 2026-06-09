@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -16,10 +17,10 @@ import (
 // are available via COPY.
 //
 // If customDockerfilePath is empty, a temporary directory is created with the
-// embedded Dockerfile for the given OS template and entrypoint.sh.
+// embedded Dockerfile template rendered with cenv and entrypoint.sh.
 //
 // The caller must call the returned cleanup function when done.
-func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate) (dir string, cleanup func(), err error) {
+func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate, cenv containerenv.Config) (dir string, cleanup func(), err error) {
 	if customDockerfilePath != "" {
 		absPath, err := filepath.Abs(customDockerfilePath)
 		if err != nil {
@@ -31,7 +32,12 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return filepath.Dir(absPath), func() {}, nil
 	}
 
-	df, err := DockerfileForOS(osTemplate)
+	df, err := RenderDockerfile(osTemplate, cenv)
+	if err != nil {
+		return "", nil, err
+	}
+
+	ep, err := RenderEntrypoint(cenv)
 	if err != nil {
 		return "", nil, err
 	}
@@ -48,7 +54,7 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return "", nil, fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "entrypoint.sh"), entrypointSh, 0755); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "entrypoint.sh"), ep, 0755); err != nil {
 		cleanupFn()
 		return "", nil, fmt.Errorf("writing entrypoint.sh: %w", err)
 	}

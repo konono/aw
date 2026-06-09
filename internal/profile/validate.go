@@ -88,6 +88,10 @@ func Validate(p Profile) error {
 		return fmt.Errorf("skip_mise_install is only valid with environment: container")
 	}
 
+	if p.ContainerUser != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("container_user is only valid with environment: container")
+	}
+
 	// Validate ssh_agent_forwarding is only used with environment: container
 	if p.EffectiveSSHAgentForwarding() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")

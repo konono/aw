@@ -60,6 +60,9 @@ func MergeProfile(base, override Profile) Profile {
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.ContainerUser != "" {
+		merged.ContainerUser = override.ContainerUser
+	}
 	if override.SkipDevboxInstall != nil {
 		v := *override.SkipDevboxInstall
 		merged.SkipDevboxInstall = &v
@@ -256,6 +259,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if effective.ContainerRuntime != defaults.ContainerRuntime {
 		relative.ContainerRuntime = effective.ContainerRuntime
+	}
+	if effective.ContainerUser != defaults.ContainerUser {
+		relative.ContainerUser = effective.ContainerUser
 	}
 	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
 	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {

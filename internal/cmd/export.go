@@ -1,19 +1,26 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed embed/snapshot.sh.tmpl
+var snapshotScriptTmpl string
 
 type exportOptions struct {
 	ProfileName string
@@ -55,10 +62,7 @@ func runExport(args []string) int {
 		return 1
 	}
 
-	if p.Image != "" {
-		fmt.Fprintf(os.Stderr, "Error: profile %q uses a pre-built image (%s); there is nothing to build and export\n", opts.ProfileName, p.Image)
-		return 1
-	}
+	p.Image = ""
 
 	ec, err := buildExecutionContext(opts.ProfileName, p)
 	if err != nil {
@@ -77,8 +81,10 @@ func runExport(args []string) int {
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
+	cenv := containerenv.FromUser(p.EffectiveContainerUser())
+
 	if snapshot {
-		if err := runSnapshot(client, ec, p, includes, envVars); err != nil {
+		if err := runSnapshot(client, ec, p, includes, envVars, cenv); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
@@ -121,18 +127,24 @@ func runExport(args []string) int {
 	return 0
 }
 
-func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.Profile, includes []profile.ExportInclude, envVars map[string]string) error {
+func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.Profile, includes []profile.ExportInclude, envVars map[string]string, cenv containerenv.Config) error {
 	fmt.Fprintf(os.Stderr, "Snapshotting image '%s'...\n", ec.DockerImage)
 
+	script, err := renderSnapshotScript(cenv)
+	if err != nil {
+		return err
+	}
+
 	rc := docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Command:   []string{"/bin/bash", "-c", snapshotScript},
-		EnvVars:   make(map[string]string),
+		ImageName:  ec.DockerImage,
+		Entrypoint: "/bin/bash",
+		Command:    []string{"-c", script},
+		EnvVars:    make(map[string]string),
 	}
 
 	rc.Mounts = append(rc.Mounts, docker.Mount{
 		Source:   ec.OrigWorkDir,
-		Target:   "/workspace",
+		Target:   cenv.Workspace,
 		ReadOnly: true,
 	})
 
@@ -167,7 +179,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		return fmt.Errorf("snapshot container failed: %w", err)
 	}
 
-	var changes []string
+	changes := []string{
+		`ENTRYPOINT ["/entrypoint.sh"]`,
+		`CMD ["bash"]`,
+	}
 	for k, v := range envVars {
 		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, v))
 	}
@@ -346,12 +361,15 @@ func applyExportResult(configPath, profileName, imageName string, snapshot bool)
 	setYAMLMapBool(targetProfile, "skip_devbox_install", snapshot)
 	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
 
-	out, err := yaml.Marshal(&doc)
-	if err != nil {
+	var yamlBuf bytes.Buffer
+	enc := yaml.NewEncoder(&yamlBuf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
 		return fmt.Errorf("encoding config: %w", err)
 	}
+	_ = enc.Close()
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
+	if err := os.WriteFile(configPath, yamlBuf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
@@ -401,121 +419,14 @@ func setYAMLMapBool(mapping *yaml.Node, key string, value bool) {
 	)
 }
 
-const snapshotScript = `set -e
-
-WORKSPACE="/workspace"
-AW_ENV_FILE=/home/agent/.aw_env.sh
-BASHRC_FILE=/home/agent/.bashrc
-BASH_PROFILE_FILE=/home/agent/.bash_profile
-
-run_as_agent() {
-  local script="$1"
-  if [ "$(id -un)" = "agent" ]; then
-    /bin/bash -lc "$script"
-  else
-    su -s /bin/bash agent -c "$script"
-  fi
+func renderSnapshotScript(cenv containerenv.Config) (string, error) {
+	t, err := template.New("snapshot").Parse(snapshotScriptTmpl)
+	if err != nil {
+		return "", fmt.Errorf("parsing snapshot script template: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, cenv); err != nil {
+		return "", fmt.Errorf("rendering snapshot script: %w", err)
+	}
+	return buf.String(), nil
 }
-
-WORK="/tmp/aw-snapshot-work"
-mkdir -p "$WORK"
-cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
-chown -R agent:agent "$WORK"
-
-NIX_ENV="export HOME=/home/agent && . /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
-if [ -f "$WORK/devbox.json" ]; then
-  if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
-    echo "Skipping devbox install (skip_devbox_install is enabled)"
-  else
-    echo "Installing packages from devbox.json..."
-    run_as_agent "$NIX_ENV cd \"$WORK\" && devbox install"
-  fi
-fi
-if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
-  if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
-    echo "Skipping mise install (skip_mise_install is enabled)"
-  else
-    if ! run_as_agent 'command -v mise' > /dev/null 2>&1; then
-      echo "Installing mise..."
-      run_as_agent 'curl https://mise.jdx.dev/install.sh | sh'
-    fi
-    MISE_CMD="export HOME=/home/agent && export MISE_DATA_DIR=/home/agent/.local/share/mise && export MISE_CONFIG_DIR=/home/agent/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORK && export MISE_YES=1"
-    mkdir -p /home/agent/.config/mise
-    echo "Installing tools from mise.toml..."
-    run_as_agent "$MISE_CMD && cd \"$WORK\" && mise install"
-    MISE_TOML="$WORK/mise.toml"
-    [ ! -f "$MISE_TOML" ] && MISE_TOML="$WORK/.mise.toml"
-    if [ -f "$MISE_TOML" ]; then
-      echo "Registering tools globally for snapshot..."
-      cp "$MISE_TOML" /home/agent/.config/mise/config.toml
-      chown agent:agent /home/agent/.config/mise/config.toml
-    fi
-  fi
-fi
-
-# Copy included files
-i=0
-while true; do
-  dst_var="AW_INCLUDE_${i}_DST"
-  dst="${!dst_var}"
-  [ -z "$dst" ] && break
-  src="/tmp/aw-include-${i}"
-  if [ -d "$src" ]; then
-    mkdir -p "$dst"
-    cp -a "$src/." "$dst/"
-    chown -R agent:agent "$dst"
-    echo "Copied include $i -> $dst"
-  fi
-  i=$((i + 1))
-done
-
-# Generate env files
-cat > "$AW_ENV_FILE" <<'ENVEOF'
-if [ -n "${AW_BASH_ENV_LOADED:-}" ] || [ -n "${AW_BASH_ENV_RECURSION_GUARD:-}" ]; then
-  return 0
-fi
-AW_BASH_ENV_LOADED=1
-export HOME=/home/agent
-
-. /home/agent/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
-case ":${PATH}:" in
-  *:/home/agent/.nix-profile/bin:*) ;;
-  *) export PATH="/home/agent/.nix-profile/bin:${PATH}" ;;
-esac
-case ":${PATH}:" in
-  *:/home/agent/.local/bin:*) ;;
-  *) export PATH="/home/agent/.local/bin:${PATH}" ;;
-esac
-export AW_BASH_ENV_RECURSION_GUARD=1
-eval "$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
-if [ -f "/workspace/devbox.json" ]; then
-  eval "$(cd "/workspace" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
-fi
-unset AW_BASH_ENV_RECURSION_GUARD
-case ":${PATH}:" in
-  *:/home/agent/.local/share/mise/shims:*) ;;
-  *) export PATH="/home/agent/.local/share/mise/shims:${PATH}" ;;
-esac
-export MISE_TRUSTED_CONFIG_PATHS="/workspace"
-export MISE_YES=1
-if [ -z "${DOCKER_HOST:-}" ] && [ -S /run/container.sock ]; then
-  export DOCKER_HOST="unix:///run/container.sock"
-fi
-ENVEOF
-
-cat > "$BASHRC_FILE" <<'BASHRC'
-if [ -f /home/agent/.aw_env.sh ]; then
-  . /home/agent/.aw_env.sh
-fi
-BASHRC
-
-cat > "$BASH_PROFILE_FILE" <<'BASH_PROFILE'
-if [ -f /home/agent/.bashrc ]; then
-  . /home/agent/.bashrc
-fi
-BASH_PROFILE
-
-chown agent:agent "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
-rm -rf "$WORK"
-echo "Snapshot setup complete."
-`

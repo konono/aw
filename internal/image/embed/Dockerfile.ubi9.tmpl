@@ -1,0 +1,51 @@
+FROM registry.access.redhat.com/ubi9/ubi:latest
+
+RUN dnf install -y --allowerasing \
+      git curl ca-certificates wget openssh-clients sudo xz \
+      util-linux-core tar gzip findutils && \
+    dnf clean all
+
+RUN useradd -m -s /bin/bash {{.User}} && \
+    echo '{{.User}} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+RUN mkdir -p /nix && chown {{.User}}:{{.User}} /nix
+
+USER {{.User}}
+RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+USER root
+
+RUN ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
+
+RUN su -s /bin/bash {{.User}} -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
+
+ENV HOME="{{.Home}}" \
+    BASH_ENV="{{.Home}}/.aw_env.sh" \
+    PATH="{{.Home}}/.nix-profile/bin:{{.Home}}/.local/bin:${PATH}"
+
+ARG AW_TOOL_PKG=""
+COPY . /tmp/aw-build/
+RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
+    if [ -n "$AW_TOOL_PKG" ]; then \
+      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
+    fi && \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      chown -R {{.User}}:{{.User}} /tmp/aw-build && \
+      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; cd /tmp/aw-build && devbox install"; \
+    fi && \
+    if [ -f /tmp/aw-build/mise.toml ]; then \
+      su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
+      mkdir -p {{.Home}}/.config/mise && \
+      cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
+      chown -R {{.User}}:{{.User}} {{.Home}}/.config/mise && \
+      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
+    fi && rm -rf /tmp/aw-build
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+RUN mkdir -p /Users {{.Workspace}} && chown {{.User}}:{{.User}} /Users {{.Workspace}}
+
+USER {{.User}}
+WORKDIR {{.Workspace}}
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

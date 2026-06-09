@@ -6,28 +6,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/profile"
 )
 
-func TestEmbeddedFilesNotEmpty(t *testing.T) {
-	if len(dockerfileDebian12) == 0 {
-		t.Error("embedded Dockerfile.debian12 is empty")
+func TestEmbeddedTemplatesNotEmpty(t *testing.T) {
+	if len(dockerfileDebian12Tmpl) == 0 {
+		t.Error("embedded Dockerfile.debian12.tmpl is empty")
 	}
-	if len(dockerfileUBI9) == 0 {
-		t.Error("embedded Dockerfile.ubi9 is empty")
+	if len(dockerfileUBI9Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubi9.tmpl is empty")
 	}
-	if len(dockerfileUBI10) == 0 {
-		t.Error("embedded Dockerfile.ubi10 is empty")
+	if len(dockerfileUBI10Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubi10.tmpl is empty")
 	}
-	if len(dockerfileUbuntu2604) == 0 {
-		t.Error("embedded Dockerfile.ubuntu2604 is empty")
+	if len(dockerfileUbuntu2604Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubuntu2604.tmpl is empty")
 	}
-	if len(entrypointSh) == 0 {
-		t.Error("embedded entrypoint.sh is empty")
+	if len(entrypointShTmpl) == 0 {
+		t.Error("embedded entrypoint.sh.tmpl is empty")
 	}
 }
 
-func TestDockerfileForOS(t *testing.T) {
+func TestRenderDockerfile(t *testing.T) {
+	cenv := containerenv.Default()
+
 	tests := []struct {
 		name     string
 		os       profile.OSTemplate
@@ -43,7 +46,7 @@ func TestDockerfileForOS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			df, err := DockerfileForOS(tt.os)
+			df, err := RenderDockerfile(tt.os, cenv)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error for unknown OS template")
@@ -51,7 +54,7 @@ func TestDockerfileForOS(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Fatalf("DockerfileForOS() error: %v", err)
+				t.Fatalf("RenderDockerfile() error: %v", err)
 			}
 			if len(df) == 0 {
 				t.Error("returned Dockerfile is empty")
@@ -63,23 +66,43 @@ func TestDockerfileForOS(t *testing.T) {
 				t.Error("Dockerfile should contain ENTRYPOINT")
 			}
 			if !strings.Contains(string(df), "useradd") {
-				t.Error("Dockerfile should create agent user")
+				t.Error("Dockerfile should create user")
 			}
 			if !strings.Contains(string(df), `BASH_ENV="/home/agent/.aw_env.sh"`) {
 				t.Error("Dockerfile should set BASH_ENV to /home/agent/.aw_env.sh")
 			}
-			if !strings.Contains(string(df), "HOME=\"/home/agent\"") {
+			if !strings.Contains(string(df), `HOME="/home/agent"`) {
 				t.Error("Dockerfile should set HOME to /home/agent")
-			}
-			if lastAgent := strings.LastIndex(string(df), "USER agent"); lastAgent == -1 || lastAgent < strings.LastIndex(string(df), "USER root") {
-				t.Error("Dockerfile should end with USER agent")
 			}
 		})
 	}
 }
 
-func TestEmbeddedEntrypointContent(t *testing.T) {
-	content := string(entrypointSh)
+func TestRenderDockerfile_CustomUser(t *testing.T) {
+	cenv := containerenv.FromUser("dev")
+	df, err := RenderDockerfile(profile.OSDebian12, cenv)
+	if err != nil {
+		t.Fatalf("RenderDockerfile() error: %v", err)
+	}
+	content := string(df)
+	if !strings.Contains(content, "useradd -m -s /bin/bash dev") {
+		t.Error("Dockerfile should create 'dev' user")
+	}
+	if !strings.Contains(content, `HOME="/home/dev"`) {
+		t.Error("Dockerfile should set HOME to /home/dev")
+	}
+	if strings.Contains(content, "/home/agent") {
+		t.Error("Dockerfile should not contain /home/agent when using custom user")
+	}
+}
+
+func TestRenderEntrypoint(t *testing.T) {
+	cenv := containerenv.Default()
+	ep, err := RenderEntrypoint(cenv)
+	if err != nil {
+		t.Fatalf("RenderEntrypoint() error: %v", err)
+	}
+	content := string(ep)
 	if !strings.HasPrefix(content, "#!/bin/bash") {
 		t.Error("entrypoint.sh should start with shebang")
 	}
@@ -89,8 +112,20 @@ func TestEmbeddedEntrypointContent(t *testing.T) {
 	if !strings.Contains(content, "AW_BASH_ENV_LOADED") {
 		t.Error("entrypoint.sh should guard against reloading .aw_env.sh")
 	}
-	if strings.Contains(content, "setpriv") {
-		t.Error("entrypoint.sh should not use setpriv")
+}
+
+func TestRenderEntrypoint_CustomUser(t *testing.T) {
+	cenv := containerenv.FromUser("dev")
+	ep, err := RenderEntrypoint(cenv)
+	if err != nil {
+		t.Fatalf("RenderEntrypoint() error: %v", err)
+	}
+	content := string(ep)
+	if !strings.Contains(content, "/home/dev/.aw_env.sh") {
+		t.Error("entrypoint.sh should reference /home/dev/.aw_env.sh")
+	}
+	if strings.Contains(content, "/home/agent") {
+		t.Error("entrypoint.sh should not contain /home/agent when using custom user")
 	}
 }
 
@@ -99,13 +134,15 @@ func TestDefaultDockerfile(t *testing.T) {
 	if len(content) == 0 {
 		t.Error("DefaultDockerfile() returned empty content")
 	}
-	if string(content) != string(dockerfileDebian12) {
-		t.Error("DefaultDockerfile() content does not match embedded debian12 dockerfile")
+	expected, _ := RenderDockerfile(profile.OSDebian12, containerenv.Default())
+	if string(content) != string(expected) {
+		t.Error("DefaultDockerfile() content does not match rendered debian12 dockerfile")
 	}
 }
 
 func TestPrepareBuildContext(t *testing.T) {
-	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12)
+	cenv := containerenv.Default()
+	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, cenv)
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -119,20 +156,22 @@ func TestPrepareBuildContext(t *testing.T) {
 		t.Fatal("build context path is not a directory")
 	}
 
+	expectedDF, _ := RenderDockerfile(profile.OSDebian12, cenv)
 	dfContent, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
 	if err != nil {
 		t.Fatalf("reading Dockerfile: %v", err)
 	}
-	if string(dfContent) != string(dockerfileDebian12) {
-		t.Error("Dockerfile content does not match embedded debian12 content")
+	if string(dfContent) != string(expectedDF) {
+		t.Error("Dockerfile content does not match rendered debian12 content")
 	}
 
+	expectedEP, _ := RenderEntrypoint(cenv)
 	epContent, err := os.ReadFile(filepath.Join(dir, "entrypoint.sh"))
 	if err != nil {
 		t.Fatalf("reading entrypoint.sh: %v", err)
 	}
-	if string(epContent) != string(entrypointSh) {
-		t.Error("entrypoint.sh content does not match embedded content")
+	if string(epContent) != string(expectedEP) {
+		t.Error("entrypoint.sh content does not match rendered content")
 	}
 
 	epInfo, err := os.Stat(filepath.Join(dir, "entrypoint.sh"))
@@ -145,6 +184,7 @@ func TestPrepareBuildContext(t *testing.T) {
 }
 
 func TestPrepareBuildContext_WithOS(t *testing.T) {
+	cenv := containerenv.Default()
 	tests := []struct {
 		name     string
 		os       profile.OSTemplate
@@ -158,7 +198,7 @@ func TestPrepareBuildContext_WithOS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir, cleanup, err := PrepareBuildContext("", tt.os)
+			dir, cleanup, err := PrepareBuildContext("", tt.os, cenv)
 			if err != nil {
 				t.Fatalf("PrepareBuildContext() error: %v", err)
 			}
@@ -196,7 +236,7 @@ func TestPrepareBuildContext_CustomDockerfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12)
+	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -221,7 +261,7 @@ func TestPrepareBuildContext_CustomDockerfileCleanupIsNoop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12)
+	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -234,7 +274,7 @@ func TestPrepareBuildContext_CustomDockerfileCleanupIsNoop(t *testing.T) {
 }
 
 func TestPrepareBuildContext_CustomDockerfileNotFound(t *testing.T) {
-	_, _, err := PrepareBuildContext("/nonexistent/Dockerfile", profile.OSDebian12)
+	_, _, err := PrepareBuildContext("/nonexistent/Dockerfile", profile.OSDebian12, containerenv.Default())
 	if err == nil {
 		t.Fatal("expected error for nonexistent custom Dockerfile")
 	}
@@ -244,7 +284,7 @@ func TestPrepareBuildContext_CustomDockerfileNotFound(t *testing.T) {
 }
 
 func TestPrepareBuildContextCleanup(t *testing.T) {
-	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12)
+	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}

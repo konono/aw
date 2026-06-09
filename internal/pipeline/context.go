@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/profile"
 )
@@ -35,4 +36,7 @@ type ExecutionContext struct {
 
 	// Set by DockerStage for container runtime socket mounting
 	ContainerSockReady bool
+
+	// Container environment config (user, home, workspace paths)
+	ContainerEnv containerenv.Config
 }
