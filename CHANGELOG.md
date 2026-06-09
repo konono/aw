@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.3](https://github.com/konono/aw/compare/v1.4.2...v1.4.3) (2026-06-09)
+
+
+### Bug Fixes
+
+* **container:** install user devbox.json packages globally ([eb1aa89](https://github.com/konono/aw/commit/eb1aa89672d33e0265c6ec4ab89ae94e11a32bd8))
+* **container:** make appendContainerContext idempotent to prevent CLAUDE.md bloat ([5643f32](https://github.com/konono/aw/commit/5643f320251f21ebc10b64f143d15aba8d23a31f))
+* **container:** make appendContainerContext idempotent to prevent CLAUDE.md bloat ([4171304](https://github.com/konono/aw/commit/41713049159756c675781995ce4729fd204b2a43))
+
 ## [1.4.2](https://github.com/konono/aw/compare/v1.4.1...v1.4.2) (2026-06-09)
 
 
