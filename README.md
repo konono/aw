@@ -89,6 +89,27 @@ aw --version                   # バージョン表示
 
 認証の詳細は [docs/authentication.md](docs/authentication.md) を参照してください。
 
+### 過去のディレクトリから起動する
+
+`--recent` を使うと、過去に `aw` を起動したディレクトリ一覧から選んで、そのディレクトリでプロファイルを起動できます。
+
+```bash
+aw --recent                        # 履歴から選択して起動
+aw codex --recent                  # 履歴から選択して codex で起動
+aw claude --recent --query dotfiles  # 初期クエリ付きで選択
+```
+
+`-C` / `--cwd` で特定のディレクトリを直接指定することもできます。
+
+```bash
+aw -C ~/src/my-project             # 指定ディレクトリで起動
+aw codex --cwd ~/src/my-project    # 指定ディレクトリで codex を起動
+```
+
+選択 UI は `aw` に内蔵されているため、`fzf` を別途インストールする必要はありません。
+
+履歴は `${XDG_STATE_HOME:-$HOME/.local/state}/aw/dirs.json` に保存されます。
+
 ## 設定
 
 設定は以下の順序でマージされます:
