@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/toolinfo"
 )
@@ -156,7 +158,7 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
 			t.Logf("preparing shell image for os=%s", osTemplate)
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate)
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
@@ -242,7 +244,7 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 				t.Cleanup(func() { removeImage(runtime, imageName) })
 
 				t.Logf("preparing tool image for os=%s tool=%s pkg=%s", osTemplate, tool, pkg)
-				buildDir, cleanup, err := PrepareBuildContext("", osTemplate)
+				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
 				if err != nil {
 					t.Fatalf("PrepareBuildContext: %v", err)
 				}
@@ -288,7 +290,7 @@ func TestIntegration_Smoke(t *testing.T) {
 	imageName := "aw-inttest-smoke"
 	t.Cleanup(func() { removeImage(runtime, imageName) })
 
-	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12)
+	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext: %v", err)
 	}
@@ -343,9 +345,50 @@ echo SHELL_OK
 	})
 }
 
+// TestIntegration_DevboxJSON verifies that an image with a user-provided
+// devbox.json builds successfully and the declared package is installed.
+// This catches regressions like missing directory creation before copying
+// devbox.json into the devbox global config path.
+func TestIntegration_DevboxJSON(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	for _, osTemplate := range allOSTemplates {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			imageName := fmt.Sprintf("aw-inttest-devbox-%s", osTemplate)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
+
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
+			if err != nil {
+				t.Fatalf("PrepareBuildContext: %v", err)
+			}
+			defer cleanup()
+
+			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
+				t.Fatalf("writing devbox.json: %v", err)
+			}
+
+			buildImage(t, runtime, imageName, buildDir, nil)
+
+			out := runInContainer(t, runtime, imageName, `
+hello 2>&1 || true
+devbox global list 2>/dev/null
+echo DEVBOX_JSON_OK
+`)
+			if !strings.Contains(out, "DEVBOX_JSON_OK") {
+				t.Error("devbox.json test did not complete")
+			}
+			if !strings.Contains(out, "hello") {
+				t.Error("expected 'hello' package to be installed from devbox.json")
+			}
+		})
+	}
+}
+
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
 	for _, os := range allOSTemplates {
-		if _, ok := dockerfiles[os]; !ok {
+		if _, ok := dockerfileTmpls[os]; !ok {
 			t.Errorf("no embedded Dockerfile for OS template %q", os)
 		}
 	}

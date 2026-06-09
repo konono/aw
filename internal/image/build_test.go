@@ -299,3 +299,38 @@ func TestPrepareBuildContextCleanup(t *testing.T) {
 		t.Error("dir should not exist after cleanup")
 	}
 }
+
+func TestRenderDockerfile_DevboxDirectoryCreation(t *testing.T) {
+	cenv := containerenv.Default()
+	for _, osTemplate := range []profile.OSTemplate{
+		profile.OSDebian12,
+		profile.OSUBI9,
+		profile.OSUBI10,
+		profile.OSUbuntu2604,
+	} {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			df, err := RenderDockerfile(osTemplate, cenv)
+			if err != nil {
+				t.Fatalf("RenderDockerfile() error: %v", err)
+			}
+			content := string(df)
+
+			cpLine := "cp /tmp/aw-build/devbox.json"
+			mkdirLine := "mkdir -p " + cenv.Home + "/.local/share/devbox/global/default"
+
+			cpIdx := strings.Index(content, cpLine)
+			if cpIdx < 0 {
+				t.Fatal("Dockerfile should contain devbox.json cp command")
+			}
+
+			mkdirIdx := strings.Index(content, mkdirLine)
+			if mkdirIdx < 0 {
+				t.Fatal("Dockerfile should create devbox global directory before copying devbox.json")
+			}
+
+			if mkdirIdx > cpIdx {
+				t.Error("mkdir -p for devbox global directory must appear before cp command")
+			}
+		})
+	}
+}
