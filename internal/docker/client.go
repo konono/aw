@@ -163,11 +163,8 @@ func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error
 // BuildRunArgs constructs the docker CLI arguments for a RunConfig.
 // This is exported for testing.
 func BuildRunArgs(config RunConfig) []string {
-	// --pids-limit: prevent fork bombs. 1000 is generous enough for
-	// typical AI agent workloads (mise install, npm ci, parallel builds)
-	// while still capping runaway process creation.
 	args := []string{"run", "-it", "--rm",
-		"--pids-limit", "1000",
+		"--pids-limit", "8192",
 	}
 
 	for _, opt := range config.SecurityOpts {
@@ -223,7 +220,7 @@ func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 // non-auto-remove container run. The container is given a unique name so it
 // can be committed and removed later.
 func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
-	args := []string{"run", "--name", containerName, "--pids-limit", "1000"}
+	args := []string{"run", "--name", containerName, "--pids-limit", "8192"}
 
 	for _, opt := range config.SecurityOpts {
 		args = append(args, "--security-opt", opt)
