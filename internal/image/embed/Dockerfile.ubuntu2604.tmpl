@@ -26,6 +26,7 @@ ARG AW_TOOL_PKG=""
 COPY . /tmp/aw-build/
 RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
     if [ -f /tmp/aw-build/devbox.json ]; then \
+      mkdir -p {{.Home}}/.local/share/devbox/global/default && \
       cp /tmp/aw-build/devbox.json {{.Home}}/.local/share/devbox/global/default/devbox.json && \
       chown {{.User}}:{{.User}} {{.Home}}/.local/share/devbox/global/default/devbox.json && \
       su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global install"; \
