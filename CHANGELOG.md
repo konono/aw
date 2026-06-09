@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.4](https://github.com/konono/aw/compare/v1.4.3...v1.4.4) (2026-06-09)
+
+
+### Bug Fixes
+
+* **image:** create devbox global directory before copying devbox.json ([c85859b](https://github.com/konono/aw/commit/c85859bc53c453c2c65fd449d93dc0bd7a85a431))
+* **image:** create devbox global directory before copying devbox.json ([1d64359](https://github.com/konono/aw/commit/1d64359fcdd454901c7ef3698bdb6757e276d96e))
+
 ## [1.4.3](https://github.com/konono/aw/compare/v1.4.2...v1.4.3) (2026-06-09)
 
 
