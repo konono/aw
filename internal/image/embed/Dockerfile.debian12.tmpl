@@ -16,7 +16,7 @@ USER root
 
 RUN ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
 
-RUN curl -fsSL https://get.jetify.com/devbox | bash -s -- -f && \
+RUN curl -fsSL -o /usr/local/bin/devbox https://releases.jetify.com/devbox && \
     chmod 755 /usr/local/bin/devbox
 
 ENV HOME="{{.Home}}" \
