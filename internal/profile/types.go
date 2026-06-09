@@ -6,7 +6,7 @@ type ConfigSource struct {
 	FilePath  string // non-empty if loaded from a file
 }
 
-// Config represents the top-level .agent-workspace.yml file.
+// Config represents the top-level .aw.yml file.
 //
 // Profile fields declared at the top level (via Defaults) act as defaults for
 // every profile in Profiles. Each profile overrides those defaults

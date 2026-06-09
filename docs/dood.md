@@ -84,7 +84,7 @@ curl --unix-socket /run/container.sock http://localhost/_ping
 
 ## プロジェクトごとの設定
 
-プロジェクトの `.agent-workspace.yml` で docker-compose を使うプロファイルを定義することもできます:
+プロジェクトの `.aw.yml` で docker-compose を使うプロファイルを定義することもできます:
 
 ```yaml
 profiles:
