@@ -386,6 +386,121 @@ echo DEVBOX_JSON_OK
 	}
 }
 
+// TestIntegration_DevboxAndMise builds an image with both devbox.json and
+// mise.toml in the build context and verifies both tool managers work.
+// This is an E2E test that catches permission errors in the Dockerfile
+// templates — any root-owned directory that blocks agent-user writes will
+// cause the build or the in-container checks to fail.
+func TestIntegration_DevboxAndMise(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	for _, osTemplate := range allOSTemplates {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			imageName := fmt.Sprintf("aw-inttest-both-%s", osTemplate)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
+
+			cenv := containerenv.Default()
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
+			if err != nil {
+				t.Fatalf("PrepareBuildContext: %v", err)
+			}
+			defer cleanup()
+
+			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
+				t.Fatalf("writing devbox.json: %v", err)
+			}
+
+			miseToml := []byte("[tools]\ntiny = \"latest\"\n")
+			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
+				t.Fatalf("writing mise.toml: %v", err)
+			}
+
+			buildImage(t, runtime, imageName, buildDir, nil)
+
+			out := runInContainer(t, runtime, imageName, fmt.Sprintf(`
+hello 2>&1 || true
+devbox global list 2>/dev/null
+test -d %s && echo MISE_SHIMS_DIR_OK
+test -w %s && echo LOCAL_SHARE_WRITABLE
+echo DEVBOX_AND_MISE_OK
+`, cenv.MiseShims(), cenv.Home+"/.local/share"))
+
+			if !strings.Contains(out, "hello") {
+				t.Error("expected 'hello' package from devbox.json")
+			}
+			if !strings.Contains(out, "MISE_SHIMS_DIR_OK") {
+				t.Error("mise shims directory was not created")
+			}
+			if !strings.Contains(out, "LOCAL_SHARE_WRITABLE") {
+				t.Error("~/.local/share is not writable by agent user")
+			}
+			if !strings.Contains(out, "DEVBOX_AND_MISE_OK") {
+				t.Error("devbox+mise combined test did not complete")
+			}
+		})
+	}
+}
+
+// TestIntegration_FilePermissions verifies that the agent user owns all
+// directories it needs to write to at runtime. This catches the class of
+// bugs where root-executed mkdir/cp in Dockerfile templates leaves
+// directories that the agent user cannot modify.
+func TestIntegration_FilePermissions(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	for _, osTemplate := range allOSTemplates {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			imageName := fmt.Sprintf("aw-inttest-perms-%s", osTemplate)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
+
+			cenv := containerenv.Default()
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
+			if err != nil {
+				t.Fatalf("PrepareBuildContext: %v", err)
+			}
+			defer cleanup()
+
+			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
+				t.Fatalf("writing devbox.json: %v", err)
+			}
+
+			miseToml := []byte("[tools]\ntiny = \"latest\"\n")
+			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
+				t.Fatalf("writing mise.toml: %v", err)
+			}
+
+			buildImage(t, runtime, imageName, buildDir, nil)
+
+			writableDirs := []string{
+				cenv.Home + "/.local/share",
+				cenv.Home + "/.local/bin",
+				cenv.Home + "/.config",
+			}
+
+			for _, dir := range writableDirs {
+				t.Run(dir, func(t *testing.T) {
+					out := runInContainer(t, runtime, imageName, fmt.Sprintf(`
+owner=$(stat -c '%%U' %s 2>/dev/null || stat -f '%%Su' %s 2>/dev/null)
+echo "OWNER=$owner"
+test -w %s && echo WRITABLE || echo NOT_WRITABLE
+`, dir, dir, dir))
+
+					if !strings.Contains(out, "OWNER="+cenv.User) {
+						t.Errorf("%s is not owned by %s: %s", dir, cenv.User, strings.TrimSpace(out))
+					}
+					if strings.Contains(out, "NOT_WRITABLE") {
+						t.Errorf("%s is not writable by %s", dir, cenv.User)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
 	for _, os := range allOSTemplates {
 		if _, ok := dockerfileTmpls[os]; !ok {
