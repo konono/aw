@@ -58,13 +58,46 @@ func Run(args []string) int {
 		return runAuth(append([]string{"login"}, args[1:]...))
 	}
 
-	// Determine profile name
-	profileName := ""
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		profileName = args[0]
+	// Parse profile name and run options
+	opts, err := parseRunArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
 	}
 
-	// Load config
+	// Save original working directory before any chdir
+	origCwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	// Handle -C / --cwd: chdir before profile.Load()
+	if opts.Cwd != "" {
+		target := expandTilde(opts.Cwd)
+		if err := os.Chdir(target); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot change to directory %q: %v\n", target, err)
+			return 1
+		}
+	}
+
+	// Handle --recent: pick a directory from history, then chdir
+	if opts.Recent {
+		dir, cancelled, err := selectRecentDir(opts.Query)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		if cancelled {
+			return 0
+		}
+		if err := os.Chdir(dir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot change to directory %q: %v\n", dir, err)
+			return 1
+		}
+	}
+
+	// Load config (after chdir so .aw.yml is found in the selected directory)
 	cfg, err := profile.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
@@ -76,6 +109,8 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+
+	profileName := opts.ProfileName
 
 	// If no profile name given, use default or list profiles
 	if profileName == "" {
@@ -105,6 +140,18 @@ func Run(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
+	}
+
+	// Record directory history (use OrigWorkDir, not worktree path)
+	if !opts.NoRecord {
+		recordDir := ec.OrigWorkDir
+		if opts.Cwd != "" || opts.Recent {
+			// When -C or --recent was used, the current dir is the target
+			if cwd, err := os.Getwd(); err == nil {
+				recordDir = cwd
+			}
+		}
+		recordDirHistory(recordDir, profileName, origCwd)
 	}
 
 	// Warn about on-end limitations
@@ -278,6 +325,10 @@ func printHelp() {
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
 	fmt.Println("Options:")
+	fmt.Println("  -r, --recent            Pick a directory from launch history")
+	fmt.Println("  --query <text>          Initial query for --recent picker")
+	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")
+	fmt.Println("  --no-record             Don't record this launch in directory history")
 	fmt.Println("  -h, --help              Show this help")
 	fmt.Println("  -v, --version           Show version")
 }
