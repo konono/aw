@@ -197,6 +197,7 @@ profiles:
 - `mounts`
 - `os`
 - `dockerfile`
+- `container_user`
 - `worktree`
 - `zellij`
 
@@ -349,6 +350,21 @@ profiles:
 
 省略した場合、デフォルトは `docker` です。
 
+### `container_user`（任意）
+
+コンテナ内のユーザー名を指定します。ビルトイン OS テンプレート使用時は、このユーザー名で Dockerfile と entrypoint.sh がレンダリングされます。カスタム Dockerfile 使用時は、Dockerfile 内で作成したユーザー名と一致させてください。
+
+**デフォルト: `"agent"`**
+
+`container_user` を変更すると以下が連動して変わります:
+
+- コンテナ内のホームディレクトリ（`/home/<container_user>`）
+- マウント先のパス（`.gitconfig`、`.config/gh`、`.ssh-host`）
+- ツール設定ディレクトリ（`.claude`、`.codex` など）
+- スナップショットスクリプトの実行ユーザー
+
+`environment: container` でのみ有効です。
+
 ### `mount_gh`（任意）
 
 ホストの `~/.config/gh` を読み取り専用でコンテナにマウントするかどうか。`gh` コマンド（PR 作成、Issue 管理など）をコンテナ内で使う場合に有効化します。
@@ -475,6 +491,7 @@ aw init
 14. `skip_mise_install` は `environment: container` の場合のみ有効
 12. `mounts` は `environment: container` の場合のみ有効
 13. すべてのマウントに `source` と `target` の両方が必要
+14. `container_user` は `environment: container` の場合のみ有効
 14. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
 15. `mount_container_sock` は `environment: container` の場合のみ有効
 15. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること

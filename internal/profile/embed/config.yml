@@ -15,6 +15,7 @@ default: claude
 environment: container        # "host" or "container"
 os: debian12                  # "debian12", "ubi9", "ubi10", "ubuntu2604"
 container_runtime: podman     # "docker" or "podman"
+# container_user: agent       # container user name (default: "agent")
 
 # ── Host resource mounts ─────────────────────────────────────────────
 # mount_gh: false             # mount ~/.config/gh read-only (default: false)
@@ -62,6 +63,8 @@ profiles:
   #   container_runtime: podman
   #   dockerfile: docker/Dockerfile.custom   # use either os, dockerfile, or image
   #   # image: 'aw-container:hash'          # pre-built image (mutually exclusive with os/dockerfile)
+  #   # container_user: dev                 # container user name (default: "agent")
+  #                                         # custom Dockerfile 使用時はそのユーザー名を指定
   #
   #   # ── Environment variables (passed into the container) ─────────
   #   env:

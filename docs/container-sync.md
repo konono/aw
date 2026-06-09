@@ -2,6 +2,8 @@
 
 `environment: container` を使用する場合、`aw` はホストの設定を自動的にコンテナへ同期します。
 
+以下のパスはデフォルトユーザー `agent`（`/home/agent`）の場合です。`container_user` を設定した場合、コンテナ内のパスは `/home/<container_user>/` に自動的に変わります。
+
 ## Git — そのまま動作
 
 | ホスト | コンテナ | 方法 |

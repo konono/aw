@@ -60,6 +60,21 @@ entrypoint.sh で Playwright ブラウザの自動インストールも行われ
 
 デフォルトの Dockerfile と entrypoint.sh は `aw default-dockerfile` で確認できます。これをベースにカスタマイズするのが最も簡単です。
 
+## `container_user` との連携
+
+カスタム Dockerfile で `agent` 以外のユーザーを使う場合、`container_user` でそのユーザー名を aw に伝えてください。aw はこの値を使ってマウント先パス（`.gitconfig`、`.config/gh` など）やスナップショットの実行ユーザーを決定します。
+
+```yaml
+profiles:
+  custom:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.custom
+    container_user: dev   # Dockerfile 内で useradd したユーザー名
+```
+
+`container_user` を指定しない場合、aw はデフォルトの `agent` ユーザーを前提とします。Dockerfile 内のユーザー名と一致しないと、マウント先や export --snapshot が正しく動作しません。
+
 ## 注意事項
 
 - `os` と `dockerfile` は排他的です。`dockerfile` を指定すると `os` は無視されます
