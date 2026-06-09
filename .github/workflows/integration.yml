@@ -1,6 +1,11 @@
 name: Integration Tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'internal/image/**'
+      - 'internal/containerenv/**'
   pull_request:
     paths:
       - 'internal/image/**'
