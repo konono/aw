@@ -35,14 +35,19 @@ BASH_PROFILE_FILE={{.Home}}/.bash_profile
 
 # AI tool is already installed at build time via Dockerfile.
 # Install project packages (supports both devbox.json and mise.toml)
-NIX_ENV="export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+NIX_ENV=""
+if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
+  NIX_ENV="export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+fi
 AW_PKG_FOUND=0
 if [ -f "$WORKSPACE/devbox.json" ]; then
   if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
     echo "Skipping devbox install (skip_devbox_install is enabled)"
-  else
+  elif command -v devbox >/dev/null 2>&1 || run_as_user "$NIX_ENV command -v devbox" >/dev/null 2>&1; then
     echo "Installing packages from devbox.json..."
     run_as_user "$NIX_ENV cd \"$WORKSPACE\" && devbox install"
+  else
+    echo "devbox.json found but devbox is not installed, skipping"
   fi
   AW_PKG_FOUND=1
 fi
@@ -62,7 +67,7 @@ if [ -f "$WORKSPACE/mise.toml" ] || [ -f "$WORKSPACE/.mise.toml" ]; then
   AW_PKG_FOUND=1
 fi
 if [ "$AW_PKG_FOUND" = "0" ]; then
-  echo "No devbox.json or mise.toml found. devbox is available for installing tools."
+  echo "No devbox.json or mise.toml found in workspace."
 fi
 
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
@@ -103,7 +108,9 @@ fi
 AW_BASH_ENV_LOADED=1
 export HOME={{.Home}}
 
-. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
+  . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+fi
 case ":\${PATH}:" in
   *:{{.Home}}/.nix-profile/bin:*) ;;
   *) export PATH="{{.Home}}/.nix-profile/bin:\${PATH}" ;;
@@ -112,12 +119,14 @@ case ":\${PATH}:" in
   *:{{.Home}}/.local/bin:*) ;;
   *) export PATH="{{.Home}}/.local/bin:\${PATH}" ;;
 esac
-export AW_BASH_ENV_RECURSION_GUARD=1
-eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
-if [ -f "${WORKSPACE}/devbox.json" ]; then
-  eval "\$(cd "${WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+if command -v devbox >/dev/null 2>&1; then
+  export AW_BASH_ENV_RECURSION_GUARD=1
+  eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
+  if [ -f "${WORKSPACE}/devbox.json" ]; then
+    eval "\$(cd "${WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+  fi
+  unset AW_BASH_ENV_RECURSION_GUARD
 fi
-unset AW_BASH_ENV_RECURSION_GUARD
 case ":\${PATH}:" in
   *:{{.Home}}/.local/share/mise/shims:*) ;;
   *) export PATH="{{.Home}}/.local/share/mise/shims:\${PATH}" ;;

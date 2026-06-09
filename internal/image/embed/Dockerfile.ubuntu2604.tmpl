@@ -25,12 +25,13 @@ ENV HOME="{{.Home}}" \
 ARG AW_TOOL_PKG=""
 COPY . /tmp/aw-build/
 RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      cp /tmp/aw-build/devbox.json {{.Home}}/.local/share/devbox/global/default/devbox.json && \
+      chown {{.User}}:{{.User}} {{.Home}}/.local/share/devbox/global/default/devbox.json && \
+      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global install"; \
+    fi && \
     if [ -n "$AW_TOOL_PKG" ]; then \
       su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
-    fi && \
-    if [ -f /tmp/aw-build/devbox.json ]; then \
-      chown -R {{.User}}:{{.User}} /tmp/aw-build && \
-      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; cd /tmp/aw-build && devbox install"; \
     fi && \
     if [ -f /tmp/aw-build/mise.toml ]; then \
       su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
