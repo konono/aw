@@ -112,8 +112,8 @@ func TestRunConfigBuildArgs(t *testing.T) {
 
 	args := BuildRunArgs(config)
 
-	// Should start with run -it --rm --pids-limit 1000
-	expected := []string{"run", "-it", "--rm", "--pids-limit", "1000"}
+	// Should start with run -it --rm --pids-limit 8192
+	expected := []string{"run", "-it", "--rm", "--pids-limit", "8192"}
 	if len(args) < len(expected) {
 		t.Fatalf("expected args to start with %v, got %v", expected, args)
 	}
@@ -251,7 +251,7 @@ func TestBuildOneShotRunArgs(t *testing.T) {
 
 	args := BuildOneShotRunArgs("aw-snapshot-abcd", config)
 
-	expected := []string{"run", "--name", "aw-snapshot-abcd", "--pids-limit", "1000"}
+	expected := []string{"run", "--name", "aw-snapshot-abcd", "--pids-limit", "8192"}
 	if len(args) < len(expected) {
 		t.Fatalf("expected args to start with %v, got %v", expected, args)
 	}
