@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.2](https://github.com/konono/aw/compare/v1.4.1...v1.4.2) (2026-06-09)
+
+
+### Bug Fixes
+
+* **container:** increase --pids-limit from 1000 to 8192 ([062f794](https://github.com/konono/aw/commit/062f794237c64c83806c30e3c3f3ca520c3261ea))
+* **container:** increase --pids-limit from 1000 to 8192 ([92e08a9](https://github.com/konono/aw/commit/92e08a92a3f46b16af7ac50a8eb046986533056a))
+* **test:** check os.WriteFile error returns in config tests ([2ea9c4a](https://github.com/konono/aw/commit/2ea9c4afc5eff2dec52bad206b52b0a264969f9d))
+
 ## [1.4.1](https://github.com/konono/aw/compare/v1.4.0...v1.4.1) (2026-06-08)
 
 
