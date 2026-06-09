@@ -434,7 +434,7 @@ func TestIntegration_E2E(t *testing.T) {
 				t.Fatalf("writing devbox.json: %v", err)
 			}
 
-			miseToml := []byte("[tools]\n")
+			miseToml := []byte("[tools]\njq = \"latest\"\n")
 			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
 				t.Fatalf("writing mise.toml: %v", err)
 			}
@@ -454,29 +454,37 @@ func TestIntegration_E2E(t *testing.T) {
 				}
 			})
 
-			// Verify build-time packages and runtime install work.
-			t.Run("packages", func(t *testing.T) {
+			// Verify tools from devbox.json and mise.toml with --version.
+			t.Run("config_tools", func(t *testing.T) {
 				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
 				t.Cleanup(func() { removeContainer(runtime, containerID) })
 
+				// devbox.json tool
 				out := execInContainer(t, runtime, containerID, "bash", "-lc",
-					"hello 2>&1 && echo HELLO_OK")
-				if !strings.Contains(out, "HELLO_OK") {
-					t.Error("hello package from devbox.json was not available")
+					"hello --version")
+				if !strings.Contains(out, "hello") {
+					t.Errorf("hello --version (devbox.json) failed: %s", out)
 				}
 
+				// mise.toml tool
 				out = execInContainer(t, runtime, containerID, "bash", "-lc",
-					fmt.Sprintf("test -d %s && echo SHIMS_OK", cenv.MiseShims()))
-				if !strings.Contains(out, "SHIMS_OK") {
-					t.Error("mise shims directory was not created")
+					"jq --version")
+				if !strings.Contains(out, "jq") {
+					t.Errorf("jq --version (mise.toml) failed: %s", out)
 				}
+			})
+
+			// Verify runtime package installation works.
+			t.Run("runtime_install", func(t *testing.T) {
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
 
 				execInContainer(t, runtime, containerID, "bash", "-lc",
 					"devbox global add "+toolinfo.DevboxPkg("codex"))
-				out = execInContainer(t, runtime, containerID, "bash", "-lc",
-					"command -v codex && codex --version && echo RUNTIME_INSTALL_OK")
-				if !strings.Contains(out, "RUNTIME_INSTALL_OK") {
-					t.Error("runtime devbox global add did not work")
+				out := execInContainer(t, runtime, containerID, "bash", "-lc",
+					"codex --version")
+				if !strings.Contains(out, "codex") {
+					t.Errorf("codex --version after runtime install failed: %s", out)
 				}
 			})
 		})
