@@ -1089,8 +1089,12 @@ profiles:
 func TestFindProjectConfig_Helper(t *testing.T) {
 	t.Run("prefers .aw.yml over .aw.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte("default: yml"), 0644)
-		os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644)
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte("default: yml"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		path, deprecated := findProjectConfig(dir)
 		if filepath.Base(path) != ".aw.yml" {
@@ -1103,7 +1107,9 @@ func TestFindProjectConfig_Helper(t *testing.T) {
 
 	t.Run("falls back to .aw.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644)
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		path, deprecated := findProjectConfig(dir)
 		if filepath.Base(path) != ".aw.yaml" {
@@ -1116,7 +1122,9 @@ func TestFindProjectConfig_Helper(t *testing.T) {
 
 	t.Run("legacy name returns deprecated", func(t *testing.T) {
 		dir := t.TempDir()
-		os.WriteFile(filepath.Join(dir, ".agent-workspace.yml"), []byte("default: legacy"), 0644)
+		if err := os.WriteFile(filepath.Join(dir, ".agent-workspace.yml"), []byte("default: legacy"), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		path, deprecated := findProjectConfig(dir)
 		if filepath.Base(path) != ".agent-workspace.yml" {
