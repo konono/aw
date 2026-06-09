@@ -16,7 +16,7 @@ USER root
 
 RUN ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
 
-RUN su -s /bin/bash {{.User}} -c 'curl -fsSL https://get.jetify.com/devbox | bash -s -- -f'
+RUN curl -fsSL https://get.jetify.com/devbox | bash -s -- -f
 
 ENV HOME="{{.Home}}" \
     BASH_ENV="{{.Home}}/.aw_env.sh" \
