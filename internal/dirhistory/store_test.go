@@ -86,8 +86,12 @@ func TestCandidates_SortByRecent(t *testing.T) {
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a")
 	b := filepath.Join(dir, "b")
-	os.MkdirAll(a, 0755)
-	os.MkdirAll(b, 0755)
+	if err := os.MkdirAll(a, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(b, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	old := time.Now().Add(-1 * time.Hour)
 	recent := time.Now()
@@ -138,8 +142,10 @@ func TestSaveAndOpen(t *testing.T) {
 
 func TestOpen_NonExistent(t *testing.T) {
 	orig := os.Getenv("XDG_STATE_HOME")
-	defer os.Setenv("XDG_STATE_HOME", orig)
-	os.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "nonexistent"))
+	t.Cleanup(func() { _ = os.Setenv("XDG_STATE_HOME", orig) })
+	if err := os.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "nonexistent")); err != nil {
+		t.Fatal(err)
+	}
 
 	s, err := Open()
 	if err != nil {
