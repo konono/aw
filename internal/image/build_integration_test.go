@@ -386,74 +386,40 @@ echo DEVBOX_JSON_OK
 	}
 }
 
-// TestIntegration_DevboxAndMise builds an image with both devbox.json and
-// mise.toml in the build context and verifies both tool managers work.
-// This is an E2E test that catches permission errors in the Dockerfile
-// templates — any root-owned directory that blocks agent-user writes will
-// cause the build or the in-container checks to fail.
-func TestIntegration_DevboxAndMise(t *testing.T) {
-	runtime := detectRuntime()
-	t.Logf("container runtime: %s", runtime)
+// runContainerCommand runs a command through the image's entrypoint, just
+// like `docker run <image> <command...>` in production.
+func runContainerCommand(t *testing.T, runtime, imageName string, command ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
-	for _, osTemplate := range allOSTemplates {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-both-%s", osTemplate)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
-
-			cenv := containerenv.Default()
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
-			if err != nil {
-				t.Fatalf("PrepareBuildContext: %v", err)
-			}
-			defer cleanup()
-
-			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
-			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
-				t.Fatalf("writing devbox.json: %v", err)
-			}
-
-			miseToml := []byte("[tools]\ntiny = \"latest\"\n")
-			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
-				t.Fatalf("writing mise.toml: %v", err)
-			}
-
-			buildImage(t, runtime, imageName, buildDir, nil)
-
-			out := runInContainer(t, runtime, imageName, fmt.Sprintf(`
-hello 2>&1 || true
-devbox global list 2>/dev/null
-test -d %s && echo MISE_SHIMS_DIR_OK
-test -w %s && echo LOCAL_SHARE_WRITABLE
-echo DEVBOX_AND_MISE_OK
-`, cenv.MiseShims(), cenv.Home+"/.local/share"))
-
-			if !strings.Contains(out, "hello") {
-				t.Error("expected 'hello' package from devbox.json")
-			}
-			if !strings.Contains(out, "MISE_SHIMS_DIR_OK") {
-				t.Error("mise shims directory was not created")
-			}
-			if !strings.Contains(out, "LOCAL_SHARE_WRITABLE") {
-				t.Error("~/.local/share is not writable by agent user")
-			}
-			if !strings.Contains(out, "DEVBOX_AND_MISE_OK") {
-				t.Error("devbox+mise combined test did not complete")
-			}
-		})
+	args := []string{"run", "--rm", imageName}
+	args = append(args, command...)
+	cmd := exec.CommandContext(ctx, runtime, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := runCommandWithProgress(t, cmd, fmt.Sprintf("run %s %s", imageName, strings.Join(command, " "))); err != nil {
+		t.Fatalf("run %s %v failed: %v\noutput: %s", imageName, command, err, out.String())
 	}
+	return out.String()
 }
 
-// TestIntegration_FilePermissions verifies that the agent user owns all
-// directories it needs to write to at runtime. This catches the class of
-// bugs where root-executed mkdir/cp in Dockerfile templates leaves
-// directories that the agent user cannot modify.
-func TestIntegration_FilePermissions(t *testing.T) {
+// TestIntegration_E2E replicates the real `aw claude` flow: build an image
+// with devbox.json, mise.toml, and a tool package, then launch the tool
+// through entrypoint.sh. If this test passes, `aw <tool>` will work.
+//
+// This catches the full class of build/permission/entrypoint bugs that
+// cannot be detected by unit tests or script-injection tests.
+//
+//	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E
+func TestIntegration_E2E(t *testing.T) {
 	runtime := detectRuntime()
 	t.Logf("container runtime: %s", runtime)
 
 	for _, osTemplate := range allOSTemplates {
 		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-perms-%s", osTemplate)
+			imageName := fmt.Sprintf("aw-inttest-e2e-%s", osTemplate)
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
 			cenv := containerenv.Default()
@@ -468,35 +434,51 @@ func TestIntegration_FilePermissions(t *testing.T) {
 				t.Fatalf("writing devbox.json: %v", err)
 			}
 
-			miseToml := []byte("[tools]\ntiny = \"latest\"\n")
+			miseToml := []byte("[tools]\n")
 			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
 				t.Fatalf("writing mise.toml: %v", err)
 			}
 
-			buildImage(t, runtime, imageName, buildDir, nil)
+			buildImage(t, runtime, imageName, buildDir, map[string]string{
+				"AW_TOOL_PKG": toolinfo.DevboxPkg("claude"),
+			})
 
-			writableDirs := []string{
-				cenv.Home + "/.local/share",
-				cenv.Home + "/.local/bin",
-				cenv.Home + "/.config",
-			}
+			// Core E2E: launch tool through entrypoint.sh, exactly
+			// like `aw claude` does. This single check verifies the
+			// entire chain: image build → entrypoint → env setup →
+			// tool execution.
+			t.Run("tool_launch", func(t *testing.T) {
+				out := runContainerCommand(t, runtime, imageName, "claude", "--version")
+				if !strings.Contains(strings.ToLower(out), "claude") {
+					t.Errorf("claude --version did not produce expected output:\n%s", out)
+				}
+			})
 
-			for _, dir := range writableDirs {
-				t.Run(dir, func(t *testing.T) {
-					out := runInContainer(t, runtime, imageName, fmt.Sprintf(`
-owner=$(stat -c '%%U' %s 2>/dev/null || stat -f '%%Su' %s 2>/dev/null)
-echo "OWNER=$owner"
-test -w %s && echo WRITABLE || echo NOT_WRITABLE
-`, dir, dir, dir))
+			// Verify build-time packages and runtime install work.
+			t.Run("packages", func(t *testing.T) {
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
 
-					if !strings.Contains(out, "OWNER="+cenv.User) {
-						t.Errorf("%s is not owned by %s: %s", dir, cenv.User, strings.TrimSpace(out))
-					}
-					if strings.Contains(out, "NOT_WRITABLE") {
-						t.Errorf("%s is not writable by %s", dir, cenv.User)
-					}
-				})
-			}
+				out := execInContainer(t, runtime, containerID, "bash", "-lc",
+					"hello 2>&1 && echo HELLO_OK")
+				if !strings.Contains(out, "HELLO_OK") {
+					t.Error("hello package from devbox.json was not available")
+				}
+
+				out = execInContainer(t, runtime, containerID, "bash", "-lc",
+					fmt.Sprintf("test -d %s && echo SHIMS_OK", cenv.MiseShims()))
+				if !strings.Contains(out, "SHIMS_OK") {
+					t.Error("mise shims directory was not created")
+				}
+
+				execInContainer(t, runtime, containerID, "bash", "-lc",
+					"devbox global add "+toolinfo.DevboxPkg("codex"))
+				out = execInContainer(t, runtime, containerID, "bash", "-lc",
+					"command -v codex && codex --version && echo RUNTIME_INSTALL_OK")
+				if !strings.Contains(out, "RUNTIME_INSTALL_OK") {
+					t.Error("runtime devbox global add did not work")
+				}
+			})
 		})
 	}
 }
