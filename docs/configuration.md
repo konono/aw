@@ -1,6 +1,6 @@
 # 設定リファレンス
 
-`aw` が `.agent-workspace.yml` 形式の設定をどのように読み込み、マージし、バリデーションするかを説明します。
+`aw` が `.aw.yml` 形式の設定をどのように読み込み、マージし、バリデーションするかを説明します。
 
 ## 概要
 
@@ -12,9 +12,9 @@
 
 1. バイナリに埋め込まれた組み込みスターター設定
 2. `~/.config/aw/config.yml`
-3. `<git ルート>/.agent-workspace.yml`
+3. `<git ルート>/.aw.yml`
 
-`git rev-parse --show-toplevel` が失敗した場合、カレントディレクトリの `.agent-workspace.yml` にフォールバックします。
+`git rev-parse --show-toplevel` が失敗した場合、カレントディレクトリの `.aw.yml` にフォールバックします。
 
 `~/.config/aw/` には設定ファイルに加えて、グローバルなパッケージ管理ファイルも配置できます:
 
@@ -43,7 +43,7 @@
 
 - `internal/profile/embed/config.yml` に埋め込まれたスターター設定
 - `~/.config/aw/config.yml`
-- `.agent-workspace.yml`
+- `.aw.yml`
 - 上記いずれかのファイルのトップレベル共有デフォルト
 - `profiles.<name>` のプロファイルごとのオーバーライド
 
@@ -53,7 +53,7 @@
 
 1. 組み込みスターター設定を読み込む
 2. `~/.config/aw/config.yml` があればオーバーレイ
-3. `.agent-workspace.yml` があればオーバーレイ
+3. `.aw.yml` があればオーバーレイ
 4. 最終的なトップレベル共有デフォルトを全プロファイルに適用
 5. 結果の有効なプロファイルをバリデーション
 
@@ -521,4 +521,4 @@ aw init
 - `aw profiles` で利用可能なプロファイルとその読み込み元を確認できます
 - `aw init` はカスタマイズしたい場合のみ実行してください
 - プロファイル名は短く、わかりやすくしましょう
-- チームで共有する場合は `.agent-workspace.yml` をコミットしてください
+- チームで共有する場合は `.aw.yml` をコミットしてください

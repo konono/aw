@@ -108,7 +108,7 @@ func TestTrustStore(t *testing.T) {
 	globalConfigDir = func() (string, error) { return tmpDir, nil }
 	defer func() { globalConfigDir = origGlobalConfigDir }()
 
-	configPath := "/fake/project/.agent-workspace.yml"
+	configPath := "/fake/project/.aw.yml"
 	data := []byte("test config content")
 
 	// Initially not trusted

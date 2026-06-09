@@ -3,8 +3,8 @@
 # Run `aw init` to write this file to ~/.config/aw/config.yml.
 # Top-level fields act as defaults for all profiles below.
 #
-# Config is loaded in order: built-in → ~/.config/aw/config.yml → .agent-workspace.yml
-# Project-level .agent-workspace.yml can override these settings. If a project
+# Config is loaded in order: built-in → ~/.config/aw/config.yml → .aw.yml
+# Project-level .aw.yml can override these settings. If a project
 # config contains security-sensitive fields (mounts, env, dockerfile, image,
 # worktree.on-create, worktree.on-end), aw will prompt you to trust it on
 # first use.

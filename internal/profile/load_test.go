@@ -212,7 +212,7 @@ func assertStarterProfiles(t *testing.T, cfg *Config) {
 }
 
 func TestLoadFile_NotFound(t *testing.T) {
-	cfg, err := LoadFile("/nonexistent/path/.agent-workspace.yml")
+	cfg, err := LoadFile("/nonexistent/path/.aw.yml")
 	if err != nil {
 		t.Fatalf("LoadFile() should not error for missing file, got: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestLoadFile_NotFound(t *testing.T) {
 
 func TestLoadFile_ValidFile(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	configPath := filepath.Join(dir, ".aw.yml")
 
 	content := `
 default: my-profile
@@ -255,7 +255,7 @@ profiles:
 
 func TestLoadFile_TopLevelMountSSHOverridesBuiltinProfiles(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	configPath := filepath.Join(dir, ".aw.yml")
 
 	content := `
 mount_ssh: true
@@ -525,7 +525,7 @@ profiles:
 
 func TestLoadFile_TopLevelSSHAgentForwardingOverridesBuiltinProfiles(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	configPath := filepath.Join(dir, ".aw.yml")
 
 	content := `
 ssh_agent_forwarding: true
@@ -615,7 +615,7 @@ func TestLoad_NoGitRepo_WithConfigInCwd(t *testing.T) {
 	globalDir := t.TempDir()
 	mockLoadEnv(t, "", true, globalDir)
 
-	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	configPath := filepath.Join(dir, ".aw.yml")
 	content := `
 default: my-profile
 container_runtime: podman
@@ -747,7 +747,7 @@ profiles:
     environment: host
     launch: shell
 `
-	if err := os.WriteFile(filepath.Join(projectDir, ".agent-workspace.yml"), []byte(projectContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, ".aw.yml"), []byte(projectContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -767,7 +767,7 @@ profiles:
 		t.Errorf("Default = %q, want %q", cfg.Default, "project-profile")
 	}
 	// Source points to project config (use filepath.EvalSymlinks for macOS /var → /private/var)
-	wantPath, _ := filepath.EvalSymlinks(filepath.Join(projectDir, ".agent-workspace.yml"))
+	wantPath, _ := filepath.EvalSymlinks(filepath.Join(projectDir, ".aw.yml"))
 	gotPath, _ := filepath.EvalSymlinks(cfg.Source.FilePath)
 	if gotPath != wantPath {
 		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, wantPath)
@@ -881,7 +881,7 @@ func TestFindProfileSource_ProjectOverridesGlobal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	projectPath := filepath.Join(projectDir, ".agent-workspace.yml")
+	projectPath := filepath.Join(projectDir, ".aw.yml")
 	if err := os.WriteFile(projectPath, []byte(`profiles:
   shared:
     launch: codex
@@ -936,4 +936,214 @@ func TestLoad_NoGlobalNoProject(t *testing.T) {
 	if !cfg.Source.IsBuiltin {
 		t.Error("Source should be builtin when no config files found")
 	}
+}
+
+func TestLoad_GlobalConfigYamlExtension(t *testing.T) {
+	globalDir := t.TempDir()
+	cwdDir := t.TempDir()
+	mockLoadEnv(t, "", true, globalDir)
+
+	content := `
+default: global-yaml
+profiles:
+  global-yaml:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(cwdDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "global-yaml" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "global-yaml")
+	}
+	if cfg.Source.FilePath != filepath.Join(globalDir, "config.yaml") {
+		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, filepath.Join(globalDir, "config.yaml"))
+	}
+}
+
+func TestFindProjectConfig_YamlExtension(t *testing.T) {
+	dir := t.TempDir()
+	mockLoadEnv(t, "", true, dir)
+
+	content := `
+default: yaml-profile
+profiles:
+  yaml-profile:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "yaml-profile" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "yaml-profile")
+	}
+	wantPath, _ := filepath.EvalSymlinks(filepath.Join(dir, ".aw.yaml"))
+	gotPath, _ := filepath.EvalSymlinks(cfg.Source.FilePath)
+	if gotPath != wantPath {
+		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, wantPath)
+	}
+}
+
+func TestFindProjectConfig_LegacyFallback(t *testing.T) {
+	dir := t.TempDir()
+	mockLoadEnv(t, "", true, dir)
+
+	content := `
+default: legacy-profile
+profiles:
+  legacy-profile:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(dir, ".agent-workspace.yml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "legacy-profile" {
+		t.Errorf("Default = %q, want %q", cfg.Default, "legacy-profile")
+	}
+	wantPath, _ := filepath.EvalSymlinks(filepath.Join(dir, ".agent-workspace.yml"))
+	gotPath, _ := filepath.EvalSymlinks(cfg.Source.FilePath)
+	if gotPath != wantPath {
+		t.Errorf("Source.FilePath = %q, want %q", cfg.Source.FilePath, wantPath)
+	}
+}
+
+func TestFindProjectConfig_NewNameTakesPriority(t *testing.T) {
+	dir := t.TempDir()
+	mockLoadEnv(t, "", true, dir)
+
+	newContent := `
+default: new-profile
+profiles:
+  new-profile:
+    environment: container
+    launch: claude
+`
+	legacyContent := `
+default: legacy-profile
+profiles:
+  legacy-profile:
+    environment: container
+    launch: shell
+`
+	if err := os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte(newContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".agent-workspace.yml"), []byte(legacyContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Default != "new-profile" {
+		t.Errorf("Default = %q, want %q (new name should take priority)", cfg.Default, "new-profile")
+	}
+}
+
+func TestFindProjectConfig_Helper(t *testing.T) {
+	t.Run("prefers .aw.yml over .aw.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte("default: yml"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		path, deprecated := findProjectConfig(dir)
+		if filepath.Base(path) != ".aw.yml" {
+			t.Errorf("got %q, want .aw.yml", filepath.Base(path))
+		}
+		if deprecated {
+			t.Error("should not be deprecated")
+		}
+	})
+
+	t.Run("falls back to .aw.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".aw.yaml"), []byte("default: yaml"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		path, deprecated := findProjectConfig(dir)
+		if filepath.Base(path) != ".aw.yaml" {
+			t.Errorf("got %q, want .aw.yaml", filepath.Base(path))
+		}
+		if deprecated {
+			t.Error("should not be deprecated")
+		}
+	})
+
+	t.Run("legacy name returns deprecated", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".agent-workspace.yml"), []byte("default: legacy"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		path, deprecated := findProjectConfig(dir)
+		if filepath.Base(path) != ".agent-workspace.yml" {
+			t.Errorf("got %q, want .agent-workspace.yml", filepath.Base(path))
+		}
+		if !deprecated {
+			t.Error("should be deprecated")
+		}
+	})
+
+	t.Run("no config file", func(t *testing.T) {
+		dir := t.TempDir()
+
+		path, deprecated := findProjectConfig(dir)
+		if path != "" {
+			t.Errorf("got %q, want empty", path)
+		}
+		if deprecated {
+			t.Error("should not be deprecated")
+		}
+	})
 }
