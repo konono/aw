@@ -28,7 +28,7 @@ type RunConfig struct {
 	EnvVars      map[string]string
 	WorkDir      string
 	Command      []string
-	Entrypoint   string
+	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 }
 

@@ -294,6 +294,48 @@ func TestBuildOneShotRunArgs(t *testing.T) {
 	if !foundMount {
 		t.Errorf("expected mount /host/ws:/workspace:ro, got %v", args)
 	}
+
+	// Should NOT contain --entrypoint (not set)
+	for _, a := range args {
+		if a == "--entrypoint" {
+			t.Error("one-shot args should not contain --entrypoint when Entrypoint is empty")
+		}
+	}
+}
+
+func TestBuildOneShotRunArgs_Entrypoint(t *testing.T) {
+	config := RunConfig{
+		ImageName:  "test-image",
+		Entrypoint: "/bin/bash",
+		Command:    []string{"-c", "echo hello"},
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-1234", config)
+
+	foundEntrypoint := false
+	for i, a := range args {
+		if a == "--entrypoint" && i+1 < len(args) && args[i+1] == "/bin/bash" {
+			foundEntrypoint = true
+			break
+		}
+	}
+	if !foundEntrypoint {
+		t.Errorf("expected --entrypoint /bin/bash, got %v", args)
+	}
+
+	// --entrypoint must appear before image name
+	var entrypointIdx, imageIdx int
+	for i, a := range args {
+		if a == "--entrypoint" {
+			entrypointIdx = i
+		}
+		if a == "test-image" {
+			imageIdx = i
+		}
+	}
+	if entrypointIdx > imageIdx {
+		t.Errorf("--entrypoint (idx %d) must appear before image name (idx %d)", entrypointIdx, imageIdx)
+	}
 }
 
 func TestBuildRunArgs_MountOptions(t *testing.T) {

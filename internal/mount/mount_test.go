@@ -12,6 +12,7 @@ func newTestOpts(homeDir, workDir string) MountOptions {
 	return MountOptions{
 		HomeDir:          homeDir,
 		WorkDir:          workDir,
+		ContainerHome:    "/home/agent",
 		ToolStageDir:     filepath.Join(homeDir, ".agent-workspace", "claude"),
 		ToolContainerDir: "/home/agent/.claude",
 		MountGH:          true,

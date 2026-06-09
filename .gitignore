@@ -2,3 +2,4 @@ worktrees/
 .agent-workspace.yml
 mise.toml
 aw
+*.tar
