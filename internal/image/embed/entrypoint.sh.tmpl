@@ -72,6 +72,7 @@ fi
 
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
 if [ -d {{.Home}}/.ssh-host ]; then
+  echo "Configuring SSH keys..."
   cp -a {{.Home}}/.ssh-host {{.Home}}/.ssh 2>/dev/null || true
   chmod 700 {{.Home}}/.ssh
   chmod 600 {{.Home}}/.ssh/* 2>/dev/null || true
@@ -94,12 +95,15 @@ fi
 
 # Fix container socket permissions and create docker.sock symlink
 if [ -S /run/container.sock ]; then
+  echo "Setting up container socket..."
   sudo chmod 666 /run/container.sock
   sudo mkdir -p /var/run
   sudo ln -sfn /run/container.sock /var/run/docker.sock
 fi
 
 export HOME={{.Home}}
+
+echo "Initializing shell environment..."
 
 cat > "$AW_ENV_FILE" <<EOF
 if [ -n "\${AW_BASH_ENV_LOADED:-}" ] || [ -n "\${AW_BASH_ENV_RECURSION_GUARD:-}" ]; then
@@ -109,6 +113,7 @@ AW_BASH_ENV_LOADED=1
 export HOME={{.Home}}
 
 if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
+  echo "Loading nix environment..." >&2
   . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
 fi
 case ":\${PATH}:" in
@@ -120,6 +125,7 @@ case ":\${PATH}:" in
   *) export PATH="{{.Home}}/.local/bin:\${PATH}" ;;
 esac
 if command -v devbox >/dev/null 2>&1; then
+  echo "Loading devbox environment..." >&2
   export AW_BASH_ENV_RECURSION_GUARD=1
   eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
   if [ -f "${WORKSPACE}/devbox.json" ]; then
