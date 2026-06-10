@@ -116,6 +116,7 @@ func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool s
 			WorkDir:      ec.WorkDir,
 			Command:      []string{"bash", "-c", agentCmd + "; exec bash -i"},
 			SecurityOpts: ec.DockerSecurityOpts,
+			CapAdd:       ec.DockerCapAdd,
 		}
 		args := docker.BuildRunArgs(runConfig)
 		return ec.Profile.EffectiveContainerRuntime() + " " + shellJoin(args)

@@ -60,6 +60,7 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 		WorkDir:      ec.WorkDir,
 		Command:      []string{"/bin/bash"},
 		SecurityOpts: ec.DockerSecurityOpts,
+		CapAdd:       ec.DockerCapAdd,
 	}
 
 	return client.Run(ctx, runConfig)
