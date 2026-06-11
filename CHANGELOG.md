@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/konono/aw/compare/v1.6.0...v1.7.0) (2026-06-11)
+
+
+### Features
+
+* add rootless Podman support with SELinux handling ([29a0074](https://github.com/konono/aw/commit/29a0074aa37b76fd58f90d07578e4990a7199c9f))
+
 ## [1.6.0](https://github.com/konono/aw/compare/v1.5.0...v1.6.0) (2026-06-11)
 
 
