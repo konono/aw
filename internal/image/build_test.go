@@ -85,8 +85,8 @@ func TestRenderDockerfile_CustomUser(t *testing.T) {
 		t.Fatalf("RenderDockerfile() error: %v", err)
 	}
 	content := string(df)
-	if !strings.Contains(content, "useradd -m -s /bin/bash -u $HOST_UID -g $HOST_GID dev") {
-		t.Error("Dockerfile should create 'dev' user with HOST_UID/HOST_GID")
+	if !strings.Contains(content, "useradd -m -s /bin/bash -u 1001 -g 0 dev") {
+		t.Error("Dockerfile should create 'dev' user with fixed UID 1001 and GID 0")
 	}
 	if !strings.Contains(content, `HOME="/home/dev"`) {
 		t.Error("Dockerfile should set HOME to /home/dev")
@@ -297,6 +297,55 @@ func TestPrepareBuildContextCleanup(t *testing.T) {
 
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Error("dir should not exist after cleanup")
+	}
+}
+
+func TestRenderDockerfile_GID0Pattern(t *testing.T) {
+	cenv := containerenv.Default()
+	for _, osTemplate := range []profile.OSTemplate{
+		profile.OSDebian12,
+		profile.OSUBI9,
+		profile.OSUBI10,
+		profile.OSUbuntu2604,
+	} {
+		t.Run(string(osTemplate), func(t *testing.T) {
+			df, err := RenderDockerfile(osTemplate, cenv)
+			if err != nil {
+				t.Fatalf("RenderDockerfile() error: %v", err)
+			}
+			content := string(df)
+
+			if !strings.Contains(content, "chmod -R g=u") {
+				t.Error("Dockerfile should contain chmod -R g=u for GID 0 pattern")
+			}
+			if !strings.Contains(content, "chmod g=u /etc/passwd") {
+				t.Error("Dockerfile should make /etc/passwd group-writable")
+			}
+			if strings.Contains(content, "HOST_UID") || strings.Contains(content, "HOST_GID") {
+				t.Error("Dockerfile should not contain HOST_UID/HOST_GID build args")
+			}
+			if !strings.Contains(content, "useradd -m -s /bin/bash -u 1001 -g 0") {
+				t.Error("Dockerfile should create user with fixed UID 1001 and GID 0")
+			}
+		})
+	}
+}
+
+func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
+	cenv := containerenv.Default()
+	ep, err := RenderEntrypoint(cenv)
+	if err != nil {
+		t.Fatalf("RenderEntrypoint() error: %v", err)
+	}
+	content := string(ep)
+	if !strings.Contains(content, "getent passwd") {
+		t.Error("entrypoint.sh should check /etc/passwd for current UID")
+	}
+	if !strings.Contains(content, ">> /etc/passwd") {
+		t.Error("entrypoint.sh should dynamically add UID to /etc/passwd")
+	}
+	if strings.Contains(content, "sudo find") {
+		t.Error("entrypoint.sh should not use chown-based ownership fix")
 	}
 }
 

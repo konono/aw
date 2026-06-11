@@ -69,9 +69,7 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 	envVars := buildContainerEnvVars(ec, l.Tool)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
-	// Match the container UID/GID to the host user so bind-mounted files
-	// are owned by the same user inside and outside the container.
-	hostUser := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+	hostUser := fmt.Sprintf("%d:0", os.Getuid())
 
 	runConfig := docker.RunConfig{
 		ImageName:    ec.DockerImage,

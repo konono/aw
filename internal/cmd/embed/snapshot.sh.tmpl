@@ -17,7 +17,7 @@ run_as_user() {
 WORK="/tmp/aw-snapshot-work"
 mkdir -p "$WORK"
 cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
-chown -R {{.User}}:{{.User}} "$WORK"
+chown -R {{.User}}:0 "$WORK"
 
 NIX_ENV=""
 if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
@@ -50,7 +50,7 @@ if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
     if [ -f "$MISE_TOML" ]; then
       echo "Registering tools globally for snapshot..."
       cp "$MISE_TOML" {{.Home}}/.config/mise/config.toml
-      chown {{.User}}:{{.User}} {{.Home}}/.config/mise/config.toml
+      chown {{.User}}:0 {{.Home}}/.config/mise/config.toml
     fi
   fi
 fi
@@ -65,7 +65,7 @@ while true; do
   if [ -d "$src" ]; then
     mkdir -p "$dst"
     cp -a "$src/." "$dst/"
-    chown -R {{.User}}:{{.User}} "$dst"
+    chown -R {{.User}}:0 "$dst"
     echo "Copied include $i -> $dst"
   fi
   i=$((i + 1))
@@ -121,6 +121,6 @@ if [ -f {{.Home}}/.bashrc ]; then
 fi
 BASH_PROFILE
 
-chown {{.User}}:{{.User}} "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+chown {{.User}}:0 "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
 rm -rf "$WORK"
 echo "Snapshot setup complete."
