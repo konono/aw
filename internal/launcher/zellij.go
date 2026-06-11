@@ -118,6 +118,7 @@ func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool s
 			Command:      []string{"bash", "-c", agentCmd + "; exec bash -i"},
 			SecurityOpts: ec.DockerSecurityOpts,
 			CapAdd:       ec.DockerCapAdd,
+			User:         fmt.Sprintf("%d:0", os.Getuid()),
 			Userns:       podmanUserns(runtime),
 		}
 		args := docker.BuildRunArgs(runConfig)

@@ -5,12 +5,14 @@ run_as_user() {
   /bin/bash -lc "$1"
 }
 
-# Fix home directory ownership when --user UID differs from the image's built-in UID
-# (e.g. pre-built images used on a host with a different UID)
-_home_owner=$(stat -c '%u' {{.Home}} 2>/dev/null || stat -f '%u' {{.Home}} 2>/dev/null || echo "")
-if [ -n "$_home_owner" ] && [ "$_home_owner" != "$(id -u)" ]; then
-  sudo find {{.Home}} -xdev -exec chown "$(id -u):$(id -g)" {} + 2>/dev/null || true
+# Dynamic /etc/passwd injection for arbitrary UID support (OpenShift GID 0 pattern).
+# The image is built with a fixed UID (1001) but runs with the host user's UID via
+# --user UID:0. If the runtime UID is not in /etc/passwd, add it so that tools
+# relying on getpwuid (whoami, ssh, git) work correctly.
+if ! getent passwd "$(id -u)" >/dev/null 2>&1; then
+  echo "{{.User}}:x:$(id -u):0:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
 fi
+export HOME={{.Home}}
 
 # Symlink .claude.json from staging dir to home (for onboarding state persistence)
 if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then

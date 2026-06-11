@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/konono/aw/internal/config"
@@ -217,8 +216,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	hashInput += "\n" + string(osTemplate)
 	hashInput += "\n" + cenv.User
-	hashInput += "\n" + strconv.Itoa(os.Getuid())
-	hashInput += "\n" + strconv.Itoa(os.Getgid())
+
 
 	toolPkg := ""
 	if customDockerfile == "" {
@@ -238,10 +236,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
 	}
 
-	buildArgs := map[string]string{
-		"HOST_UID": strconv.Itoa(os.Getuid()),
-		"HOST_GID": strconv.Itoa(os.Getgid()),
-	}
+	buildArgs := map[string]string{}
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}

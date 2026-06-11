@@ -240,6 +240,7 @@ func runContainerCommand(ctx context.Context, ec *pipeline.ExecutionContext, too
 		EnvVars:   buildContainerEnvVars(ec, tool),
 		WorkDir:   ec.WorkDir,
 		Command:   command,
+		User:      fmt.Sprintf("%d:0", os.Getuid()),
 		Userns:    podmanUserns(runtime),
 	})
 	cmd := exec.CommandContext(ctx, runtime, args...)
@@ -268,6 +269,7 @@ func runCapturedCommand(ctx context.Context, ec *pipeline.ExecutionContext, tool
 			EnvVars:   buildContainerEnvVars(ec, tool),
 			WorkDir:   ec.WorkDir,
 			Command:   command,
+			User:      fmt.Sprintf("%d:0", os.Getuid()),
 			Userns:    podmanUserns(runtime),
 		})
 		cmd := exec.CommandContext(ctx, runtime, args...)

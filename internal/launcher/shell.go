@@ -54,7 +54,7 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 	envVars := buildContainerEnvVars(ec, tool)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
-	hostUser := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+	hostUser := fmt.Sprintf("%d:0", os.Getuid())
 
 	runConfig := docker.RunConfig{
 		ImageName:    ec.DockerImage,
