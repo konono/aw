@@ -50,7 +50,7 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 RUN mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 
-RUN chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
+RUN chgrp -R 0 {{.Home}} /nix && chmod -R g=u {{.Home}} /nix && chmod g=u /etc/passwd
 
 USER {{.User}}
 WORKDIR {{.Workspace}}

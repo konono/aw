@@ -5,14 +5,33 @@ run_as_user() {
   /bin/bash -lc "$1"
 }
 
+aw_log() { echo "[aw:entrypoint] $1" >&2; }
+
 # Dynamic /etc/passwd injection for arbitrary UID support (OpenShift GID 0 pattern).
 # The image is built with a fixed UID (1001) but runs with the host user's UID via
-# --user UID:0. If the runtime UID is not in /etc/passwd, add it so that tools
-# relying on getpwuid (whoami, ssh, git) work correctly.
-if ! getent passwd "$(id -u)" >/dev/null 2>&1; then
-  echo "{{.User}}:x:$(id -u):0:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
+# --user UID:0. Container runtimes (e.g. Podman --userns=keep-id) may inject a
+# passwd entry with the host's home path, which breaks tools that use getpwuid()
+# instead of $HOME (ssh, git, nix). Always ensure the entry has the correct home.
+_aw_uid=$(id -u)
+_aw_current_home=$(getent passwd "$_aw_uid" 2>/dev/null | cut -d: -f6)
+if [ "$_aw_current_home" != "{{.Home}}" ]; then
+  sed -i "/^[^:]*:[^:]*:${_aw_uid}:/d" /etc/passwd 2>/dev/null || true
+  echo "{{.User}}:x:${_aw_uid}:0:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
 fi
+unset _aw_uid _aw_current_home
 export HOME={{.Home}}
+
+# Fix ownership when runtime UID differs from build-time UID (1001).
+# The GID 0 pattern (chmod g=u) grants group read/write, but tools like
+# devbox and Nix call chmod() on generated files, which requires file
+# ownership — group membership alone is not enough.
+if [ "$(stat -c '%u' {{.Home}})" != "$(id -u)" ]; then
+  aw_log "Fixing file ownership for UID $(id -u)..."
+  sudo chown -R "$(id -u):0" {{.Home}} 2>/dev/null || true
+fi
+if [ -d /nix/var ] && [ "$(stat -c '%u' /nix/var)" != "$(id -u)" ]; then
+  sudo chown -R "$(id -u):0" /nix/var 2>/dev/null || true
+fi
 
 # Symlink .claude.json from staging dir to home (for onboarding state persistence)
 if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then
@@ -30,8 +49,6 @@ if [ -n "$AW_DATA_SYMLINKS" ]; then
     ln -sfn "$TARGET_PATH" "$LINK_PATH"
   done
 fi
-
-aw_log() { echo "[aw:entrypoint] $1" >&2; }
 
 WORKSPACE="${HOST_WORKSPACE:-{{.Workspace}}}"
 AW_ENV_FILE={{.Home}}/.aw_env.sh
