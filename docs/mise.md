@@ -107,11 +107,10 @@ gh = "latest"
 
 ## キャッシュ
 
-mise / devbox でインストールされたツールは Docker/Podman の永続ボリューム `claude-code-local` にキャッシュされます。初回起動時のみインストールが実行され、2回目以降はキャッシュから読み込まれるため即座に起動します。
+mise / devbox でインストールされたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが実行されます。
 
-キャッシュをクリアするにはボリュームを削除してください:
+構成が固まったら `aw export --snapshot --apply` でインストール済みの状態をイメージに焼き込むことで、起動時のインストールをスキップできます:
 
 ```bash
-docker volume rm claude-code-local   # Docker の場合
-podman volume rm claude-code-local   # Podman の場合
+aw export claude --snapshot --apply
 ```

@@ -489,17 +489,17 @@ aw init
 12. `container_runtime` は `docker` または `podman` であること
 13. `skip_devbox_install` は `environment: container` の場合のみ有効
 14. `skip_mise_install` は `environment: container` の場合のみ有効
-12. `mounts` は `environment: container` の場合のみ有効
-13. すべてのマウントに `source` と `target` の両方が必要
-14. `container_user` は `environment: container` の場合のみ有効
-14. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
-15. `mount_container_sock` は `environment: container` の場合のみ有効
-15. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
-16. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
-17. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
-18. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
-19. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
-20. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+15. `mounts` は `environment: container` の場合のみ有効
+16. すべてのマウントに `source` と `target` の両方が必要
+17. `container_user` は `environment: container` の場合のみ有効
+18. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+19. `mount_container_sock` は `environment: container` の場合のみ有効
+20. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+21. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+22. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+23. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+24. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+25. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
 
 ## コンテナに同期されるホスト設定
 

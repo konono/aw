@@ -120,7 +120,7 @@ func TestValidate(t *testing.T) {
 				Launch:      LaunchShell,
 				Dockerfile:  "docker/Dockerfile.custom",
 			},
-			wantErr: "dockerfile is only valid with environment: docker",
+			wantErr: "dockerfile is only valid with environment: container",
 		},
 		{
 			name: "valid container + claude + os debian12",

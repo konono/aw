@@ -85,7 +85,7 @@ allow container_t user_tmp_t:sock_file { read write getattr };
 
 ### Claude Code 認証 — コンテナごとに独立
 
-OAuth トークンはホストからは同期**されません**。コンテナの Claude Code は初回実行時に独自の OAuth ログインを行います。認証情報は永続ボリューム（`claude-code-local`）に保存されるため、認証は一度だけで済みます。
+OAuth トークンはホストからは同期**されません**。コンテナの Claude Code は初回実行時に独自の OAuth ログインを行います。認証情報は `~/.agent-workspace/claude/` に保存されるため、認証は一度だけで済みます。
 
 ## Codex 設定と認証 — stage に永続化
 
@@ -102,7 +102,7 @@ Codex は `~/.codex/` の一部を `~/.agent-workspace/codex/` にコピーし�
 | `~/.agent-workspace/claude/` | Claude 設定の stage |
 | `~/.agent-workspace/codex/` | Codex 設定と認証状態の stage |
 | `~/.agent-workspace/opencode/` | OpenCode 設定とデータの stage |
-| ボリューム `claude-code-local` | Claude Code インストール + mise ツールキャッシュ + OAuth 認証情報 |
+| `~/.cache/agent-workspace/` | 環境キャッシュ（zellij レイアウト等） |
 
 ## 同期されないもの
 
