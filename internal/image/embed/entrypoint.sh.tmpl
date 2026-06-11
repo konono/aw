@@ -2,14 +2,15 @@
 set -e
 
 run_as_user() {
-  local script="$1"
-
-  if [ "$(id -un)" = "{{.User}}" ]; then
-    /bin/bash -lc "$script"
-  else
-    su -s /bin/bash {{.User}} -c "$script"
-  fi
+  /bin/bash -lc "$1"
 }
+
+# Fix home directory ownership when --user UID differs from the image's built-in UID
+# (e.g. pre-built images used on a host with a different UID)
+_home_owner=$(stat -c '%u' {{.Home}} 2>/dev/null || stat -f '%u' {{.Home}} 2>/dev/null || echo "")
+if [ -n "$_home_owner" ] && [ "$_home_owner" != "$(id -u)" ]; then
+  sudo find {{.Home}} -xdev -exec chown "$(id -u):$(id -g)" {} + 2>/dev/null || true
+fi
 
 # Symlink .claude.json from staging dir to home (for onboarding state persistence)
 if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then
@@ -28,11 +29,14 @@ if [ -n "$AW_DATA_SYMLINKS" ]; then
   done
 fi
 
+aw_log() { echo "[aw:entrypoint] $1" >&2; }
+
 WORKSPACE="${HOST_WORKSPACE:-{{.Workspace}}}"
 AW_ENV_FILE={{.Home}}/.aw_env.sh
 BASHRC_FILE={{.Home}}/.bashrc
 BASH_PROFILE_FILE={{.Home}}/.bash_profile
 
+aw_log "Checking workspace packages..."
 # AI tool is already installed at build time via Dockerfile.
 # Install project packages (supports both devbox.json and mise.toml)
 NIX_ENV=""
@@ -70,6 +74,7 @@ if [ "$AW_PKG_FOUND" = "0" ]; then
   echo "No devbox.json or mise.toml found in workspace."
 fi
 
+aw_log "Setting up SSH..."
 # Copy and fix permissions on mounted .ssh (read-only mount, so copy first)
 if [ -d {{.Home}}/.ssh-host ]; then
   echo "Configuring SSH keys..."
@@ -93,14 +98,15 @@ SSHCFG
   chmod 644 {{.Home}}/.ssh/config
 fi
 
-# Fix container socket permissions and create docker.sock symlink
+aw_log "Setting up container socket..."
+# Fix container socket permissions (no symlink or DOCKER_HOST — tools like
+# Claude Code auto-detect /var/run/docker.sock and connect on startup, which
+# deadlocks with Podman's systemd socket activation on RHEL).
 if [ -S /run/container.sock ]; then
-  echo "Setting up container socket..."
-  sudo chmod 666 /run/container.sock
-  sudo mkdir -p /var/run
-  sudo ln -sfn /run/container.sock /var/run/docker.sock
+  sudo chmod 666 /run/container.sock 2>/dev/null || true
 fi
 
+aw_log "Generating shell environment..."
 export HOME={{.Home}}
 
 echo "Initializing shell environment..."
@@ -124,13 +130,16 @@ case ":\${PATH}:" in
   *:{{.Home}}/.local/bin:*) ;;
   *) export PATH="{{.Home}}/.local/bin:\${PATH}" ;;
 esac
-if command -v devbox >/dev/null 2>&1; then
-  echo "Loading devbox environment..." >&2
+if [ -f {{.Home}}/.devbox_global_env ]; then
+  . {{.Home}}/.devbox_global_env
+elif command -v devbox >/dev/null 2>&1; then
   export AW_BASH_ENV_RECURSION_GUARD=1
-  eval "\$(devbox global shellenv --install 2>/dev/null | grep '^export ' || true)"
-  if [ -f "${WORKSPACE}/devbox.json" ]; then
-    eval "\$(cd "${WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
-  fi
+  eval "\$(devbox global shellenv 2>/dev/null | grep '^export ' || true)"
+  unset AW_BASH_ENV_RECURSION_GUARD
+fi
+if [ -f "${WORKSPACE}/devbox.json" ] && command -v devbox >/dev/null 2>&1; then
+  export AW_BASH_ENV_RECURSION_GUARD=1
+  eval "\$(cd "${WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
   unset AW_BASH_ENV_RECURSION_GUARD
 fi
 case ":\${PATH}:" in
@@ -139,9 +148,6 @@ case ":\${PATH}:" in
 esac
 export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-{{.Workspace}}}"
 export MISE_YES=1
-if [ -z "\${DOCKER_HOST:-}" ] && [ -S /run/container.sock ]; then
-  export DOCKER_HOST="unix:///run/container.sock"
-fi
 EOF
 
 cat > "$BASHRC_FILE" <<BASHRC
@@ -156,5 +162,6 @@ if [ -f {{.Home}}/.bashrc ]; then
 fi
 BASH_PROFILE
 
+aw_log "Launching: $*"
 exec env HOME={{.Home}} BASH_ENV="$AW_ENV_FILE" \
   bash -lc 'exec "$@"' -- "$@"

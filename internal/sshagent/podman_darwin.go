@@ -18,30 +18,10 @@ type podmanSSHConfig struct {
 	RemoteUsername string
 }
 
-const selinuxModuleName = "aw_agent_sock"
-
-const selinuxPolicy = `module aw_agent_sock 1.0;
-
-require {
-    type container_t;
-    type unconfined_t;
-    type user_tmp_t;
-    class unix_stream_socket connectto;
-    class sock_file { read write getattr };
-}
-
-allow container_t unconfined_t:unix_stream_socket connectto;
-allow container_t user_tmp_t:sock_file { read write getattr };
-`
-
 func setupPodmanDarwin(hostAuthSock string) (*ForwardedAgent, error) {
 	sshCfg, err := podmanMachineSSHConfig()
 	if err != nil {
 		return nil, fmt.Errorf("reading podman machine SSH config: %w", err)
-	}
-
-	if err := ensureSELinuxModule(sshCfg); err != nil {
-		return nil, fmt.Errorf("installing SELinux module: %w", err)
 	}
 
 	pid, err := startSSHTunnel(sshCfg, hostAuthSock)
@@ -137,48 +117,6 @@ func findSSHTunnelPID(remoteForward string) (int, error) {
 		return 0, fmt.Errorf("parsing PID %q: %w", lines[0], err)
 	}
 	return pid, nil
-}
-
-func ensureSELinuxModule(cfg *podmanSSHConfig) error {
-	out, err := podmanMachineExec(cfg, "sudo", "semodule", "-l")
-	if err != nil {
-		return fmt.Errorf("listing SELinux modules: %w", err)
-	}
-	if strings.Contains(out, selinuxModuleName) {
-		return nil
-	}
-
-	fmt.Fprintf(os.Stderr, "Installing SELinux module '%s' into Podman VM...\n", selinuxModuleName)
-	return compileSELinuxModule(cfg)
-}
-
-func compileSELinuxModule(cfg *podmanSSHConfig) error {
-	tePath := "/tmp/" + selinuxModuleName + ".te"
-	modPath := "/tmp/" + selinuxModuleName + ".mod"
-	ppPath := "/tmp/" + selinuxModuleName + ".pp"
-
-	if _, err := podmanMachineExec(cfg, "bash", "-c",
-		fmt.Sprintf("cat > %s << 'SELINUX_EOF'\n%sSELINUX_EOF", tePath, selinuxPolicy)); err != nil {
-		return fmt.Errorf("writing .te file: %w", err)
-	}
-
-	compileScript := fmt.Sprintf(
-		"podman run --rm --security-opt label=disable -v /tmp:/tmp fedora:41 bash -c "+
-			"'dnf install -yq checkpolicy policycoreutils >/dev/null 2>&1 && "+
-			"checkmodule -M -m -o %s %s && "+
-			"semodule_package -o %s -m %s'",
-		modPath, tePath, ppPath, modPath)
-
-	if _, err := podmanMachineExec(cfg, "bash", "-c", compileScript); err != nil {
-		return fmt.Errorf("compiling SELinux module: %w", err)
-	}
-
-	if _, err := podmanMachineExec(cfg, "sudo", "semodule", "-i", ppPath); err != nil {
-		return fmt.Errorf("installing SELinux module: %w", err)
-	}
-
-	podmanMachineExec(cfg, "rm", "-f", tePath, modPath, ppPath)
-	return nil
 }
 
 func podmanMachineExec(cfg *podmanSSHConfig, args ...string) (string, error) {

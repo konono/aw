@@ -12,7 +12,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash agent && \
-    echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+    echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # Create /nix owned by agent for single-user Nix install
 RUN mkdir -p /nix && chown agent:agent /nix

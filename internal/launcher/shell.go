@@ -44,7 +44,8 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 }
 
 func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.ExecutionContext) error {
-	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
+	runtime := ec.Profile.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
 
 	tool := ec.Profile.EffectiveTool()
 	if tool == "" {
@@ -52,6 +53,8 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 	}
 	envVars := buildContainerEnvVars(ec, tool)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
+
+	hostUser := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
 
 	runConfig := docker.RunConfig{
 		ImageName:    ec.DockerImage,
@@ -61,6 +64,8 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 		Command:      []string{"/bin/bash"},
 		SecurityOpts: ec.DockerSecurityOpts,
 		CapAdd:       ec.DockerCapAdd,
+		User:         hostUser,
+		Userns:       podmanUserns(runtime),
 	}
 
 	return client.Run(ctx, runConfig)

@@ -33,6 +33,8 @@ type RunConfig struct {
 	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 	CapAdd       []string // --cap-add values (e.g. "AUDIT_WRITE")
+	User         string   // overrides the image's USER (e.g. "0:0" for root)
+	Userns       string   // --userns value (e.g. "keep-id" for rootless Podman)
 }
 
 // Client is the interface for Docker operations.
@@ -170,6 +172,10 @@ func BuildRunArgs(config RunConfig) []string {
 		"--pids-limit", "8192",
 	}
 
+	if config.Userns != "" {
+		args = append(args, "--userns", config.Userns)
+	}
+
 	for _, opt := range config.SecurityOpts {
 		args = append(args, "--security-opt", opt)
 	}
@@ -188,6 +194,10 @@ func BuildRunArgs(config RunConfig) []string {
 			mountArg += ":" + suffix
 		}
 		args = append(args, "-v", mountArg)
+	}
+
+	if config.User != "" {
+		args = append(args, "--user", config.User)
 	}
 
 	if config.WorkDir != "" {
@@ -247,6 +257,10 @@ func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
 	args := []string{"run", "--name", containerName, "--pids-limit", "8192"}
 
+	if config.Userns != "" {
+		args = append(args, "--userns", config.Userns)
+	}
+
 	for _, opt := range config.SecurityOpts {
 		args = append(args, "--security-opt", opt)
 	}
@@ -265,6 +279,10 @@ func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
 			mountArg += ":" + suffix
 		}
 		args = append(args, "-v", mountArg)
+	}
+
+	if config.User != "" {
+		args = append(args, "--user", config.User)
 	}
 
 	if config.WorkDir != "" {

@@ -220,20 +220,20 @@ func TestBuildRunArgs_SecurityOpts(t *testing.T) {
 	config := RunConfig{
 		ImageName:    "test-image",
 		Command:      []string{"sh"},
-		SecurityOpts: []string{"label=disable"},
+		SecurityOpts: []string{"label=type:spc_t"},
 	}
 
 	args := BuildRunArgs(config)
 
 	found := false
 	for i, a := range args {
-		if a == "--security-opt" && i+1 < len(args) && args[i+1] == "label=disable" {
+		if a == "--security-opt" && i+1 < len(args) && args[i+1] == "label=type:spc_t" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected --security-opt label=disable, got args: %v", args)
+		t.Errorf("expected --security-opt label=type:spc_t, got args: %v", args)
 	}
 }
 
@@ -335,6 +335,63 @@ func TestBuildOneShotRunArgs_Entrypoint(t *testing.T) {
 	}
 	if entrypointIdx > imageIdx {
 		t.Errorf("--entrypoint (idx %d) must appear before image name (idx %d)", entrypointIdx, imageIdx)
+	}
+}
+
+func TestBuildRunArgs_Userns(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+		Userns:    "keep-id",
+	}
+
+	args := BuildRunArgs(config)
+
+	found := false
+	for i, a := range args {
+		if a == "--userns" && i+1 < len(args) && args[i+1] == "keep-id" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --userns keep-id, got args: %v", args)
+	}
+}
+
+func TestBuildRunArgs_NoUserns(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+	}
+
+	args := BuildRunArgs(config)
+
+	for _, a := range args {
+		if a == "--userns" {
+			t.Error("expected no --userns when Userns is empty")
+		}
+	}
+}
+
+func TestBuildOneShotRunArgs_Userns(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+		Userns:    "keep-id",
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-test", config)
+
+	found := false
+	for i, a := range args {
+		if a == "--userns" && i+1 < len(args) && args[i+1] == "keep-id" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --userns keep-id in one-shot args, got: %v", args)
 	}
 }
 

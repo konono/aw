@@ -58,7 +58,8 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 		return fmt.Errorf("unknown tool: %q", l.Tool)
 	}
 
-	client := docker.NewShellClient(ec.Profile.EffectiveContainerRuntime())
+	runtime := ec.Profile.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
 
 	command := toolContainerCommands[l.Tool]
 	if command == nil {
@@ -68,6 +69,10 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 	envVars := buildContainerEnvVars(ec, l.Tool)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 
+	// Match the container UID/GID to the host user so bind-mounted files
+	// are owned by the same user inside and outside the container.
+	hostUser := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+
 	runConfig := docker.RunConfig{
 		ImageName:    ec.DockerImage,
 		Mounts:       ec.DockerMounts,
@@ -76,6 +81,8 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 		Command:      command,
 		SecurityOpts: ec.DockerSecurityOpts,
 		CapAdd:       ec.DockerCapAdd,
+		User:         hostUser,
+		Userns:       podmanUserns(runtime),
 	}
 
 	return client.Run(ctx, runConfig)
