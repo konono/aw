@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0](https://github.com/konono/aw/compare/v1.5.0...v1.6.0) (2026-06-11)
+
+
+### Features
+
+* **entrypoint:** add progress logging for startup phases ([b434550](https://github.com/konono/aw/commit/b4345506ffbd4088aaf9050f37f2d147ad28fc5b))
+
+
+### Bug Fixes
+
+* **container:** add AUDIT_WRITE capability to suppress sudo audit errors on RHEL10 ([b274519](https://github.com/konono/aw/commit/b274519fb93d986b43a22358110fd6d5d702a4e1))
+* **container:** add AUDIT_WRITE capability to suppress sudo audit errors on RHEL10 ([b8c2780](https://github.com/konono/aw/commit/b8c2780dbe65d53a74ac6b374e5b6e142fcd463c))
+* forward signals to container process and add --init flag ([832a5a7](https://github.com/konono/aw/commit/832a5a7c64ce44f008102f9e9746318b81744dd7))
+* forward signals to container process and add --init flag ([5452051](https://github.com/konono/aw/commit/5452051e43bc8b416d9417413354617e39923a5e))
+
 ## [1.5.0](https://github.com/konono/aw/compare/v1.4.5...v1.5.0) (2026-06-09)
 
 
