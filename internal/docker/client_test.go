@@ -112,8 +112,8 @@ func TestRunConfigBuildArgs(t *testing.T) {
 
 	args := BuildRunArgs(config)
 
-	// Should start with run -it --rm --pids-limit 8192
-	expected := []string{"run", "-it", "--rm", "--pids-limit", "8192"}
+	// Should start with run -it --rm --init --pids-limit 8192
+	expected := []string{"run", "-it", "--rm", "--init", "--pids-limit", "8192"}
 	if len(args) < len(expected) {
 		t.Fatalf("expected args to start with %v, got %v", expected, args)
 	}

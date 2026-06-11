@@ -8,8 +8,10 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
 )
 
 // Mount represents a Docker mount (bind mount or named volume).
@@ -163,7 +165,7 @@ func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error
 // BuildRunArgs constructs the docker CLI arguments for a RunConfig.
 // This is exported for testing.
 func BuildRunArgs(config RunConfig) []string {
-	args := []string{"run", "-it", "--rm",
+	args := []string{"run", "-it", "--rm", "--init",
 		"--pids-limit", "8192",
 	}
 
@@ -207,13 +209,31 @@ func mountSuffix(m Mount) string {
 }
 
 // Run runs a Docker container interactively with the given RunConfig.
+// Signals (SIGTERM, SIGHUP, SIGINT) are forwarded to the child process
+// so that the wrapper does not exit prematurely and orphan the container.
 func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 	args := BuildRunArgs(config)
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
+	go func() {
+		for sig := range sigCh {
+			_ = cmd.Process.Signal(sig)
+		}
+	}()
+
+	err := cmd.Wait()
+	signal.Stop(sigCh)
+	close(sigCh)
+	return err
 }
 
 // BuildOneShotRunArgs constructs docker CLI arguments for a non-interactive,
