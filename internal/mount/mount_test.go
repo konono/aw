@@ -527,6 +527,58 @@ func TestBuildMounts_ContainerSockPodmanVMPath(t *testing.T) {
 	}
 }
 
+func TestBuildMounts_SkipSELinuxOnHomeDir(t *testing.T) {
+	homeDir := t.TempDir()
+
+	opts := newTestOpts(homeDir, homeDir)
+
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	ws := findMount(mounts, homeDir)
+	if ws == nil {
+		t.Fatalf("missing workspace mount for %s", homeDir)
+	}
+	if hasSELinuxOpt(ws.Options) {
+		t.Errorf("workspace mount (source == HomeDir) should not have :z, got options %q", ws.Options)
+	}
+
+	toolMount := findMount(mounts, "/home/agent/.claude")
+	if toolMount == nil {
+		t.Fatal("missing tool config mount")
+	}
+	if !hasSELinuxOpt(toolMount.Options) {
+		t.Errorf("tool config mount should have :z, got options %q", toolMount.Options)
+	}
+}
+
+func TestBuildMounts_SELinuxOnSubdirOfHomeDir(t *testing.T) {
+	homeDir := t.TempDir()
+	workDir := filepath.Join(homeDir, "projects", "myapp")
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		t.Fatalf("creating workDir: %v", err)
+	}
+
+	opts := newTestOpts(homeDir, workDir)
+
+	builder := NewBuilder()
+	mounts, err := builder.BuildMounts(opts)
+	if err != nil {
+		t.Fatalf("BuildMounts() error: %v", err)
+	}
+
+	ws := findMount(mounts, workDir)
+	if ws == nil {
+		t.Fatalf("missing workspace mount for %s", workDir)
+	}
+	if !hasSELinuxOpt(ws.Options) {
+		t.Errorf("workspace mount (subdir of HomeDir) should have :z, got options %q", ws.Options)
+	}
+}
+
 func TestBuildMounts_NoWorktreeMount_RegularRepo(t *testing.T) {
 	homeDir := t.TempDir()
 	workDir := t.TempDir()

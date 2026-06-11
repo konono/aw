@@ -21,7 +21,7 @@ aw export dev --snapshot -o image.tar
 ```
 debian:bookworm-slim
   ├── apt: git, curl, ca-certificates, wget, openssh-client, sudo, xz-utils
-  ├── user: agent (sudo NOPASSWD)
+  ├── user: agent (sudo NOPASSWD for all UIDs)
   ├── Nix: single-user mode (/nix owned by agent)
   ├── devbox: /usr/local/bin/devbox
   ├── ENV:
@@ -117,6 +117,10 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 
 ```
 entrypoint.sh
+  │
+  ├── UID 不一致の検出と修正
+  │   （--user で渡されたホスト UID とイメージ内のホームディレクトリ所有者が
+  │   異なる場合、sudo find -xdev + chown で修正。マウント境界は越えない）
   │
   ├── skip_devbox_install: true の場合 → devbox install をスキップ
   │   （パッケージは snapshot で焼き込み済み）

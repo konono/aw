@@ -233,14 +233,16 @@ func runHostCommand(ctx context.Context, command []string) error {
 }
 
 func runContainerCommand(ctx context.Context, ec *pipeline.ExecutionContext, tool string, command []string) error {
+	runtime := ec.Profile.EffectiveContainerRuntime()
 	args := docker.BuildRunArgs(docker.RunConfig{
 		ImageName: ec.DockerImage,
 		Mounts:    ec.DockerMounts,
 		EnvVars:   buildContainerEnvVars(ec, tool),
 		WorkDir:   ec.WorkDir,
 		Command:   command,
+		Userns:    podmanUserns(runtime),
 	})
-	cmd := exec.CommandContext(ctx, ec.Profile.EffectiveContainerRuntime(), args...)
+	cmd := exec.CommandContext(ctx, runtime, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -259,14 +261,16 @@ func runCapturedCommand(ctx context.Context, ec *pipeline.ExecutionContext, tool
 		output, err := cmd.CombinedOutput()
 		return capturedResultFromOutput(output, err)
 	case profile.EnvironmentContainer:
+		runtime := ec.Profile.EffectiveContainerRuntime()
 		args := docker.BuildRunArgs(docker.RunConfig{
 			ImageName: ec.DockerImage,
 			Mounts:    ec.DockerMounts,
 			EnvVars:   buildContainerEnvVars(ec, tool),
 			WorkDir:   ec.WorkDir,
 			Command:   command,
+			Userns:    podmanUserns(runtime),
 		})
-		cmd := exec.CommandContext(ctx, ec.Profile.EffectiveContainerRuntime(), args...)
+		cmd := exec.CommandContext(ctx, runtime, args...)
 		output, err := cmd.CombinedOutput()
 		return capturedResultFromOutput(output, err)
 	default:
@@ -285,6 +289,13 @@ func capturedResultFromOutput(output []byte, err error) (capturedResult, error) 
 	}
 
 	return capturedResult{}, err
+}
+
+func podmanUserns(runtime string) string {
+	if runtime == "podman" {
+		return "keep-id"
+	}
+	return ""
 }
 
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {

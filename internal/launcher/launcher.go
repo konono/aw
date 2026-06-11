@@ -13,6 +13,16 @@ type Launcher interface {
 	Launch(ctx context.Context, ec *pipeline.ExecutionContext) error
 }
 
+// podmanUserns returns "keep-id" for rootless Podman so that the host UID
+// maps to the same UID inside the container, making bind-mounted files
+// accessible with correct ownership.
+func podmanUserns(runtime string) string {
+	if runtime == "podman" {
+		return "keep-id"
+	}
+	return ""
+}
+
 // buildContainerEnvVars creates the base set of environment variables for container execution.
 func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
 	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, ec.ContainerEnv)
@@ -21,9 +31,8 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 
-	if ec.ContainerSockReady {
-		envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
-	}
+	// DOCKER_HOST is set by .aw_env.sh after devbox/nix initialization to
+	// avoid early socket access that hangs on RHEL/SELinux hosts.
 
 	if ec.Profile.EffectiveSkipDevboxInstall() {
 		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"

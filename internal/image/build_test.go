@@ -85,8 +85,8 @@ func TestRenderDockerfile_CustomUser(t *testing.T) {
 		t.Fatalf("RenderDockerfile() error: %v", err)
 	}
 	content := string(df)
-	if !strings.Contains(content, "useradd -m -s /bin/bash dev") {
-		t.Error("Dockerfile should create 'dev' user")
+	if !strings.Contains(content, "useradd -m -s /bin/bash -u $HOST_UID -g $HOST_GID dev") {
+		t.Error("Dockerfile should create 'dev' user with HOST_UID/HOST_GID")
 	}
 	if !strings.Contains(content, `HOME="/home/dev"`) {
 		t.Error("Dockerfile should set HOME to /home/dev")

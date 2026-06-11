@@ -5,8 +5,13 @@ RUN apt-get update && \
       git curl ca-certificates wget openssh-client sudo xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash {{.User}} && \
-    echo '{{.User}} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+RUN (getent passwd $HOST_UID | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
+    (getent group $HOST_GID | cut -d: -f1 | xargs -r groupdel) 2>/dev/null; \
+    groupadd -g $HOST_GID {{.User}} && \
+    useradd -m -s /bin/bash -u $HOST_UID -g $HOST_GID {{.User}} && \
+    echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 RUN mkdir -p /nix && chown {{.User}}:{{.User}} /nix
 
@@ -42,6 +47,8 @@ RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
       chown -R {{.User}}:{{.User}} {{.Home}}/.config/mise {{.Home}}/.local/share && \
       su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
     fi && rm -rf /tmp/aw-build
+
+RUN su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true'
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

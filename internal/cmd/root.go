@@ -161,6 +161,15 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Warning: on-end hook will not run with environment: host + launch: %s (process is replaced via exec)\n", p.Launch)
 	}
 
+	// The launcher passes --user <host-uid>:<host-gid> so the container
+	// process owns the same files as the host user. uid 0 is rejected
+	// because Claude Code refuses to run as root.
+	if p.Environment == profile.EnvironmentContainer && os.Getuid() == 0 {
+		fmt.Fprintf(os.Stderr, "Error: aw must not be run as root — the container user cannot match uid 0.\n")
+		fmt.Fprintf(os.Stderr, "Run as a regular user, or create one: useradd -m dev && su - dev\n")
+		return 1
+	}
+
 	// Build pipeline stages
 	stages := buildStages(p)
 	pipe := pipeline.New(stages...)

@@ -3,6 +3,7 @@ package mount
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/konono/aw/internal/docker"
 )
@@ -77,9 +78,37 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 		mounts = append(mounts, *worktreeMount)
 	}
 
+	// Add SELinux shared label (:z) to internal bind mounts so container_t
+	// can access host files without label=disable (which breaks overlay
+	// flock on RHEL10). ExtraMounts are appended afterward so users
+	// control their own SELinux options.
+	for i := range mounts {
+		if !mounts[i].IsVolume && !hasSELinuxOpt(mounts[i].Options) {
+			// Podman on RHEL refuses to relabel the user's home directory;
+			// spc_t is used instead (see container.go).
+			if opts.HomeDir != "" && filepath.Clean(mounts[i].Source) == filepath.Clean(opts.HomeDir) {
+				continue
+			}
+			if mounts[i].Options == "" {
+				mounts[i].Options = "z"
+			} else {
+				mounts[i].Options += ",z"
+			}
+		}
+	}
+
 	mounts = append(mounts, opts.ExtraMounts...)
 
 	return mounts, nil
+}
+
+func hasSELinuxOpt(opts string) bool {
+	for _, part := range strings.Split(opts, ",") {
+		if part == "z" || part == "Z" {
+			return true
+		}
+	}
+	return false
 }
 
 func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []docker.Mount {

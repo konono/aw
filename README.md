@@ -53,6 +53,16 @@ aw        # デフォルトの claude プロファイルで Debian コンテナ�
 aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
 ```
 
+### Linux での事前設定（Podman を使う場合）
+
+Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
+
+```bash
+sudo loginctl enable-linger $(whoami)
+```
+
+これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#トラブルシューティング) を参照してください。
+
 ## 組み込みプロファイル
 
 | プロファイル | ツール | OS |
@@ -265,6 +275,27 @@ docker rmi claude-code-docker       # イメージ
 | [コンテナ同期](docs/container-sync.md) | ホスト設定の同期、SSH、データ保存先 |
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [パッケージ管理](docs/mise.md) | mise / devbox によるコンテナ内ツール管理 |
+
+## トラブルシューティング
+
+### Podman でイメージビルド時に `Permission denied` になる
+
+```
+error running container: from /usr/bin/crun creating container for [...]:
+sd-bus call: Interactive authentication required.: Permission denied
+```
+
+**原因:** Podman のルートレスモードは、コンテナの cgroup を管理するために systemd のユーザーセッション（`systemd --user`）を使います。しかし SSH 経由のログインや、GUI を使わないサーバー環境では、systemd ユーザーセッションが自動的に開始されないことがあります。セッションが存在しない状態でコンテナを作成しようとすると、`crun` が systemd の D-Bus API を呼び出した際に認証エラーとなります。
+
+**解決方法:**
+
+```bash
+sudo loginctl enable-linger $(whoami)
+```
+
+`loginctl enable-linger` は、対象ユーザーの systemd ユーザーセッションをログイン状態に関係なく永続化します。これにより、SSH セッションやサーバー環境でも Podman がルートレスで正常に動作するようになります。
+
+この設定は一度実行すれば永続的に有効です。再起動後も維持されます。
 
 ## Acknowledgments
 

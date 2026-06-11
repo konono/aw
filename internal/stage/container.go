@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/konono/aw/internal/config"
@@ -152,12 +153,18 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("building mounts: %w", err)
 	}
 
+	// spc_t grants connectto permissions for socket mounts (SSH agent,
+	// container runtime) where container_t lacks connectto to
+	// unconfined_t, and file access when :z can't be applied (home
+	// directory). label=disable is NOT used because it breaks overlay
+	// flock on RHEL10.
+	if ec.SSHAgentReady || ec.ContainerSockReady || filepath.Clean(ec.WorkDir) == filepath.Clean(ec.HomeDir) {
+		ec.DockerSecurityOpts = append(ec.DockerSecurityOpts, "label=type:spc_t")
+	}
+
 	ec.DockerImage = imageName
 	ec.DockerMounts = mounts
 	ec.DockerCapAdd = append(ec.DockerCapAdd, "AUDIT_WRITE")
-	if ec.ContainerSockReady {
-		ec.DockerSecurityOpts = append(ec.DockerSecurityOpts, "label=disable")
-	}
 
 	return nil
 }
@@ -210,6 +217,8 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	hashInput += "\n" + string(osTemplate)
 	hashInput += "\n" + cenv.User
+	hashInput += "\n" + strconv.Itoa(os.Getuid())
+	hashInput += "\n" + strconv.Itoa(os.Getgid())
 
 	toolPkg := ""
 	if customDockerfile == "" {
@@ -229,7 +238,10 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
 	}
 
-	buildArgs := map[string]string{}
+	buildArgs := map[string]string{
+		"HOST_UID": strconv.Itoa(os.Getuid()),
+		"HOST_GID": strconv.Itoa(os.Getgid()),
+	}
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
@@ -304,7 +316,7 @@ func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) 
 		sections = append(sections, `## Docker / Podman (DooD)
 
 Container runtime socket is mounted at /run/container.sock.
-DOCKER_HOST is pre-configured. docker and docker-compose are available in PATH via devbox.
+Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///run/container.sock
 
 - Use docker-compose / docker commands directly — do NOT try to install Docker or start a daemon
 - Containers created via docker-compose are sibling containers on the host`)
@@ -340,3 +352,4 @@ func expandTilde(path, homeDir string) string {
 	}
 	return path
 }
+
