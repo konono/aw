@@ -75,6 +75,7 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 		WorkDir:      ec.WorkDir,
 		Command:      command,
 		SecurityOpts: ec.DockerSecurityOpts,
+		CapAdd:       ec.DockerCapAdd,
 	}
 
 	return client.Run(ctx, runConfig)

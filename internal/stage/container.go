@@ -154,6 +154,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 	ec.DockerImage = imageName
 	ec.DockerMounts = mounts
+	ec.DockerCapAdd = append(ec.DockerCapAdd, "AUDIT_WRITE")
 	if ec.ContainerSockReady {
 		ec.DockerSecurityOpts = append(ec.DockerSecurityOpts, "label=disable")
 	}

@@ -32,6 +32,7 @@ type RunConfig struct {
 	Command      []string
 	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
+	CapAdd       []string // --cap-add values (e.g. "AUDIT_WRITE")
 }
 
 // Client is the interface for Docker operations.
@@ -173,6 +174,10 @@ func BuildRunArgs(config RunConfig) []string {
 		args = append(args, "--security-opt", opt)
 	}
 
+	for _, cap := range config.CapAdd {
+		args = append(args, "--cap-add", cap)
+	}
+
 	for key, val := range config.EnvVars {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, val))
 	}
@@ -244,6 +249,10 @@ func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
 
 	for _, opt := range config.SecurityOpts {
 		args = append(args, "--security-opt", opt)
+	}
+
+	for _, cap := range config.CapAdd {
+		args = append(args, "--cap-add", cap)
 	}
 
 	for key, val := range config.EnvVars {
