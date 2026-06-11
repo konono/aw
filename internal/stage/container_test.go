@@ -381,6 +381,105 @@ func TestDockerStage_PrebuiltImage_ImageInspectError(t *testing.T) {
 	}
 }
 
+func TestDockerStage_SPCTWhenContainerSockReady(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "test-image:latest",
+		},
+		HomeDir:            t.TempDir(),
+		WorkDir:            t.TempDir(),
+		ContainerSockReady: true,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	found := false
+	for _, opt := range ec.DockerSecurityOpts {
+		if opt == "label=type:spc_t" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("DockerSecurityOpts should contain spc_t when ContainerSockReady, got %v", ec.DockerSecurityOpts)
+	}
+}
+
+func TestDockerStage_SPCTWhenWorkDirEqualsHomeDir(t *testing.T) {
+	homeDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "test-image:latest",
+		},
+		HomeDir: homeDir,
+		WorkDir: homeDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	found := false
+	for _, opt := range ec.DockerSecurityOpts {
+		if opt == "label=type:spc_t" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("DockerSecurityOpts should contain spc_t when WorkDir == HomeDir, got %v", ec.DockerSecurityOpts)
+	}
+}
+
+func TestDockerStage_NoSPCTWhenNotNeeded(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "test-image:latest",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	for _, opt := range ec.DockerSecurityOpts {
+		if opt == "label=type:spc_t" {
+			t.Errorf("DockerSecurityOpts should NOT contain spc_t when no sockets and WorkDir != HomeDir, got %v", ec.DockerSecurityOpts)
+		}
+	}
+}
+
 func TestDockerStage_NewDockerStage(t *testing.T) {
 	s := NewDockerStage()
 	// DockerClient is nil by default; initialized lazily in Run() from profile's container_runtime
