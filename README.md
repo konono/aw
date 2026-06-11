@@ -2,45 +2,249 @@
 
 AI コーディングエージェントを、使い捨てコンテナで自律的に動かすためのワークスペースランチャー。
 
-## なぜ aw を作ったか
+## なぜ aw が必要か
 
-Claude Code で作業中、`fetch` のたびに Yes/No を聞かれる。5回 Enter を押して、考え始めたのを見て子どもの寝かしつけに向かう。1時間後に戻ると「このURLをfetchしていいですか？」で止まっていて、タスクはほぼ進んでいない。
+### 人がボトルネックになっている
 
-**問題の本質は、ホストマシン上でエージェントを動かすと権限を与えるのが怖いこと。** だから毎回確認が入り、人間が離席すると止まる。
+AI コーディングエージェントは強力ですが、ホストマシン上で動かすと「この URL を fetch していいですか？」「このファイルに書き込んでいいですか？」と逐一確認を求めてきます。人間が離席すると、その間エージェントは止まったまま待ち続けます。
 
-`aw` は **どんなに汚れても壊れても困らない使い捨てコンテナ** を立ち上げ、その中でエージェントを**全権限で自律実行**させます。ファイルを書き換えても、パッケージを入れても、ホストには影響しない。だから安心して `--dangerously-skip-permissions` で走らせられる。
+人間が本当に判断すべきなのは「この設計方針で進めるか？」「この PR をマージするか？」のような重要な意思決定であり、1 ページずつの fetch 許可ではありません。
+
+### 全権限を与えるのは危険
+
+`--dangerously-skip-permissions` をつけてホスト上で走らせれば止まりません。しかしエージェントが悪意あるサイトの内容を読み込んだ場合、プロンプトインジェクションによって任意のコマンドを実行されるリスクがあります。ホストのファイルシステム、SSH 鍵、環境変数など、すべてが攻撃対象になり得ます。
+
+### コンテナで隔離する
+
+`aw` は使い捨てコンテナの中でエージェントを全権限で自律実行させます。コーディング対象のプロジェクトディレクトリだけをコンテナにマウントし、それ以外のホストリソースには触れられないようにします。コンテナ内で何が起きても、捨てれば元通りです。
 
 ```bash
 go install github.com/konono/aw@latest
-aw    # 使い捨て Debian コンテナで Claude Code が自律起動。あとは放っておくだけ。
+aw    # 使い捨てコンテナで Claude Code が自律起動
 ```
 
-## こういう場面で威力を発揮する
+## アーキテクチャ
 
-**離席中にエージェントを走らせたい** — 寝かしつけ、会議、昼休み。戻ったらタスクが終わっている。権限確認で止まることがない。
+```
+┌─ ホスト ──────────────────────────────────────────────────────┐
+│                                                               │
+│  ┌─ コンテナ（使い捨て）────────────────────────────────────┐  │
+│  │                                                          │  │
+│  │  AI エージェント（--dangerously-skip-permissions）        │  │
+│  │  Claude Code / Codex / OpenCode                          │  │
+│  │                                                          │  │
+│  │  ├── プロジェクト  ← bind mount (RW)                     │  │
+│  │  ├── .gitconfig    ← bind mount (RO)                     │  │
+│  │  └── mise / devbox（コンテナ内で完結）                    │  │
+│  │                                                          │  │
+│  │  ─── オプトインで追加 ────────────────────────────        │  │
+│  │  ├── SSH Agent socket   (ssh_agent_forwarding)           │  │
+│  │  ├── GitHub CLI config  (mount_gh, RO)                   │  │
+│  │  ├── Container socket   (mount_container_sock)           │  │
+│  │  └── カスタムマウント    (mounts, デフォルト RO)          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ✕ ホストのファイルシステム（マウントされていない部分）        │
+│  ✕ ホストの環境変数・プロセス                                 │
+│  ✕ ホストの SSH 鍵（agent forwarding なら鍵自体は渡らない）   │
+└───────────────────────────────────────────────────────────────┘
+```
 
-**ホストを汚したくない** — エージェントが `npm install` しようが `pip install` しようが、コンテナを捨てれば元通り。プロジェクトごとに隔離された環境で安全に実験できる。
+デフォルトではプロジェクトディレクトリと `.gitconfig`（読み取り専用）だけがコンテナに入ります。エージェントが何をインストールしても、どのようなコマンドを実行しても、ホストには影響しません。コンテナを捨てれば痕跡も消えます。
 
-**メインブランチを汚さずに作業させたい** — `worktree: {}` を設定しておくだけで、`aw` を実行するたびに自動で git worktree が切られ、独立したブランチで作業が始まる。エージェントがどんなにコードを壊しても、worktree を消せば元通り。気に入った結果だけ PR にすればいい。
+## 利便性とリスクのバランス
 
-**複数タスクを並列で進めたい** — ターミナルを複数開いてそれぞれ `aw` を実行すれば、タスクごとに独立した worktree + コンテナでエージェントが同時に走る。互いに干渉しない。zellij と組み合わせればマルチペインで一覧性も確保できる。
+デフォルトは最小構成ですが、用途に応じてオプトインでホストリソースを開放できます。すべてデフォルト off で、ユーザーが明示的に有効にした分だけリスクが増える設計です。
 
-**チームで環境を統一したい** — `.aw.yml` をコミットすれば、全員が同じエージェント環境を再現できる。「自分の環境では動く」がなくなる。
+| オプション | 何ができるようになるか | リスク | デフォルト |
+|-----------|---------------------|--------|----------|
+| `ssh_agent_forwarding` | Git push/pull（鍵はコンテナに入らない） | 低 — ソケット転送のみ | off |
+| `mount_gh` | `gh pr create` 等の GitHub CLI 操作 | 中 — トークンがエージェントから読める | off |
+| `mount_container_sock` | コンテナ内で docker-compose 操作（[DooD](docs/dood.md)） | 高 — コンテナランタイム全体へのアクセス | off |
+| `mount_ssh` | SSH 鍵をコンテナにコピー | 高 — 秘密鍵がコンテナ内に存在する | off |
+| `mounts` | 任意のディレクトリをマウント | 設定次第 | — |
+
+### 段階的に利便性を上げる設定例
+
+**最小構成（デフォルト）** — プロジェクトだけをマウントします。外部との通信が不要な場合に適しています:
+
+```bash
+aw   # 設定不要。プロジェクトディレクトリだけがコンテナに入ります
+```
+
+**Git 操作あり** — エージェントに push/pull させたい場合に使います:
+
+```yaml
+ssh_agent_forwarding: true   # SSH 鍵はホストに残したまま、ソケットだけ転送
+```
+
+**フル装備** — PR 作成や docker-compose 操作もさせたい場合に使います:
+
+```yaml
+ssh_agent_forwarding: true
+mount_gh: true                # gh CLI でPR作成・レビュー
+mount_container_sock: true    # docker-compose up/down
+```
+
+## 仕組みの詳細
+
+コードや仕様を読まなくても把握できるよう、ユーザーが気になるポイントをまとめます。
+
+### 設定の同期とセッションの永続化
+
+ホストの `~/.claude/` はコンテナに直接マウントされません。代わりに、ホスト上のステージングディレクトリ（`~/.agent-workspace/claude/`）を経由します。
+
+**起動時の流れ:**
+
+1. ホストの `~/.claude/` から、指定されたファイルだけをステージングディレクトリにコピーする
+2. `settings.json` にはコンテナ向けのパッチを適用する（`skipDangerousModePermissionPrompt: true` の追加など）
+3. ステージングディレクトリを `/home/agent/.claude/` としてコンテナにマウントする
+4. Claude Code を `--permission-mode bypassPermissions` で起動する
+5. プロジェクト内に `devbox.json` や `mise.toml` があれば、自動で `devbox install` / `mise install` を実行する
+
+```
+ホスト ~/.claude/                         ステージング ~/.agent-workspace/claude/
+├── settings.json  ──(コピー+パッチ)──→   ├── settings.json
+├── CLAUDE.md      ──(コピー)──────→      ├── CLAUDE.md
+├── hooks/         ──(コピー)──────→      ├── hooks/
+├── commands/      ──(コピー)──────→      ├── commands/
+└── plugins/       ──(コピー)──────→      └── plugins/
+                                          ├── projects/  ← 同期対象外（前回のまま残る）
+                                          ├── .claude.json
+                                          └── ...
+                                          │
+                                  コンテナに /home/agent/.claude/ としてマウント
+```
+
+ポイントは、**同期対象として指定されたファイルだけが毎回上書きされ、それ以外はそのまま残る**ことです。Claude Code がセッション履歴を `/home/agent/.claude/projects/` に書き込むと、実体はホスト上の `~/.agent-workspace/claude/projects/` に保存されます。次回起動時にこのディレクトリは同期対象外なので上書きされず、そのまま残ります。これにより、コンテナを破棄しても `/resume` で過去のセッションを再開できます。
+
+> **Note:** 設定の同期はホスト → ステージングの一方向です。コンテナ内でエージェントが `settings.json` を変更しても、次回起動時にホストの内容で上書きされます。
+
+### ファイルの所有者
+
+コンテナはホストユーザーと同じ UID/GID で実行されます（`--user <host-uid>:<host-gid>`）。そのため、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でも自分のファイルとして見えます。パーミッションのミスマッチは起きません。
+
+> **Note:** root（UID 0）での実行はサポートされていません。Claude Code が root での動作を拒否するためです。
+
+### 何が残り、何が消えるか
+
+コンテナは `--rm` で起動されるため毎回破棄されますが、以下のデータは保持されます:
+
+| データ | 永続化 | 保存先 |
+|--------|--------|--------|
+| プロジェクトのコード変更 | ✓ | ホスト上（bind mount） |
+| 認証トークン | ✓ | `~/.agent-workspace/<tool>/` |
+| セッション履歴（`/resume`） | ✓ | `~/.agent-workspace/<tool>/` |
+| ツール設定・プラグイン | ✓ | `~/.agent-workspace/<tool>/` |
+| git worktree | ✓ | ホスト上（手動で削除するまで残る） |
+| mise / devbox でインストールしたツール | ✗ | コンテナ破棄時に消失 |
+| コンテナ内で apt install したもの | ✗ | コンテナ破棄時に消失 |
+| コンテナ内の一時ファイル | ✗ | コンテナ破棄時に消失 |
+
+コンテナ内で `apt install` したパッケージを永続化したい場合は、`mise.toml` や `devbox.json` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。
+
+### 認証の仕組み
+
+ホストの認証情報とコンテナの認証情報は独立しています。ホスト上で `claude` にログイン済みでも、コンテナ内では別途認証が必要です。
+
+```bash
+aw auth login claude   # コンテナ内で OAuth 認証を実行
+aw auth status claude  # 認証状態を確認
+```
+
+認証トークンは `~/.agent-workspace/<tool>/` に保存されるため、一度認証すればコンテナを再作成しても維持されます。
+
+### イメージのビルドとキャッシュ
+
+`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー・UID/GID・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。
+
+通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw export` で環境をイメージに焼き込むことで起動を高速化できます:
+
+```bash
+aw export claude --snapshot --apply
+```
+
+このコマンドは以下を行います:
+
+1. 一時コンテナを作成し、プロジェクトの `devbox.json` / `mise.toml` に基づいてパッケージをインストール
+2. インストール済みの状態をイメージとしてコミット
+3. `--apply` により、プロファイルの設定に `image:` と `skip_devbox_install: true` / `skip_mise_install: true` を書き戻す
+
+以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
+
+ランタイム構成を変更した場合は、再度 `aw export --snapshot --apply` を実行してイメージを更新してください。
+
+### コンテナランタイムの選択
+
+ビルトイン設定のデフォルトは **podman** です。Docker を使う場合は明示的に設定してください（自動検出は行いません）:
+
+```yaml
+container_runtime: docker
+```
+
+### コンテナ内で使えるもの
+
+ベースイメージには以下のツールがプリインストールされています:
+
+- `git`、`curl`、`wget`、`sudo`、`openssh-client`、`ca-certificates`、`xz-utils`
+- `mise`（ランタイムマネージャー）、`devbox`（Nix ベースのパッケージマネージャー）
+
+コンテナからインターネットへのアクセスに制限はありません。エージェントは `curl` や `fetch` で外部の情報を取得できます。ネットワークの隔離ではなく、ファイルシステムの隔離によってホストを保護する設計です。
+
+### コンテナにツールを追加する
+
+コンテナ内で `apt install` したパッケージはコンテナ破棄時に消えます。ツールを永続化するには、プロジェクトルートに `mise.toml` や `devbox.json` を置いてください。`aw` はコンテナ起動時にこれらを検出し、自動で `mise install` / `devbox install` を実行します。
+
+```toml
+# mise.toml の例
+[tools]
+node = "22"
+python = "3.12"
+```
+
+```json
+// devbox.json の例
+{ "packages": ["ripgrep", "jq", "gh"] }
+```
+
+mise / devbox でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw export --snapshot --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
+
+詳細は [パッケージ管理ガイド](docs/mise.md) を参照してください。
+
+### プロジェクト設定の信頼
+
+`.aw.yml` にセキュリティ上重要なフィールド（`mounts`、`env`、`dockerfile`、`image`、`worktree.on-create`、`worktree.on-end`）が含まれる場合、初回使用時に信頼するかどうかの確認が表示されます。信頼情報はファイル内容のハッシュに基づくため、設定ファイルが変更されると再度確認が求められます。
+
+### Worktree のライフサイクル
+
+worktree はホスト上に作成されるため、コンテナ終了後も残り続けます。不要になったら手動で `git worktree remove` してください。`worktree.on-create` / `worktree.on-end` フックはコンテナ内ではなくホスト上で実行されます。
+
+詳細は [コンテナ同期ガイド](docs/container-sync.md) を参照してください。
 
 ## 特徴
 
-- **ゼロコンフィグで即起動** — インストール後すぐに `aw` でコンテナが立ち上がる
 - **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
 - **Docker / Podman 両対応** — `container_runtime: podman` で切り替え
+- **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
 - **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
-- **git worktree 自動生成** — 実行するたびに独立ブランチで作業。壊しても消せば終わり
 - **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
 - **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
 - **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
-- **SSH Agent 転送** — 鍵ファイルをコンテナに入れずに Git 操作
 - **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
+- **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
+- **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
+
+## 必要なツール
+
+| ツール | 必要な場面 |
+|--------|-----------|
+| `docker` または `podman` | `environment: container` |
+| `git` | `worktree` を使用する場合 |
+| `zellij` | `launch: zellij` |
 
 ## クイックスタート
+
+> **Podman ユーザーへ:** Linux で Podman を使う場合は、下記の[事前設定](#linux--podman-の事前設定)を先に済ませてください。
 
 ```bash
 go install github.com/konono/aw@latest
@@ -53,7 +257,7 @@ aw        # デフォルトの claude プロファイルで Debian コンテナ�
 aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
 ```
 
-### Linux での事前設定（Podman を使う場合）
+### Linux + Podman の事前設定
 
 Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
 
@@ -61,7 +265,9 @@ Linux で Podman をルートレスモードで使う場合、**事前に以下�
 sudo loginctl enable-linger $(whoami)
 ```
 
-これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#トラブルシューティング) を参照してください。
+これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#podman-でイメージビルド時に-permission-denied-になる) を参照してください。
+
+> **Note:** Podman（ルートレス）で初めて `aw` を起動すると、コンテナレイヤーの UID/GID リマッピング（ID-mapped copy）のため起動に時間がかかります。これは初回のみで、2回目以降は高速に起動します。
 
 ## 組み込みプロファイル
 
@@ -122,11 +328,13 @@ aw codex --cwd ~/src/my-project    # 指定ディレクトリで codex を起動
 
 ## 設定
 
-設定は以下の順序でマージされます:
+設定は以下の順序でマージされます（後の値が優先）:
 
 ```
 ビルトインデフォルト → ~/.config/aw/config.yml → .aw.yml
 ```
+
+`~/.config/aw/` にはグローバル設定のほか、`mise.toml` や `devbox.json` を置くとコンテナイメージのビルド時に反映されます（`aw init` で雛形が生成されます）。プロジェクトルートに `.aw-env` ファイルを置くと、`KEY=VALUE` 形式でコンテナへの環境変数を追加できます（YAML 設定のマージとは別の仕組みで、プロファイルの `env:` より優先されます）。
 
 ```yaml
 default: claude
@@ -156,7 +364,7 @@ profiles:
 
 ### Worktree で使い捨てブランチ作業
 
-`worktree: {}` を付けるだけで、`aw` を実行するたびに自動で worktree が作られる。エージェントの作業はメインブランチから完全に隔離され、結果が気に入らなければ worktree ごと捨てればいい:
+`worktree: {}` を付けるだけで、`aw` を実行するたびに自動で worktree が作られます。エージェントの作業はメインブランチから完全に隔離され、結果が気に入らなければ worktree ごと捨てられます:
 
 ```yaml
 profiles:
@@ -166,7 +374,7 @@ profiles:
     launch: claude
 ```
 
-ターミナルを複数開いて `aw worktree-claude` を実行すれば、それぞれ独立した worktree + コンテナで並列作業もできる。zellij と組み合わせてマルチペインにすることも可能:
+ターミナルを複数開いて `aw worktree-claude` を実行すれば、それぞれ独立した worktree + コンテナで並列作業もできます。zellij と組み合わせてマルチペインにすることも可能です:
 
 ```yaml
 profiles:
@@ -199,7 +407,7 @@ profiles:
 
 ### プレビルドイメージ（エアギャップ環境）
 
-ネットワークのある環境でイメージを書き出し、オフライン環境に持ち込む:
+ネットワークのある環境でイメージを書き出し、オフライン環境に持ち込めます:
 
 ```bash
 # 基本的なエクスポート
@@ -218,7 +426,7 @@ aw export claude --env HTTP_PROXY=http://proxy.corp:8080
 docker load -i my-image.tar             # オフライン環境でロード
 ```
 
-export オプションはプロファイルの `export:` セクションでも指定できる:
+export オプションはプロファイルの `export:` セクションでも指定できます:
 
 ```yaml
 profiles:
@@ -249,23 +457,6 @@ profiles:
 
 詳細は [docs/custom-dockerfile.md](docs/custom-dockerfile.md) を参照してください。
 
-## 必要なツール
-
-| ツール | 必要な場面 |
-|--------|-----------|
-| `docker` または `podman` | `environment: container` |
-| `git` | `worktree` を使用する場合 |
-| `zellij` | `launch: zellij` |
-
-## アンインストール
-
-```bash
-rm ~/go/bin/aw                    # バイナリ
-rm -rf ~/.agent-workspace         # データ
-docker volume rm claude-code-local  # キャッシュ（Podman の場合は podman）
-docker rmi claude-code-docker       # イメージ
-```
-
 ## ドキュメント
 
 | ガイド | 内容 |
@@ -273,8 +464,10 @@ docker rmi claude-code-docker       # イメージ
 | [設定リファレンス](docs/configuration.md) | 全オプション、バリデーションルール、マージモデル |
 | [認証ガイド](docs/authentication.md) | ツール別の認証設定 |
 | [コンテナ同期](docs/container-sync.md) | ホスト設定の同期、SSH、データ保存先 |
-| [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [パッケージ管理](docs/mise.md) | mise / devbox によるコンテナ内ツール管理 |
+| [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
+| [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
+| [Export & Snapshot](docs/export-snapshot.md) | `aw export` のビルド・焼き込み・起動時の動作詳細 |
 
 ## トラブルシューティング
 
@@ -296,6 +489,22 @@ sudo loginctl enable-linger $(whoami)
 `loginctl enable-linger` は、対象ユーザーの systemd ユーザーセッションをログイン状態に関係なく永続化します。これにより、SSH セッションやサーバー環境でも Podman がルートレスで正常に動作するようになります。
 
 この設定は一度実行すれば永続的に有効です。再起動後も維持されます。
+
+### Podman（ルートレス）で初回起動が遅い
+
+初めて `aw` を起動したとき（または新しいベースイメージに切り替えたとき）、Podman のルートレスモードはコンテナレイヤーの UID/GID リマッピングのために「ID-mapped copy」を作成します。この処理はイメージサイズに応じて数分かかることがあります。
+
+これは初回のみの処理です。2回目以降の起動ではコピー済みのレイヤーが再利用されるため、高速に起動します。
+
+> **Tip:** この処理中に Ctrl+C で中断するとストレージが不完全な状態になり、次回も最初からやり直しになることがあります。初回は完了まで待ってください。
+
+## アンインストール
+
+```bash
+rm ~/go/bin/aw                    # バイナリ
+rm -rf ~/.agent-workspace         # セッション・認証データ
+docker rmi aw-container             # イメージ（タグ付きも含めて削除する場合は docker images で確認）
+```
 
 ## Acknowledgments
 
