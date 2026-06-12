@@ -20,11 +20,6 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 
 `aw` は使い捨てコンテナの中でエージェントを全権限で自律実行させます。コーディング対象のプロジェクトディレクトリだけをコンテナにマウントし、それ以外のホストリソースには触れられないようにします。コンテナ内で何が起きても、捨てれば元通りです。
 
-```bash
-go install github.com/konono/aw@latest
-aw    # 使い捨てコンテナで Claude Code が自律起動
-```
-
 ## 前提条件
 
 | ツール | 必須 | 用途 |
@@ -89,6 +84,19 @@ sudo loginctl enable-linger $(whoami)
 ```
 
 デフォルトではプロジェクトディレクトリと `.gitconfig`（読み取り専用）だけがコンテナに入ります。エージェントが何をインストールしても、どのようなコマンドを実行しても、ホストには影響しません。コンテナを捨てれば痕跡も消えます。
+
+## 特徴
+
+- **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
+- **Docker / Podman 両対応** — デフォルトは Podman、`container_runtime: docker` で Docker に切替
+- **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
+- **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
+- **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
+- **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
+- **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
+- **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
+- **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
+- **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
 
 ## 利便性とリスクのバランス
 
@@ -260,19 +268,6 @@ mise / devbox でインストールしたツールはコンテナ内に保存さ
 worktree はホスト上に作成されるため、コンテナ終了後も残り続けます。不要になったら手動で `git worktree remove` してください。`worktree.on-create` / `worktree.on-end` フックはコンテナ内ではなくホスト上で実行されます。
 
 詳細は [コンテナ同期ガイド](docs/container-sync.md) を参照してください。
-
-## 特徴
-
-- **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
-- **Docker / Podman 両対応** — `container_runtime: podman` で切り替え
-- **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
-- **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
-- **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
-- **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
-- **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
-- **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
-- **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
-- **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
 
 ## 組み込みプロファイル
 
@@ -508,7 +503,11 @@ sudo loginctl enable-linger $(whoami)
 ```bash
 rm ~/go/bin/aw                    # バイナリ
 rm -rf ~/.agent-workspace         # セッション・認証データ
-docker rmi aw-container             # イメージ（タグ付きも含めて削除する場合は docker images で確認）
+
+# イメージの削除（使用しているランタイムに合わせて実行）
+podman rmi aw-container           # Podman の場合（デフォルト）
+docker rmi aw-container           # Docker の場合
+# タグ付きイメージも含めて削除する場合は podman/docker images で確認
 ```
 
 ## Acknowledgments
