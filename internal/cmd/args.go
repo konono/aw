@@ -11,6 +11,7 @@ type runOptions struct {
 	Query       string
 	Cwd         string
 	NoRecord    bool
+	Command     []string
 }
 
 func parseRunArgs(args []string) (*runOptions, error) {
@@ -40,6 +41,13 @@ func parseRunArgs(args []string) (*runOptions, error) {
 			opts.Cwd = args[i]
 		case strings.HasPrefix(a, "--cwd="):
 			opts.Cwd = strings.TrimPrefix(a, "--cwd=")
+		case a == "-c":
+			i++
+			if i >= len(args) {
+				return nil, fmt.Errorf("-c requires a command")
+			}
+			opts.Command = args[i:]
+			i = len(args)
 		case strings.HasPrefix(a, "-"):
 			return nil, fmt.Errorf("unknown option: %s", a)
 		default:

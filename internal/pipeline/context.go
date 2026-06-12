@@ -40,4 +40,7 @@ type ExecutionContext struct {
 
 	// Container environment config (user, home, workspace paths)
 	ContainerEnv containerenv.Config
+
+	// CommandOverride replaces the default launch command when set (via -c flag)
+	CommandOverride []string
 }

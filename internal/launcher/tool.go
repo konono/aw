@@ -61,9 +61,12 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 	runtime := ec.Profile.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	command := toolContainerCommands[l.Tool]
-	if command == nil {
-		command = []string{l.Tool}
+	command := ec.CommandOverride
+	if len(command) == 0 {
+		command = toolContainerCommands[l.Tool]
+		if command == nil {
+			command = []string{l.Tool}
+		}
 	}
 
 	envVars := buildContainerEnvVars(ec, l.Tool)

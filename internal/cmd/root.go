@@ -141,6 +141,7 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	ec.CommandOverride = opts.Command
 
 	// Record directory history (use OrigWorkDir, not worktree path)
 	if !opts.NoRecord {
@@ -334,6 +335,7 @@ func printHelp() {
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
 	fmt.Println("Options:")
+	fmt.Println("  -c <cmd> [args...]      Override the launch command (e.g. aw claude -c claude --version)")
 	fmt.Println("  -r, --recent            Pick a directory from launch history")
 	fmt.Println("  --query <text>          Initial query for --recent picker")
 	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")
