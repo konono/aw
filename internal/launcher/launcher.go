@@ -5,6 +5,7 @@ import (
 
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/toolinfo"
 )
 
@@ -33,6 +34,10 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
+	}
+
+	if ec.Profile.EffectivePackageManager() == profile.PackageManagerDevbox && ec.Profile.EffectiveSkipDevboxInstall() {
+		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
 	}
 
 	return envVars

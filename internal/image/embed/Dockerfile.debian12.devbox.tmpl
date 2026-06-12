@@ -1,0 +1,53 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git curl ca-certificates wget openssh-client sudo xz-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN (getent passwd 1001 | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
+    useradd -m -s /bin/bash -u 1001 -g 0 {{.User}} && \
+    echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+ENV HOME="{{.Home}}" \
+    BASH_ENV="{{.Home}}/.aw_env.sh" \
+    PATH="{{.Home}}/.nix-profile/bin:{{.Home}}/.local/bin:${PATH}"
+
+ARG AW_TOOL_PKG=""
+COPY . /tmp/aw-build/
+RUN mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \
+    su -s /bin/bash {{.User}} -c 'curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon' && \
+    ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default && \
+    curl -fsSL -o /usr/local/bin/devbox https://releases.jetify.com/devbox && \
+    chmod 755 /usr/local/bin/devbox && \
+    DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
+    if [ -f /tmp/aw-build/devbox.json ]; then \
+      mkdir -p {{.Home}}/.local/share/devbox/global/default && \
+      cp /tmp/aw-build/devbox.json {{.Home}}/.local/share/devbox/global/default/devbox.json && \
+      chown -R {{.User}}:0 {{.Home}}/.local/share && \
+      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global install"; \
+    fi && \
+    if [ -n "$AW_TOOL_PKG" ]; then \
+      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
+    fi && \
+    if [ -f /tmp/aw-build/mise.toml ]; then \
+      su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
+      mkdir -p {{.Home}}/.config/mise {{.Home}}/.local/share && \
+      cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
+      chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
+      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
+    fi && rm -rf /tmp/aw-build && \
+    su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true' && \
+    su -s /bin/bash {{.User}} -c '. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null && nix-collect-garbage -d 2>/dev/null || true' && \
+    su -s /bin/bash {{.User}} -c '. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null && nix-store --optimise 2>/dev/null || true' && \
+    chgrp -R 0 {{.Home}} /nix && chmod -R g=u {{.Home}} /nix && chmod g=u /etc/passwd
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
+
+USER {{.User}}
+WORKDIR {{.Workspace}}
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

@@ -158,7 +158,7 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
 			t.Logf("preparing shell image for os=%s", osTemplate)
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
@@ -244,7 +244,7 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 				t.Cleanup(func() { removeImage(runtime, imageName) })
 
 				t.Logf("preparing tool image for os=%s tool=%s pkg=%s", osTemplate, tool, pkg)
-				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
+				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
 				if err != nil {
 					t.Fatalf("PrepareBuildContext: %v", err)
 				}
@@ -290,7 +290,7 @@ func TestIntegration_Smoke(t *testing.T) {
 	imageName := "aw-inttest-smoke"
 	t.Cleanup(func() { removeImage(runtime, imageName) })
 
-	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
+	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestIntegration_DevboxJSON(t *testing.T) {
 			imageName := fmt.Sprintf("aw-inttest-devbox-%s", osTemplate)
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
@@ -423,7 +423,7 @@ func TestIntegration_E2E(t *testing.T) {
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
 			cenv := containerenv.Default()
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, cenv)
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}

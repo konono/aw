@@ -70,6 +70,11 @@ func Validate(p Profile) error {
 		return fmt.Errorf("dockerfile is only valid with environment: container")
 	}
 
+	// Validate package_manager
+	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
+		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)
+	}
+
 	// Validate container_runtime
 	switch p.ContainerRuntime {
 	case "", ContainerRuntimeDocker, ContainerRuntimePodman:

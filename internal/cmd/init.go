@@ -51,6 +51,7 @@ func runInit(args []string) int {
 	fmt.Printf("%s %s\n", action, configPath)
 
 	writeTemplateFile(configDir, "mise.toml", miseTomlTemplate, flags.force)
+	writeTemplateFile(configDir, "devbox.json", devboxJSONTemplate, flags.force)
 
 	fmt.Println("Run `aw` to start immediately, or edit these files to customize your setup.")
 	return 0
@@ -84,6 +85,13 @@ const miseTomlTemplate = `# ~/.config/aw/mise.toml — グローバル mise 設�
 #
 # [tasks.install]
 # run = "echo 'Global tools installed'"
+`
+
+// devboxJSONTemplate is the starter devbox.json for package_manager: devbox (deprecated).
+const devboxJSONTemplate = `{
+  "_comment": "DEPRECATED: devbox (Nix) package manager. Use package_manager: apt instead.",
+  "packages": []
+}
 `
 
 func parseInitArgs(args []string) (initFlags, error) {

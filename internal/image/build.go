@@ -20,7 +20,7 @@ import (
 // embedded Dockerfile template rendered with cenv and entrypoint.sh.
 //
 // The caller must call the returned cleanup function when done.
-func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate, cenv containerenv.Config) (dir string, cleanup func(), err error) {
+func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate, pkgMgr profile.PackageManager, cenv containerenv.Config) (dir string, cleanup func(), err error) {
 	if customDockerfilePath != "" {
 		absPath, err := filepath.Abs(customDockerfilePath)
 		if err != nil {
@@ -32,12 +32,12 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return filepath.Dir(absPath), func() {}, nil
 	}
 
-	df, err := RenderDockerfile(osTemplate, cenv)
+	df, err := RenderDockerfile(osTemplate, pkgMgr, cenv)
 	if err != nil {
 		return "", nil, err
 	}
 
-	ep, err := RenderEntrypoint(cenv)
+	ep, err := RenderEntrypoint(pkgMgr, cenv)
 	if err != nil {
 		return "", nil, err
 	}

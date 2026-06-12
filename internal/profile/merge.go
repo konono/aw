@@ -67,6 +67,9 @@ func MergeProfile(base, override Profile) Profile {
 		v := *override.SkipDevboxInstall
 		merged.SkipDevboxInstall = &v
 	}
+	if override.PackageManager != "" {
+		merged.PackageManager = override.PackageManager
+	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
 		merged.SkipMiseInstall = &v
@@ -267,6 +270,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
 		v := *effective.SkipDevboxInstall
 		relative.SkipDevboxInstall = &v
+	}
+	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
+		relative.PackageManager = effective.PackageManager
 	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall

@@ -180,8 +180,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 
 	tool := ec.Profile.EffectiveTool()
 	osTemplate := ec.Profile.EffectiveOS()
+	pkgMgr := ec.Profile.EffectivePackageManager()
 
-	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate, cenv)
+	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate, pkgMgr, cenv)
 	if err != nil {
 		return "", fmt.Errorf("preparing build context: %w", err)
 	}
@@ -190,6 +191,14 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
 
 	if customDockerfile == "" {
+		if pkgMgr == profile.PackageManagerDevbox {
+			userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
+			if data, err := os.ReadFile(userDevboxJSON); err == nil {
+				if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
+					return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
+				}
+			}
+		}
 		if data, err := os.ReadFile(userMiseToml); err == nil {
 			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
 				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
@@ -216,12 +225,22 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	toolPkg := ""
 	toolBinaryURL := ""
 	if customDockerfile == "" {
-		toolPkg = toolinfo.NpmPkg(tool)
-		toolBinaryURL = toolinfo.BinaryURL(tool)
+		if pkgMgr == profile.PackageManagerDevbox {
+			toolPkg = toolinfo.DevboxPkg(tool)
+		} else {
+			toolPkg = toolinfo.NpmPkg(tool)
+			toolBinaryURL = toolinfo.BinaryURL(tool)
+		}
 		hashInput += "\n" + toolPkg
 		hashInput += "\n" + toolBinaryURL
+		hashInput += "\n" + string(pkgMgr)
 		if miseData, err := os.ReadFile(userMiseToml); err == nil {
 			hashInput += "\n" + string(miseData)
+		}
+		if pkgMgr == profile.PackageManagerDevbox {
+			if devboxData, err := os.ReadFile(filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")); err == nil {
+				hashInput += "\n" + string(devboxData)
+			}
 		}
 	}
 

@@ -12,6 +12,7 @@ type ToolSpec struct {
 	Binary            string
 	DisplayName       string
 	NpmPkg            string
+	DevboxPkg         string // deprecated: used with package_manager: devbox
 	BinaryURL         string
 	HomeEnvVar        string
 	DefaultHomeSubdir string
@@ -25,6 +26,7 @@ var tools = map[string]ToolSpec{
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
 		NpmPkg:            "@anthropic-ai/claude-code",
+		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
 		ContainerDir:      "/home/agent/.claude",
@@ -34,6 +36,7 @@ var tools = map[string]ToolSpec{
 		Binary:            "codex",
 		DisplayName:       "Codex",
 		NpmPkg:            "@openai/codex",
+		DevboxPkg:         "codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
 		ContainerDir:      "/home/agent/.codex",
@@ -42,6 +45,7 @@ var tools = map[string]ToolSpec{
 	"opencode": {
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
+		DevboxPkg:         "opencode",
 		BinaryURL:         "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-x86_64.tar.gz",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
@@ -60,6 +64,13 @@ func Lookup(tool string) (ToolSpec, bool) {
 func NpmPkg(tool string) string {
 	if spec, ok := Lookup(tool); ok {
 		return spec.NpmPkg
+	}
+	return ""
+}
+
+func DevboxPkg(tool string) string {
+	if spec, ok := Lookup(tool); ok {
+		return spec.DevboxPkg
 	}
 	return ""
 }
