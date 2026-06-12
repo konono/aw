@@ -25,6 +25,42 @@ go install github.com/konono/aw@latest
 aw    # 使い捨てコンテナで Claude Code が自律起動
 ```
 
+## 前提条件
+
+| ツール | 必須 | 用途 |
+|--------|------|------|
+| [Go](https://go.dev/dl/) 1.23+ | ✓ | `go install` によるインストール |
+| [Docker](https://docs.docker.com/get-docker/) または [Podman](https://podman.io/docs/installation) | ✓ | コンテナの実行（デフォルトは Podman） |
+| `git` | — | `worktree` 機能を使う場合 |
+| `zellij` | — | `launch: zellij` を使う場合 |
+
+## クイックスタート
+
+> **Podman ユーザーへ:** Linux で Podman を使う場合は、下記の[事前設定](#linux--podman-の事前設定)を先に済ませてください。
+
+```bash
+go install github.com/konono/aw@latest
+aw        # デフォルトの claude プロファイルで Debian コンテナが起動
+```
+
+設定ファイルなしでそのまま使えます。カスタマイズしたくなったら:
+
+```bash
+aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
+```
+
+### Linux + Podman の事前設定
+
+Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
+
+```bash
+sudo loginctl enable-linger $(whoami)
+```
+
+これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#podman-でイメージビルド時に-permission-denied-になる) を参照してください。
+
+> **Note:** Podman（ルートレス）で初めて `aw` を起動すると、コンテナレイヤーの UID/GID リマッピング（ID-mapped copy）のため起動に時間がかかります。これは初回のみで、2回目以降は高速に起動します。
+
 ## アーキテクチャ
 
 ```
@@ -124,7 +160,9 @@ mount_container_sock: true    # docker-compose up/down
 
 ### ファイルの所有者
 
-コンテナはホストユーザーと同じ UID/GID で実行されます（`--user <host-uid>:<host-gid>`）。そのため、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でも自分のファイルとして見えます。パーミッションのミスマッチは起きません。
+コンテナイメージは固定の UID 1001 / GID 0（root グループ）でビルドされ、すべてのディレクトリに `chmod g=u` が適用されています。実行時には `--user <host-uid>:0` でホストユーザーの UID を渡し、entrypoint が `/etc/passwd` にエントリを動的に追加します（OpenShift スタイルの GID 0 パターン）。
+
+この設計により、イメージをリビルドすることなく任意の UID で実行でき、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でもホストユーザーの所有として見えます。
 
 > **Note:** root（UID 0）での実行はサポートされていません。Claude Code が root での動作を拒否するためです。
 
@@ -158,7 +196,7 @@ aw auth status claude  # 認証状態を確認
 
 ### イメージのビルドとキャッシュ
 
-`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー・UID/GID・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。
+`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー名・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。イメージは GID 0 パターンで構築されるため、ホストの UID が異なってもリビルドは不要です。
 
 通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw export` で環境をイメージに焼き込むことで起動を高速化できます:
 
@@ -235,41 +273,6 @@ worktree はホスト上に作成されるため、コンテナ終了後も残�
 - **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
 - **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
 - **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
-
-## 必要なツール
-
-| ツール | 必要な場面 |
-|--------|-----------|
-| `docker` または `podman` | `environment: container` |
-| `git` | `worktree` を使用する場合 |
-| `zellij` | `launch: zellij` |
-
-## クイックスタート
-
-> **Podman ユーザーへ:** Linux で Podman を使う場合は、下記の[事前設定](#linux--podman-の事前設定)を先に済ませてください。
-
-```bash
-go install github.com/konono/aw@latest
-aw        # デフォルトの claude プロファイルで Debian コンテナが起動
-```
-
-設定ファイルなしでそのまま使えます。カスタマイズしたくなったら:
-
-```bash
-aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
-```
-
-### Linux + Podman の事前設定
-
-Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
-
-```bash
-sudo loginctl enable-linger $(whoami)
-```
-
-これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#podman-でイメージビルド時に-permission-denied-になる) を参照してください。
-
-> **Note:** Podman（ルートレス）で初めて `aw` を起動すると、コンテナレイヤーの UID/GID リマッピング（ID-mapped copy）のため起動に時間がかかります。これは初回のみで、2回目以降は高速に起動します。
 
 ## 組み込みプロファイル
 
