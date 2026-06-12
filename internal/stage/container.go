@@ -187,16 +187,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
 	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
 
 	if customDockerfile == "" {
-		if data, err := os.ReadFile(userDevboxJSON); err == nil {
-			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
-				return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
-			}
-		}
-
 		if data, err := os.ReadFile(userMiseToml); err == nil {
 			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
 				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
@@ -222,11 +215,8 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 
 	toolPkg := ""
 	if customDockerfile == "" {
-		toolPkg = toolinfo.DevboxPkg(tool)
+		toolPkg = toolinfo.NpmPkg(tool)
 		hashInput += "\n" + toolPkg
-		if devboxData, err := os.ReadFile(userDevboxJSON); err == nil {
-			hashInput += "\n" + string(devboxData)
-		}
 		if miseData, err := os.ReadFile(userMiseToml); err == nil {
 			hashInput += "\n" + string(miseData)
 		}
@@ -305,7 +295,7 @@ func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) 
 
 	sections = append(sections, `## Package Managers
 
-- devbox: Nix-based package manager. Use "devbox global add <pkg>" to install packages
+- npm: Node.js package manager. Use "npm install -g <pkg>" to install global packages
 - mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
 - Both are pre-installed and available in PATH`)
 

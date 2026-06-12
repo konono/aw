@@ -11,7 +11,8 @@ import (
 type ToolSpec struct {
 	Binary            string
 	DisplayName       string
-	DevboxPkg         string
+	NpmPkg            string
+	BinaryURL         string
 	HomeEnvVar        string
 	DefaultHomeSubdir string
 	ContainerDir      string
@@ -23,7 +24,7 @@ var tools = map[string]ToolSpec{
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
-		DevboxPkg:         "claude-code",
+		NpmPkg:            "@anthropic-ai/claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
 		ContainerDir:      "/home/agent/.claude",
@@ -32,7 +33,7 @@ var tools = map[string]ToolSpec{
 	"codex": {
 		Binary:            "codex",
 		DisplayName:       "Codex",
-		DevboxPkg:         "codex",
+		NpmPkg:            "@openai/codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
 		ContainerDir:      "/home/agent/.codex",
@@ -41,12 +42,12 @@ var tools = map[string]ToolSpec{
 	"opencode": {
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
-		DevboxPkg:         "opencode",
+		BinaryURL:         "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-amd64",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		ContainerDir:      "/home/agent/.config/opencode",
 		DataSymlinks:      "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data",
-		InstallHint:       "Install via: devbox add opencode",
+		InstallHint:       "Install via: curl -fsSL https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-amd64 -o /usr/local/bin/opencode",
 	},
 }
 
@@ -56,9 +57,9 @@ func Lookup(tool string) (ToolSpec, bool) {
 	return spec, ok
 }
 
-func DevboxPkg(tool string) string {
+func NpmPkg(tool string) string {
 	if spec, ok := Lookup(tool); ok {
-		return spec.DevboxPkg
+		return spec.NpmPkg
 	}
 	return ""
 }

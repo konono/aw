@@ -349,7 +349,7 @@ func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
 	}
 }
 
-func TestRenderDockerfile_DevboxDirectoryCreation(t *testing.T) {
+func TestRenderDockerfile_NpmInstall(t *testing.T) {
 	cenv := containerenv.Default()
 	for _, osTemplate := range []profile.OSTemplate{
 		profile.OSDebian12,
@@ -364,21 +364,11 @@ func TestRenderDockerfile_DevboxDirectoryCreation(t *testing.T) {
 			}
 			content := string(df)
 
-			cpLine := "cp /tmp/aw-build/devbox.json"
-			mkdirLine := "mkdir -p " + cenv.Home + "/.local/share/devbox/global/default"
-
-			cpIdx := strings.Index(content, cpLine)
-			if cpIdx < 0 {
-				t.Fatal("Dockerfile should contain devbox.json cp command")
+			if !strings.Contains(content, "npm install -g") {
+				t.Error("Dockerfile should contain npm install -g for tool installation")
 			}
-
-			mkdirIdx := strings.Index(content, mkdirLine)
-			if mkdirIdx < 0 {
-				t.Fatal("Dockerfile should create devbox global directory before copying devbox.json")
-			}
-
-			if mkdirIdx > cpIdx {
-				t.Error("mkdir -p for devbox global directory must appear before cp command")
+			if !strings.Contains(content, "nodejs") {
+				t.Error("Dockerfile should install nodejs")
 			}
 		})
 	}

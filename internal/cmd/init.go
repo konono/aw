@@ -51,7 +51,6 @@ func runInit(args []string) int {
 	fmt.Printf("%s %s\n", action, configPath)
 
 	writeTemplateFile(configDir, "mise.toml", miseTomlTemplate, flags.force)
-	writeTemplateFile(configDir, "devbox.json", devboxJSONTemplate, flags.force)
 
 	fmt.Println("Run `aw` to start immediately, or edit these files to customize your setup.")
 	return 0
@@ -78,20 +77,13 @@ const miseTomlTemplate = `# ~/.config/aw/mise.toml — グローバル mise 設�
 # 同じツールが定義されている場合、プロジェクト側が優先されます。
 #
 # [tools]
-# node = "22"        # Claude Code に必要（デフォルトで devbox 経由でインストール済み）
+# node = "22"
 # python = "3.14"
 # go = "1.23"
 # gh = "latest"
 #
 # [tasks.install]
 # run = "echo 'Global tools installed'"
-`
-
-const devboxJSONTemplate = `{
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
-  "_comment": "~/.config/aw/devbox.json — グローバル devbox 設定。ここに定義したパッケージは全コンテナのイメージビルド時にインストールされます。",
-  "packages": []
-}
 `
 
 func parseInitArgs(args []string) (initFlags, error) {

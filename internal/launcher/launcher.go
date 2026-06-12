@@ -31,12 +31,6 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 
-	// DOCKER_HOST is set by .aw_env.sh after devbox/nix initialization to
-	// avoid early socket access that hangs on RHEL/SELinux hosts.
-
-	if ec.Profile.EffectiveSkipDevboxInstall() {
-		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
-	}
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
 	}

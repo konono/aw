@@ -17,8 +17,8 @@ func TestLookup_KnownTools(t *testing.T) {
 		if spec.DisplayName == "" {
 			t.Errorf("%s: DisplayName is empty", tool)
 		}
-		if spec.DevboxPkg == "" {
-			t.Errorf("%s: DevboxPkg is empty", tool)
+		if spec.NpmPkg == "" && spec.BinaryURL == "" {
+			t.Errorf("%s: NpmPkg and BinaryURL are both empty", tool)
 		}
 		if spec.ContainerDir == "" {
 			t.Errorf("%s: ContainerDir is empty", tool)
@@ -36,19 +36,19 @@ func TestLookup_UnknownTool(t *testing.T) {
 	}
 }
 
-func TestDevboxPkg(t *testing.T) {
+func TestNpmPkg(t *testing.T) {
 	tests := []struct {
 		tool string
 		want string
 	}{
-		{"claude", "claude-code"},
-		{"codex", "codex"},
-		{"opencode", "opencode"},
+		{"claude", "@anthropic-ai/claude-code"},
+		{"codex", "@openai/codex"},
+		{"opencode", ""},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
-		if got := DevboxPkg(tt.tool); got != tt.want {
-			t.Errorf("DevboxPkg(%q) = %q, want %q", tt.tool, got, tt.want)
+		if got := NpmPkg(tt.tool); got != tt.want {
+			t.Errorf("NpmPkg(%q) = %q, want %q", tt.tool, got, tt.want)
 		}
 	}
 }
