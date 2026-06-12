@@ -300,9 +300,12 @@ func runDefaultDockerfile() int {
 	return 0
 }
 
-// hasVersionFlag checks if the args contain --version or -v.
+// hasVersionFlag checks if the args contain --version or -v before any -c flag.
 func hasVersionFlag(args []string) bool {
 	for _, a := range args {
+		if a == "-c" {
+			return false
+		}
 		if a == "--version" || a == "-v" {
 			return true
 		}
@@ -310,9 +313,12 @@ func hasVersionFlag(args []string) bool {
 	return false
 }
 
-// hasHelpFlag checks if the args contain --help or -h.
+// hasHelpFlag checks if the args contain --help or -h before any -c flag.
 func hasHelpFlag(args []string) bool {
 	for _, a := range args {
+		if a == "-c" {
+			return false
+		}
 		if a == "--help" || a == "-h" {
 			return true
 		}

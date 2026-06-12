@@ -42,12 +42,12 @@ var tools = map[string]ToolSpec{
 	"opencode": {
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
-		BinaryURL:         "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-amd64",
+		BinaryURL:         "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-x86_64.tar.gz",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		ContainerDir:      "/home/agent/.config/opencode",
 		DataSymlinks:      "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data",
-		InstallHint:       "Install via: curl -fsSL https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-amd64 -o /usr/local/bin/opencode",
+		InstallHint:       "Install via: curl -fsSL https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-x86_64.tar.gz | tar -xzf - -C /usr/local/bin opencode",
 	},
 }
 
