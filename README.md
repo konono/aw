@@ -20,10 +20,41 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 
 `aw` は使い捨てコンテナの中でエージェントを全権限で自律実行させます。コーディング対象のプロジェクトディレクトリだけをコンテナにマウントし、それ以外のホストリソースには触れられないようにします。コンテナ内で何が起きても、捨てれば元通りです。
 
+## 前提条件
+
+| ツール | 必須 | 用途 |
+|--------|------|------|
+| [Go](https://go.dev/dl/) 1.23+ | ✓ | `go install` によるインストール |
+| [Docker](https://docs.docker.com/get-docker/) または [Podman](https://podman.io/docs/installation) | ✓ | コンテナの実行（デフォルトは Podman） |
+| `git` | — | `worktree` 機能を使う場合 |
+| `zellij` | — | `launch: zellij` を使う場合 |
+
+## クイックスタート
+
+> **Podman ユーザーへ:** Linux で Podman を使う場合は、下記の[事前設定](#linux--podman-の事前設定)を先に済ませてください。
+
 ```bash
 go install github.com/konono/aw@latest
-aw    # 使い捨てコンテナで Claude Code が自律起動
+aw        # デフォルトの claude プロファイルで Debian コンテナが起動
 ```
+
+設定ファイルなしでそのまま使えます。カスタマイズしたくなったら:
+
+```bash
+aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
+```
+
+### Linux + Podman の事前設定
+
+Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
+
+```bash
+sudo loginctl enable-linger $(whoami)
+```
+
+これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#podman-でイメージビルド時に-permission-denied-になる) を参照してください。
+
+> **Note:** Podman（ルートレス）で初めて `aw` を起動すると、コンテナレイヤーの UID/GID リマッピング（ID-mapped copy）のため起動に時間がかかります。これは初回のみで、2回目以降は高速に起動します。
 
 ## アーキテクチャ
 
@@ -54,6 +85,19 @@ aw    # 使い捨てコンテナで Claude Code が自律起動
 
 デフォルトではプロジェクトディレクトリと `.gitconfig`（読み取り専用）だけがコンテナに入ります。エージェントが何をインストールしても、どのようなコマンドを実行しても、ホストには影響しません。コンテナを捨てれば痕跡も消えます。
 
+## 特徴
+
+- **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
+- **Docker / Podman 両対応** — デフォルトは Podman、`container_runtime: docker` で Docker に切替
+- **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
+- **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
+- **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
+- **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
+- **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
+- **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
+- **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
+- **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
+
 ## 利便性とリスクのバランス
 
 デフォルトは最小構成ですが、用途に応じてオプトインでホストリソースを開放できます。すべてデフォルト off で、ユーザーが明示的に有効にした分だけリスクが増える設計です。
@@ -68,7 +112,7 @@ aw    # 使い捨てコンテナで Claude Code が自律起動
 
 ### 段階的に利便性を上げる設定例
 
-**最小構成（デフォルト）** — プロジェクトだけをマウントします。外部との通信が不要な場合に適しています:
+**最小構成（デフォルト）** — プロジェクトだけをマウントします。Git push や GitHub CLI 連携が不要な場合に適しています:
 
 ```bash
 aw   # 設定不要。プロジェクトディレクトリだけがコンテナに入ります
@@ -124,7 +168,9 @@ mount_container_sock: true    # docker-compose up/down
 
 ### ファイルの所有者
 
-コンテナはホストユーザーと同じ UID/GID で実行されます（`--user <host-uid>:<host-gid>`）。そのため、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でも自分のファイルとして見えます。パーミッションのミスマッチは起きません。
+コンテナイメージは固定の UID 1001 / GID 0（root グループ）でビルドされ、すべてのディレクトリに `chmod g=u` が適用されています。実行時には `--user <host-uid>:0` でホストユーザーの UID を渡し、entrypoint が `/etc/passwd` にエントリを動的に追加します（OpenShift スタイルの GID 0 パターン）。
+
+この設計により、イメージをリビルドすることなく任意の UID で実行でき、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でもホストユーザーの所有として見えます。
 
 > **Note:** root（UID 0）での実行はサポートされていません。Claude Code が root での動作を拒否するためです。
 
@@ -158,7 +204,7 @@ aw auth status claude  # 認証状態を確認
 
 ### イメージのビルドとキャッシュ
 
-`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー・UID/GID・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。
+`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー名・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。イメージは GID 0 パターンで構築されるため、ホストの UID が異なってもリビルドは不要です。
 
 通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw export` で環境をイメージに焼き込むことで起動を高速化できます:
 
@@ -222,54 +268,6 @@ mise / devbox でインストールしたツールはコンテナ内に保存さ
 worktree はホスト上に作成されるため、コンテナ終了後も残り続けます。不要になったら手動で `git worktree remove` してください。`worktree.on-create` / `worktree.on-end` フックはコンテナ内ではなくホスト上で実行されます。
 
 詳細は [コンテナ同期ガイド](docs/container-sync.md) を参照してください。
-
-## 特徴
-
-- **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
-- **Docker / Podman 両対応** — `container_runtime: podman` で切り替え
-- **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
-- **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
-- **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
-- **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
-- **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
-- **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
-- **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
-- **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
-
-## 必要なツール
-
-| ツール | 必要な場面 |
-|--------|-----------|
-| `docker` または `podman` | `environment: container` |
-| `git` | `worktree` を使用する場合 |
-| `zellij` | `launch: zellij` |
-
-## クイックスタート
-
-> **Podman ユーザーへ:** Linux で Podman を使う場合は、下記の[事前設定](#linux--podman-の事前設定)を先に済ませてください。
-
-```bash
-go install github.com/konono/aw@latest
-aw        # デフォルトの claude プロファイルで Debian コンテナが起動
-```
-
-設定ファイルなしでそのまま使えます。カスタマイズしたくなったら:
-
-```bash
-aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
-```
-
-### Linux + Podman の事前設定
-
-Linux で Podman をルートレスモードで使う場合、**事前に以下のコマンドを実行してください**。これを行わないとコンテナのビルド時に `Permission denied` で失敗します。
-
-```bash
-sudo loginctl enable-linger $(whoami)
-```
-
-これは systemd のユーザーセッションを永続化する設定です。Podman のルートレスモードは cgroupv2 の管理に systemd ユーザーセッションを必要としますが、SSH ログインなど一部の環境ではセッションが自動的に作られないため、この設定が必要になります。詳しくは [トラブルシューティング](#podman-でイメージビルド時に-permission-denied-になる) を参照してください。
-
-> **Note:** Podman（ルートレス）で初めて `aw` を起動すると、コンテナレイヤーの UID/GID リマッピング（ID-mapped copy）のため起動に時間がかかります。これは初回のみで、2回目以降は高速に起動します。
 
 ## 組み込みプロファイル
 
@@ -505,7 +503,11 @@ sudo loginctl enable-linger $(whoami)
 ```bash
 rm ~/go/bin/aw                    # バイナリ
 rm -rf ~/.agent-workspace         # セッション・認証データ
-docker rmi aw-container             # イメージ（タグ付きも含めて削除する場合は docker images で確認）
+
+# イメージの削除（使用しているランタイムに合わせて実行）
+podman rmi aw-container           # Podman の場合（デフォルト）
+docker rmi aw-container           # Docker の場合
+# タグ付きイメージも含めて削除する場合は podman/docker images で確認
 ```
 
 ## Acknowledgments
