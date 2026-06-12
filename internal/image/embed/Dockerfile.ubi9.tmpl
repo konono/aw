@@ -15,13 +15,14 @@ ENV HOME="{{.Home}}" \
 
 ARG AW_TOOL_PKG=""
 ARG AW_TOOL_BINARY_URL=""
+ARG AW_TOOL_BINARY_NAME=""
 COPY . /tmp/aw-build/
 RUN if [ -n "$AW_TOOL_PKG" ]; then \
       npm install -g "$AW_TOOL_PKG"; \
     fi && \
     if [ -n "$AW_TOOL_BINARY_URL" ]; then \
-      curl -fsSL -o /usr/local/bin/aw-tool "$AW_TOOL_BINARY_URL" && \
-      chmod 755 /usr/local/bin/aw-tool; \
+      curl -fsSL -o "/usr/local/bin/${AW_TOOL_BINARY_NAME:-aw-tool}" "$AW_TOOL_BINARY_URL" && \
+      chmod 755 "/usr/local/bin/${AW_TOOL_BINARY_NAME:-aw-tool}"; \
     fi && \
     if [ -f /tmp/aw-build/mise.toml ]; then \
       su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \

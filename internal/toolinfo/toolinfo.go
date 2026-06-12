@@ -64,6 +64,13 @@ func NpmPkg(tool string) string {
 	return ""
 }
 
+func BinaryURL(tool string) string {
+	if spec, ok := Lookup(tool); ok {
+		return spec.BinaryURL
+	}
+	return ""
+}
+
 func HomePath(tool, homeDir string) string {
 	spec, ok := Lookup(tool)
 	if !ok {
