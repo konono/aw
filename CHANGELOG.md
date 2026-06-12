@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0](https://github.com/konono/aw/compare/v1.7.0...v1.8.0) (2026-06-12)
+
+
+### Features
+
+* adopt OpenShift-style GID 0 pattern for UID-independent container images ([bc704b6](https://github.com/konono/aw/commit/bc704b6bda555ceb8d76149a9106385d7aca252c))
+* adopt OpenShift-style GID 0 pattern for UID-independent container images ([ca33d7c](https://github.com/konono/aw/commit/ca33d7cd135b92158befb38d4e896f813e4b9c7e))
+
+
+### Bug Fixes
+
+* correct error messages from "environment: docker" to "environment: container" ([40a2eaa](https://github.com/konono/aw/commit/40a2eaad4433ffa6eab5013c50e1f0d0b6fcc1c9))
+* fix Nix permission errors when running with arbitrary UID ([89fd960](https://github.com/konono/aw/commit/89fd960ec1015f78e3af52483fa7f9f011a188ae))
+* **ssh:** remove duplicate passwd entries injected by Podman --userns=keep-id ([c504f60](https://github.com/konono/aw/commit/c504f60eaf2441971ec48b29dec4ca74216b1983))
+* **ssh:** remove duplicate passwd entries injected by Podman --userns=keep-id ([530faf2](https://github.com/konono/aw/commit/530faf2c1cb94b9cff7ffadce8502e45b74ee2d4))
+
 ## [1.7.0](https://github.com/konono/aw/compare/v1.6.0...v1.7.0) (2026-06-11)
 
 
