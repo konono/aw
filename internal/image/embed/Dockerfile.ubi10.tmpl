@@ -9,9 +9,12 @@ RUN (getent passwd 1001 | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
     useradd -m -s /bin/bash -u 1001 -g 0 {{.User}} && \
     echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
+RUN mkdir -p {{.Home}}/.npm-global && \
+    echo "prefix={{.Home}}/.npm-global" > {{.Home}}/.npmrc
+
 ENV HOME="{{.Home}}" \
     BASH_ENV="{{.Home}}/.aw_env.sh" \
-    PATH="{{.Home}}/.local/bin:${PATH}"
+    PATH="{{.Home}}/.npm-global/bin:{{.Home}}/.local/bin:${PATH}"
 
 ARG AW_TOOL_PKG=""
 ARG AW_TOOL_BINARY_URL=""
