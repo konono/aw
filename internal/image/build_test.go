@@ -338,8 +338,8 @@ func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
 		t.Fatalf("RenderEntrypoint() error: %v", err)
 	}
 	content := string(ep)
-	if !strings.Contains(content, "getent passwd") {
-		t.Error("entrypoint.sh should check /etc/passwd for current UID")
+	if !strings.Contains(content, "grep -v") || !strings.Contains(content, "/etc/passwd") {
+		t.Error("entrypoint.sh should remove stale UID entries from /etc/passwd")
 	}
 	if !strings.Contains(content, ">> /etc/passwd") {
 		t.Error("entrypoint.sh should dynamically add UID to /etc/passwd")

@@ -13,12 +13,13 @@ aw_log() { echo "[aw:entrypoint] $1" >&2; }
 # passwd entry with the host's home path, which breaks tools that use getpwuid()
 # instead of $HOME (ssh, git, nix). Always ensure the entry has the correct home.
 _aw_uid=$(id -u)
-_aw_current_home=$(getent passwd "$_aw_uid" 2>/dev/null | cut -d: -f6)
-if [ "$_aw_current_home" != "{{.Home}}" ]; then
-  sed -i "/^[^:]*:[^:]*:${_aw_uid}:/d" /etc/passwd 2>/dev/null || true
-  echo "{{.User}}:x:${_aw_uid}:0:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
-fi
-unset _aw_uid _aw_current_home
+# Remove ALL passwd entries for this UID (Podman --userns=keep-id may inject
+# a duplicate with the host home path, which breaks SSH/git/nix getpwuid).
+# Use grep+write instead of sed -i because sed -i creates a temp file in /etc/
+# which requires directory write permission that containers may not have.
+_aw_tmp=$(grep -v -e "^[^:]*:[^:]*:${_aw_uid}:" -e "^{{.User}}:" /etc/passwd) && printf '%s\n' "$_aw_tmp" > /etc/passwd || true
+echo "{{.User}}:x:${_aw_uid}:0:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
+unset _aw_uid _aw_tmp
 export HOME={{.Home}}
 
 # Fix ownership when runtime UID differs from build-time UID (1001).

@@ -214,9 +214,11 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	if dfBytes, err := os.ReadFile(hashSource); err == nil {
 		hashInput = string(dfBytes)
 	}
+	if epBytes, err := os.ReadFile(filepath.Join(buildDir, "entrypoint.sh")); err == nil {
+		hashInput += "\n" + string(epBytes)
+	}
 	hashInput += "\n" + string(osTemplate)
 	hashInput += "\n" + cenv.User
-
 
 	toolPkg := ""
 	if customDockerfile == "" {
