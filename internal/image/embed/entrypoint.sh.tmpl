@@ -97,7 +97,12 @@ fi
 
 aw_log "Setting up git credentials..."
 if [ -n "$GITHUB_TOKEN" ]; then
-  git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${GITHUB_TOKEN}"; }; f'
+  cat > {{.Home}}/.git-credential-token <<'CRED'
+#!/bin/sh
+echo username=x-access-token
+echo "password=${GITHUB_TOKEN}"
+CRED
+  chmod +x {{.Home}}/.git-credential-token
 fi
 
 aw_log "Setting up container socket..."
@@ -130,6 +135,11 @@ case ":\${PATH}:" in
 esac
 export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-{{.Workspace}}}"
 export MISE_YES=1
+if [ -n "\${GITHUB_TOKEN:-}" ] && [ -x "{{.Home}}/.git-credential-token" ]; then
+  export GIT_CONFIG_COUNT=1
+  export GIT_CONFIG_KEY_0="credential.helper"
+  export GIT_CONFIG_VALUE_0="!{{.Home}}/.git-credential-token"
+fi
 EOF
 
 cat > "$BASHRC_FILE" <<BASHRC
