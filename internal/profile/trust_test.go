@@ -6,40 +6,56 @@ import (
 	"testing"
 )
 
-func TestHasSensitiveFields_Empty(t *testing.T) {
+func TestProjectConfig_SafeFieldsLoadWithoutTrustPrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return false
+	}
+	defer func() { promptTrust = origPrompt }()
+
 	cfg := &Config{
 		Profiles: map[string]Profile{
 			"test": {
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
+				OS:          OSDebian12,
 			},
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 0 {
-		t.Errorf("expected no sensitive fields, got %v", fields)
+	result, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("safe config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if promptCalled {
+		t.Error("expected no trust prompt for config with only safe fields")
+	}
+	if result != cfg {
+		t.Error("expected original config returned unchanged")
 	}
 }
 
-func TestHasSensitiveFields_OnCreate(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Worktree: &WorktreeConfig{
-					OnCreate: "echo hello",
-				},
-			},
-		},
-	}
+func TestProjectConfig_MountsRequireTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return true
 	}
-}
+	defer func() { promptTrust = origPrompt }()
 
-func TestHasSensitiveFields_Mounts(t *testing.T) {
 	cfg := &Config{
 		Profiles: map[string]Profile{
 			"test": {
@@ -50,28 +66,60 @@ func TestHasSensitiveFields_Mounts(t *testing.T) {
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
+	_, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("mounts config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !promptCalled {
+		t.Error("expected trust prompt when config contains mounts")
 	}
 }
 
-func TestHasSensitiveFields_Env(t *testing.T) {
+func TestProjectConfig_EnvRequiresTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return true
+	}
+	defer func() { promptTrust = origPrompt }()
+
 	cfg := &Config{
 		Profiles: map[string]Profile{
 			"test": {
-				Env: map[string]string{"FOO": "bar"},
+				Env: map[string]string{"SECRET": "value"},
 			},
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
+	_, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("env config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !promptCalled {
+		t.Error("expected trust prompt when config contains env vars")
 	}
 }
 
-func TestHasSensitiveFields_Dockerfile(t *testing.T) {
+func TestProjectConfig_DockerfileRequiresTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return true
+	}
+	defer func() { promptTrust = origPrompt }()
+
 	cfg := &Config{
 		Profiles: map[string]Profile{
 			"test": {
@@ -80,25 +128,217 @@ func TestHasSensitiveFields_Dockerfile(t *testing.T) {
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
+	_, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("dockerfile config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !promptCalled {
+		t.Error("expected trust prompt when config contains dockerfile")
 	}
 }
 
-func TestHasSensitiveFields_Defaults(t *testing.T) {
+func TestProjectConfig_WorktreeOnCreateRequiresTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return true
+	}
+	defer func() { promptTrust = origPrompt }()
+
 	cfg := &Config{
-		Defaults: ProfileDefaultsFromProfile(Profile{
-			Env: map[string]string{"KEY": "val"},
-		}),
 		Profiles: map[string]Profile{
-			"test": {},
+			"test": {
+				Worktree: &WorktreeConfig{
+					OnCreate: "npm install",
+				},
+			},
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field from defaults, got %d: %v", len(fields), fields)
+	_, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("worktree on-create config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !promptCalled {
+		t.Error("expected trust prompt when config contains worktree on-create")
+	}
+}
+
+func TestProjectConfig_WorktreeOnEndRequiresTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return true
+	}
+	defer func() { promptTrust = origPrompt }()
+
+	cfg := &Config{
+		Profiles: map[string]Profile{
+			"test": {
+				Worktree: &WorktreeConfig{
+					OnEnd: "cleanup.sh",
+				},
+			},
+		},
+	}
+
+	_, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("worktree on-end config"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !promptCalled {
+		t.Error("expected trust prompt when config contains worktree on-end")
+	}
+}
+
+func TestProjectConfig_DeniedStripsAllSensitiveKeepsSafe(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool { return false }
+	defer func() { promptTrust = origPrompt }()
+
+	cfg := &Config{
+		Defaults: ProfileDefaultsFromProfile(Profile{
+			Env:        map[string]string{"DEFAULT_KEY": "val"},
+			Dockerfile: "Dockerfile.default",
+		}),
+		Profiles: map[string]Profile{
+			"dev": {
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSDebian12,
+				Worktree: &WorktreeConfig{
+					Base:     "origin/dev",
+					OnCreate: "npm install",
+					OnEnd:    "cleanup.sh",
+				},
+				Mounts:     []CustomMount{{Source: "/secret", Target: "/data"}},
+				Env:        map[string]string{"API_KEY": "secret"},
+				Dockerfile: "Dockerfile.custom",
+				Image:      "custom:latest",
+			},
+		},
+	}
+
+	result, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("data"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All sensitive fields should be stripped from profile
+	p := result.Profiles["dev"]
+	if p.Worktree != nil && p.Worktree.OnCreate != "" {
+		t.Error("expected worktree on-create stripped")
+	}
+	if p.Worktree != nil && p.Worktree.OnEnd != "" {
+		t.Error("expected worktree on-end stripped")
+	}
+	if len(p.Mounts) != 0 {
+		t.Error("expected mounts stripped")
+	}
+	if len(p.Env) != 0 {
+		t.Error("expected env stripped")
+	}
+	if p.Dockerfile != "" {
+		t.Error("expected dockerfile stripped")
+	}
+	if p.Image != "" {
+		t.Error("expected image stripped")
+	}
+
+	// Sensitive fields should be stripped from defaults too
+	d := result.Defaults.AsProfile()
+	if len(d.Env) != 0 {
+		t.Error("expected defaults env stripped")
+	}
+	if d.Dockerfile != "" {
+		t.Error("expected defaults dockerfile stripped")
+	}
+
+	// Safe fields should remain
+	if p.Environment != EnvironmentContainer {
+		t.Error("expected environment preserved")
+	}
+	if p.Launch != LaunchClaude {
+		t.Error("expected launch preserved")
+	}
+	if p.OS != OSDebian12 {
+		t.Error("expected os preserved")
+	}
+	if p.Worktree == nil || p.Worktree.Base != "origin/dev" {
+		t.Error("expected worktree.base preserved (it is not sensitive)")
+	}
+}
+
+func TestProjectConfig_ApprovedPreservesAllFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	origGlobalConfigDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool { return true }
+	defer func() { promptTrust = origPrompt }()
+
+	cfg := &Config{
+		Profiles: map[string]Profile{
+			"dev": {
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Worktree: &WorktreeConfig{
+					Base:     "origin/dev",
+					OnCreate: "npm install",
+					OnEnd:    "cleanup.sh",
+				},
+				Mounts:     []CustomMount{{Source: "~/.aws", Target: "/aws"}},
+				Env:        map[string]string{"API_KEY": "secret"},
+				Dockerfile: "Dockerfile.custom",
+			},
+		},
+	}
+
+	result, err := CheckProjectTrust("/fake/project/.aw.yml", []byte("data"), cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := result.Profiles["dev"]
+	if p.Worktree == nil || p.Worktree.OnCreate != "npm install" {
+		t.Error("expected worktree on-create preserved when approved")
+	}
+	if p.Worktree == nil || p.Worktree.OnEnd != "cleanup.sh" {
+		t.Error("expected worktree on-end preserved when approved")
+	}
+	if len(p.Mounts) != 1 {
+		t.Error("expected mounts preserved when approved")
+	}
+	if p.Env["API_KEY"] != "secret" {
+		t.Error("expected env preserved when approved")
+	}
+	if p.Dockerfile != "Dockerfile.custom" {
+		t.Error("expected dockerfile preserved when approved")
+	}
+	if p.Environment != EnvironmentContainer {
+		t.Error("expected environment preserved when approved")
+	}
+	if p.Launch != LaunchClaude {
+		t.Error("expected launch preserved when approved")
 	}
 }
 
@@ -301,67 +541,3 @@ func TestCheckProjectTrust_AlreadyTrusted(t *testing.T) {
 	}
 }
 
-func TestStripSensitiveFields(t *testing.T) {
-	cfg := &Config{
-		Defaults: ProfileDefaultsFromProfile(Profile{
-			Env:        map[string]string{"DEFAULT_KEY": "val"},
-			Dockerfile: "Dockerfile.default",
-		}),
-		Profiles: map[string]Profile{
-			"a": {
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Worktree: &WorktreeConfig{
-					Base:     "origin/dev",
-					OnCreate: "echo attack",
-					OnEnd:    "echo cleanup",
-				},
-				Mounts:     []CustomMount{{Source: "/secret", Target: "/data"}},
-				Env:        map[string]string{"FOO": "bar"},
-				Dockerfile: "Dockerfile.custom",
-			},
-		},
-	}
-
-	stripped := stripSensitiveFields(cfg)
-
-	// Defaults sensitive fields stripped
-	d := stripped.Defaults.AsProfile()
-	if len(d.Env) != 0 {
-		t.Error("expected defaults env stripped")
-	}
-	if d.Dockerfile != "" {
-		t.Error("expected defaults dockerfile stripped")
-	}
-
-	// Profile sensitive fields stripped
-	p := stripped.Profiles["a"]
-	if p.Worktree.OnCreate != "" || p.Worktree.OnEnd != "" {
-		t.Error("expected on-create/on-end stripped")
-	}
-	if len(p.Mounts) != 0 {
-		t.Error("expected mounts stripped")
-	}
-	if len(p.Env) != 0 {
-		t.Error("expected env stripped")
-	}
-	if p.Dockerfile != "" {
-		t.Error("expected dockerfile stripped")
-	}
-
-	// Non-sensitive preserved
-	if p.Environment != EnvironmentContainer {
-		t.Error("expected environment preserved")
-	}
-	if p.Launch != LaunchClaude {
-		t.Error("expected launch preserved")
-	}
-	if p.Worktree.Base != "origin/dev" {
-		t.Error("expected worktree.base preserved")
-	}
-
-	// Original not mutated
-	if cfg.Profiles["a"].Worktree.OnCreate != "echo attack" {
-		t.Error("original config should not be mutated")
-	}
-}
