@@ -187,6 +187,12 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 	if !strings.Contains(content, "## Package Managers") {
 		t.Error("missing Package Managers section")
 	}
+	if !strings.Contains(content, "mise") {
+		t.Error("apt mode should mention mise")
+	}
+	if strings.Contains(content, "npm") {
+		t.Error("apt mode should not mention npm")
+	}
 	if strings.Contains(content, "## Docker / Podman") {
 		t.Error("Docker section should not be present")
 	}
@@ -195,6 +201,32 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 	}
 	if strings.Contains(content, "## SSH Agent") {
 		t.Error("SSH Agent section should not be present")
+	}
+}
+
+func TestAppendContainerContext_DevboxMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			PackageManager: profile.PackageManagerDevbox,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "npm") {
+		t.Error("devbox mode should mention npm")
+	}
+	if !strings.Contains(content, "mise") {
+		t.Error("devbox mode should mention mise")
 	}
 }
 

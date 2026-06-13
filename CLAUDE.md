@@ -88,7 +88,7 @@ podman images | grep aw-container
 
 The container image supports two package managers, selected via the `package_manager` profile field:
 
-- `apt` (default) — nodejs/npm from OS packages. AI tools installed via `npm install -g`. Lightweight (~400 MB image).
+- `apt` (default) — AI tools installed via standalone installers (curl-based install scripts). Lightweight (~400 MB image).
 - `devbox` (deprecated) — Nix single-user + devbox. Original behavior. Heavy (~1.8 GB image).
 
 Templates live in `internal/image/embed/`:

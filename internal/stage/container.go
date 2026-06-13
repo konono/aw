@@ -335,11 +335,18 @@ func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) 
 
 	var sections []string
 
-	sections = append(sections, `## Package Managers
+	if ec.Profile.EffectivePackageManager() == profile.PackageManagerDevbox {
+		sections = append(sections, `## Package Managers
 
 - npm: Node.js package manager. Use "npm install -g <pkg>" to install global packages
 - mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
 - Both are pre-installed and available in PATH`)
+	} else {
+		sections = append(sections, `## Package Managers
+
+- mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
+- Pre-installed and available in PATH`)
+	}
 
 	if ec.ContainerSockReady {
 		sections = append(sections, `## Docker / Podman (DooD)
@@ -354,7 +361,8 @@ Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///r
 	if ec.Profile.EffectiveGhToken() {
 		sections = append(sections, `## GitHub CLI
 
-GITHUB_TOKEN is set. gh commands (gh pr, gh issue, etc.) work directly.`)
+GITHUB_TOKEN is set. gh commands (gh pr, gh issue, etc.) work directly.
+Git HTTPS operations (clone, push, fetch) also work directly via credential helper.`)
 	} else if ec.Profile.EffectiveMountGH() {
 		sections = append(sections, `## GitHub CLI
 
