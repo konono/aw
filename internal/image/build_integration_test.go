@@ -39,6 +39,17 @@ func detectRuntime() string {
 	return "docker"
 }
 
+func detectGitHubToken() string {
+	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
+		return t
+	}
+	out, err := exec.Command("gh", "auth", "token").Output()
+	if err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return ""
+}
+
 func runCommandWithProgress(t *testing.T, cmd *exec.Cmd, label string) error {
 	t.Helper()
 
@@ -78,6 +89,9 @@ func buildImage(t *testing.T, runtime, imageName, contextDir string, buildArgs m
 	for k, v := range buildArgs {
 		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
 	}
+	if token := detectGitHubToken(); token != "" {
+		args = append(args, "--build-arg", fmt.Sprintf("GITHUB_TOKEN=%s", token))
+	}
 	args = append(args, contextDir)
 
 	cmd := exec.CommandContext(ctx, runtime, args...)
@@ -93,7 +107,11 @@ func runDetachedContainer(t *testing.T, runtime, imageName string, command ...st
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	args := []string{"run", "--rm", "-d", imageName}
+	args := []string{"run", "--rm", "-d"}
+	if token := detectGitHubToken(); token != "" {
+		args = append(args, "-e", fmt.Sprintf("GITHUB_TOKEN=%s", token))
+	}
+	args = append(args, imageName)
 	args = append(args, command...)
 	cmd := exec.CommandContext(ctx, runtime, args...)
 	var out bytes.Buffer
@@ -137,7 +155,11 @@ func runContainerCommand(t *testing.T, runtime, imageName string, command ...str
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	args := []string{"run", "--rm", imageName}
+	args := []string{"run", "--rm"}
+	if token := detectGitHubToken(); token != "" {
+		args = append(args, "-e", fmt.Sprintf("GITHUB_TOKEN=%s", token))
+	}
+	args = append(args, imageName)
 	args = append(args, command...)
 	cmd := exec.CommandContext(ctx, runtime, args...)
 	var out bytes.Buffer
@@ -194,8 +216,6 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 id -un
 which git
 which curl
-which node
-which npm
 echo SHELL_OK
 `)
 			if !strings.Contains(out, "agent") {
@@ -260,8 +280,8 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 }
 
 // TestIntegration_Smoke is a quick sanity check using a single debian12 image.
-// It verifies the pre-installed tool (claude) works and that runtime npm install
-// can add additional packages.
+// It verifies the pre-installed tool (claude) works and that standalone tools
+// can be installed at runtime.
 //
 //	go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
 func TestIntegration_Smoke(t *testing.T) {
@@ -287,17 +307,17 @@ func TestIntegration_Smoke(t *testing.T) {
 		}
 	})
 
-	// Test runtime npm install
-	t.Run("runtime_npm_install", func(t *testing.T) {
+	// Test runtime standalone install (mise)
+	t.Run("runtime_standalone_install", func(t *testing.T) {
 		containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
 		t.Cleanup(func() { removeContainer(runtime, containerID) })
 
 		execInContainer(t, runtime, containerID, "bash", "-lc",
-			"npm install -g cowsay")
+			"curl -fsSL https://mise.jdx.dev/install.sh | sh")
 		out := execInContainer(t, runtime, containerID, "bash", "-lc",
-			"cowsay hello")
-		if !strings.Contains(out, "hello") {
-			t.Errorf("runtime npm install failed:\n%s", out)
+			"mise --version")
+		if out == "" {
+			t.Error("runtime standalone install: mise --version returned empty output")
 		}
 	})
 }
@@ -345,17 +365,17 @@ func TestIntegration_E2E(t *testing.T) {
 				}
 			})
 
-			// Runtime npm install
+			// Runtime tool install via mise
 			t.Run("runtime_install", func(t *testing.T) {
 				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
 				t.Cleanup(func() { removeContainer(runtime, containerID) })
 
 				execInContainer(t, runtime, containerID, "bash", "-lc",
-					"npm install -g @openai/codex")
+					"MISE_YES=1 mise install fd@latest && mise use -g fd@latest")
 				out := execInContainer(t, runtime, containerID, "bash", "-lc",
-					"codex --version")
-				if !strings.Contains(out, "codex") {
-					t.Errorf("codex --version after runtime install failed:\n%s", out)
+					"fd --version")
+				if !strings.Contains(out, "fd") {
+					t.Errorf("fd --version after runtime mise install failed:\n%s", out)
 				}
 			})
 		})
