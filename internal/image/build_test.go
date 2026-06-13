@@ -349,7 +349,7 @@ func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
 	}
 }
 
-func TestRenderDockerfile_NpmInstall(t *testing.T) {
+func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 	cenv := containerenv.Default()
 	for _, osTemplate := range []profile.OSTemplate{
 		profile.OSDebian12,
@@ -364,11 +364,8 @@ func TestRenderDockerfile_NpmInstall(t *testing.T) {
 			}
 			content := string(df)
 
-			if !strings.Contains(content, "npm install -g") {
-				t.Error("Dockerfile should contain npm install -g for tool installation")
-			}
-			if !strings.Contains(content, "nodejs") {
-				t.Error("Dockerfile should install nodejs")
+			if !strings.Contains(content, "AW_TOOL_INSTALL_SCRIPT") {
+				t.Error("Dockerfile should contain AW_TOOL_INSTALL_SCRIPT for tool installation")
 			}
 		})
 	}

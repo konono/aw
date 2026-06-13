@@ -223,16 +223,15 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	hashInput += "\n" + cenv.User
 
 	toolPkg := ""
-	toolBinaryURL := ""
+	toolInstallScript := ""
 	if customDockerfile == "" {
 		if pkgMgr == profile.PackageManagerDevbox {
 			toolPkg = toolinfo.DevboxPkg(tool)
 		} else {
-			toolPkg = toolinfo.NpmPkg(tool)
-			toolBinaryURL = toolinfo.BinaryURL(tool)
+			toolInstallScript = toolinfo.InstallScript(tool)
 		}
 		hashInput += "\n" + toolPkg
-		hashInput += "\n" + toolBinaryURL
+		hashInput += "\n" + toolInstallScript
 		hashInput += "\n" + string(pkgMgr)
 		if miseData, err := os.ReadFile(userMiseToml); err == nil {
 			hashInput += "\n" + string(miseData)
@@ -254,11 +253,8 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
-	if toolBinaryURL != "" {
-		buildArgs["AW_TOOL_BINARY_URL"] = toolBinaryURL
-		if spec, ok := toolinfo.Lookup(tool); ok {
-			buildArgs["AW_TOOL_BINARY_NAME"] = spec.Binary
-		}
+	if toolInstallScript != "" {
+		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = toolInstallScript
 	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)

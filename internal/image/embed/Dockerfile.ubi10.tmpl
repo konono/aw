@@ -2,33 +2,21 @@ FROM registry.access.redhat.com/ubi10/ubi:latest
 
 RUN dnf install -y --allowerasing \
       git curl ca-certificates wget openssh-clients sudo xz \
-      util-linux-core tar gzip findutils nodejs npm && \
+      util-linux-core tar gzip findutils && \
     dnf clean all
 
 RUN (getent passwd 1001 | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
     useradd -m -s /bin/bash -u 1001 -g 0 {{.User}} && \
     echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN mkdir -p {{.Home}}/.npm-global && \
-    echo "prefix={{.Home}}/.npm-global" > {{.Home}}/.npmrc
-
 ENV HOME="{{.Home}}" \
     BASH_ENV="{{.Home}}/.aw_env.sh" \
-    PATH="{{.Home}}/.npm-global/bin:{{.Home}}/.local/bin:${PATH}"
+    PATH="{{.Home}}/.local/bin:${PATH}"
 
-ARG AW_TOOL_PKG=""
-ARG AW_TOOL_BINARY_URL=""
-ARG AW_TOOL_BINARY_NAME=""
+ARG AW_TOOL_INSTALL_SCRIPT=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_TOOL_PKG" ]; then \
-      npm install -g "$AW_TOOL_PKG"; \
-    fi && \
-    if [ -n "$AW_TOOL_BINARY_URL" ]; then \
-      case "$AW_TOOL_BINARY_URL" in \
-        *.tar.gz) curl -fsSL "$AW_TOOL_BINARY_URL" | tar -xzf - -C /usr/local/bin "${AW_TOOL_BINARY_NAME:-aw-tool}" ;; \
-        *) curl -fsSL -o "/usr/local/bin/${AW_TOOL_BINARY_NAME:-aw-tool}" "$AW_TOOL_BINARY_URL" ;; \
-      esac && \
-      chmod 755 "/usr/local/bin/${AW_TOOL_BINARY_NAME:-aw-tool}"; \
+RUN if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
+      su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
     fi && \
     if [ -f /tmp/aw-build/mise.toml ]; then \
       su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \

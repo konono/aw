@@ -496,19 +496,8 @@ func TestDockerStage_NoSPCTWhenNotNeeded(t *testing.T) {
 }
 
 func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
-	tests := []struct {
-		tool            string
-		wantPkg         string
-		wantBinaryURL   bool
-		wantBinaryName  string
-	}{
-		{"claude", "@anthropic-ai/claude-code", false, ""},
-		{"codex", "@openai/codex", false, ""},
-		{"opencode", "", true, "opencode"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.tool, func(t *testing.T) {
+	for _, tool := range []string{"claude", "codex", "opencode"} {
+		t.Run(tool, func(t *testing.T) {
 			dc := &mockDockerClient{available: true}
 			s := &DockerStage{
 				DockerClient: dc,
@@ -516,12 +505,12 @@ func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
 				MountBuilder: &mockMountBuilder{},
 			}
 
-			launch := profile.LaunchMode(tt.tool)
-			if tt.tool == "claude" {
+			launch := profile.LaunchMode(tool)
+			if tool == "claude" {
 				launch = profile.LaunchClaude
-			} else if tt.tool == "codex" {
+			} else if tool == "codex" {
 				launch = profile.LaunchCodex
-			} else if tt.tool == "opencode" {
+			} else if tool == "opencode" {
 				launch = profile.LaunchOpenCode
 			}
 
@@ -542,23 +531,11 @@ func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
 				t.Fatal("Build should be called")
 			}
 
-			if tt.wantPkg != "" {
-				if dc.buildArgs["AW_TOOL_PKG"] != tt.wantPkg {
-					t.Errorf("AW_TOOL_PKG = %q, want %q", dc.buildArgs["AW_TOOL_PKG"], tt.wantPkg)
-				}
+			if dc.buildArgs["AW_TOOL_INSTALL_SCRIPT"] == "" {
+				t.Error("AW_TOOL_INSTALL_SCRIPT should be set")
 			}
-
-			if tt.wantBinaryURL {
-				if dc.buildArgs["AW_TOOL_BINARY_URL"] == "" {
-					t.Error("AW_TOOL_BINARY_URL should be set")
-				}
-				if dc.buildArgs["AW_TOOL_BINARY_NAME"] != tt.wantBinaryName {
-					t.Errorf("AW_TOOL_BINARY_NAME = %q, want %q", dc.buildArgs["AW_TOOL_BINARY_NAME"], tt.wantBinaryName)
-				}
-			} else {
-				if _, ok := dc.buildArgs["AW_TOOL_BINARY_URL"]; ok {
-					t.Error("AW_TOOL_BINARY_URL should not be set")
-				}
+			if _, ok := dc.buildArgs["AW_TOOL_PKG"]; ok {
+				t.Error("AW_TOOL_PKG should not be set in apt mode")
 			}
 		})
 	}
@@ -609,8 +586,8 @@ func TestDockerStage_BuildArgs_DevboxMode(t *testing.T) {
 			if dc.buildArgs["AW_TOOL_PKG"] != tt.wantPkg {
 				t.Errorf("AW_TOOL_PKG = %q, want %q", dc.buildArgs["AW_TOOL_PKG"], tt.wantPkg)
 			}
-			if _, ok := dc.buildArgs["AW_TOOL_BINARY_URL"]; ok {
-				t.Error("AW_TOOL_BINARY_URL should not be set in devbox mode")
+			if _, ok := dc.buildArgs["AW_TOOL_INSTALL_SCRIPT"]; ok {
+				t.Error("AW_TOOL_INSTALL_SCRIPT should not be set in devbox mode")
 			}
 		})
 	}

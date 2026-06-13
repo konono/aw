@@ -11,9 +11,8 @@ import (
 type ToolSpec struct {
 	Binary            string
 	DisplayName       string
-	NpmPkg            string
+	InstallScript     string // shell command to install the tool in a container
 	DevboxPkg         string // deprecated: used with package_manager: devbox
-	BinaryURL         string
 	HomeEnvVar        string
 	DefaultHomeSubdir string
 	ContainerDir      string
@@ -25,33 +24,33 @@ var tools = map[string]ToolSpec{
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
-		NpmPkg:            "@anthropic-ai/claude-code",
+		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash",
 		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
 		ContainerDir:      "/home/agent/.claude",
-		InstallHint:       "Install Claude Code: https://claude.ai/install.sh",
+		InstallHint:       "Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash",
 	},
 	"codex": {
 		Binary:            "codex",
 		DisplayName:       "Codex",
-		NpmPkg:            "@openai/codex",
+		InstallScript:     "curl -fsSL -o /usr/local/bin/codex https://github.com/openai/codex/releases/latest/download/codex-linux && chmod 755 /usr/local/bin/codex",
 		DevboxPkg:         "codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
 		ContainerDir:      "/home/agent/.codex",
-		InstallHint:       "Install Codex CLI: npm i -g @openai/codex",
+		InstallHint:       "Install Codex CLI: curl -fsSL -o /usr/local/bin/codex https://github.com/openai/codex/releases/latest/download/codex-linux && chmod 755 /usr/local/bin/codex",
 	},
 	"opencode": {
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
+		InstallScript:     "curl -fsSL https://opencode.ai/install | bash",
 		DevboxPkg:         "opencode",
-		BinaryURL:         "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-x86_64.tar.gz",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		ContainerDir:      "/home/agent/.config/opencode",
 		DataSymlinks:      "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data",
-		InstallHint:       "Install via: curl -fsSL https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-x86_64.tar.gz | tar -xzf - -C /usr/local/bin opencode",
+		InstallHint:       "Install via: curl -fsSL https://opencode.ai/install | bash",
 	},
 }
 
@@ -61,9 +60,9 @@ func Lookup(tool string) (ToolSpec, bool) {
 	return spec, ok
 }
 
-func NpmPkg(tool string) string {
+func InstallScript(tool string) string {
 	if spec, ok := Lookup(tool); ok {
-		return spec.NpmPkg
+		return spec.InstallScript
 	}
 	return ""
 }
@@ -71,13 +70,6 @@ func NpmPkg(tool string) string {
 func DevboxPkg(tool string) string {
 	if spec, ok := Lookup(tool); ok {
 		return spec.DevboxPkg
-	}
-	return ""
-}
-
-func BinaryURL(tool string) string {
-	if spec, ok := Lookup(tool); ok {
-		return spec.BinaryURL
 	}
 	return ""
 }

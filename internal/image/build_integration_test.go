@@ -157,14 +157,8 @@ func toolBuildArgs(tool string, pkgMgr profile.PackageManager) map[string]string
 			args["AW_TOOL_PKG"] = pkg
 		}
 	} else {
-		if pkg := toolinfo.NpmPkg(tool); pkg != "" {
-			args["AW_TOOL_PKG"] = pkg
-		}
-		if url := toolinfo.BinaryURL(tool); url != "" {
-			args["AW_TOOL_BINARY_URL"] = url
-			if spec, ok := toolinfo.Lookup(tool); ok {
-				args["AW_TOOL_BINARY_NAME"] = spec.Binary
-			}
+		if script := toolinfo.InstallScript(tool); script != "" {
+			args["AW_TOOL_INSTALL_SCRIPT"] = script
 		}
 	}
 	return args

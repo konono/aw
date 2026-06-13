@@ -116,10 +116,6 @@ AW_BASH_ENV_LOADED=1
 export HOME={{.Home}}
 
 case ":\${PATH}:" in
-  *:{{.Home}}/.npm-global/bin:*) ;;
-  *) export PATH="{{.Home}}/.npm-global/bin:\${PATH}" ;;
-esac
-case ":\${PATH}:" in
   *:{{.Home}}/.local/bin:*) ;;
   *) export PATH="{{.Home}}/.local/bin:\${PATH}" ;;
 esac
