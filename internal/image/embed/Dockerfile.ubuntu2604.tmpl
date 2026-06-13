@@ -2,7 +2,7 @@ FROM ubuntu:26.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      git curl ca-certificates wget openssh-client sudo xz-utils && \
+      git curl ca-certificates wget openssh-client sudo xz-utils gawk && \
     rm -rf /var/lib/apt/lists/*
 
 RUN (getent passwd 1001 | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
