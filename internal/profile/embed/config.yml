@@ -17,9 +17,11 @@ os: debian12                  # "debian12", "ubi9", "ubi10", "ubuntu2604"
 container_runtime: podman     # "docker" or "podman"
 # container_user: agent       # container user name (default: "agent")
 
+# ── GitHub CLI ───────────────────────────────────────────────────────
+# gh_token: false             # detect gh token via 'gh auth token' and pass as GITHUB_TOKEN (default: false)
+                              # also installs gh CLI in the container
+# mount_gh: false             # [DEPRECATED] mount ~/.config/gh read-only; use gh_token instead
 # ── Host resource mounts ─────────────────────────────────────────────
-# mount_gh: false             # mount ~/.config/gh read-only (default: false)
-                              # ⚠ gh token is readable by the AI agent; enable only with scoped tokens
 mount_ssh: false              # mount ~/.ssh read-only (default: false)
 ssh_agent_forwarding: false   # forward SSH agent socket (default: false, preferred over mount_ssh)
 # mount_container_sock: false  # mount container runtime socket (default: false)

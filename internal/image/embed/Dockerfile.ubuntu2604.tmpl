@@ -2,39 +2,26 @@ FROM ubuntu:26.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      git curl ca-certificates wget openssh-client sudo xz-utils && \
+      git curl ca-certificates wget openssh-client sudo xz-utils gawk && \
     rm -rf /var/lib/apt/lists/*
 
 RUN (getent passwd 1001 | cut -d: -f1 | xargs -r userdel) 2>/dev/null; \
     useradd -m -s /bin/bash -u 1001 -g 0 {{.User}} && \
     echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix
-
-USER {{.User}}
-RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
-USER root
-
-RUN ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default
-
-RUN curl -fsSL -o /usr/local/bin/devbox https://releases.jetify.com/devbox && \
-    chmod 755 /usr/local/bin/devbox
-
 ENV HOME="{{.Home}}" \
     BASH_ENV="{{.Home}}/.aw_env.sh" \
-    PATH="{{.Home}}/.nix-profile/bin:{{.Home}}/.local/bin:${PATH}"
+    PATH="{{.Home}}/.local/bin:${PATH}"
 
-ARG AW_TOOL_PKG=""
+ARG AW_TOOL_INSTALL_SCRIPT=""
+ARG AW_GH_INSTALL_SCRIPT=""
+ARG GITHUB_TOKEN=""
 COPY . /tmp/aw-build/
-RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
-    if [ -f /tmp/aw-build/devbox.json ]; then \
-      mkdir -p {{.Home}}/.local/share/devbox/global/default && \
-      cp /tmp/aw-build/devbox.json {{.Home}}/.local/share/devbox/global/default/devbox.json && \
-      chown -R {{.User}}:0 {{.Home}}/.local/share && \
-      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global install"; \
+RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
+      bash -c "$AW_GH_INSTALL_SCRIPT"; \
     fi && \
-    if [ -n "$AW_TOOL_PKG" ]; then \
-      su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
+    if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
+      su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
     fi && \
     if [ -f /tmp/aw-build/mise.toml ]; then \
       su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
@@ -42,15 +29,12 @@ RUN DEVBOX_SHELLENV='eval "$(devbox global shellenv 2>/dev/null)"' && \
       cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
       chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
       su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
-    fi && rm -rf /tmp/aw-build
-
-RUN su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true'
+    fi && rm -rf /tmp/aw-build && \
+    chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-RUN mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
-
-RUN chgrp -R 0 {{.Home}} /nix && chmod -R g=u {{.Home}} /nix && chmod g=u /etc/passwd
+RUN chmod +x /entrypoint.sh && \
+    mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 
 USER {{.User}}
 WORKDIR {{.Workspace}}

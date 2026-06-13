@@ -1,0 +1,53 @@
+# aw test profiles — used by `aw -c` manual testing
+# These profiles verify tool installation across all OS templates and package managers.
+
+profiles:
+  # ── apt mode (default): 4 OS × 3 tools ─────────────────────────
+  test-debian12-claude:
+    os: debian12
+    launch: claude
+  test-debian12-codex:
+    os: debian12
+    launch: codex
+  test-debian12-opencode:
+    os: debian12
+    launch: opencode
+  test-ubi9-claude:
+    os: ubi9
+    launch: claude
+  test-ubi9-codex:
+    os: ubi9
+    launch: codex
+  test-ubi9-opencode:
+    os: ubi9
+    launch: opencode
+  test-ubi10-claude:
+    os: ubi10
+    launch: claude
+  test-ubi10-codex:
+    os: ubi10
+    launch: codex
+  test-ubi10-opencode:
+    os: ubi10
+    launch: opencode
+  test-ubuntu2604-claude:
+    os: ubuntu2604
+    launch: claude
+  test-ubuntu2604-codex:
+    os: ubuntu2604
+    launch: codex
+  test-ubuntu2604-opencode:
+    os: ubuntu2604
+    launch: opencode
+  # ── devbox mode (deprecated) ────────────────────────────────────
+  test-devbox-claude:
+    os: debian12
+    launch: claude
+    package_manager: devbox
+
+  # ── development profile ──────────────────────────────────────────
+  dev:
+    launch: claude
+    gh_token: false
+    mount_container_sock: true
+    mount_gh: true

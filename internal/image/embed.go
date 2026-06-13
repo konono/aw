@@ -25,6 +25,21 @@ var dockerfileUbuntu2604Tmpl string
 //go:embed embed/entrypoint.sh.tmpl
 var entrypointShTmpl string
 
+//go:embed embed/Dockerfile.debian12.devbox.tmpl
+var dockerfileDebian12DevboxTmpl string
+
+//go:embed embed/Dockerfile.ubi9.devbox.tmpl
+var dockerfileUBI9DevboxTmpl string
+
+//go:embed embed/Dockerfile.ubi10.devbox.tmpl
+var dockerfileUBI10DevboxTmpl string
+
+//go:embed embed/Dockerfile.ubuntu2604.devbox.tmpl
+var dockerfileUbuntu2604DevboxTmpl string
+
+//go:embed embed/entrypoint.sh.devbox.tmpl
+var entrypointShDevboxTmpl string
+
 var dockerfileTmpls = map[profile.OSTemplate]string{
 	profile.OSDebian12:   dockerfileDebian12Tmpl,
 	profile.OSUBI9:       dockerfileUBI9Tmpl,
@@ -32,20 +47,35 @@ var dockerfileTmpls = map[profile.OSTemplate]string{
 	profile.OSUbuntu2604: dockerfileUbuntu2604Tmpl,
 }
 
-func RenderDockerfile(os profile.OSTemplate, cenv containerenv.Config) ([]byte, error) {
-	tmplStr, ok := dockerfileTmpls[os]
+var dockerfileDevboxTmpls = map[profile.OSTemplate]string{
+	profile.OSDebian12:   dockerfileDebian12DevboxTmpl,
+	profile.OSUBI9:       dockerfileUBI9DevboxTmpl,
+	profile.OSUBI10:      dockerfileUBI10DevboxTmpl,
+	profile.OSUbuntu2604: dockerfileUbuntu2604DevboxTmpl,
+}
+
+func RenderDockerfile(os profile.OSTemplate, pkgMgr profile.PackageManager, cenv containerenv.Config) ([]byte, error) {
+	tmpls := dockerfileTmpls
+	if pkgMgr == profile.PackageManagerDevbox {
+		tmpls = dockerfileDevboxTmpls
+	}
+	tmplStr, ok := tmpls[os]
 	if !ok {
 		return nil, fmt.Errorf("unknown OS template: %q", os)
 	}
 	return renderTemplate("Dockerfile", tmplStr, cenv)
 }
 
-func RenderEntrypoint(cenv containerenv.Config) ([]byte, error) {
-	return renderTemplate("entrypoint.sh", entrypointShTmpl, cenv)
+func RenderEntrypoint(pkgMgr profile.PackageManager, cenv containerenv.Config) ([]byte, error) {
+	tmpl := entrypointShTmpl
+	if pkgMgr == profile.PackageManagerDevbox {
+		tmpl = entrypointShDevboxTmpl
+	}
+	return renderTemplate("entrypoint.sh", tmpl, cenv)
 }
 
 func DefaultDockerfile() []byte {
-	b, err := RenderDockerfile(profile.OSDebian12, containerenv.Default())
+	b, err := RenderDockerfile(profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
 	if err != nil {
 		panic(fmt.Sprintf("rendering default Dockerfile: %v", err))
 	}

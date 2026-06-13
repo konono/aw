@@ -78,7 +78,7 @@ const miseTomlTemplate = `# ~/.config/aw/mise.toml — グローバル mise 設�
 # 同じツールが定義されている場合、プロジェクト側が優先されます。
 #
 # [tools]
-# node = "22"        # Claude Code に必要（デフォルトで devbox 経由でインストール済み）
+# node = "22"
 # python = "3.14"
 # go = "1.23"
 # gh = "latest"
@@ -87,9 +87,9 @@ const miseTomlTemplate = `# ~/.config/aw/mise.toml — グローバル mise 設�
 # run = "echo 'Global tools installed'"
 `
 
+// devboxJSONTemplate is the starter devbox.json for package_manager: devbox (deprecated).
 const devboxJSONTemplate = `{
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
-  "_comment": "~/.config/aw/devbox.json — グローバル devbox 設定。ここに定義したパッケージは全コンテナのイメージビルド時にインストールされます。",
+  "_comment": "DEPRECATED: devbox (Nix) package manager. Use package_manager: apt instead.",
   "packages": []
 }
 `

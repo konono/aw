@@ -16,17 +16,21 @@ import (
 )
 
 type mockDockerClient struct {
-	available         bool
-	buildCalled       bool
-	volumeCalled      bool
-	runCalled         bool
-	runConfig         docker.RunConfig
-	imageExists       bool
-	imageExistsCalled bool
-	imageExistsErr    error
-	saveCalled        bool
-	saveImageName     string
-	saveOutputPath    string
+	available           bool
+	buildCalled         bool
+	buildImageName      string
+	buildContextDir     string
+	buildArgs           map[string]string
+	buildContextFiles   map[string][]byte
+	volumeCalled        bool
+	runCalled           bool
+	runConfig           docker.RunConfig
+	imageExists         bool
+	imageExistsCalled   bool
+	imageExistsErr      error
+	saveCalled          bool
+	saveImageName       string
+	saveOutputPath      string
 }
 
 func (m *mockDockerClient) CheckAvailable() error {
@@ -36,8 +40,19 @@ func (m *mockDockerClient) CheckAvailable() error {
 	return nil
 }
 
-func (m *mockDockerClient) Build(_ context.Context, _, _, _ string, _ map[string]string) error {
+func (m *mockDockerClient) Build(_ context.Context, imageName, contextDir, _ string, buildArgs map[string]string) error {
 	m.buildCalled = true
+	m.buildImageName = imageName
+	m.buildContextDir = contextDir
+	m.buildArgs = buildArgs
+	m.buildContextFiles = make(map[string][]byte)
+	entries, _ := os.ReadDir(contextDir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			data, _ := os.ReadFile(filepath.Join(contextDir, e.Name()))
+			m.buildContextFiles[e.Name()] = data
+		}
+	}
 	return nil
 }
 
@@ -172,6 +187,12 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 	if !strings.Contains(content, "## Package Managers") {
 		t.Error("missing Package Managers section")
 	}
+	if !strings.Contains(content, "mise") {
+		t.Error("apt mode should mention mise")
+	}
+	if strings.Contains(content, "npm") {
+		t.Error("apt mode should not mention npm")
+	}
 	if strings.Contains(content, "## Docker / Podman") {
 		t.Error("Docker section should not be present")
 	}
@@ -183,12 +204,38 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 	}
 }
 
-func TestAppendContainerContext_AllFeatures(t *testing.T) {
+func TestAppendContainerContext_DevboxMode(t *testing.T) {
 	tmpDir := t.TempDir()
-	mountGH := true
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			MountGH: &mountGH,
+			PackageManager: profile.PackageManagerDevbox,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "npm") {
+		t.Error("devbox mode should mention npm")
+	}
+	if !strings.Contains(content, "mise") {
+		t.Error("devbox mode should mention mise")
+	}
+}
+
+func TestAppendContainerContext_AllFeatures(t *testing.T) {
+	tmpDir := t.TempDir()
+	ghToken := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			GhToken: &ghToken,
 		},
 		SSHAgentReady:      true,
 		ContainerSockReady: true,
@@ -213,8 +260,38 @@ func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	if !strings.Contains(content, "## GitHub CLI") {
 		t.Error("missing GitHub CLI section")
 	}
+	if !strings.Contains(content, "GITHUB_TOKEN is set") {
+		t.Error("GitHub CLI section should mention GITHUB_TOKEN")
+	}
 	if !strings.Contains(content, "## SSH Agent") {
 		t.Error("missing SSH Agent section")
+	}
+}
+
+func TestAppendContainerContext_MountGHLegacy(t *testing.T) {
+	tmpDir := t.TempDir()
+	mountGH := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			MountGH: &mountGH,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## GitHub CLI") {
+		t.Error("missing GitHub CLI section")
+	}
+	if !strings.Contains(content, "mounted (read-only)") {
+		t.Error("legacy mount_gh should mention mounted")
 	}
 }
 
@@ -477,6 +554,229 @@ func TestDockerStage_NoSPCTWhenNotNeeded(t *testing.T) {
 		if opt == "label=type:spc_t" {
 			t.Errorf("DockerSecurityOpts should NOT contain spc_t when no sockets and WorkDir != HomeDir, got %v", ec.DockerSecurityOpts)
 		}
+	}
+}
+
+func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
+	for _, tool := range []string{"claude", "codex", "opencode"} {
+		t.Run(tool, func(t *testing.T) {
+			dc := &mockDockerClient{available: true}
+			s := &DockerStage{
+				DockerClient: dc,
+				ConfigSyncer: &mockConfigSyncer{},
+				MountBuilder: &mockMountBuilder{},
+			}
+
+			var launch profile.LaunchMode
+			switch tool {
+			case "claude":
+				launch = profile.LaunchClaude
+			case "codex":
+				launch = profile.LaunchCodex
+			case "opencode":
+				launch = profile.LaunchOpenCode
+			}
+
+			ec := &pipeline.ExecutionContext{
+				Profile: profile.Profile{
+					Environment: profile.EnvironmentContainer,
+					Launch:      launch,
+				},
+				HomeDir: t.TempDir(),
+				WorkDir: t.TempDir(),
+			}
+
+			if err := s.Run(context.Background(), ec); err != nil {
+				t.Fatalf("Run() error: %v", err)
+			}
+
+			if !dc.buildCalled {
+				t.Fatal("Build should be called")
+			}
+
+			if dc.buildArgs["AW_TOOL_INSTALL_SCRIPT"] == "" {
+				t.Error("AW_TOOL_INSTALL_SCRIPT should be set")
+			}
+			if _, ok := dc.buildArgs["AW_TOOL_PKG"]; ok {
+				t.Error("AW_TOOL_PKG should not be set in apt mode")
+			}
+		})
+	}
+}
+
+func TestDockerStage_BuildArgs_DevboxMode(t *testing.T) {
+	tests := []struct {
+		tool    string
+		wantPkg string
+	}{
+		{"claude", "claude-code"},
+		{"codex", "codex"},
+		{"opencode", "opencode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			dc := &mockDockerClient{available: true}
+			s := &DockerStage{
+				DockerClient: dc,
+				ConfigSyncer: &mockConfigSyncer{},
+				MountBuilder: &mockMountBuilder{},
+			}
+
+			var launch profile.LaunchMode
+			switch tt.tool {
+			case "claude":
+				launch = profile.LaunchClaude
+			case "codex":
+				launch = profile.LaunchCodex
+			case "opencode":
+				launch = profile.LaunchOpenCode
+			}
+
+			ec := &pipeline.ExecutionContext{
+				Profile: profile.Profile{
+					Environment:    profile.EnvironmentContainer,
+					Launch:         launch,
+					PackageManager: profile.PackageManagerDevbox,
+				},
+				HomeDir: t.TempDir(),
+				WorkDir: t.TempDir(),
+			}
+
+			if err := s.Run(context.Background(), ec); err != nil {
+				t.Fatalf("Run() error: %v", err)
+			}
+
+			if dc.buildArgs["AW_TOOL_PKG"] != tt.wantPkg {
+				t.Errorf("AW_TOOL_PKG = %q, want %q", dc.buildArgs["AW_TOOL_PKG"], tt.wantPkg)
+			}
+			if _, ok := dc.buildArgs["AW_TOOL_INSTALL_SCRIPT"]; ok {
+				t.Error("AW_TOOL_INSTALL_SCRIPT should not be set in devbox mode")
+			}
+		})
+	}
+}
+
+func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
+	aptDC := &mockDockerClient{available: true}
+	aptStage := &DockerStage{
+		DockerClient: aptDC,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	aptEC := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := aptStage.Run(context.Background(), aptEC); err != nil {
+		t.Fatalf("apt Run() error: %v", err)
+	}
+
+	devboxDC := &mockDockerClient{available: true}
+	devboxStage := &DockerStage{
+		DockerClient: devboxDC,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	devboxEC := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:    profile.EnvironmentContainer,
+			Launch:         profile.LaunchClaude,
+			PackageManager: profile.PackageManagerDevbox,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := devboxStage.Run(context.Background(), devboxEC); err != nil {
+		t.Fatalf("devbox Run() error: %v", err)
+	}
+
+	if aptDC.buildImageName == devboxDC.buildImageName {
+		t.Errorf("apt and devbox should produce different image hashes, both got %q", aptDC.buildImageName)
+	}
+}
+
+func TestDockerStage_DevboxMode_CopiesDevboxJSON(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	devboxJSON := `{"packages":["hello@latest"]}`
+	if err := os.WriteFile(filepath.Join(configDir, "devbox.json"), []byte(devboxJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:    profile.EnvironmentContainer,
+			Launch:         profile.LaunchClaude,
+			PackageManager: profile.PackageManagerDevbox,
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	data, ok := dc.buildContextFiles["devbox.json"]
+	if !ok {
+		t.Fatal("devbox.json should be copied to build context")
+	}
+	if string(data) != devboxJSON {
+		t.Errorf("devbox.json content = %q, want %q", string(data), devboxJSON)
+	}
+}
+
+func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "devbox.json"), []byte(`{"packages":[]}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if _, ok := dc.buildContextFiles["devbox.json"]; ok {
+		t.Error("devbox.json should not be copied to build context in apt mode")
 	}
 }
 

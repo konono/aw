@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go install *)",
+      "Bash(aw test-debian12-claude *)",
+      "Bash(aw *)"
+    ]
+  }
+}

@@ -34,6 +34,7 @@ func FromUser(user string) Config {
 func (c Config) AwEnvFile() string    { return filepath.Join(c.Home, ".aw_env.sh") }
 func (c Config) BashRC() string       { return filepath.Join(c.Home, ".bashrc") }
 func (c Config) BashProfile() string  { return filepath.Join(c.Home, ".bash_profile") }
+func (c Config) LocalBin() string     { return filepath.Join(c.Home, ".local", "bin") }
 func (c Config) NixProfile() string   { return filepath.Join(c.Home, ".nix-profile") }
 func (c Config) NixProfileBin() string { return filepath.Join(c.NixProfile(), "bin") }
 func (c Config) NixProfileSh() string {
@@ -42,7 +43,6 @@ func (c Config) NixProfileSh() string {
 func (c Config) NixStateProfiles() string {
 	return filepath.Join(c.Home, ".local", "state", "nix", "profiles", "profile")
 }
-func (c Config) LocalBin() string     { return filepath.Join(c.Home, ".local", "bin") }
 func (c Config) GitConfig() string    { return filepath.Join(c.Home, ".gitconfig") }
 func (c Config) GHConfig() string     { return filepath.Join(c.Home, ".config", "gh") }
 func (c Config) SSHHostDir() string   { return filepath.Join(c.Home, ".ssh-host") }

@@ -17,8 +17,8 @@ func TestLookup_KnownTools(t *testing.T) {
 		if spec.DisplayName == "" {
 			t.Errorf("%s: DisplayName is empty", tool)
 		}
-		if spec.DevboxPkg == "" {
-			t.Errorf("%s: DevboxPkg is empty", tool)
+		if spec.InstallScript == "" {
+			t.Errorf("%s: InstallScript is empty", tool)
 		}
 		if spec.ContainerDir == "" {
 			t.Errorf("%s: ContainerDir is empty", tool)
@@ -36,20 +36,14 @@ func TestLookup_UnknownTool(t *testing.T) {
 	}
 }
 
-func TestDevboxPkg(t *testing.T) {
-	tests := []struct {
-		tool string
-		want string
-	}{
-		{"claude", "claude-code"},
-		{"codex", "codex"},
-		{"opencode", "opencode"},
-		{"unknown", ""},
-	}
-	for _, tt := range tests {
-		if got := DevboxPkg(tt.tool); got != tt.want {
-			t.Errorf("DevboxPkg(%q) = %q, want %q", tt.tool, got, tt.want)
+func TestInstallScript(t *testing.T) {
+	for _, tool := range []string{"claude", "codex", "opencode"} {
+		if got := InstallScript(tool); got == "" {
+			t.Errorf("InstallScript(%q) should not be empty", tool)
 		}
+	}
+	if got := InstallScript("unknown"); got != "" {
+		t.Errorf("InstallScript(unknown) = %q, want empty", got)
 	}
 }
 

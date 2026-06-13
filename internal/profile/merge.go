@@ -67,9 +67,16 @@ func MergeProfile(base, override Profile) Profile {
 		v := *override.SkipDevboxInstall
 		merged.SkipDevboxInstall = &v
 	}
+	if override.PackageManager != "" {
+		merged.PackageManager = override.PackageManager
+	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
 		merged.SkipMiseInstall = &v
+	}
+	if override.GhToken != nil {
+		v := *override.GhToken
+		merged.GhToken = &v
 	}
 	if override.MountGH != nil {
 		v := *override.MountGH
@@ -268,9 +275,16 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		v := *effective.SkipDevboxInstall
 		relative.SkipDevboxInstall = &v
 	}
+	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
+		relative.PackageManager = effective.PackageManager
+	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall
 		relative.SkipMiseInstall = &v
+	}
+	if !equalBoolPtr(effective.GhToken, defaults.GhToken) && effective.GhToken != nil {
+		v := *effective.GhToken
+		relative.GhToken = &v
 	}
 	if !equalBoolPtr(effective.MountGH, defaults.MountGH) && effective.MountGH != nil {
 		v := *effective.MountGH

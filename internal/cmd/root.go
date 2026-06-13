@@ -141,6 +141,7 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	ec.CommandOverride = opts.Command
 
 	// Record directory history (use OrigWorkDir, not worktree path)
 	if !opts.NoRecord {
@@ -299,9 +300,12 @@ func runDefaultDockerfile() int {
 	return 0
 }
 
-// hasVersionFlag checks if the args contain --version or -v.
+// hasVersionFlag checks if the args contain --version or -v before any -c flag.
 func hasVersionFlag(args []string) bool {
 	for _, a := range args {
+		if a == "-c" {
+			return false
+		}
 		if a == "--version" || a == "-v" {
 			return true
 		}
@@ -309,9 +313,12 @@ func hasVersionFlag(args []string) bool {
 	return false
 }
 
-// hasHelpFlag checks if the args contain --help or -h.
+// hasHelpFlag checks if the args contain --help or -h before any -c flag.
 func hasHelpFlag(args []string) bool {
 	for _, a := range args {
+		if a == "-c" {
+			return false
+		}
 		if a == "--help" || a == "-h" {
 			return true
 		}
@@ -334,6 +341,7 @@ func printHelp() {
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
 	fmt.Println("Options:")
+	fmt.Println("  -c <cmd> [args...]      Override the launch command (e.g. aw claude -c claude --version)")
 	fmt.Println("  -r, --recent            Pick a directory from launch history")
 	fmt.Println("  --query <text>          Initial query for --recent picker")
 	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")

@@ -353,6 +353,24 @@ func TestMergeProfile_ExplicitMountSSHOverride(t *testing.T) {
 	}
 }
 
+func TestMergeProfile_ExplicitGhTokenOverride(t *testing.T) {
+	base := Profile{
+		GhToken: boolPtr(true),
+	}
+	override := Profile{
+		GhToken: boolPtr(false),
+	}
+
+	merged := MergeProfile(base, override)
+
+	if merged.GhToken == nil {
+		t.Fatal("GhToken should not be nil")
+	}
+	if merged.EffectiveGhToken() {
+		t.Error("EffectiveGhToken() = true, want false")
+	}
+}
+
 func TestMergeProfile_ExplicitMountContainerSockOverride(t *testing.T) {
 	base := Profile{
 		MountContainerSock: boolPtr(true),

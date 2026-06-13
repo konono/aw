@@ -257,6 +257,19 @@ func TestValidate(t *testing.T) {
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountContainerSock: &v} }(),
 		},
 		{
+			name:    "gh_token with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, GhToken: &v} }(),
+			wantErr: "gh_token is only valid with environment: container",
+		},
+		{
+			name: "gh_token and mount_gh mutually exclusive",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, GhToken: &v, MountGH: &v}
+			}(),
+			wantErr: "mount_gh and gh_token are mutually exclusive",
+		},
+		{
 			name:    "mount_container_sock with host environment",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountContainerSock: &v} }(),
 			wantErr: "mount_container_sock is only valid with environment: container",
