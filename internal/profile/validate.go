@@ -7,12 +7,12 @@ import (
 
 // Validate checks that a profile configuration is semantically valid.
 func Validate(p Profile) error {
+	env := p.EffectiveEnvironment()
+
 	// Validate environment
 	switch p.Environment {
-	case EnvironmentHost, EnvironmentContainer:
-		// ok
-	case "":
-		return fmt.Errorf("environment is required (\"host\" or \"container\")")
+	case EnvironmentHost, EnvironmentContainer, "":
+		// ok (empty defaults to container)
 	default:
 		return fmt.Errorf("unknown environment: %q (must be \"host\" or \"container\")", p.Environment)
 	}
@@ -51,7 +51,7 @@ func Validate(p Profile) error {
 	}
 
 	// Validate os is only used with environment: container
-	if p.OS != "" && p.Environment != EnvironmentContainer {
+	if p.OS != "" && env != EnvironmentContainer {
 		return fmt.Errorf("os is only valid with environment: container")
 	}
 
@@ -61,12 +61,12 @@ func Validate(p Profile) error {
 	}
 
 	// Validate image is only used with environment: container
-	if p.Image != "" && p.Environment != EnvironmentContainer {
+	if p.Image != "" && env != EnvironmentContainer {
 		return fmt.Errorf("image is only valid with environment: container")
 	}
 
 	// Validate dockerfile is only used with environment: container
-	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
+	if p.Dockerfile != "" && env != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: container")
 	}
 
@@ -84,26 +84,26 @@ func Validate(p Profile) error {
 	}
 
 	// Validate skip_devbox_install is only used with environment: container
-	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
+	if p.EffectiveSkipDevboxInstall() && env != EnvironmentContainer {
 		return fmt.Errorf("skip_devbox_install is only valid with environment: container")
 	}
 
 	// Validate skip_mise_install is only used with environment: container
-	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
+	if p.EffectiveSkipMiseInstall() && env != EnvironmentContainer {
 		return fmt.Errorf("skip_mise_install is only valid with environment: container")
 	}
 
-	if p.ContainerUser != "" && p.Environment != EnvironmentContainer {
+	if p.ContainerUser != "" && env != EnvironmentContainer {
 		return fmt.Errorf("container_user is only valid with environment: container")
 	}
 
 	// Validate ssh_agent_forwarding is only used with environment: container
-	if p.EffectiveSSHAgentForwarding() && p.Environment != EnvironmentContainer {
+	if p.EffectiveSSHAgentForwarding() && env != EnvironmentContainer {
 		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")
 	}
 
 	// Validate gh_token is only used with environment: container
-	if p.EffectiveGhToken() && p.Environment != EnvironmentContainer {
+	if p.EffectiveGhToken() && env != EnvironmentContainer {
 		return fmt.Errorf("gh_token is only valid with environment: container")
 	}
 
@@ -113,12 +113,12 @@ func Validate(p Profile) error {
 	}
 
 	// Validate mount_container_sock is only used with environment: container
-	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
+	if p.EffectiveMountContainerSock() && env != EnvironmentContainer {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")
 	}
 
 	// Validate mounts are only used with environment: container
-	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
+	if len(p.Mounts) > 0 && env != EnvironmentContainer {
 		return fmt.Errorf("mounts are only valid with environment: container")
 	}
 	for i, m := range p.Mounts {
@@ -140,7 +140,7 @@ func Validate(p Profile) error {
 		return err
 	}
 
-	if err := validateExport(p.Export, p.Environment); err != nil {
+	if err := validateExport(p.Export, env); err != nil {
 		return err
 	}
 

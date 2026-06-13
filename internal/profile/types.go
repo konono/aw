@@ -130,6 +130,14 @@ type ExportConfig struct {
 	Env      map[string]string `yaml:"env,omitempty"`
 }
 
+// EffectiveEnvironment returns the environment, defaulting to "container" if empty.
+func (p *Profile) EffectiveEnvironment() Environment {
+	if p.Environment != "" {
+		return p.Environment
+	}
+	return EnvironmentContainer
+}
+
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.
 func (p *Profile) EffectiveOS() OSTemplate {
 	if p.OS != "" {
