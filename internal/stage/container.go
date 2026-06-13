@@ -252,16 +252,16 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		}
 	}
 
-	imageName := defaultImageName
-	if hashInput != "" {
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
-		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
-	}
-
 	ghInstallScript := ""
 	if ec.Profile.EffectiveGhToken() && customDockerfile == "" {
 		ghInstallScript = ghCLIInstallScript()
 		hashInput += "\n" + ghInstallScript
+	}
+
+	imageName := defaultImageName
+	if hashInput != "" {
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
+		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
 	}
 
 	buildArgs := map[string]string{}

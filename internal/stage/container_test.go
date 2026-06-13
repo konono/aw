@@ -567,12 +567,13 @@ func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
 				MountBuilder: &mockMountBuilder{},
 			}
 
-			launch := profile.LaunchMode(tool)
-			if tool == "claude" {
+			var launch profile.LaunchMode
+			switch tool {
+			case "claude":
 				launch = profile.LaunchClaude
-			} else if tool == "codex" {
+			case "codex":
 				launch = profile.LaunchCodex
-			} else if tool == "opencode" {
+			case "opencode":
 				launch = profile.LaunchOpenCode
 			}
 
@@ -622,12 +623,13 @@ func TestDockerStage_BuildArgs_DevboxMode(t *testing.T) {
 				MountBuilder: &mockMountBuilder{},
 			}
 
-			launch := profile.LaunchMode(tt.tool)
-			if tt.tool == "claude" {
+			var launch profile.LaunchMode
+			switch tt.tool {
+			case "claude":
 				launch = profile.LaunchClaude
-			} else if tt.tool == "codex" {
+			case "codex":
 				launch = profile.LaunchCodex
-			} else if tt.tool == "opencode" {
+			case "opencode":
 				launch = profile.LaunchOpenCode
 			}
 

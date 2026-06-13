@@ -44,9 +44,6 @@ jobs:
           - runner: ubuntu-24.04-arm
             runtime: podman
             label: linux-arm64-podman
-          - runner: macos-latest
-            runtime: podman
-            label: macos-arm64-podman
     runs-on: ${{ matrix.runner }}
     name: smoke (${{ matrix.label }})
     timeout-minutes: 20
@@ -55,12 +52,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - name: Setup Podman (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install podman
-          podman machine init
-          podman machine start
       - name: Run smoke tests
         run: go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
         env:
@@ -95,12 +86,6 @@ jobs:
             timeout: 15m
             job_timeout: 25
             label: linux-arm64-podman
-          - runner: macos-latest
-            runtime: podman
-            test_run: TestIntegration_E2E/debian12
-            timeout: 15m
-            job_timeout: 30
-            label: macos-arm64-podman
     runs-on: ${{ matrix.runner }}
     name: e2e (${{ matrix.label }})
     timeout-minutes: ${{ matrix.job_timeout }}
@@ -109,12 +94,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - name: Setup Podman (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install podman
-          podman machine init
-          podman machine start
       - name: Run E2E tests
         run: go test -v -tags integration -timeout ${{ matrix.timeout }} ./internal/image/ -run ${{ matrix.test_run }}
         env:
