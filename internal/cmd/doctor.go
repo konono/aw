@@ -195,7 +195,7 @@ func checkGitHub(res *doctorResult, needGHToken, needMountGH bool, verbose bool)
 		if err != nil {
 			res.fail("gh CLI not found")
 			if verbose {
-				res.detail(fmt.Sprintf("which gh: not found"))
+				res.detail("which gh: not found")
 				res.detail("hint: install gh — https://cli.github.com/")
 			}
 			ok = false
@@ -450,9 +450,9 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 
 	for _, g := range groups {
 		if len(g.names) == 1 {
-			res.fail(fmt.Sprintf("%s", g.names[0]))
+			res.fail(g.names[0])
 		} else {
-			res.fail(fmt.Sprintf("%s", strings.Join(g.names, ", ")))
+			res.fail(strings.Join(g.names, ", "))
 		}
 		for _, issue := range g.issues {
 			res.detail(fmt.Sprintf("→ %s", issue))
