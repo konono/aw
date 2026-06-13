@@ -1,5 +1,38 @@
 # Changelog
 
+## [2.0.0](https://github.com/konono/aw/compare/v1.8.0...v2.0.0) (2026-06-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* devbox.json user configuration is no longer supported. Use mise.toml for additional tool management.
+
+### Features
+
+* add -c flag to override launch command ([f78e977](https://github.com/konono/aw/commit/f78e9777ac7cc0884437cbc1cdddfe68a3c211ef))
+* add binary download support for opencode tool installation ([24ae02d](https://github.com/konono/aw/commit/24ae02ddbb85c0cfb9e4d02fcdb5260fc83aaecd))
+* add gh_token option to replace mount_gh ([15991ac](https://github.com/konono/aw/commit/15991ac72d386669d85aa263113e88effdcf311a))
+* add package_manager field to support both apt and devbox modes ([b30b9e4](https://github.com/konono/aw/commit/b30b9e4d0fd7b9cb3b16e44c18a2947f69f8a36a))
+* configure git credential helper when GITHUB_TOKEN is set ([20b5be5](https://github.com/konono/aw/commit/20b5be596f6f12575bfc8fe3f046f53bb0079a36))
+* replace Nix/devbox with apt/npm for tool installation ([94e3ab6](https://github.com/konono/aw/commit/94e3ab6f9a27d978a7a8cfe810c3cb5571948491))
+* switch from npm to standalone installers for all tools ([d4ac971](https://github.com/konono/aw/commit/d4ac971811887ec291697d48bbdebc1b33a97b76))
+
+
+### Bug Fixes
+
+* add gawk to Dockerfile templates for codex install.sh compatibility ([7b171f0](https://github.com/konono/aw/commit/7b171f0054bfdb0923595e833f39e7055ef72bac))
+* handle tar.gz binary downloads and fix -c flag edge cases ([9434e7c](https://github.com/konono/aw/commit/9434e7cea313bfd64f17d5bf3cf2d35e687efa66))
+* resolve lint issues and remove macOS Podman from CI ([fdae5d3](https://github.com/konono/aw/commit/fdae5d35fc48d70df8555058058aa6b11da7c9d3))
+* update CLAUDE.md injection to reflect standalone installer architecture ([a58b0f6](https://github.com/konono/aw/commit/a58b0f6aefa988110192fa62fbb34fb1ea88e89a))
+* use ~/.npm-global prefix for npm global installs ([67d4d65](https://github.com/konono/aw/commit/67d4d65ebd21d96d97f5da2dc8f38ca50d1603d5))
+* use env-based git credential helper instead of git config ([e85250a](https://github.com/konono/aw/commit/e85250a5868a24df471c539ce84a9a9b6ef5089d))
+* use official install scripts for codex and opencode ([23e0010](https://github.com/konono/aw/commit/23e0010a999c7a67c068582a9c2760d937ac29ed))
+
+
+### Performance Improvements
+
+* consolidate Dockerfile layers to reduce image size ([fa312e7](https://github.com/konono/aw/commit/fa312e729c31404424e1d44f247de43e4d14a957))
+
 ## [1.8.0](https://github.com/konono/aw/compare/v1.7.0...v1.8.0) (2026-06-12)
 
 
