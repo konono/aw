@@ -44,3 +44,9 @@ profiles:
     os: debian12
     launch: claude
     package_manager: devbox
+
+  # ── development profile ──────────────────────────────────────────
+  dev:
+    launch: claude
+    gh_token: true
+    mount_container_sock: true
