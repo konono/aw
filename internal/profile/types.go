@@ -88,8 +88,6 @@ func ProfileDefaultsFromProfile(p Profile) ProfileDefaults {
 // invalid defaults from the embedded template.
 func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	shared := d
-	shared.Environment = ""
-	shared.OS = ""
 	shared.Image = ""
 	shared.Dockerfile = ""
 	return shared
