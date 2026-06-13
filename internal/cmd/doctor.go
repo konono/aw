@@ -118,7 +118,7 @@ func checkConfig(res *doctorResult, verbose bool) *profile.Config {
 func collectRuntimes(cfg *profile.Config) map[string]bool {
 	runtimes := map[string]bool{}
 	for _, p := range cfg.Profiles {
-		if p.EffectiveEnvironment() == profile.EnvironmentContainer {
+		if p.Environment == profile.EnvironmentContainer {
 			runtimes[p.EffectiveContainerRuntime()] = true
 		}
 	}
@@ -383,7 +383,7 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 			issues = append(issues, err.Error())
 		}
 
-		if p.EffectiveEnvironment() == profile.EnvironmentContainer {
+		if p.Environment == profile.EnvironmentContainer {
 			rt := p.EffectiveContainerRuntime()
 			if runtimeOK != nil && !runtimeOK[rt] {
 				issues = append(issues, fmt.Sprintf("container runtime %q is not available", rt))

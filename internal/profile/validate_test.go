@@ -67,11 +67,11 @@ func TestValidate(t *testing.T) {
 			wantErr: "unknown zellij tool",
 		},
 		{
-			name: "empty environment defaults to container",
+			name: "missing environment",
 			profile: Profile{
 				Launch: LaunchClaude,
 			},
-			wantErr: "",
+			wantErr: "environment is required",
 		},
 		{
 			name: "missing launch",

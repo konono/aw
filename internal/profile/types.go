@@ -88,8 +88,6 @@ func ProfileDefaultsFromProfile(p Profile) ProfileDefaults {
 // invalid defaults from the embedded template.
 func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	shared := d
-	shared.Environment = ""
-	shared.OS = ""
 	shared.Image = ""
 	shared.Dockerfile = ""
 	return shared
@@ -128,14 +126,6 @@ type ExportConfig struct {
 	Snapshot bool              `yaml:"snapshot,omitempty"`
 	Include  []ExportInclude   `yaml:"include,omitempty"`
 	Env      map[string]string `yaml:"env,omitempty"`
-}
-
-// EffectiveEnvironment returns the environment, defaulting to "container" if empty.
-func (p *Profile) EffectiveEnvironment() Environment {
-	if p.Environment != "" {
-		return p.Environment
-	}
-	return EnvironmentContainer
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.
