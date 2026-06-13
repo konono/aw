@@ -1,144 +1,37 @@
 # Development
 
-- Run tests: `go test ./...`
-- After changing Dockerfiles or OS templates: `go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration`
+- Unit tests: `go test ./...`
+- Integration tests: `go test -v -tags integration -timeout 30m ./internal/image/`
+- Manual test: `aw <profile> -c <cmd>` (mounts, SSH, container socket)
 
-# Testing Strategy
+# Testing
 
-## 3 layers of tests
+## Test layers
 
-| Layer | Command | What it covers | What it doesn't |
-|-------|---------|---------------|-----------------|
-| Unit | `go test ./...` | Build arg routing, hash calculation, template rendering, profile merge/validate | Real image build, entrypoint behavior |
-| Integration | `go test -tags integration` | Image build, tool --version via entrypoint, runtime install | Podman rootless, mounts, SSH, config.yml resolution |
-| Manual (aw -c) | `aw <profile> -c <cmd>` | Full pipeline: config → profile → build → mount → entrypoint → tool | — |
+| Layer | When to run | What it covers |
+|-------|-------------|----------------|
+| Unit (`go test ./...`) | All Go changes | Config merge, validation, build args, template rendering |
+| Integration (`-tags integration`) | Dockerfile, entrypoint, tool changes | Image build, entrypoint, tool --version |
+| Manual (`aw -c`) | Mount, SSH, socket changes | Full pipeline end-to-end |
 
-## When to run which tests
+## Writing tests
 
-### Go code changes (toolinfo, profile, stage, containerenv, cmd, etc.)
+Tests MUST verify **user-visible behavior**, not internal implementation.
 
-Unit tests are sufficient:
+**Unit tests**: Test outcomes through public APIs. Name tests after the behavior: `TestProjectConfig_MountsRequireTrust`, not `TestHasSensitiveFields`. Test the full merge chain (`builtin → user → project → ApplyDefaults → Validate`), not isolated functions.
 
-```bash
-go test ./...
-```
+**Integration tests**: Reproduce `aw <profile> -c <cmd>` flow. Verify tools work (`claude --version`), not that internal functions return expected values.
 
-### Dockerfile template changes (`internal/image/embed/Dockerfile.*.tmpl`)
+**Do NOT**: Test non-exported helpers directly. Test simple getters. Write tests that break on refactoring.
 
-Unit tests + integration Smoke:
+# Architecture
 
-```bash
-go test ./...
-go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
-```
+- `apt` (default): standalone installers (curl). `devbox` (deprecated): Nix.
+- Templates: `internal/image/embed/Dockerfile.<os>.tmpl` + `entrypoint.sh.tmpl`
+- Selection: `embed.go` → `RenderDockerfile(os, pkgMgr, cenv)`
 
-If the change affects a specific OS, run that OS:
+# Release
 
-```bash
-go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_ShellPerOS/ubi9
-go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_ToolPerOS/ubi9
-```
-
-### Entrypoint changes (`internal/image/embed/entrypoint.sh.tmpl`)
-
-Unit tests + integration E2E (entrypoint is exercised via `runContainerCommand`):
-
-```bash
-go test ./...
-go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E/debian12
-```
-
-### package_manager changes or new tool addition
-
-Unit tests + full integration for the affected mode:
-
-```bash
-go test ./...
-# apt mode
-go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegration_ToolPerOS|TestIntegration_E2E"
-# devbox mode
-go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegration_Devbox"
-```
-
-### Mount, SSH, container socket, Podman rootless changes
-
-These are NOT covered by go test. Manual `aw -c` testing required:
-
-```bash
-aw test-debian12-claude -c claude --version
-```
-
-### Pre-release (full matrix)
-
-```bash
-go test ./...
-go test -v -tags integration -timeout 60m ./internal/image/
-
-# Manual: representative aw -c checks
-aw test-debian12-claude -c claude --version
-aw test-devbox-claude -c claude --version
-podman images | grep aw-container
-```
-
-## テストの書き方
-
-テストは「関数の内部実装」ではなく「ユーザーから見た振る舞い」を検証する。この原則はユニットテスト・インテグレーションテストの両方に適用する。
-
-### Unit Test（`go test ./...`）
-
-外部依存（コンテナランタイム、ネットワーク）なしで実行可能なテスト。
-
-- **振る舞いをテストする**: 「`MergeProfile` が空の override で base を返す」ではなく「プロジェクト `.aw.yml` で `launch:` だけ書いたプロファイルが `environment: container` を継承する」
-- **内部関数を直接テストしない**: `hasSensitiveFields()` のような非公開ヘルパーは、公開API（`CheckProjectTrust`）経由で間接的にテストする
-- **仕様をテスト名で表現する**: `TestProjectConfig_MountsRequireTrust` のように、ユーザーが期待する動作をテスト名にする
-- **マージチェーン全体を通す**: 単一関数のユニットテストだけでなく、`builtinConfig → MergeConfig → ApplyDefaults → Validate` の一連の流れを通した振る舞いテストを書く
-
-### Integration Test（`go test -tags integration`）
-
-コンテナランタイム（Docker/Podman）を使い、実際にイメージをビルド・実行するテスト。
-
-- **ユーザーの操作を再現する**: `aw <profile> -c <cmd>` と同等のフロー（ビルド → エントリポイント → コマンド実行）をテストする
-- **ツールが動くことを検証する**: `claude --version` が成功する、`mise install` でランタイムツールがインストールされる等
-- **OS × ランタイム × パッケージマネージャの組み合わせをカバーする**: 新しいOSテンプレートやツールを追加したら対応するインテグレーションテストも追加する
-
-### 新機能を追加するとき
-
-1. ユーザーとあるべき振る舞いを定義する（「`.aw.yml` に `gh_token: true` を書いたらコンテナ内で `git push` が動く」）
-2. ユニットテスト: 設定のマージ・バリデーション・ビルド引数の生成等を振る舞いとして検証
-3. インテグレーションテスト: 実際のコンテナ内でその機能が動作することを検証（必要な場合）
-4. テストが内部実装に依存していないか確認する — リファクタリングでテストが壊れるなら実装追従型
-
-### 避けるべきパターン
-
-- `TestFunctionName_InternalBehavior` — 関数名をそのままテスト名にして内部実装をなぞるテスト
-- 非公開関数の直接テスト（`hasSensitiveFields`, `stripSensitiveFields` 等）
-- 単純なゲッターのテスト（`TestDockerStage_Name` 等）
-- デフォルト値のフォールバックに頼るテスト — デフォルト値はマージチェーンで正しく埋まるべき
-
-## Test profiles
-
-`.aw.yml` in the project root defines 13 test profiles (4 OS × 3 tools + 1 devbox) for `aw -c` manual testing. See `aw profiles` for the full list.
-
-# Architecture: Package Manager
-
-The container image supports two package managers, selected via the `package_manager` profile field:
-
-- `apt` (default) — AI tools installed via standalone installers (curl-based install scripts). Lightweight (~400 MB image).
-- `devbox` (deprecated) — Nix single-user + devbox. Original behavior. Heavy (~1.8 GB image).
-
-Templates live in `internal/image/embed/`:
-- `Dockerfile.<os>.tmpl` + `entrypoint.sh.tmpl` — apt mode
-- `Dockerfile.<os>.devbox.tmpl` + `entrypoint.sh.devbox.tmpl` — devbox mode
-
-Selection happens in `embed.go` via `RenderDockerfile(os, pkgMgr, cenv)`.
-
-# Release Rules
-
-- Commit messages MUST follow Conventional Commits: `type(scope): description`
-  - `feat:` → minor version bump
-  - `fix:` → patch version bump
-  - `feat!:` or `BREAKING CHANGE` footer → major version bump
-  - `chore:`, `refactor:`, `docs:`, `test:`, `ci:` → no version bump
-- All changes to main require a PR with merge commit (no squash, no rebase)
-- CI must pass: Go tests (1.22/1.23) + commitlint
-- Releases are automated: release-please creates a Release PR → merge it → GoReleaser builds binaries
+- Conventional Commits required (`feat:` → minor, `fix:` → patch, `feat!:` → major)
+- PRs with merge commit (no squash/rebase), CI must pass
+- Automated: release-please → GoReleaser
