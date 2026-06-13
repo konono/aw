@@ -48,5 +48,6 @@ profiles:
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude
-    gh_token: true
+    gh_token: false
     mount_container_sock: true
+    mount_gh: true
