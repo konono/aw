@@ -6,19 +6,133 @@ on:
     paths:
       - 'internal/image/**'
       - 'internal/containerenv/**'
+      - 'internal/stage/**'
+      - 'internal/toolinfo/**'
+      - 'internal/profile/**'
+      - '.goreleaser.yml'
   pull_request:
     paths:
       - 'internal/image/**'
       - 'internal/containerenv/**'
+      - 'internal/stage/**'
+      - 'internal/toolinfo/**'
+      - 'internal/profile/**'
+      - '.goreleaser.yml'
+  workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: 'Run full test matrix (ToolPerOS + ShellPerOS)'
+        type: boolean
+        default: false
 
 jobs:
-  e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  smoke:
+    if: github.event_name != 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            runtime: docker
+            label: linux-amd64-docker
+          - runner: ubuntu-latest
+            runtime: podman
+            label: linux-amd64-podman
+          - runner: ubuntu-24.04-arm
+            runtime: docker
+            label: linux-arm64-docker
+          - runner: ubuntu-24.04-arm
+            runtime: podman
+            label: linux-arm64-podman
+          - runner: macos-latest
+            runtime: podman
+            label: macos-arm64-podman
+    runs-on: ${{ matrix.runner }}
+    name: smoke (${{ matrix.label }})
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - name: Run E2E integration tests
-        run: go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E
+      - name: Setup Podman (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install podman
+          podman machine init
+          podman machine start
+      - name: Run smoke tests
+        run: go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
+        env:
+          CONTAINER_RUNTIME: ${{ matrix.runtime }}
+
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            runtime: docker
+            test_run: TestIntegration_E2E
+            timeout: 30m
+            job_timeout: 45
+            label: linux-amd64-docker
+          - runner: ubuntu-latest
+            runtime: podman
+            test_run: TestIntegration_E2E/debian12
+            timeout: 15m
+            job_timeout: 25
+            label: linux-amd64-podman
+          - runner: ubuntu-24.04-arm
+            runtime: docker
+            test_run: TestIntegration_E2E/debian12
+            timeout: 15m
+            job_timeout: 25
+            label: linux-arm64-docker
+          - runner: ubuntu-24.04-arm
+            runtime: podman
+            test_run: TestIntegration_E2E/debian12
+            timeout: 15m
+            job_timeout: 25
+            label: linux-arm64-podman
+          - runner: macos-latest
+            runtime: podman
+            test_run: TestIntegration_E2E/debian12
+            timeout: 15m
+            job_timeout: 30
+            label: macos-arm64-podman
+    runs-on: ${{ matrix.runner }}
+    name: e2e (${{ matrix.label }})
+    timeout-minutes: ${{ matrix.job_timeout }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Setup Podman (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install podman
+          podman machine init
+          podman machine start
+      - name: Run E2E tests
+        run: go test -v -tags integration -timeout ${{ matrix.timeout }} ./internal/image/ -run ${{ matrix.test_run }}
+        env:
+          CONTAINER_RUNTIME: ${{ matrix.runtime }}
+
+  full-matrix:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_matrix
+    runs-on: ubuntu-latest
+    name: full-matrix (linux-amd64-docker)
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Run full integration tests
+        run: |
+          go test -v -tags integration -timeout 60m ./internal/image/ \
+            -run "TestIntegration_ToolPerOS|TestIntegration_ShellPerOS|TestIntegration_E2E"
+        env:
+          CONTAINER_RUNTIME: docker
