@@ -131,7 +131,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	if ec.Profile.EffectiveGhToken() {
-		token, err := DetectGhToken()
+		token, err := detectGhToken()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: gh_token: %v\n", err)
 		} else {
@@ -387,7 +387,7 @@ SSH agent is forwarded. Git SSH operations (push, clone, fetch) work without add
 	return os.WriteFile(claudeMD, []byte(base+suffix), 0644)
 }
 
-func DetectGhToken() (string, error) {
+func detectGhToken() (string, error) {
 	out, err := exec.Command("gh", "auth", "token").Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get token from 'gh auth token': %w (is gh CLI installed and authenticated?)", err)

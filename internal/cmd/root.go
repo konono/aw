@@ -46,10 +46,6 @@ func Run(args []string) int {
 		return runExport(args[1:])
 	}
 
-	if len(args) > 0 && args[0] == "doctor" {
-		return runDoctor(args[1:])
-	}
-
 	if len(args) > 0 && args[0] == "init" {
 		return runInit(args[1:])
 	}
@@ -304,15 +300,10 @@ func runDefaultDockerfile() int {
 	return 0
 }
 
-var subcommands = map[string]bool{
-	"update": true, "profiles": true, "default-dockerfile": true,
-	"export": true, "init": true, "auth": true, "login": true, "doctor": true,
-}
-
-// hasVersionFlag checks if the args contain --version or -v before any subcommand or -c flag.
+// hasVersionFlag checks if the args contain --version or -v before any -c flag.
 func hasVersionFlag(args []string) bool {
 	for _, a := range args {
-		if a == "-c" || subcommands[a] {
+		if a == "-c" {
 			return false
 		}
 		if a == "--version" || a == "-v" {
@@ -322,10 +313,10 @@ func hasVersionFlag(args []string) bool {
 	return false
 }
 
-// hasHelpFlag checks if the args contain --help or -h before any subcommand or -c flag.
+// hasHelpFlag checks if the args contain --help or -h before any -c flag.
 func hasHelpFlag(args []string) bool {
 	for _, a := range args {
-		if a == "-c" || subcommands[a] {
+		if a == "-c" {
 			return false
 		}
 		if a == "--help" || a == "-h" {
@@ -346,7 +337,6 @@ func printHelp() {
 	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
 	fmt.Println("  aw export <profile>     Build and export a profile's image as a tar archive")
 	fmt.Println("                          Use --snapshot to bake runtime setup into the image")
-	fmt.Println("  aw doctor               Check system environment and configuration")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
