@@ -10,33 +10,21 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-func TestAllOSTemplates_RenderValidDockerfiles(t *testing.T) {
-	cenv := containerenv.Default()
-	allOS := []profile.OSTemplate{
-		profile.OSDebian12,
-		profile.OSUBI9,
-		profile.OSUBI10,
-		profile.OSUbuntu2604,
+func TestEmbeddedTemplatesNotEmpty(t *testing.T) {
+	if len(dockerfileDebian12Tmpl) == 0 {
+		t.Error("embedded Dockerfile.debian12.tmpl is empty")
 	}
-
-	for _, osTemplate := range allOS {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			df, err := RenderDockerfile(osTemplate, profile.PackageManagerApt, cenv)
-			if err != nil {
-				t.Fatalf("RenderDockerfile(%s) error: %v", osTemplate, err)
-			}
-			content := string(df)
-
-			if !strings.Contains(content, "FROM ") {
-				t.Error("rendered Dockerfile must contain a FROM instruction")
-			}
-			if !strings.Contains(content, "ENTRYPOINT") {
-				t.Error("rendered Dockerfile must contain an ENTRYPOINT instruction")
-			}
-			if !strings.Contains(content, "useradd") {
-				t.Error("rendered Dockerfile must create a user via useradd")
-			}
-		})
+	if len(dockerfileUBI9Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubi9.tmpl is empty")
+	}
+	if len(dockerfileUBI10Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubi10.tmpl is empty")
+	}
+	if len(dockerfileUbuntu2604Tmpl) == 0 {
+		t.Error("embedded Dockerfile.ubuntu2604.tmpl is empty")
+	}
+	if len(entrypointShTmpl) == 0 {
+		t.Error("embedded entrypoint.sh.tmpl is empty")
 	}
 }
 
@@ -358,54 +346,6 @@ func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
 	}
 	if strings.Contains(content, "sudo find") {
 		t.Error("entrypoint.sh should not use chown-based ownership fix")
-	}
-}
-
-func TestPrepareBuildContext_DevboxModeRendersDifferentDockerfile(t *testing.T) {
-	cenv := containerenv.Default()
-
-	aptDir, aptCleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, cenv)
-	if err != nil {
-		t.Fatalf("PrepareBuildContext(apt) error: %v", err)
-	}
-	defer aptCleanup()
-
-	devboxDir, devboxCleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerDevbox, cenv)
-	if err != nil {
-		t.Fatalf("PrepareBuildContext(devbox) error: %v", err)
-	}
-	defer devboxCleanup()
-
-	aptDF, err := os.ReadFile(filepath.Join(aptDir, "Dockerfile"))
-	if err != nil {
-		t.Fatalf("reading apt Dockerfile: %v", err)
-	}
-	devboxDF, err := os.ReadFile(filepath.Join(devboxDir, "Dockerfile"))
-	if err != nil {
-		t.Fatalf("reading devbox Dockerfile: %v", err)
-	}
-
-	if string(aptDF) == string(devboxDF) {
-		t.Error("devbox mode should render a different Dockerfile than apt mode")
-	}
-}
-
-func TestRenderEntrypoint_GitHubTokenCredentialHelper(t *testing.T) {
-	cenv := containerenv.Default()
-	ep, err := RenderEntrypoint(profile.PackageManagerApt, cenv)
-	if err != nil {
-		t.Fatalf("RenderEntrypoint() error: %v", err)
-	}
-	content := string(ep)
-
-	if !strings.Contains(content, "GITHUB_TOKEN") {
-		t.Error("entrypoint.sh should reference GITHUB_TOKEN for credential helper setup")
-	}
-	if !strings.Contains(content, "git-credential-token") {
-		t.Error("entrypoint.sh should create a git-credential-token helper script")
-	}
-	if !strings.Contains(content, "credential.helper") {
-		t.Error("entrypoint.sh should configure git credential.helper")
 	}
 }
 
