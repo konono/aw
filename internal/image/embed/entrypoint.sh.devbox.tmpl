@@ -118,6 +118,11 @@ SSHCFG
   chmod 644 {{.Home}}/.ssh/config
 fi
 
+aw_log "Setting up git credentials..."
+if [ -n "$GITHUB_TOKEN" ]; then
+  git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${GITHUB_TOKEN}"; }; f'
+fi
+
 aw_log "Setting up container socket..."
 # Fix container socket permissions (no symlink or DOCKER_HOST — tools like
 # Claude Code auto-detect /var/run/docker.sock and connect on startup, which
