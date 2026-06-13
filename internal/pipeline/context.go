@@ -38,6 +38,9 @@ type ExecutionContext struct {
 	// Set by DockerStage for container runtime socket mounting
 	ContainerSockReady bool
 
+	// Set by DockerStage when gh_token is enabled
+	GhTokenValue string
+
 	// Container environment config (user, home, workspace paths)
 	ContainerEnv containerenv.Config
 

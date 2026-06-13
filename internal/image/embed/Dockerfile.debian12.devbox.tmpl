@@ -14,8 +14,12 @@ ENV HOME="{{.Home}}" \
     PATH="{{.Home}}/.nix-profile/bin:{{.Home}}/.local/bin:${PATH}"
 
 ARG AW_TOOL_PKG=""
+ARG AW_GH_INSTALL_SCRIPT=""
 COPY . /tmp/aw-build/
-RUN mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \
+RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
+      bash -c "$AW_GH_INSTALL_SCRIPT"; \
+    fi && \
+    mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \
     su -s /bin/bash {{.User}} -c 'curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon' && \
     ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default && \
     curl -fsSL -o /usr/local/bin/devbox https://releases.jetify.com/devbox && \

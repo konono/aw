@@ -60,6 +60,7 @@ type Profile struct {
 	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
 	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`
 	PackageManager    PackageManager    `yaml:"package_manager,omitempty"`
+	GhToken          *bool             `yaml:"gh_token,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
@@ -152,9 +153,13 @@ func (p *Profile) EffectiveContainerUser() string {
 	return "agent"
 }
 
+// EffectiveGhToken returns whether to detect and pass a GitHub token via GITHUB_TOKEN env var.
+func (p *Profile) EffectiveGhToken() bool {
+	return p != nil && p.GhToken != nil && *p.GhToken
+}
+
 // EffectiveMountGH returns whether the host ~/.config/gh directory should be mounted.
-// Defaults to false; the gh token is readable by the AI agent and can be
-// exfiltrated via prompt injection attacks.
+// Deprecated: use gh_token instead.
 func (p *Profile) EffectiveMountGH() bool {
 	return p != nil && p.MountGH != nil && *p.MountGH
 }

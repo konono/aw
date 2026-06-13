@@ -200,10 +200,10 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 
 func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	tmpDir := t.TempDir()
-	mountGH := true
+	ghToken := true
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			MountGH: &mountGH,
+			GhToken: &ghToken,
 		},
 		SSHAgentReady:      true,
 		ContainerSockReady: true,
@@ -228,8 +228,38 @@ func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	if !strings.Contains(content, "## GitHub CLI") {
 		t.Error("missing GitHub CLI section")
 	}
+	if !strings.Contains(content, "GITHUB_TOKEN is set") {
+		t.Error("GitHub CLI section should mention GITHUB_TOKEN")
+	}
 	if !strings.Contains(content, "## SSH Agent") {
 		t.Error("missing SSH Agent section")
+	}
+}
+
+func TestAppendContainerContext_MountGHLegacy(t *testing.T) {
+	tmpDir := t.TempDir()
+	mountGH := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			MountGH: &mountGH,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## GitHub CLI") {
+		t.Error("missing GitHub CLI section")
+	}
+	if !strings.Contains(content, "mounted (read-only)") {
+		t.Error("legacy mount_gh should mention mounted")
 	}
 }
 

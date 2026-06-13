@@ -32,6 +32,10 @@ func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[strin
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}
 
+	if ec.GhTokenValue != "" {
+		envVars["GITHUB_TOKEN"] = ec.GhTokenValue
+	}
+
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
 	}

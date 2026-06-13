@@ -102,6 +102,16 @@ func Validate(p Profile) error {
 		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")
 	}
 
+	// Validate gh_token is only used with environment: container
+	if p.EffectiveGhToken() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("gh_token is only valid with environment: container")
+	}
+
+	// Validate mount_gh and gh_token are mutually exclusive
+	if p.EffectiveMountGH() && p.EffectiveGhToken() {
+		return fmt.Errorf("mount_gh and gh_token are mutually exclusive; use gh_token instead")
+	}
+
 	// Validate mount_container_sock is only used with environment: container
 	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")

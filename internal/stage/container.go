@@ -130,6 +130,15 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		}
 	}
 
+	if ec.Profile.EffectiveGhToken() {
+		token, err := detectGhToken()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: gh_token: %v\n", err)
+		} else {
+			ec.GhTokenValue = token
+		}
+	}
+
 	if err := appendContainerContext(toolStageDir, ec); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: appending container context: %v\n", err)
 	}
@@ -249,12 +258,21 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
 	}
 
+	ghInstallScript := ""
+	if ec.Profile.EffectiveGhToken() && customDockerfile == "" {
+		ghInstallScript = ghCLIInstallScript()
+		hashInput += "\n" + ghInstallScript
+	}
+
 	buildArgs := map[string]string{}
 	if toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = toolPkg
 	}
 	if toolInstallScript != "" {
 		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = toolInstallScript
+	}
+	if ghInstallScript != "" {
+		buildArgs["AW_GH_INSTALL_SCRIPT"] = ghInstallScript
 	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
@@ -333,7 +351,11 @@ Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///r
 - Containers created via docker-compose are sibling containers on the host`)
 	}
 
-	if ec.Profile.EffectiveMountGH() {
+	if ec.Profile.EffectiveGhToken() {
+		sections = append(sections, `## GitHub CLI
+
+GITHUB_TOKEN is set. gh commands (gh pr, gh issue, etc.) work directly.`)
+	} else if ec.Profile.EffectiveMountGH() {
 		sections = append(sections, `## GitHub CLI
 
 Host gh configuration is mounted (read-only). gh commands (gh pr, gh issue, etc.) work directly.`)
@@ -355,6 +377,26 @@ SSH agent is forwarded. Git SSH operations (push, clone, fetch) work without add
 	}
 
 	return os.WriteFile(claudeMD, []byte(base+suffix), 0644)
+}
+
+func detectGhToken() (string, error) {
+	out, err := exec.Command("gh", "auth", "token").Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get token from 'gh auth token': %w (is gh CLI installed and authenticated?)", err)
+	}
+	token := strings.TrimSpace(string(out))
+	if token == "" {
+		return "", fmt.Errorf("'gh auth token' returned empty token")
+	}
+	return token, nil
+}
+
+func ghCLIInstallScript() string {
+	return `GH_VER=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | awk -F'"' '/"tag_name"/{print $4}' | sed 's/^v//') && ` +
+		`ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; esac && ` +
+		`curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && ` +
+		`mv /tmp/gh_${GH_VER}_linux_${ARCH}/bin/gh /usr/local/bin/gh && ` +
+		`rm -rf /tmp/gh_${GH_VER}_linux_${ARCH}`
 }
 
 func expandTilde(path, homeDir string) string {
