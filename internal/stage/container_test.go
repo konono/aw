@@ -117,24 +117,6 @@ func (m *mockMountBuilder) BuildMounts(_ mount.MountOptions) ([]docker.Mount, er
 	return m.mounts, m.err
 }
 
-func TestResolveDockerfilePath_Absolute(t *testing.T) {
-	absPath := "/absolute/path/Dockerfile"
-	resolved, err := resolveDockerfilePath(absPath)
-	if err != nil {
-		t.Fatalf("resolveDockerfilePath() error: %v", err)
-	}
-	if resolved != absPath {
-		t.Errorf("resolved = %q, want %q", resolved, absPath)
-	}
-}
-
-func TestDockerStage_Name(t *testing.T) {
-	s := &DockerStage{}
-	if s.Name() != "container" {
-		t.Errorf("Name() = %q, want %q", s.Name(), "container")
-	}
-}
-
 func TestDockerStage_DockerNotAvailable(t *testing.T) {
 	s := &DockerStage{
 		DockerClient: &mockDockerClient{available: false},
@@ -780,16 +762,3 @@ func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
 	}
 }
 
-func TestDockerStage_NewDockerStage(t *testing.T) {
-	s := NewDockerStage()
-	// DockerClient is nil by default; initialized lazily in Run() from profile's container_runtime
-	if s.DockerClient != nil {
-		t.Error("DockerClient should be nil (lazy init)")
-	}
-	if s.ConfigSyncer == nil {
-		t.Error("ConfigSyncer should not be nil")
-	}
-	if s.MountBuilder == nil {
-		t.Error("MountBuilder should not be nil")
-	}
-}

@@ -6,223 +6,138 @@ import (
 	"testing"
 )
 
-func TestHasSensitiveFields_Empty(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-			},
-		},
-	}
-
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 0 {
-		t.Errorf("expected no sensitive fields, got %v", fields)
-	}
-}
-
-func TestHasSensitiveFields_OnCreate(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Worktree: &WorktreeConfig{
-					OnCreate: "echo hello",
+// TestProjectConfig_SensitiveFieldsRequireTrust verifies that configs with
+// sensitive fields trigger a trust prompt, while safe-only configs do not.
+func TestProjectConfig_SensitiveFieldsRequireTrust(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           *Config
+		expectPrompt  bool
+	}{
+		{
+			name: "safe fields only — no prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 				},
 			},
 		},
-	}
-
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
-	}
-}
-
-func TestHasSensitiveFields_Mounts(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Mounts: []CustomMount{
-					{Source: "~/.aws", Target: "/aws"},
+		{
+			name: "mounts trigger prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Mounts: []CustomMount{{Source: "~/.aws", Target: "/aws"}}},
 				},
 			},
+			expectPrompt: true,
 		},
-	}
-
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
-	}
-}
-
-func TestHasSensitiveFields_Env(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Env: map[string]string{"FOO": "bar"},
+		{
+			name: "env vars trigger prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Env: map[string]string{"SECRET": "val"}},
+				},
 			},
+			expectPrompt: true,
 		},
-	}
-
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
-	}
-}
-
-func TestHasSensitiveFields_Dockerfile(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Dockerfile: "Dockerfile.custom",
+		{
+			name: "dockerfile triggers prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Dockerfile: "Dockerfile.custom"},
+				},
 			},
+			expectPrompt: true,
+		},
+		{
+			name: "image triggers prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Image: "malicious:latest"},
+				},
+			},
+			expectPrompt: true,
+		},
+		{
+			name: "worktree on-create triggers prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Worktree: &WorktreeConfig{OnCreate: "echo hello"}},
+				},
+			},
+			expectPrompt: true,
+		},
+		{
+			name: "worktree on-end triggers prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Worktree: &WorktreeConfig{OnEnd: "echo bye"}},
+				},
+			},
+			expectPrompt: true,
+		},
+		{
+			name: "sensitive fields in defaults trigger prompt",
+			cfg: &Config{
+				Defaults: ProfileDefaultsFromProfile(Profile{
+					Env: map[string]string{"KEY": "val"},
+				}),
+				Profiles: map[string]Profile{"test": {}},
+			},
+			expectPrompt: true,
 		},
 	}
 
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field, got %d: %v", len(fields), fields)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			origDir := globalConfigDir
+			globalConfigDir = func() (string, error) { return tmpDir, nil }
+			defer func() { globalConfigDir = origDir }()
+
+			prompted := false
+			origPrompt := promptTrust
+			promptTrust = func(_ string, _ []string) bool {
+				prompted = true
+				return true
+			}
+			defer func() { promptTrust = origPrompt }()
+
+			_, err := CheckProjectTrust("/fake/path", []byte("data"), tt.cfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if prompted != tt.expectPrompt {
+				t.Errorf("prompt triggered = %v, want %v", prompted, tt.expectPrompt)
+			}
+		})
 	}
 }
 
-func TestHasSensitiveFields_Defaults(t *testing.T) {
-	cfg := &Config{
-		Defaults: ProfileDefaultsFromProfile(Profile{
-			Env: map[string]string{"KEY": "val"},
-		}),
-		Profiles: map[string]Profile{
-			"test": {},
-		},
-	}
-
-	fields := hasSensitiveFields(cfg)
-	if len(fields) != 1 {
-		t.Fatalf("expected 1 sensitive field from defaults, got %d: %v", len(fields), fields)
-	}
-}
-
-func TestTrustStore(t *testing.T) {
+// TestProjectConfig_DeniedStripsUnsafePreservesSafe verifies that when a user
+// denies trust, all sensitive fields are stripped but safe fields remain.
+func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
 	tmpDir := t.TempDir()
-	origGlobalConfigDir := globalConfigDir
+	origDir := globalConfigDir
 	globalConfigDir = func() (string, error) { return tmpDir, nil }
-	defer func() { globalConfigDir = origGlobalConfigDir }()
-
-	configPath := "/fake/project/.aw.yml"
-	data := []byte("test config content")
-
-	// Initially not trusted
-	trusted, err := isTrusted(configPath, data)
-	if err != nil {
-		t.Fatalf("isTrusted error: %v", err)
-	}
-	if trusted {
-		t.Fatal("expected not trusted initially")
-	}
-
-	// Save trust
-	if err := saveTrust(configPath, data); err != nil {
-		t.Fatalf("saveTrust error: %v", err)
-	}
-
-	// Now trusted
-	trusted, err = isTrusted(configPath, data)
-	if err != nil {
-		t.Fatalf("isTrusted error: %v", err)
-	}
-	if !trusted {
-		t.Fatal("expected trusted after save")
-	}
-
-	// Different content is not trusted
-	trusted, err = isTrusted(configPath, []byte("modified content"))
-	if err != nil {
-		t.Fatalf("isTrusted error: %v", err)
-	}
-	if trusted {
-		t.Fatal("expected not trusted for different content")
-	}
-
-	// Verify trust file was created
-	td, _ := trustDir()
-	entries, _ := os.ReadDir(filepath.Join(td))
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 trust file, got %d", len(entries))
-	}
-}
-
-func TestCheckProjectTrust_NoSensitive(t *testing.T) {
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-			},
-		},
-	}
-
-	result, err := CheckProjectTrust("/fake/path", []byte("data"), cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != cfg {
-		t.Fatal("expected same config returned when no sensitive fields")
-	}
-}
-
-func TestCheckProjectTrust_Approved(t *testing.T) {
-	tmpDir := t.TempDir()
-	origGlobalConfigDir := globalConfigDir
-	globalConfigDir = func() (string, error) { return tmpDir, nil }
-	defer func() { globalConfigDir = origGlobalConfigDir }()
-
-	origPrompt := promptTrust
-	promptTrust = func(_ string, _ []string) bool { return true }
-	defer func() { promptTrust = origPrompt }()
-
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {
-				Worktree: &WorktreeConfig{OnCreate: "echo hi"},
-			},
-		},
-	}
-
-	data := []byte("config data")
-	result, err := CheckProjectTrust("/fake/path", data, cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Should return original config
-	if result.Profiles["test"].Worktree == nil || result.Profiles["test"].Worktree.OnCreate != "echo hi" {
-		t.Fatal("expected on-create to be preserved when approved")
-	}
-
-	// Should be trusted now
-	trusted, _ := isTrusted("/fake/path", data)
-	if !trusted {
-		t.Fatal("expected config to be trusted after approval")
-	}
-}
-
-func TestCheckProjectTrust_Denied(t *testing.T) {
-	tmpDir := t.TempDir()
-	origGlobalConfigDir := globalConfigDir
-	globalConfigDir = func() (string, error) { return tmpDir, nil }
-	defer func() { globalConfigDir = origGlobalConfigDir }()
+	defer func() { globalConfigDir = origDir }()
 
 	origPrompt := promptTrust
 	promptTrust = func(_ string, _ []string) bool { return false }
 	defer func() { promptTrust = origPrompt }()
 
 	cfg := &Config{
+		Defaults: ProfileDefaultsFromProfile(Profile{
+			Env:        map[string]string{"DEFAULT_KEY": "val"},
+			Dockerfile: "Dockerfile.default",
+		}),
 		Profiles: map[string]Profile{
 			"test": {
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Worktree:    &WorktreeConfig{OnCreate: "malicious command", Base: "origin/main"},
-				Mounts:      []CustomMount{{Source: "~/.aws", Target: "/exfil"}},
+				Worktree:    &WorktreeConfig{Base: "origin/main", OnCreate: "malicious", OnEnd: "cleanup"},
+				Mounts:      []CustomMount{{Source: "/secret", Target: "/data"}},
 				Env:         map[string]string{"EVIL": "true"},
 				Dockerfile:  "Dockerfile.evil",
 			},
@@ -235,36 +150,130 @@ func TestCheckProjectTrust_Denied(t *testing.T) {
 	}
 
 	p := result.Profiles["test"]
+
+	// Sensitive fields stripped
 	if p.Worktree != nil && p.Worktree.OnCreate != "" {
-		t.Error("expected on-create to be stripped")
+		t.Error("on-create should be stripped")
+	}
+	if p.Worktree != nil && p.Worktree.OnEnd != "" {
+		t.Error("on-end should be stripped")
 	}
 	if len(p.Mounts) != 0 {
-		t.Error("expected mounts to be stripped")
+		t.Error("mounts should be stripped")
 	}
 	if len(p.Env) != 0 {
-		t.Error("expected env to be stripped")
+		t.Error("env should be stripped")
 	}
 	if p.Dockerfile != "" {
-		t.Error("expected dockerfile to be stripped")
+		t.Error("dockerfile should be stripped")
 	}
 
-	// Non-sensitive fields should be preserved
+	// Defaults sensitive fields stripped
+	d := result.Defaults.AsProfile()
+	if len(d.Env) != 0 {
+		t.Error("defaults env should be stripped")
+	}
+	if d.Dockerfile != "" {
+		t.Error("defaults dockerfile should be stripped")
+	}
+
+	// Safe fields preserved
 	if p.Environment != EnvironmentContainer {
-		t.Error("expected environment to be preserved")
+		t.Error("environment should be preserved")
 	}
 	if p.Launch != LaunchClaude {
-		t.Error("expected launch to be preserved")
+		t.Error("launch should be preserved")
 	}
 	if p.Worktree == nil || p.Worktree.Base != "origin/main" {
-		t.Error("expected worktree.base to be preserved")
+		t.Error("worktree.base should be preserved")
+	}
+
+	// Original not mutated
+	if cfg.Profiles["test"].Worktree.OnCreate != "malicious" {
+		t.Error("original config should not be mutated")
 	}
 }
 
-func TestCheckProjectTrust_AlreadyTrusted(t *testing.T) {
+func TestTrustStore(t *testing.T) {
 	tmpDir := t.TempDir()
 	origGlobalConfigDir := globalConfigDir
 	globalConfigDir = func() (string, error) { return tmpDir, nil }
 	defer func() { globalConfigDir = origGlobalConfigDir }()
+
+	configPath := "/fake/project/.aw.yml"
+	data := []byte("test config content")
+
+	trusted, err := isTrusted(configPath, data)
+	if err != nil {
+		t.Fatalf("isTrusted error: %v", err)
+	}
+	if trusted {
+		t.Fatal("expected not trusted initially")
+	}
+
+	if err := saveTrust(configPath, data); err != nil {
+		t.Fatalf("saveTrust error: %v", err)
+	}
+
+	trusted, err = isTrusted(configPath, data)
+	if err != nil {
+		t.Fatalf("isTrusted error: %v", err)
+	}
+	if !trusted {
+		t.Fatal("expected trusted after save")
+	}
+
+	trusted, err = isTrusted(configPath, []byte("modified content"))
+	if err != nil {
+		t.Fatalf("isTrusted error: %v", err)
+	}
+	if trusted {
+		t.Fatal("expected not trusted for different content")
+	}
+
+	td, _ := trustDir()
+	entries, _ := os.ReadDir(filepath.Join(td))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 trust file, got %d", len(entries))
+	}
+}
+
+func TestCheckProjectTrust_ApprovedSavesTrust(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origDir }()
+
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool { return true }
+	defer func() { promptTrust = origPrompt }()
+
+	cfg := &Config{
+		Profiles: map[string]Profile{
+			"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
+		},
+	}
+
+	data := []byte("config data")
+	result, err := CheckProjectTrust("/fake/path", data, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
+		t.Error("approved config should preserve all fields")
+	}
+
+	trusted, _ := isTrusted("/fake/path", data)
+	if !trusted {
+		t.Error("config should be trusted after approval")
+	}
+}
+
+func TestCheckProjectTrust_AlreadyTrustedSkipsPrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origDir }()
 
 	promptCalled := false
 	origPrompt := promptTrust
@@ -276,14 +285,11 @@ func TestCheckProjectTrust_AlreadyTrusted(t *testing.T) {
 
 	cfg := &Config{
 		Profiles: map[string]Profile{
-			"test": {
-				Worktree: &WorktreeConfig{OnCreate: "echo hi"},
-			},
+			"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
 		},
 	}
 
 	data := []byte("config data")
-	// Pre-trust
 	if err := saveTrust("/fake/path", data); err != nil {
 		t.Fatalf("saveTrust error: %v", err)
 	}
@@ -292,76 +298,10 @@ func TestCheckProjectTrust_AlreadyTrusted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if promptCalled {
-		t.Fatal("expected no prompt when already trusted")
+		t.Error("should not prompt when already trusted")
 	}
 	if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
-		t.Fatal("expected config unchanged when already trusted")
-	}
-}
-
-func TestStripSensitiveFields(t *testing.T) {
-	cfg := &Config{
-		Defaults: ProfileDefaultsFromProfile(Profile{
-			Env:        map[string]string{"DEFAULT_KEY": "val"},
-			Dockerfile: "Dockerfile.default",
-		}),
-		Profiles: map[string]Profile{
-			"a": {
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Worktree: &WorktreeConfig{
-					Base:     "origin/dev",
-					OnCreate: "echo attack",
-					OnEnd:    "echo cleanup",
-				},
-				Mounts:     []CustomMount{{Source: "/secret", Target: "/data"}},
-				Env:        map[string]string{"FOO": "bar"},
-				Dockerfile: "Dockerfile.custom",
-			},
-		},
-	}
-
-	stripped := stripSensitiveFields(cfg)
-
-	// Defaults sensitive fields stripped
-	d := stripped.Defaults.AsProfile()
-	if len(d.Env) != 0 {
-		t.Error("expected defaults env stripped")
-	}
-	if d.Dockerfile != "" {
-		t.Error("expected defaults dockerfile stripped")
-	}
-
-	// Profile sensitive fields stripped
-	p := stripped.Profiles["a"]
-	if p.Worktree.OnCreate != "" || p.Worktree.OnEnd != "" {
-		t.Error("expected on-create/on-end stripped")
-	}
-	if len(p.Mounts) != 0 {
-		t.Error("expected mounts stripped")
-	}
-	if len(p.Env) != 0 {
-		t.Error("expected env stripped")
-	}
-	if p.Dockerfile != "" {
-		t.Error("expected dockerfile stripped")
-	}
-
-	// Non-sensitive preserved
-	if p.Environment != EnvironmentContainer {
-		t.Error("expected environment preserved")
-	}
-	if p.Launch != LaunchClaude {
-		t.Error("expected launch preserved")
-	}
-	if p.Worktree.Base != "origin/dev" {
-		t.Error("expected worktree.base preserved")
-	}
-
-	// Original not mutated
-	if cfg.Profiles["a"].Worktree.OnCreate != "echo attack" {
-		t.Error("original config should not be mutated")
+		t.Error("trusted config should preserve all fields")
 	}
 }

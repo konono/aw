@@ -83,13 +83,12 @@ func ProfileDefaultsFromProfile(p Profile) ProfileDefaults {
 }
 
 // BuiltinShared returns the subset of starter defaults that should remain
-// inheritable across later config layers. Container-only fields are baked into
-// the built-in starter profiles so user-defined host profiles do not inherit
-// invalid defaults from the embedded template.
+// inheritable across later config layers. Image and Dockerfile are stripped
+// because empty is their valid default state (means "use built-in template").
+// Environment and OS are kept so project .aw.yml profiles inherit them
+// through the normal merge chain.
 func (d ProfileDefaults) BuiltinShared() ProfileDefaults {
 	shared := d
-	shared.Environment = ""
-	shared.OS = ""
 	shared.Image = ""
 	shared.Dockerfile = ""
 	return shared
