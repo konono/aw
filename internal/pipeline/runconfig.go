@@ -1,7 +1,9 @@
 package pipeline
 
 import (
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/toolinfo"
 )
 
 // BuildRunConfig constructs a docker.RunConfig from pipeline state.
@@ -19,11 +21,29 @@ func BuildRunConfig(ec *ExecutionContext, runtime string, command []string, envV
 	}
 }
 
+// authContainerEnv returns ec.ContainerEnv when DockerStage has run, otherwise Default().
+func authContainerEnv(ec *ExecutionContext) containerenv.Config {
+	if ec.ContainerEnv.User != "" {
+		return ec.ContainerEnv
+	}
+	return containerenv.Default()
+}
+
 // AuthRunConfig constructs a minimal RunConfig for one-shot auth commands.
+// Unlike ShellRunConfig/ToolRunConfig, auth omits SSH agent, gh token, skip flags,
+// and security/capability options to match pre-refactor behavior.
 func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []string) docker.RunConfig {
-	envVars := ContainerEnvVars(ec, tool)
+	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, authContainerEnv(ec))
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
-	return BuildRunConfig(ec, runtime, command, envVars)
+	return docker.RunConfig{
+		ImageName: ec.DockerImage,
+		Mounts:    ec.DockerMounts,
+		EnvVars:   envVars,
+		WorkDir:   ec.WorkDir,
+		Command:   command,
+		User:      docker.HostUserID(),
+		Userns:    docker.PodmanUserns(runtime),
+	}
 }
 
 // ShellEnvTool returns the tool name used when building container env for shell launch.
