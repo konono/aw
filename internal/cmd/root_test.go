@@ -203,3 +203,16 @@ func TestDescribeProfile(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRunArgs_CFlagParsed(t *testing.T) {
+	opts, err := parseRunArgs([]string{"host-shell", "-c", "echo", "hello"})
+	if err != nil {
+		t.Fatalf("parseRunArgs() error: %v", err)
+	}
+	if opts.ProfileName != "host-shell" {
+		t.Errorf("ProfileName = %q, want %q", opts.ProfileName, "host-shell")
+	}
+	if len(opts.Command) != 2 || opts.Command[0] != "echo" || opts.Command[1] != "hello" {
+		t.Errorf("Command = %v, want [echo hello]", opts.Command)
+	}
+}

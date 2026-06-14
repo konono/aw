@@ -89,9 +89,6 @@ func buildImage(t *testing.T, runtime, imageName, contextDir string, buildArgs m
 	for k, v := range buildArgs {
 		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
 	}
-	if token := detectGitHubToken(); token != "" {
-		args = append(args, "--build-arg", fmt.Sprintf("GITHUB_TOKEN=%s", token))
-	}
 	args = append(args, contextDir)
 
 	cmd := exec.CommandContext(ctx, runtime, args...)

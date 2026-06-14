@@ -3,3 +3,4 @@ worktrees/
 mise.toml
 aw
 *.tar
+.claude/settings.local.json
