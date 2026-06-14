@@ -2,9 +2,12 @@ package toolinfo
 
 import (
 	"testing"
+
+	"github.com/konono/aw/internal/containerenv"
 )
 
 func TestLookup_KnownTools(t *testing.T) {
+	cenv := containerenv.Default()
 	for _, tool := range []string{"claude", "codex", "opencode"} {
 		spec, ok := Lookup(tool)
 		if !ok {
@@ -20,8 +23,8 @@ func TestLookup_KnownTools(t *testing.T) {
 		if spec.InstallScript == "" {
 			t.Errorf("%s: InstallScript is empty", tool)
 		}
-		if spec.ContainerDir == "" {
-			t.Errorf("%s: ContainerDir is empty", tool)
+		if ContainerDirFor(tool, cenv) == "" {
+			t.Errorf("%s: ContainerDirFor is empty", tool)
 		}
 		if spec.InstallHint == "" {
 			t.Errorf("%s: InstallHint is empty", tool)
@@ -73,7 +76,8 @@ func TestHomePath_EnvOverride(t *testing.T) {
 	}
 }
 
-func TestContainerDir(t *testing.T) {
+func TestContainerDirFor(t *testing.T) {
+	cenv := containerenv.Default()
 	tests := []struct {
 		tool string
 		want string
@@ -84,20 +88,21 @@ func TestContainerDir(t *testing.T) {
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
-		if got := ContainerDir(tt.tool); got != tt.want {
-			t.Errorf("ContainerDir(%q) = %q, want %q", tt.tool, got, tt.want)
+		if got := ContainerDirFor(tt.tool, cenv); got != tt.want {
+			t.Errorf("ContainerDirFor(%q) = %q, want %q", tt.tool, got, tt.want)
 		}
 	}
 }
 
-func TestDataSymlinks(t *testing.T) {
-	if got := DataSymlinks("opencode"); got == "" {
-		t.Error("DataSymlinks(opencode) should not be empty")
+func TestDataSymlinksFor(t *testing.T) {
+	cenv := containerenv.Default()
+	if got := DataSymlinksFor("opencode", cenv); got == "" {
+		t.Error("DataSymlinksFor(opencode) should not be empty")
 	}
-	if got := DataSymlinks("claude"); got != "" {
-		t.Errorf("DataSymlinks(claude) = %q, want empty", got)
+	if got := DataSymlinksFor("claude", cenv); got != "" {
+		t.Errorf("DataSymlinksFor(claude) = %q, want empty", got)
 	}
-	if got := DataSymlinks("unknown"); got != "" {
-		t.Errorf("DataSymlinks(unknown) = %q, want empty", got)
+	if got := DataSymlinksFor("unknown", cenv); got != "" {
+		t.Errorf("DataSymlinksFor(unknown) = %q, want empty", got)
 	}
 }

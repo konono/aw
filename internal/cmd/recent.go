@@ -4,20 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/konono/aw/internal/dirhistory"
+	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/picker"
 )
 
 func expandTilde(path string) string {
-	if strings.HasPrefix(path, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, strings.TrimPrefix(path, "~"))
-		}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
 	}
-	return path
+	return pathutil.ExpandTilde(path, home)
 }
 
 func selectRecentDir(query string) (selected string, cancelled bool, err error) {

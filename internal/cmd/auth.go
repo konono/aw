@@ -160,26 +160,6 @@ func buildToolAuthProfile(cfg *profile.Config, tool string) (profile.Profile, st
 	return p, tool, nil
 }
 
-func buildExecutionContext(profileName string, p profile.Profile) (*pipeline.ExecutionContext, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	return &pipeline.ExecutionContext{
-		Profile:     p,
-		ProfileName: profileName,
-		HomeDir:     homeDir,
-		OrigWorkDir: workDir,
-		WorkDir:     workDir,
-	}, nil
-}
-
 func buildAuthStages(p profile.Profile, action awauth.Action) []pipeline.Stage {
 	var stages []pipeline.Stage
 	if p.Environment == profile.EnvironmentContainer {

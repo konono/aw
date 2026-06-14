@@ -43,7 +43,6 @@ type Client interface {
 	Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error
 	ImageExists(ctx context.Context, imageName string) (bool, error)
 	Save(ctx context.Context, imageName, outputPath string) error
-	VolumeCreate(ctx context.Context, volumeName string) error
 	Run(ctx context.Context, config RunConfig) error
 	RunOneShot(ctx context.Context, config RunConfig) (containerID string, err error)
 	Commit(ctx context.Context, containerID, imageName string, changes []string) error
@@ -150,27 +149,41 @@ func (c *ShellClient) Save(ctx context.Context, imageName, outputPath string) er
 	return cmd.Run()
 }
 
-// VolumeCreate creates a named container volume (idempotent).
-func (c *ShellClient) VolumeCreate(ctx context.Context, volumeName string) error {
-	args := []string{"volume", "create"}
-	switch c.DockerPath {
-	case "podman":
-		args = append(args, "--ignore", volumeName)
-	default:
-		args = append(args, volumeName)
-	}
-	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
+type runMode struct {
+	interactive bool
+	autoRemove  bool
+	initProcess bool
+	name        string
 }
 
 // BuildRunArgs constructs the docker CLI arguments for a RunConfig.
 // This is exported for testing.
 func BuildRunArgs(config RunConfig) []string {
-	args := []string{"run", "-it", "--rm", "--init",
-		"--pids-limit", "8192",
+	return buildRunArgs(config, runMode{interactive: true, autoRemove: true, initProcess: true})
+}
+
+// BuildOneShotRunArgs constructs docker CLI arguments for a non-interactive,
+// non-auto-remove container run. The container is given a unique name so it
+// can be committed and removed later.
+func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
+	return buildRunArgs(config, runMode{name: containerName})
+}
+
+func buildRunArgs(config RunConfig, mode runMode) []string {
+	args := []string{"run"}
+	if mode.interactive {
+		args = append(args, "-it")
 	}
+	if mode.autoRemove {
+		args = append(args, "--rm")
+	}
+	if mode.initProcess {
+		args = append(args, "--init")
+	}
+	if mode.name != "" {
+		args = append(args, "--name", mode.name)
+	}
+	args = append(args, "--pids-limit", "8192")
 
 	if config.Userns != "" {
 		args = append(args, "--userns", config.Userns)
@@ -202,6 +215,10 @@ func BuildRunArgs(config RunConfig) []string {
 
 	if config.WorkDir != "" {
 		args = append(args, "--workdir", config.WorkDir)
+	}
+
+	if config.Entrypoint != "" {
+		args = append(args, "--entrypoint", config.Entrypoint)
 	}
 
 	args = append(args, config.ImageName)
@@ -249,54 +266,6 @@ func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 	signal.Stop(sigCh)
 	close(sigCh)
 	return err
-}
-
-// BuildOneShotRunArgs constructs docker CLI arguments for a non-interactive,
-// non-auto-remove container run. The container is given a unique name so it
-// can be committed and removed later.
-func BuildOneShotRunArgs(containerName string, config RunConfig) []string {
-	args := []string{"run", "--name", containerName, "--pids-limit", "8192"}
-
-	if config.Userns != "" {
-		args = append(args, "--userns", config.Userns)
-	}
-
-	for _, opt := range config.SecurityOpts {
-		args = append(args, "--security-opt", opt)
-	}
-
-	for _, cap := range config.CapAdd {
-		args = append(args, "--cap-add", cap)
-	}
-
-	for key, val := range config.EnvVars {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, val))
-	}
-
-	for _, m := range config.Mounts {
-		mountArg := fmt.Sprintf("%s:%s", m.Source, m.Target)
-		if suffix := mountSuffix(m); suffix != "" {
-			mountArg += ":" + suffix
-		}
-		args = append(args, "-v", mountArg)
-	}
-
-	if config.User != "" {
-		args = append(args, "--user", config.User)
-	}
-
-	if config.WorkDir != "" {
-		args = append(args, "--workdir", config.WorkDir)
-	}
-
-	if config.Entrypoint != "" {
-		args = append(args, "--entrypoint", config.Entrypoint)
-	}
-
-	args = append(args, config.ImageName)
-	args = append(args, config.Command...)
-
-	return args
 }
 
 // RunOneShot runs a container non-interactively and returns the container name.

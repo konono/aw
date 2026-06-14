@@ -43,9 +43,9 @@ func TestRunOnCreateHook_ShellInvocation(t *testing.T) {
 		WorktreeBranch: "test-branch",
 	}
 
-	err := runOnCreateHook(ec, "/fake/repo")
+	err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, "/fake/repo")
 	if err != nil {
-		t.Fatalf("runOnCreateHook() error: %v", err)
+		t.Fatalf("runWorktreeHook() error: %v", err)
 	}
 
 	if capturedName != "sh" {
@@ -84,9 +84,9 @@ func TestRunOnCreateHook_SetsEnvironmentAndDir(t *testing.T) {
 	// Use a command that checks env vars exist
 	ec.Profile.Worktree.OnCreate = "test -n \"$AW_WORKTREE_PATH\" && test -n \"$AW_WORKTREE_BRANCH\" && test -n \"$AW_REPO_ROOT\" && test -n \"$AW_PROFILE_NAME\" && test -n \"$AW_ENVIRONMENT\""
 
-	err := runOnCreateHook(ec, "/fake/repo")
+	err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, "/fake/repo")
 	if err != nil {
-		t.Fatalf("runOnCreateHook() error (env vars missing): %v", err)
+		t.Fatalf("runWorktreeHook() error (env vars missing): %v", err)
 	}
 }
 
@@ -107,9 +107,9 @@ func TestRunOnCreateHook_EnvVarValues(t *testing.T) {
 		WorktreeBranch: "my-branch",
 	}
 
-	err := runOnCreateHook(ec, "/some/repo")
+	err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, "/some/repo")
 	if err != nil {
-		t.Fatalf("runOnCreateHook() env var values mismatch: %v", err)
+		t.Fatalf("runWorktreeHook() env var values mismatch: %v", err)
 	}
 }
 
@@ -131,9 +131,9 @@ func TestRunOnCreateHook_WorkingDirectory(t *testing.T) {
 		WorktreeBranch: "branch",
 	}
 
-	err := runOnCreateHook(ec, "/repo")
+	err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, "/repo")
 	if err != nil {
-		t.Fatalf("runOnCreateHook() working directory mismatch: %v", err)
+		t.Fatalf("runWorktreeHook() working directory mismatch: %v", err)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestRunOnCreateHook_FailureReturnsError(t *testing.T) {
 		WorktreeBranch: "branch",
 	}
 
-	err := runOnCreateHook(ec, "/repo")
+	err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, "/repo")
 	if err == nil {
 		t.Fatal("expected error from failing hook, got nil")
 	}
@@ -334,7 +334,9 @@ func TestResolveWorktreesDir_RelativeIsRepoRelative(t *testing.T) {
 }
 
 func TestResolveWorktreesDir_TildeExpansion(t *testing.T) {
+	home, _ := os.UserHomeDir()
 	ec := &pipeline.ExecutionContext{
+		HomeDir: home,
 		Profile: profile.Profile{
 			Worktree: &profile.WorktreeConfig{Dir: "~/aw-wt"},
 		},
@@ -343,7 +345,6 @@ func TestResolveWorktreesDir_TildeExpansion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	home, _ := os.UserHomeDir()
 	want := home + "/aw-wt"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)

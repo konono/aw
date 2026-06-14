@@ -47,31 +47,11 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 	runtime := ec.Profile.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	tool := ec.Profile.EffectiveTool()
-	if tool == "" {
-		tool = "claude"
-	}
-	envVars := buildContainerEnvVars(ec, tool)
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
-
-	hostUser := fmt.Sprintf("%d:0", os.Getuid())
-
 	command := ec.CommandOverride
 	if len(command) == 0 {
 		command = []string{"/bin/bash"}
 	}
 
-	runConfig := docker.RunConfig{
-		ImageName:    ec.DockerImage,
-		Mounts:       ec.DockerMounts,
-		EnvVars:      envVars,
-		WorkDir:      ec.WorkDir,
-		Command:      command,
-		SecurityOpts: ec.DockerSecurityOpts,
-		CapAdd:       ec.DockerCapAdd,
-		User:         hostUser,
-		Userns:       podmanUserns(runtime),
-	}
-
+	runConfig := pipeline.ShellRunConfig(ec, runtime, command)
 	return client.Run(ctx, runConfig)
 }

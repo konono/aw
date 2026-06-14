@@ -196,9 +196,9 @@ func TestDescribeProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := describeProfile(tt.profile)
+			got := profile.Describe(tt.profile)
 			if got != tt.want {
-				t.Errorf("describeProfile() = %q, want %q", got, tt.want)
+				t.Errorf("profile.Describe() = %q, want %q", got, tt.want)
 			}
 		})
 	}

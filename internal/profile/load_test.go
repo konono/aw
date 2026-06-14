@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/konono/aw/internal/gitroot"
 )
 
 func TestParse(t *testing.T) {
@@ -559,24 +561,24 @@ profiles:
 	}
 }
 
-// mockLoadEnv sets up findGitRoot and globalConfigDir mocks, restoring them on cleanup.
+// mockLoadEnv sets up gitroot.FindRoot and globalConfigDir mocks, restoring them on cleanup.
 // It also auto-approves trust prompts so tests with env/mounts/hooks are not blocked.
 func mockLoadEnv(t *testing.T, gitRoot string, gitErr bool, globalDir string) {
 	t.Helper()
-	origGit := findGitRoot
+	origGit := gitroot.FindRoot
 	origGlobal := globalConfigDir
 	origPrompt := promptTrust
 	t.Cleanup(func() {
-		findGitRoot = origGit
+		gitroot.FindRoot = origGit
 		globalConfigDir = origGlobal
 		promptTrust = origPrompt
 	})
 	promptTrust = func(_ string, _ []string) bool { return true }
 
 	if gitErr {
-		findGitRoot = func() (string, error) { return "", fmt.Errorf("not in a git repository") }
+		gitroot.FindRoot = func() (string, error) { return "", fmt.Errorf("not in a git repository") }
 	} else {
-		findGitRoot = func() (string, error) { return gitRoot, nil }
+		gitroot.FindRoot = func() (string, error) { return gitRoot, nil }
 	}
 
 	if globalDir == "" {

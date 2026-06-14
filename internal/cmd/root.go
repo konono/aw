@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
+	"github.com/konono/aw/internal/doctor"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
@@ -47,7 +47,7 @@ func Run(args []string) int {
 	}
 
 	if len(args) > 0 && args[0] == "doctor" {
-		return runDoctor(args[1:])
+		return doctor.Run(args[1:])
 	}
 
 	if len(args) > 0 && args[0] == "init" {
@@ -234,7 +234,8 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 	}
 
 	// Stage 4: Optional auth preflight before normal launch.
-	if p.EffectiveAuthOnLaunchCheck() != "" && p.EffectiveAuthOnLaunchCheck() != profile.AuthOnLaunchCheckNone {
+	authCheck := p.EffectiveAuthOnLaunchCheck()
+	if authCheck != "" && authCheck != profile.AuthOnLaunchCheckNone {
 		stages = append(stages, &stage.AuthCheckStage{})
 	}
 
@@ -271,7 +272,7 @@ func printAvailableProfiles(cfg *profile.Config) {
 			marker = "* "
 		}
 
-		desc := describeProfile(p)
+		desc := profile.Describe(p)
 		fmt.Printf("  %s%s  (%s)\n", marker, name, desc)
 	}
 	fmt.Println()
@@ -279,25 +280,6 @@ func printAvailableProfiles(cfg *profile.Config) {
 	if cfg.Default != "" {
 		fmt.Printf("       aw              (runs default: %s)\n", cfg.Default)
 	}
-}
-
-func describeProfile(p profile.Profile) string {
-	parts := []string{}
-	if p.Worktree != nil {
-		parts = append(parts, "worktree")
-	}
-	parts = append(parts, string(p.Environment))
-	parts = append(parts, string(p.Launch))
-	if p.OS != "" {
-		parts = append(parts, "os:"+string(p.OS))
-	}
-	if p.Image != "" {
-		parts = append(parts, "image:"+p.Image)
-	}
-	if p.Dockerfile != "" {
-		parts = append(parts, "dockerfile:"+p.Dockerfile)
-	}
-	return strings.Join(parts, " + ")
 }
 
 func runDefaultDockerfile() int {

@@ -11,7 +11,6 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
 )
 
 type Action string
@@ -234,15 +233,7 @@ func runHostCommand(ctx context.Context, command []string) error {
 
 func runContainerCommand(ctx context.Context, ec *pipeline.ExecutionContext, tool string, command []string) error {
 	runtime := ec.Profile.EffectiveContainerRuntime()
-	args := docker.BuildRunArgs(docker.RunConfig{
-		ImageName: ec.DockerImage,
-		Mounts:    ec.DockerMounts,
-		EnvVars:   buildContainerEnvVars(ec, tool),
-		WorkDir:   ec.WorkDir,
-		Command:   command,
-		User:      fmt.Sprintf("%d:0", os.Getuid()),
-		Userns:    podmanUserns(runtime),
-	})
+	args := docker.BuildRunArgs(pipeline.AuthRunConfig(ec, runtime, tool, command))
 	cmd := exec.CommandContext(ctx, runtime, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -263,15 +254,7 @@ func runCapturedCommand(ctx context.Context, ec *pipeline.ExecutionContext, tool
 		return capturedResultFromOutput(output, err)
 	case profile.EnvironmentContainer:
 		runtime := ec.Profile.EffectiveContainerRuntime()
-		args := docker.BuildRunArgs(docker.RunConfig{
-			ImageName: ec.DockerImage,
-			Mounts:    ec.DockerMounts,
-			EnvVars:   buildContainerEnvVars(ec, tool),
-			WorkDir:   ec.WorkDir,
-			Command:   command,
-			User:      fmt.Sprintf("%d:0", os.Getuid()),
-			Userns:    podmanUserns(runtime),
-		})
+		args := docker.BuildRunArgs(pipeline.AuthRunConfig(ec, runtime, tool, command))
 		cmd := exec.CommandContext(ctx, runtime, args...)
 		output, err := cmd.CombinedOutput()
 		return capturedResultFromOutput(output, err)
@@ -291,19 +274,6 @@ func capturedResultFromOutput(output []byte, err error) (capturedResult, error) 
 	}
 
 	return capturedResult{}, err
-}
-
-func podmanUserns(runtime string) string {
-	if runtime == "podman" {
-		return "keep-id"
-	}
-	return ""
-}
-
-func buildContainerEnvVars(ec *pipeline.ExecutionContext, tool string) map[string]string {
-	envVars := toolinfo.ContainerEnvVars(ec.EnvVars, tool)
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
-	return envVars
 }
 
 func usesExternalAuth(p profile.Profile, tool string) bool {

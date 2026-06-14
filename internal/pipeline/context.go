@@ -24,7 +24,6 @@ type ExecutionContext struct {
 	// Set by DockerStage (if applicable)
 	DockerImage        string
 	DockerMounts       []docker.Mount
-	DockerVolume       string
 	DockerSecurityOpts []string
 	DockerCapAdd       []string
 
