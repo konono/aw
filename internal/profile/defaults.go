@@ -10,10 +10,9 @@ var (
 	defaultConfigYAML []byte
 
 	// builtinConfig is the embedded starter config prepared for runtime merging.
-	// Container-only top-level defaults are baked into the starter profiles so
-	// user-defined host profiles do not inherit invalid container settings from
-	// the embedded template. Safe shared defaults remain top-level and are
-	// reapplied during normal config loading.
+	// Top-level defaults (environment, os, etc.) are preserved so that project
+	// .aw.yml profiles inherit them through the normal merge chain. Only image
+	// and dockerfile are stripped because empty is their valid default state.
 	builtinConfig = mustParseBuiltinConfig()
 )
 

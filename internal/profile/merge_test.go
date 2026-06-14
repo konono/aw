@@ -8,151 +8,700 @@ func boolPtr(v bool) *bool {
 	return &v
 }
 
-func TestMergeProfile_OverrideEnvironment(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		Environment: EnvironmentHost,
+// ---------------------------------------------------------------------------
+// Group 1: TestProfileOverride_FieldsTakeEffect
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_FieldsTakeEffect(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, m Profile)
+	}{
+		{
+			name: "OverrideEnvironment",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				Environment: EnvironmentHost,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Environment != EnvironmentHost {
+					t.Errorf("Environment = %q, want %q", m.Environment, EnvironmentHost)
+				}
+				if m.Launch != LaunchClaude {
+					t.Errorf("Launch = %q, want %q (should be preserved from base)", m.Launch, LaunchClaude)
+				}
+			},
+		},
+		{
+			name: "OverrideLaunch",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				Launch: LaunchShell,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Environment != EnvironmentContainer {
+					t.Errorf("Environment = %q, want %q (should be preserved from base)", m.Environment, EnvironmentContainer)
+				}
+				if m.Launch != LaunchShell {
+					t.Errorf("Launch = %q, want %q", m.Launch, LaunchShell)
+				}
+			},
+		},
+		{
+			name: "OverrideOS",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				OS: OSUBI9,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.OS != OSUBI9 {
+					t.Errorf("OS = %q, want %q", m.OS, OSUBI9)
+				}
+			},
+		},
+		{
+			name: "OverrideDockerfile",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				Dockerfile: "custom/Dockerfile",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Dockerfile != "custom/Dockerfile" {
+					t.Errorf("Dockerfile = %q, want %q", m.Dockerfile, "custom/Dockerfile")
+				}
+			},
+		},
+		{
+			name: "EmptyOverridePreservesAll",
+			base: Profile{
+				Worktree:    &WorktreeConfig{},
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default"},
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if m.Environment != EnvironmentContainer {
+					t.Errorf("Environment = %q, want %q", m.Environment, EnvironmentContainer)
+				}
+				if m.Launch != LaunchZellij {
+					t.Errorf("Launch = %q, want %q", m.Launch, LaunchZellij)
+				}
+				if m.Worktree == nil {
+					t.Fatal("Worktree should be preserved from base")
+				}
+				if m.Zellij == nil {
+					t.Fatal("Zellij should be preserved from base")
+				}
+			},
+		},
+		{
+			name: "EmptyOSOverridePreservesBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSUBI10,
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if m.OS != OSUBI10 {
+					t.Errorf("OS = %q, want %q (should be preserved from base)", m.OS, OSUBI10)
+				}
+			},
+		},
+		{
+			name: "EmptyDockerfileOverridePreservesBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Dockerfile:  "base/Dockerfile",
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if m.Dockerfile != "base/Dockerfile" {
+					t.Errorf("Dockerfile = %q, want %q (should be preserved from base)", m.Dockerfile, "base/Dockerfile")
+				}
+			},
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Environment != EnvironmentHost {
-		t.Errorf("Environment = %q, want %q", merged.Environment, EnvironmentHost)
-	}
-	if merged.Launch != LaunchClaude {
-		t.Errorf("Launch = %q, want %q (should be preserved from base)", merged.Launch, LaunchClaude)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, merged)
+		})
 	}
 }
 
-func TestMergeProfile_OverrideLaunch(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		Launch: LaunchShell,
+// ---------------------------------------------------------------------------
+// Group 2: TestProfileOverride_MutualExclusivity
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_MutualExclusivity(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, m Profile)
+	}{
+		{
+			name: "OSOverrideClearsInheritedDockerfile",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Dockerfile:  "base/Dockerfile",
+			},
+			override: Profile{
+				OS: OSUBI9,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.OS != OSUBI9 {
+					t.Errorf("OS = %q, want %q", m.OS, OSUBI9)
+				}
+				if m.Dockerfile != "" {
+					t.Errorf("Dockerfile = %q, want empty (cleared by OS override)", m.Dockerfile)
+				}
+			},
+		},
+		{
+			name: "DockerfileOverrideClearsInheritedOS",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSDebian12,
+			},
+			override: Profile{
+				Dockerfile: "custom/Dockerfile",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Dockerfile != "custom/Dockerfile" {
+					t.Errorf("Dockerfile = %q, want %q", m.Dockerfile, "custom/Dockerfile")
+				}
+				if m.OS != "" {
+					t.Errorf("OS = %q, want empty (cleared by dockerfile override)", m.OS)
+				}
+			},
+		},
+		{
+			name: "ImageOverrideClearsInheritedOS",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				OS:          OSDebian12,
+			},
+			override: Profile{
+				Image: "my-image:latest",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Image != "my-image:latest" {
+					t.Errorf("Image = %q, want %q", m.Image, "my-image:latest")
+				}
+				if m.OS != "" {
+					t.Errorf("OS = %q, want empty (cleared by image override)", m.OS)
+				}
+			},
+		},
+		{
+			name: "ImageOverrideClearsInheritedDockerfile",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Dockerfile:  "base/Dockerfile",
+			},
+			override: Profile{
+				Image: "my-image:latest",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Image != "my-image:latest" {
+					t.Errorf("Image = %q, want %q", m.Image, "my-image:latest")
+				}
+				if m.Dockerfile != "" {
+					t.Errorf("Dockerfile = %q, want empty (cleared by image override)", m.Dockerfile)
+				}
+			},
+		},
+		{
+			name: "OSOverrideClearsInheritedImage",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+			},
+			override: Profile{
+				OS: OSUBI9,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.OS != OSUBI9 {
+					t.Errorf("OS = %q, want %q", m.OS, OSUBI9)
+				}
+				if m.Image != "" {
+					t.Errorf("Image = %q, want empty (cleared by OS override)", m.Image)
+				}
+			},
+		},
+		{
+			name: "DockerfileOverrideClearsInheritedImage",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Image:       "my-image:latest",
+			},
+			override: Profile{
+				Dockerfile: "custom/Dockerfile",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Dockerfile != "custom/Dockerfile" {
+					t.Errorf("Dockerfile = %q, want %q", m.Dockerfile, "custom/Dockerfile")
+				}
+				if m.Image != "" {
+					t.Errorf("Image = %q, want empty (cleared by dockerfile override)", m.Image)
+				}
+			},
+		},
+		{
+			name: "InvalidOverrideKeepsOSAndDockerfileForValidation",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				OS:         OSUBI10,
+				Dockerfile: "custom/Dockerfile",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.OS != OSUBI10 {
+					t.Errorf("OS = %q, want %q", m.OS, OSUBI10)
+				}
+				if m.Dockerfile != "custom/Dockerfile" {
+					t.Errorf("Dockerfile = %q, want %q", m.Dockerfile, "custom/Dockerfile")
+				}
+			},
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Environment != EnvironmentContainer {
-		t.Errorf("Environment = %q, want %q (should be preserved from base)", merged.Environment, EnvironmentContainer)
-	}
-	if merged.Launch != LaunchShell {
-		t.Errorf("Launch = %q, want %q", merged.Launch, LaunchShell)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, merged)
+		})
 	}
 }
 
-func TestMergeProfile_AddWorktree(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		Worktree: &WorktreeConfig{Base: "origin/develop"},
+// ---------------------------------------------------------------------------
+// Group 3: TestProfileOverride_SubStructDeepMerge
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_SubStructDeepMerge(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, m Profile)
+	}{
+		{
+			name: "AddWorktree",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+			},
+			override: Profile{
+				Worktree: &WorktreeConfig{Base: "origin/develop"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Worktree == nil {
+					t.Fatal("Worktree should not be nil")
+				}
+				if m.Worktree.Base != "origin/develop" {
+					t.Errorf("Worktree.Base = %q, want %q", m.Worktree.Base, "origin/develop")
+				}
+			},
+		},
+		{
+			name: "OverrideWorktree",
+			base: Profile{
+				Worktree:    &WorktreeConfig{Base: "origin/main"},
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default"},
+			},
+			override: Profile{
+				Worktree: &WorktreeConfig{Base: "origin/develop", OnCreate: "./setup.sh"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Worktree == nil {
+					t.Fatal("Worktree should not be nil")
+				}
+				if m.Worktree.Base != "origin/develop" {
+					t.Errorf("Worktree.Base = %q, want %q", m.Worktree.Base, "origin/develop")
+				}
+				if m.Worktree.OnCreate != "./setup.sh" {
+					t.Errorf("Worktree.OnCreate = %q, want %q", m.Worktree.OnCreate, "./setup.sh")
+				}
+			},
+		},
+		{
+			name: "PreserveWorktreeFromBase",
+			base: Profile{
+				Worktree:    &WorktreeConfig{Base: "origin/main"},
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default"},
+			},
+			override: Profile{
+				Environment: EnvironmentHost,
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Worktree == nil {
+					t.Fatal("Worktree should be preserved from base")
+				}
+				if m.Worktree.Base != "origin/main" {
+					t.Errorf("Worktree.Base = %q, want %q", m.Worktree.Base, "origin/main")
+				}
+			},
+		},
+		{
+			name: "WorktreeDeepMerge",
+			base: Profile{
+				Worktree: &WorktreeConfig{Base: "origin/main", Dir: "/base/wt"},
+			},
+			override: Profile{
+				Worktree: &WorktreeConfig{Dir: "/override/wt"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Worktree.Base != "origin/main" {
+					t.Errorf("Base = %q, want %q (preserved from base)", m.Worktree.Base, "origin/main")
+				}
+				if m.Worktree.Dir != "/override/wt" {
+					t.Errorf("Dir = %q, want %q (override)", m.Worktree.Dir, "/override/wt")
+				}
+			},
+		},
+		{
+			name: "AddZellij",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+			},
+			override: Profile{
+				Zellij: &ZellijConfig{Layout: "custom"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Zellij == nil {
+					t.Fatal("Zellij should not be nil")
+				}
+				if m.Zellij.Layout != "custom" {
+					t.Errorf("Zellij.Layout = %q, want %q", m.Zellij.Layout, "custom")
+				}
+			},
+		},
+		{
+			name: "ZellijToolOverride",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default", Tool: "claude"},
+			},
+			override: Profile{
+				Zellij: &ZellijConfig{Tool: "codex"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Zellij == nil {
+					t.Fatal("Zellij should not be nil")
+				}
+				if m.Zellij.Layout != "default" {
+					t.Errorf("Zellij.Layout = %q, want %q (preserved from base)", m.Zellij.Layout, "default")
+				}
+				if m.Zellij.Tool != "codex" {
+					t.Errorf("Zellij.Tool = %q, want %q (override)", m.Zellij.Tool, "codex")
+				}
+			},
+		},
+		{
+			name: "ZellijToolPreservedFromBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchZellij,
+				Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
+			},
+			override: Profile{
+				Zellij: &ZellijConfig{Layout: "custom"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Zellij.Tool != "codex" {
+					t.Errorf("Zellij.Tool = %q, want %q (preserved from base)", m.Zellij.Tool, "codex")
+				}
+				if m.Zellij.Layout != "custom" {
+					t.Errorf("Zellij.Layout = %q, want %q (override)", m.Zellij.Layout, "custom")
+				}
+			},
+		},
+		{
+			name: "AuthDeepMerge",
+			base: Profile{
+				Auth: &AuthConfig{
+					OnLaunch: &OnLaunchAuthConfig{Check: AuthOnLaunchCheckWarn},
+					Codex: &CodexAuthConfig{
+						CredentialsStore: CodexCredentialsStoreFile,
+						SeedFromHost:     AuthSeedFromHostIfMissing,
+					},
+				},
+			},
+			override: Profile{
+				Auth: &AuthConfig{
+					Codex: &CodexAuthConfig{
+						LoginMode: CodexLoginModeDevice,
+					},
+					Claude: &ClaudeAuthConfig{
+						LoginMode: ClaudeLoginModeConsole,
+					},
+				},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Auth == nil || m.Auth.Codex == nil {
+					t.Fatal("merged auth.codex should not be nil")
+				}
+				if m.Auth.OnLaunch == nil || m.Auth.OnLaunch.Check != AuthOnLaunchCheckWarn {
+					t.Fatalf("auth.on_launch = %+v, want warn", m.Auth.OnLaunch)
+				}
+				if m.Auth.Codex.LoginMode != CodexLoginModeDevice {
+					t.Errorf("auth.codex.login_mode = %q, want %q", m.Auth.Codex.LoginMode, CodexLoginModeDevice)
+				}
+				if m.Auth.Codex.CredentialsStore != CodexCredentialsStoreFile {
+					t.Errorf("auth.codex.credentials_store = %q, want %q", m.Auth.Codex.CredentialsStore, CodexCredentialsStoreFile)
+				}
+				if m.Auth.Claude == nil || m.Auth.Claude.LoginMode != ClaudeLoginModeConsole {
+					t.Fatalf("auth.claude = %+v, want console", m.Auth.Claude)
+				}
+			},
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Worktree == nil {
-		t.Fatal("Worktree should not be nil")
-	}
-	if merged.Worktree.Base != "origin/develop" {
-		t.Errorf("Worktree.Base = %q, want %q", merged.Worktree.Base, "origin/develop")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, merged)
+		})
 	}
 }
 
-func TestMergeProfile_OverrideWorktree(t *testing.T) {
-	base := Profile{
-		Worktree:    &WorktreeConfig{Base: "origin/main"},
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-		Zellij:      &ZellijConfig{Layout: "default"},
-	}
-	override := Profile{
-		Worktree: &WorktreeConfig{Base: "origin/develop", OnCreate: "./setup.sh"},
+// ---------------------------------------------------------------------------
+// Group 4: TestProfileOverride_EnvVars
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_EnvVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, base Profile, m Profile)
+	}{
+		{
+			name: "EnvMerged",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Env:         map[string]string{"A": "1", "B": "2"},
+			},
+			override: Profile{
+				Env: map[string]string{"B": "override", "C": "3"},
+			},
+			check: func(t *testing.T, _ Profile, m Profile) {
+				if m.Env["A"] != "1" {
+					t.Errorf("Env[A] = %q, want %q", m.Env["A"], "1")
+				}
+				if m.Env["B"] != "override" {
+					t.Errorf("Env[B] = %q, want %q (override should win)", m.Env["B"], "override")
+				}
+				if m.Env["C"] != "3" {
+					t.Errorf("Env[C] = %q, want %q", m.Env["C"], "3")
+				}
+			},
+		},
+		{
+			name: "NilEnvOverridePreservesBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Env:         map[string]string{"A": "1"},
+			},
+			override: Profile{},
+			check: func(t *testing.T, _ Profile, m Profile) {
+				if m.Env["A"] != "1" {
+					t.Errorf("Env[A] = %q, want %q (should be preserved from base)", m.Env["A"], "1")
+				}
+			},
+		},
+		{
+			name: "EnvDoesNotMutateBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Env:         map[string]string{"A": "1"},
+			},
+			override: Profile{
+				Env: map[string]string{"B": "2"},
+			},
+			check: func(t *testing.T, base Profile, _ Profile) {
+				if _, ok := base.Env["B"]; ok {
+					t.Error("base.Env should not have been mutated")
+				}
+			},
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Worktree == nil {
-		t.Fatal("Worktree should not be nil")
-	}
-	if merged.Worktree.Base != "origin/develop" {
-		t.Errorf("Worktree.Base = %q, want %q", merged.Worktree.Base, "origin/develop")
-	}
-	if merged.Worktree.OnCreate != "./setup.sh" {
-		t.Errorf("Worktree.OnCreate = %q, want %q", merged.Worktree.OnCreate, "./setup.sh")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, tt.base, merged)
+		})
 	}
 }
 
-func TestMergeProfile_PreserveWorktreeFromBase(t *testing.T) {
-	base := Profile{
-		Worktree:    &WorktreeConfig{Base: "origin/main"},
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-		Zellij:      &ZellijConfig{Layout: "default"},
-	}
-	override := Profile{
-		Environment: EnvironmentHost,
+// ---------------------------------------------------------------------------
+// Group 5: TestProfileOverride_BooleanFlags
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_BooleanFlags(t *testing.T) {
+	tests := []struct {
+		name          string
+		base          Profile
+		override      Profile
+		effectiveFunc func(Profile) bool
+		wantEffective bool
+	}{
+		{
+			name:          "MountSSH_TrueOverriddenByFalse",
+			base:          Profile{MountSSH: boolPtr(true)},
+			override:      Profile{MountSSH: boolPtr(false)},
+			effectiveFunc: func(p Profile) bool { return p.EffectiveMountSSH() },
+			wantEffective: false,
+		},
+		{
+			name:          "GhToken_TrueOverriddenByFalse",
+			base:          Profile{GhToken: boolPtr(true)},
+			override:      Profile{GhToken: boolPtr(false)},
+			effectiveFunc: func(p Profile) bool { return p.EffectiveGhToken() },
+			wantEffective: false,
+		},
+		{
+			name:          "MountContainerSock_TrueOverriddenByFalse",
+			base:          Profile{MountContainerSock: boolPtr(true)},
+			override:      Profile{MountContainerSock: boolPtr(false)},
+			effectiveFunc: func(p Profile) bool { return p.EffectiveMountContainerSock() },
+			wantEffective: false,
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Worktree == nil {
-		t.Fatal("Worktree should be preserved from base")
-	}
-	if merged.Worktree.Base != "origin/main" {
-		t.Errorf("Worktree.Base = %q, want %q", merged.Worktree.Base, "origin/main")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			if got := tt.effectiveFunc(merged); got != tt.wantEffective {
+				t.Errorf("effective = %v, want %v", got, tt.wantEffective)
+			}
+		})
 	}
 }
 
-func TestMergeProfile_AddZellij(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-	}
-	override := Profile{
-		Zellij: &ZellijConfig{Layout: "custom"},
+// ---------------------------------------------------------------------------
+// Group 6: TestProfileOverride_Export
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_Export(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, m Profile)
+	}{
+		{
+			name: "ExportMerge",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Snapshot: false,
+					Include:  []ExportInclude{{Src: "./old", Dst: "/old"}},
+					Env:      map[string]string{"A": "1", "B": "2"},
+				},
+			},
+			override: Profile{
+				Export: &ExportConfig{
+					Snapshot: true,
+					Include:  []ExportInclude{{Src: "./new", Dst: "/new"}},
+					Env:      map[string]string{"B": "override", "C": "3"},
+				},
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Export == nil {
+					t.Fatal("Export should not be nil")
+				}
+				if !m.Export.Snapshot {
+					t.Error("Snapshot should be true after override")
+				}
+				if len(m.Export.Include) != 1 || m.Export.Include[0].Src != "./new" {
+					t.Errorf("Include should be replaced by override, got %v", m.Export.Include)
+				}
+				if m.Export.Env["A"] != "1" {
+					t.Errorf("Env[A] = %q, want %q (preserved from base)", m.Export.Env["A"], "1")
+				}
+				if m.Export.Env["B"] != "override" {
+					t.Errorf("Env[B] = %q, want %q (overridden)", m.Export.Env["B"], "override")
+				}
+				if m.Export.Env["C"] != "3" {
+					t.Errorf("Env[C] = %q, want %q (added from override)", m.Export.Env["C"], "3")
+				}
+			},
+		},
+		{
+			name: "ExportNilOverridePreservesBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Export: &ExportConfig{
+					Snapshot: true,
+					Env:      map[string]string{"X": "1"},
+				},
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if m.Export == nil {
+					t.Fatal("Export should be preserved from base")
+				}
+				if !m.Export.Snapshot {
+					t.Error("Snapshot should be preserved from base")
+				}
+				if m.Export.Env["X"] != "1" {
+					t.Errorf("Env[X] = %q, want %q", m.Export.Env["X"], "1")
+				}
+			},
+		},
 	}
 
-	merged := MergeProfile(base, override)
-
-	if merged.Zellij == nil {
-		t.Fatal("Zellij should not be nil")
-	}
-	if merged.Zellij.Layout != "custom" {
-		t.Errorf("Zellij.Layout = %q, want %q", merged.Zellij.Layout, "custom")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, merged)
+		})
 	}
 }
 
-func TestMergeProfile_EmptyOverride(t *testing.T) {
-	base := Profile{
-		Worktree:    &WorktreeConfig{},
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-		Zellij:      &ZellijConfig{Layout: "default"},
-	}
-	override := Profile{}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Environment != EnvironmentContainer {
-		t.Errorf("Environment = %q, want %q", merged.Environment, EnvironmentContainer)
-	}
-	if merged.Launch != LaunchZellij {
-		t.Errorf("Launch = %q, want %q", merged.Launch, LaunchZellij)
-	}
-	if merged.Worktree == nil {
-		t.Fatal("Worktree should be preserved from base")
-	}
-	if merged.Zellij == nil {
-		t.Fatal("Zellij should be preserved from base")
-	}
-}
+// ---------------------------------------------------------------------------
+// Kept unchanged: TestMergeConfig_* tests
+// ---------------------------------------------------------------------------
 
 func TestMergeConfig_BuiltinOnlyProfilesPreserved(t *testing.T) {
 	builtin := Config{
@@ -279,277 +828,58 @@ func TestMergeConfig_DefaultPreservedWhenUserEmpty(t *testing.T) {
 	}
 }
 
-func TestMergeProfile_EnvMerged(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Env:         map[string]string{"A": "1", "B": "2"},
+func TestMergeConfig_TopLevelMerged(t *testing.T) {
+	builtin := Config{
+		Defaults: ProfileDefaults{
+			Environment: EnvironmentContainer,
+		},
+		Profiles: map[string]Profile{},
 	}
-	override := Profile{
-		Env: map[string]string{"B": "override", "C": "3"},
+	user := Config{
+		Defaults: ProfileDefaults{
+			Worktree: &WorktreeConfig{Dir: "/custom"},
+		},
+		Profiles: map[string]Profile{},
 	}
 
-	merged := MergeProfile(base, override)
+	merged := MergeConfig(builtin, user)
 
-	if merged.Env["A"] != "1" {
-		t.Errorf("Env[A] = %q, want %q", merged.Env["A"], "1")
+	if merged.Defaults.Environment != EnvironmentContainer {
+		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Defaults.Environment, EnvironmentContainer)
 	}
-	if merged.Env["B"] != "override" {
-		t.Errorf("Env[B] = %q, want %q (override should win)", merged.Env["B"], "override")
-	}
-	if merged.Env["C"] != "3" {
-		t.Errorf("Env[C] = %q, want %q", merged.Env["C"], "3")
+	if merged.Defaults.Worktree == nil || merged.Defaults.Worktree.Dir != "/custom" {
+		t.Errorf("top-level Worktree.Dir should be %q, got %+v", "/custom", merged.Defaults.Worktree)
 	}
 }
 
-func TestMergeProfile_NilEnvOverridePreservesBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Env:         map[string]string{"A": "1"},
-	}
-	override := Profile{}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Env["A"] != "1" {
-		t.Errorf("Env[A] = %q, want %q (should be preserved from base)", merged.Env["A"], "1")
-	}
-}
-
-func TestMergeProfile_EnvDoesNotMutateBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Env:         map[string]string{"A": "1"},
-	}
-	override := Profile{
-		Env: map[string]string{"B": "2"},
-	}
-
-	MergeProfile(base, override)
-
-	// base.Env should not have been mutated
-	if _, ok := base.Env["B"]; ok {
-		t.Error("base.Env should not have been mutated")
-	}
-}
-
-func TestMergeProfile_ExplicitMountSSHOverride(t *testing.T) {
-	base := Profile{
-		MountSSH: boolPtr(true),
-	}
-	override := Profile{
-		MountSSH: boolPtr(false),
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.MountSSH == nil {
-		t.Fatal("MountSSH should not be nil")
-	}
-	if merged.EffectiveMountSSH() {
-		t.Error("EffectiveMountSSH() = true, want false")
-	}
-}
-
-func TestMergeProfile_ExplicitGhTokenOverride(t *testing.T) {
-	base := Profile{
-		GhToken: boolPtr(true),
-	}
-	override := Profile{
-		GhToken: boolPtr(false),
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.GhToken == nil {
-		t.Fatal("GhToken should not be nil")
-	}
-	if merged.EffectiveGhToken() {
-		t.Error("EffectiveGhToken() = true, want false")
-	}
-}
-
-func TestMergeProfile_ExplicitMountContainerSockOverride(t *testing.T) {
-	base := Profile{
-		MountContainerSock: boolPtr(true),
-	}
-	override := Profile{
-		MountContainerSock: boolPtr(false),
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.MountContainerSock == nil {
-		t.Fatal("MountContainerSock should not be nil")
-	}
-	if merged.EffectiveMountContainerSock() {
-		t.Error("EffectiveMountContainerSock() = true, want false")
-	}
-}
-
-func TestMergeProfile_AuthDeepMerge(t *testing.T) {
-	base := Profile{
-		Auth: &AuthConfig{
-			OnLaunch: &OnLaunchAuthConfig{Check: AuthOnLaunchCheckWarn},
-			Codex: &CodexAuthConfig{
-				CredentialsStore: CodexCredentialsStoreFile,
-				SeedFromHost:     AuthSeedFromHostIfMissing,
-			},
+func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
+	builtin := Config{
+		Profiles: map[string]Profile{
+			"claude": {Environment: EnvironmentContainer, Launch: LaunchClaude},
 		},
 	}
-	override := Profile{
-		Auth: &AuthConfig{
-			Codex: &CodexAuthConfig{
-				LoginMode: CodexLoginModeDevice,
-			},
-			Claude: &ClaudeAuthConfig{
-				LoginMode: ClaudeLoginModeConsole,
+	user := Config{
+		Profiles: map[string]Profile{
+			"claude": {
+				Worktree: &WorktreeConfig{},
 			},
 		},
 	}
 
-	merged := MergeProfile(base, override)
+	merged := MergeConfig(builtin, user)
 
-	if merged.Auth == nil || merged.Auth.Codex == nil {
-		t.Fatal("merged auth.codex should not be nil")
+	p := merged.Profiles["claude"]
+	if p.Worktree == nil {
+		t.Fatal("Worktree should be enabled via empty object from user config")
 	}
-	if merged.Auth.OnLaunch == nil || merged.Auth.OnLaunch.Check != AuthOnLaunchCheckWarn {
-		t.Fatalf("auth.on_launch = %+v, want warn", merged.Auth.OnLaunch)
-	}
-	if merged.Auth.Codex.LoginMode != CodexLoginModeDevice {
-		t.Errorf("auth.codex.login_mode = %q, want %q", merged.Auth.Codex.LoginMode, CodexLoginModeDevice)
-	}
-	if merged.Auth.Codex.CredentialsStore != CodexCredentialsStoreFile {
-		t.Errorf("auth.codex.credentials_store = %q, want %q", merged.Auth.Codex.CredentialsStore, CodexCredentialsStoreFile)
-	}
-	if merged.Auth.Claude == nil || merged.Auth.Claude.LoginMode != ClaudeLoginModeConsole {
-		t.Fatalf("auth.claude = %+v, want console", merged.Auth.Claude)
+	if p.Environment != EnvironmentContainer {
+		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentContainer)
 	}
 }
 
-func TestMergeProfile_OverrideOS(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		OS: OSUBI9,
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.OS != OSUBI9 {
-		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
-	}
-}
-
-func TestMergeProfile_EmptyOSOverridePreservesBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		OS:          OSUBI10,
-	}
-	override := Profile{}
-
-	merged := MergeProfile(base, override)
-
-	if merged.OS != OSUBI10 {
-		t.Errorf("OS = %q, want %q (should be preserved from base)", merged.OS, OSUBI10)
-	}
-}
-
-func TestMergeProfile_OSOverrideClearsInheritedDockerfile(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Dockerfile:  "base/Dockerfile",
-	}
-	override := Profile{
-		OS: OSUBI9,
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.OS != OSUBI9 {
-		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
-	}
-	if merged.Dockerfile != "" {
-		t.Errorf("Dockerfile = %q, want empty (cleared by OS override)", merged.Dockerfile)
-	}
-}
-
-func TestMergeProfile_OverrideDockerfile(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		Dockerfile: "custom/Dockerfile",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Dockerfile != "custom/Dockerfile" {
-		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
-	}
-}
-
-func TestMergeProfile_EmptyDockerfileOverridePreservesBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Dockerfile:  "base/Dockerfile",
-	}
-	override := Profile{}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Dockerfile != "base/Dockerfile" {
-		t.Errorf("Dockerfile = %q, want %q (should be preserved from base)", merged.Dockerfile, "base/Dockerfile")
-	}
-}
-
-func TestMergeProfile_DockerfileOverrideClearsInheritedOS(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		OS:          OSDebian12,
-	}
-	override := Profile{
-		Dockerfile: "custom/Dockerfile",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Dockerfile != "custom/Dockerfile" {
-		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
-	}
-	if merged.OS != "" {
-		t.Errorf("OS = %q, want empty (cleared by dockerfile override)", merged.OS)
-	}
-}
-
-func TestMergeProfile_InvalidOverrideKeepsOSAndDockerfileForValidation(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-	}
-	override := Profile{
-		OS:         OSUBI10,
-		Dockerfile: "custom/Dockerfile",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.OS != OSUBI10 {
-		t.Errorf("OS = %q, want %q", merged.OS, OSUBI10)
-	}
-	if merged.Dockerfile != "custom/Dockerfile" {
-		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
-	}
-}
+// ---------------------------------------------------------------------------
+// Kept unchanged: TestApplyTopLevel_* tests
+// ---------------------------------------------------------------------------
 
 func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 	cfg := Config{
@@ -659,29 +989,34 @@ func TestApplyTopLevel_ProfileOSOverridesTopLevelDockerfile(t *testing.T) {
 	}
 }
 
-func TestMergeConfig_TopLevelMerged(t *testing.T) {
-	builtin := Config{
+func TestApplyTopLevel_ProfileImageOverridesTopLevelOS(t *testing.T) {
+	cfg := Config{
 		Defaults: ProfileDefaults{
 			Environment: EnvironmentContainer,
+			OS:          OSDebian12,
 		},
-		Profiles: map[string]Profile{},
-	}
-	user := Config{
-		Defaults: ProfileDefaults{
-			Worktree: &WorktreeConfig{Dir: "/custom"},
+		Profiles: map[string]Profile{
+			"airgap": {
+				Launch: LaunchClaude,
+				Image:  "my-image:latest",
+			},
 		},
-		Profiles: map[string]Profile{},
 	}
 
-	merged := MergeConfig(builtin, user)
+	out := ApplyTopLevel(cfg)
+	p := out.Profiles["airgap"]
 
-	if merged.Defaults.Environment != EnvironmentContainer {
-		t.Errorf("top-level Environment = %q, want %q (from builtin)", merged.Defaults.Environment, EnvironmentContainer)
+	if p.Image != "my-image:latest" {
+		t.Errorf("Image = %q, want %q", p.Image, "my-image:latest")
 	}
-	if merged.Defaults.Worktree == nil || merged.Defaults.Worktree.Dir != "/custom" {
-		t.Errorf("top-level Worktree.Dir should be %q, got %+v", "/custom", merged.Defaults.Worktree)
+	if p.OS != "" {
+		t.Errorf("OS = %q, want empty (top-level OS should be cleared)", p.OS)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Kept unchanged: TestRelativeProfile_* tests
+// ---------------------------------------------------------------------------
 
 func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	defaults := Profile{
@@ -747,261 +1082,6 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 		if roundTrip.Mounts[i] != effective.Mounts[i] {
 			t.Errorf("Mounts[%d] = %+v, want %+v", i, roundTrip.Mounts[i], effective.Mounts[i])
 		}
-	}
-}
-
-func TestMergeProfile_ZellijToolOverride(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-		Zellij:      &ZellijConfig{Layout: "default", Tool: "claude"},
-	}
-	override := Profile{
-		Zellij: &ZellijConfig{Tool: "codex"},
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Zellij == nil {
-		t.Fatal("Zellij should not be nil")
-	}
-	if merged.Zellij.Layout != "default" {
-		t.Errorf("Zellij.Layout = %q, want %q (preserved from base)", merged.Zellij.Layout, "default")
-	}
-	if merged.Zellij.Tool != "codex" {
-		t.Errorf("Zellij.Tool = %q, want %q (override)", merged.Zellij.Tool, "codex")
-	}
-}
-
-func TestMergeProfile_ZellijToolPreservedFromBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchZellij,
-		Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
-	}
-	override := Profile{
-		Zellij: &ZellijConfig{Layout: "custom"},
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Zellij.Tool != "codex" {
-		t.Errorf("Zellij.Tool = %q, want %q (preserved from base)", merged.Zellij.Tool, "codex")
-	}
-	if merged.Zellij.Layout != "custom" {
-		t.Errorf("Zellij.Layout = %q, want %q (override)", merged.Zellij.Layout, "custom")
-	}
-}
-
-func TestMergeProfile_WorktreeDeepMerge(t *testing.T) {
-	base := Profile{
-		Worktree: &WorktreeConfig{Base: "origin/main", Dir: "/base/wt"},
-	}
-	override := Profile{
-		Worktree: &WorktreeConfig{Dir: "/override/wt"},
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Worktree.Base != "origin/main" {
-		t.Errorf("Base = %q, want %q (preserved from base)", merged.Worktree.Base, "origin/main")
-	}
-	if merged.Worktree.Dir != "/override/wt" {
-		t.Errorf("Dir = %q, want %q (override)", merged.Worktree.Dir, "/override/wt")
-	}
-}
-
-func TestMergeProfile_ImageOverrideClearsInheritedOS(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		OS:          OSDebian12,
-	}
-	override := Profile{
-		Image: "my-image:latest",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Image != "my-image:latest" {
-		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
-	}
-	if merged.OS != "" {
-		t.Errorf("OS = %q, want empty (cleared by image override)", merged.OS)
-	}
-}
-
-func TestMergeProfile_ImageOverrideClearsInheritedDockerfile(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Dockerfile:  "base/Dockerfile",
-	}
-	override := Profile{
-		Image: "my-image:latest",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Image != "my-image:latest" {
-		t.Errorf("Image = %q, want %q", merged.Image, "my-image:latest")
-	}
-	if merged.Dockerfile != "" {
-		t.Errorf("Dockerfile = %q, want empty (cleared by image override)", merged.Dockerfile)
-	}
-}
-
-func TestMergeProfile_OSOverrideClearsInheritedImage(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Image:       "my-image:latest",
-	}
-	override := Profile{
-		OS: OSUBI9,
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.OS != OSUBI9 {
-		t.Errorf("OS = %q, want %q", merged.OS, OSUBI9)
-	}
-	if merged.Image != "" {
-		t.Errorf("Image = %q, want empty (cleared by OS override)", merged.Image)
-	}
-}
-
-func TestMergeProfile_DockerfileOverrideClearsInheritedImage(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Image:       "my-image:latest",
-	}
-	override := Profile{
-		Dockerfile: "custom/Dockerfile",
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Dockerfile != "custom/Dockerfile" {
-		t.Errorf("Dockerfile = %q, want %q", merged.Dockerfile, "custom/Dockerfile")
-	}
-	if merged.Image != "" {
-		t.Errorf("Image = %q, want empty (cleared by dockerfile override)", merged.Image)
-	}
-}
-
-func TestApplyTopLevel_ProfileImageOverridesTopLevelOS(t *testing.T) {
-	cfg := Config{
-		Defaults: ProfileDefaults{
-			Environment: EnvironmentContainer,
-			OS:          OSDebian12,
-		},
-		Profiles: map[string]Profile{
-			"airgap": {
-				Launch: LaunchClaude,
-				Image:  "my-image:latest",
-			},
-		},
-	}
-
-	out := ApplyTopLevel(cfg)
-	p := out.Profiles["airgap"]
-
-	if p.Image != "my-image:latest" {
-		t.Errorf("Image = %q, want %q", p.Image, "my-image:latest")
-	}
-	if p.OS != "" {
-		t.Errorf("OS = %q, want empty (top-level OS should be cleared)", p.OS)
-	}
-}
-
-func TestMergeConfig_WorktreeEmptyObjectEnablesWorktree(t *testing.T) {
-	builtin := Config{
-		Profiles: map[string]Profile{
-			"claude": {Environment: EnvironmentContainer, Launch: LaunchClaude},
-		},
-	}
-	user := Config{
-		Profiles: map[string]Profile{
-			"claude": {
-				Worktree: &WorktreeConfig{},
-			},
-		},
-	}
-
-	merged := MergeConfig(builtin, user)
-
-	p := merged.Profiles["claude"]
-	if p.Worktree == nil {
-		t.Fatal("Worktree should be enabled via empty object from user config")
-	}
-	if p.Environment != EnvironmentContainer {
-		t.Errorf("Environment = %q, want %q (should be preserved)", p.Environment, EnvironmentContainer)
-	}
-}
-
-func TestMergeProfile_ExportMerge(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Export: &ExportConfig{
-			Snapshot: false,
-			Include:  []ExportInclude{{Src: "./old", Dst: "/old"}},
-			Env:      map[string]string{"A": "1", "B": "2"},
-		},
-	}
-	override := Profile{
-		Export: &ExportConfig{
-			Snapshot: true,
-			Include:  []ExportInclude{{Src: "./new", Dst: "/new"}},
-			Env:      map[string]string{"B": "override", "C": "3"},
-		},
-	}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Export == nil {
-		t.Fatal("Export should not be nil")
-	}
-	if !merged.Export.Snapshot {
-		t.Error("Snapshot should be true after override")
-	}
-	if len(merged.Export.Include) != 1 || merged.Export.Include[0].Src != "./new" {
-		t.Errorf("Include should be replaced by override, got %v", merged.Export.Include)
-	}
-	if merged.Export.Env["A"] != "1" {
-		t.Errorf("Env[A] = %q, want %q (preserved from base)", merged.Export.Env["A"], "1")
-	}
-	if merged.Export.Env["B"] != "override" {
-		t.Errorf("Env[B] = %q, want %q (overridden)", merged.Export.Env["B"], "override")
-	}
-	if merged.Export.Env["C"] != "3" {
-		t.Errorf("Env[C] = %q, want %q (added from override)", merged.Export.Env["C"], "3")
-	}
-}
-
-func TestMergeProfile_ExportNilOverridePreservesBase(t *testing.T) {
-	base := Profile{
-		Environment: EnvironmentContainer,
-		Launch:      LaunchClaude,
-		Export: &ExportConfig{
-			Snapshot: true,
-			Env:      map[string]string{"X": "1"},
-		},
-	}
-	override := Profile{}
-
-	merged := MergeProfile(base, override)
-
-	if merged.Export == nil {
-		t.Fatal("Export should be preserved from base")
-	}
-	if !merged.Export.Snapshot {
-		t.Error("Snapshot should be preserved from base")
-	}
-	if merged.Export.Env["X"] != "1" {
-		t.Errorf("Env[X] = %q, want %q", merged.Export.Env["X"], "1")
 	}
 }
 

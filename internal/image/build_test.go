@@ -10,21 +10,23 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-func TestEmbeddedTemplatesNotEmpty(t *testing.T) {
-	if len(dockerfileDebian12Tmpl) == 0 {
-		t.Error("embedded Dockerfile.debian12.tmpl is empty")
-	}
-	if len(dockerfileUBI9Tmpl) == 0 {
-		t.Error("embedded Dockerfile.ubi9.tmpl is empty")
-	}
-	if len(dockerfileUBI10Tmpl) == 0 {
-		t.Error("embedded Dockerfile.ubi10.tmpl is empty")
-	}
-	if len(dockerfileUbuntu2604Tmpl) == 0 {
-		t.Error("embedded Dockerfile.ubuntu2604.tmpl is empty")
-	}
-	if len(entrypointShTmpl) == 0 {
-		t.Error("embedded entrypoint.sh.tmpl is empty")
+func TestAllOSTemplates_RenderValidDockerfiles(t *testing.T) {
+	cenv := containerenv.Default()
+	for _, os := range []profile.OSTemplate{
+		profile.OSDebian12, profile.OSUBI9, profile.OSUBI10, profile.OSUbuntu2604,
+	} {
+		t.Run(string(os), func(t *testing.T) {
+			df, err := RenderDockerfile(os, profile.PackageManagerApt, cenv)
+			if err != nil {
+				t.Fatalf("RenderDockerfile: %v", err)
+			}
+			content := string(df)
+			for _, want := range []string{"FROM", "ENTRYPOINT", "useradd"} {
+				if !strings.Contains(content, want) {
+					t.Errorf("rendered Dockerfile missing %q", want)
+				}
+			}
+		})
 	}
 }
 
