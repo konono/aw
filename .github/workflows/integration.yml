@@ -48,8 +48,8 @@ jobs:
     name: smoke (${{ matrix.label }})
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
       - name: Run smoke tests
@@ -90,8 +90,8 @@ jobs:
     name: e2e (${{ matrix.label }})
     timeout-minutes: ${{ matrix.job_timeout }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
       - name: Run E2E tests
@@ -105,8 +105,8 @@ jobs:
     name: full-matrix (linux-amd64-docker)
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
       - name: Run full integration tests
