@@ -241,8 +241,9 @@ func mountSuffix(m Mount) string {
 }
 
 // Run runs a Docker container interactively with the given RunConfig.
-// Signals (SIGTERM, SIGHUP, SIGINT) are forwarded to the child process
-// so that the wrapper does not exit prematurely and orphan the container.
+// SIGINT is forwarded to the child so Ctrl+C works as expected.
+// SIGTERM and SIGHUP are absorbed to prevent the wrapper from killing
+// the container when the terminal closes or the wrapper is signalled.
 func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 	args := BuildRunArgs(config)
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
@@ -258,7 +259,9 @@ func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
 	go func() {
 		for sig := range sigCh {
-			_ = cmd.Process.Signal(sig)
+			if sig == syscall.SIGINT {
+				_ = cmd.Process.Signal(sig)
+			}
 		}
 	}()
 
