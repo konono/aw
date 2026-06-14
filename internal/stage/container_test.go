@@ -250,6 +250,37 @@ func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	}
 }
 
+func TestAppendContainerContext_ImageWithGhToken(t *testing.T) {
+	tmpDir := t.TempDir()
+	ghToken := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Image:   "my-image:latest",
+			GhToken: &ghToken,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## GitHub Token") {
+		t.Error("image mode should use 'GitHub Token' section header")
+	}
+	if !strings.Contains(content, "gh CLI may not be available") {
+		t.Error("image mode should warn that gh CLI may not be available")
+	}
+	if strings.Contains(content, "## GitHub CLI") {
+		t.Error("image mode should not use 'GitHub CLI' section header")
+	}
+}
+
 func TestAppendContainerContext_MountGHLegacy(t *testing.T) {
 	tmpDir := t.TempDir()
 	mountGH := true

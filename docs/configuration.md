@@ -70,6 +70,7 @@
 - `mount_ssh` は `mount_gh` と同じ三値動作
 - `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
 - `mount_container_sock` は `mount_gh` と同じ三値動作
+- `gh_token` は `mount_gh` と同じ三値動作
 - `skip_devbox_install` は `mount_gh` と同じ三値動作
 - `skip_mise_install` は `mount_gh` と同じ三値動作
 - `os`、`dockerfile`、`image` は最終的なプロファイルレベルで排他的。いずれかが継承され、別のものが後から指定された場合、継承された側はクリアされる
@@ -194,6 +195,8 @@ profiles:
 - `mount_ssh`
 - `ssh_agent_forwarding`
 - `mount_container_sock`
+- `gh_token`
+- `package_manager`
 - `mounts`
 - `os`
 - `dockerfile`
@@ -365,6 +368,17 @@ profiles:
 
 `environment: container` でのみ有効です。
 
+### `package_manager`（任意）
+
+コンテナ内の AI ツールのインストール方法を制御します。
+
+- `apt`（デフォルト） — AI ツールをスタンドアロンの install script（curl ベース）でインストール。イメージサイズが軽量（約 400 MB）
+- `devbox`（非推奨） — Nix single-user + devbox でインストール。イメージサイズが大きい（約 1.8 GB）
+
+`environment: container` の場合のみ有効。
+
+省略した場合、デフォルトは `apt` です。
+
 ### `mount_gh`（任意）
 
 ホストの `~/.config/gh` を読み取り専用でコンテナにマウントするかどうか。`gh` コマンド（PR 作成、Issue 管理など）をコンテナ内で使う場合に有効化します。
@@ -372,6 +386,16 @@ profiles:
 **デフォルト: `false`（無効）**。gh トークンは AI エージェントから読み取り可能であり、プロンプトインジェクション攻撃により外部に流出するリスクがあります。有効にする場合は、スコープを絞ったトークンの使用を推奨します。
 
 省略した場合、トップレベルのデフォルトから継承します。組み込みスターター設定では `false` です。
+
+### `gh_token`（任意）
+
+ホストの `gh auth token` から GitHub トークンを取得し、コンテナに `GITHUB_TOKEN` 環境変数として渡します。コンテナ内で `gh` CLI や git HTTPS 操作（clone、push、fetch）が動作するようになります。
+
+**デフォルト: `false`（無効）**。`mount_gh` と排他的です（両方を同時に指定するとバリデーションエラー）。
+
+`environment: container` の場合のみ有効。
+
+省略した場合、トップレベルのデフォルトから継承します。
 
 ### `mount_ssh`（任意）
 
@@ -487,19 +511,23 @@ aw init
 10. `image` は `environment: container` の場合のみ有効
 11. `os`、`dockerfile`、`image` は排他的（同時に1つのみ指定可能）
 12. `container_runtime` は `docker` または `podman` であること
-13. `skip_devbox_install` は `environment: container` の場合のみ有効
-14. `skip_mise_install` は `environment: container` の場合のみ有効
-15. `mounts` は `environment: container` の場合のみ有効
-16. すべてのマウントに `source` と `target` の両方が必要
-17. `container_user` は `environment: container` の場合のみ有効
-18. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
-19. `mount_container_sock` は `environment: container` の場合のみ有効
-20. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
-21. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
-22. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
-23. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
-24. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
-25. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+13. `package_manager` は `apt` または `devbox` であること
+14. `package_manager` は `environment: container` の場合のみ有効
+15. `skip_devbox_install` は `environment: container` の場合のみ有効
+16. `skip_mise_install` は `environment: container` の場合のみ有効
+17. `mounts` は `environment: container` の場合のみ有効
+18. すべてのマウントに `source` と `target` の両方が必要
+19. `container_user` は `environment: container` の場合のみ有効
+20. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+21. `gh_token` は `environment: container` の場合のみ有効
+22. `mount_gh` と `gh_token` は排他的
+23. `mount_container_sock` は `environment: container` の場合のみ有効
+24. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+25. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+26. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+27. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+28. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+29. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
 
 ## コンテナに同期されるホスト設定
 

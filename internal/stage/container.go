@@ -359,10 +359,17 @@ Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///r
 	}
 
 	if ec.Profile.EffectiveGhToken() {
-		sections = append(sections, `## GitHub CLI
+		if ec.Profile.Image != "" {
+			sections = append(sections, `## GitHub Token
+
+GITHUB_TOKEN is set. Git HTTPS operations (clone, push, fetch) to github.com work directly via credential helper.
+Note: gh CLI may not be available in this pre-built image.`)
+		} else {
+			sections = append(sections, `## GitHub CLI
 
 GITHUB_TOKEN is set. gh commands (gh pr, gh issue, etc.) work directly.
-Git HTTPS operations (clone, push, fetch) also work directly via credential helper.`)
+Git HTTPS operations (clone, push, fetch) to github.com also work directly via credential helper.`)
+		}
 	} else if ec.Profile.EffectiveMountGH() {
 		sections = append(sections, `## GitHub CLI
 

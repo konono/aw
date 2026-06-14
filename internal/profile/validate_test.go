@@ -226,6 +226,40 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid container + package_manager apt",
+			profile: Profile{
+				Environment:    EnvironmentContainer,
+				Launch:         LaunchClaude,
+				PackageManager: PackageManagerApt,
+			},
+		},
+		{
+			name: "valid container + package_manager devbox",
+			profile: Profile{
+				Environment:    EnvironmentContainer,
+				Launch:         LaunchClaude,
+				PackageManager: PackageManagerDevbox,
+			},
+		},
+		{
+			name: "invalid package_manager value",
+			profile: Profile{
+				Environment:    EnvironmentContainer,
+				Launch:         LaunchClaude,
+				PackageManager: "nix",
+			},
+			wantErr: "package_manager must be",
+		},
+		{
+			name: "package_manager with host environment",
+			profile: Profile{
+				Environment:    EnvironmentHost,
+				Launch:         LaunchShell,
+				PackageManager: PackageManagerApt,
+			},
+			wantErr: "package_manager is only valid with environment: container",
+		},
+		{
 			name:    "valid container + skip_devbox_install",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipDevboxInstall: &v} }(),
 		},

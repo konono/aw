@@ -74,6 +74,9 @@ func Validate(p Profile) error {
 	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
 		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)
 	}
+	if p.PackageManager != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("package_manager is only valid with environment: container")
+	}
 
 	// Validate container_runtime
 	switch p.ContainerRuntime {

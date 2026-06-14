@@ -15,7 +15,6 @@ ENV HOME="{{.Home}}" \
 
 ARG AW_TOOL_INSTALL_SCRIPT=""
 ARG AW_GH_INSTALL_SCRIPT=""
-ARG GITHUB_TOKEN=""
 COPY . /tmp/aw-build/
 RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
       bash -c "$AW_GH_INSTALL_SCRIPT"; \
