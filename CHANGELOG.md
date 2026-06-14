@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.0](https://github.com/konono/aw/compare/v2.0.0...v2.1.0) (2026-06-14)
+
+
+### Features
+
+* add aw doctor command ([443c015](https://github.com/konono/aw/commit/443c0156d13935bc93d655321fd3695de3b57df2))
+
+
+### Bug Fixes
+
+* address PR [#52](https://github.com/konono/aw/issues/52) review findings ([38d0939](https://github.com/konono/aw/commit/38d09391b2941e81f5dbbd3f48b339b4acab2af3))
+* **ci:** update Go test matrix to 1.23 + 1.26 ([d6b080f](https://github.com/konono/aw/commit/d6b080f2cdeb5b63cdd2097d29122a73b57ad082))
+* preserve environment/os in builtin defaults ([65aa2e1](https://github.com/konono/aw/commit/65aa2e10991c3c3a65fb2b777ce93e0400180738))
+* remove unnecessary fmt.Sprintf calls in doctor.go ([75e0f97](https://github.com/konono/aw/commit/75e0f978a6540456691aa6815f23d123cb7cbffc))
+* restore auth run config parity and safe tilde expansion ([f6f028c](https://github.com/konono/aw/commit/f6f028c44b5f8a9e996ec90a68fe6405af7427d2))
+
 ## [2.0.0](https://github.com/konono/aw/compare/v1.8.0...v2.0.0) (2026-06-13)
 
 
