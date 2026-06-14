@@ -15,8 +15,6 @@ type ToolSpec struct {
 	DevboxPkg         string // deprecated: used with package_manager: devbox
 	HomeEnvVar        string
 	DefaultHomeSubdir string
-	ContainerDir      string
-	DataSymlinks      string
 	InstallHint       string
 }
 
@@ -28,7 +26,6 @@ var tools = map[string]ToolSpec{
 		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
-		ContainerDir:      "/home/agent/.claude",
 		InstallHint:       "Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash",
 	},
 	"codex": {
@@ -38,7 +35,6 @@ var tools = map[string]ToolSpec{
 		DevboxPkg:         "codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
-		ContainerDir:      "/home/agent/.codex",
 		InstallHint:       "Install Codex CLI: curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | sh",
 	},
 	"opencode": {
@@ -48,8 +44,6 @@ var tools = map[string]ToolSpec{
 		DevboxPkg:         "opencode",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
-		ContainerDir:      "/home/agent/.config/opencode",
-		DataSymlinks:      "/home/agent/.local/share/opencode:/home/agent/.config/opencode/data",
 		InstallHint:       "Install via: curl -fsSL https://opencode.ai/install | bash",
 	},
 }
@@ -87,29 +81,17 @@ func HomePath(tool, homeDir string) string {
 	return filepath.Join(homeDir, spec.DefaultHomeSubdir)
 }
 
-func ContainerDir(tool string) string {
-	return ContainerDirFor(tool, containerenv.Default())
-}
-
 func ContainerDirFor(tool string, cenv containerenv.Config) string {
 	return cenv.ToolDir(tool)
-}
-
-func DataSymlinks(tool string) string {
-	return DataSymlinksFor(tool, containerenv.Default())
 }
 
 func DataSymlinksFor(tool string, cenv containerenv.Config) string {
 	return cenv.ToolDataSymlinks(tool)
 }
 
-// ContainerEnvVars returns the base set of tool-specific container environment
-// variables (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add their own
-// context-specific variables on top (e.g. HOST_WORKSPACE, SSH_AUTH_SOCK).
-func ContainerEnvVars(baseEnvVars map[string]string, tool string) map[string]string {
-	return ContainerEnvVarsFor(baseEnvVars, tool, containerenv.Default())
-}
-
+// ContainerEnvVarsFor returns tool-specific container environment variables
+// (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add context-specific
+// variables on top (e.g. HOST_WORKSPACE, SSH_AUTH_SOCK).
 func ContainerEnvVarsFor(baseEnvVars map[string]string, tool string, cenv containerenv.Config) map[string]string {
 	envVars := make(map[string]string, len(baseEnvVars)+4)
 	for k, v := range baseEnvVars {

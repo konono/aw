@@ -3,11 +3,11 @@ package dirhistory
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/konono/aw/internal/gitroot"
 )
 
 const (
@@ -186,10 +186,9 @@ func cleanPath(p string) string {
 }
 
 var detectRepoRoot = func(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
+	root, err := gitroot.FindRootFrom(dir)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return root
 }

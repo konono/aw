@@ -1,4 +1,4 @@
-package cmd
+package doctor
 
 import (
 	"fmt"
@@ -10,45 +10,47 @@ import (
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/mount"
+	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
 	"github.com/konono/aw/internal/version"
 )
 
-type doctorResult struct {
+type result struct {
 	errors int
 }
 
-func (r *doctorResult) pass(msg string) {
+func (r *result) pass(msg string) {
 	fmt.Printf("  ✓ %s\n", msg)
 }
 
-func (r *doctorResult) fail(msg string) {
+func (r *result) fail(msg string) {
 	fmt.Printf("  ✗ %s\n", msg)
 	r.errors++
 }
 
-func (r *doctorResult) detail(msg string) {
+func (r *result) detail(msg string) {
 	fmt.Printf("    %s\n", msg)
 }
 
-func runDoctor(args []string) int {
+// Run executes environment diagnostics and returns an exit code.
+func Run(args []string) int {
 	verbose := false
 	for _, a := range args {
 		switch a {
 		case "-v", "--verbose":
 			verbose = true
 		case "-h", "--help":
-			printDoctorHelp()
+			printHelp()
 			return 0
 		default:
 			fmt.Fprintf(os.Stderr, "Error: unknown flag %q\n", a)
-			printDoctorHelp()
+			printHelp()
 			return 1
 		}
 	}
 
-	res := &doctorResult{}
+	res := &result{}
 
 	cfg := checkConfig(res, verbose)
 	if cfg == nil {
@@ -88,7 +90,7 @@ func runDoctor(args []string) int {
 	return 1
 }
 
-func checkConfig(res *doctorResult, verbose bool) *profile.Config {
+func checkConfig(res *result, verbose bool) *profile.Config {
 	fmt.Println("Config")
 
 	cfg, err := profile.Load()
@@ -125,7 +127,7 @@ func collectRuntimes(cfg *profile.Config) map[string]bool {
 	return runtimes
 }
 
-func checkRuntimes(res *doctorResult, runtimes map[string]bool, verbose bool) map[string]bool {
+func checkRuntimes(res *result, runtimes map[string]bool, verbose bool) map[string]bool {
 	if len(runtimes) == 0 {
 		return nil
 	}
@@ -180,7 +182,7 @@ func collectGHNeeds(cfg *profile.Config) (needGHToken, needMountGH bool) {
 	return
 }
 
-func checkGitHub(res *doctorResult, needGHToken, needMountGH bool, verbose bool) bool {
+func checkGitHub(res *result, needGHToken, needMountGH bool, verbose bool) bool {
 	if !needGHToken && !needMountGH {
 		return true
 	}
@@ -216,7 +218,6 @@ func checkGitHub(res *doctorResult, needGHToken, needMountGH bool, verbose bool)
 				}
 				ok = false
 			} else {
-				// Check token scopes via API
 				scopeInfo := checkTokenScopes(token, verbose)
 				res.pass(fmt.Sprintf("Authenticated%s", scopeInfo))
 			}
@@ -272,7 +273,7 @@ func collectSSHNeeds(cfg *profile.Config) (needSSH, needAgent bool) {
 	return
 }
 
-func checkSSH(res *doctorResult, needSSH, needAgent bool, verbose bool) bool {
+func checkSSH(res *result, needSSH, needAgent bool, verbose bool) bool {
 	if !needSSH && !needAgent {
 		return true
 	}
@@ -336,7 +337,7 @@ func collectContainerSockNeeds(cfg *profile.Config) bool {
 	return false
 }
 
-func checkContainerSock(res *doctorResult, needed bool, runtimes map[string]bool, verbose bool) bool {
+func checkContainerSock(res *result, needed bool, runtimes map[string]bool, verbose bool) bool {
 	if !needed {
 		return true
 	}
@@ -368,13 +369,15 @@ type profileIssue struct {
 	issues []string
 }
 
-func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]bool, ghOK, agentOK, sockOK bool, verbose bool) {
+func checkProfiles(res *result, cfg *profile.Config, runtimeOK map[string]bool, ghOK, agentOK, sockOK bool, verbose bool) {
 	fmt.Println()
 	fmt.Println("Profiles")
 
 	passed := 0
 	total := len(cfg.Profiles)
 	var failed []profileIssue
+
+	homeDir, _ := os.UserHomeDir()
 
 	for name, p := range cfg.Profiles {
 		var issues []string
@@ -403,12 +406,7 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 		}
 
 		for _, m := range p.Mounts {
-			src := m.Source
-			if strings.HasPrefix(src, "~/") {
-				if home, err := os.UserHomeDir(); err == nil {
-					src = filepath.Join(home, src[2:])
-				}
-			}
+			src := pathutil.ExpandTilde(m.Source, homeDir)
 			if _, err := os.Stat(src); err != nil {
 				issues = append(issues, fmt.Sprintf("mount source %s does not exist", m.Source))
 			}
@@ -417,8 +415,8 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 		if len(issues) == 0 {
 			passed++
 			if verbose {
-				desc := describeProfile(p)
-				features := collectProfileFeatures(p)
+				desc := profile.Describe(p)
+				features := profile.FeatureFlags(p)
 				if features != "" {
 					desc += " + " + features
 				}
@@ -429,7 +427,6 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 		}
 	}
 
-	// Group failed profiles by their issue set
 	type issueGroup struct {
 		key    string
 		issues []string
@@ -464,26 +461,6 @@ func checkProfiles(res *doctorResult, cfg *profile.Config, runtimeOK map[string]
 	}
 }
 
-func collectProfileFeatures(p profile.Profile) string {
-	var features []string
-	if p.EffectiveGhToken() {
-		features = append(features, "gh_token")
-	}
-	if p.EffectiveMountGH() {
-		features = append(features, "mount_gh")
-	}
-	if p.EffectiveMountSSH() {
-		features = append(features, "mount_ssh")
-	}
-	if p.EffectiveSSHAgentForwarding() {
-		features = append(features, "ssh_agent_forwarding")
-	}
-	if p.EffectiveMountContainerSock() {
-		features = append(features, "mount_container_sock")
-	}
-	return strings.Join(features, " + ")
-}
-
 func printSystemInfo() {
 	fmt.Println()
 	fmt.Println("System Info")
@@ -498,7 +475,7 @@ func printSystemInfo() {
 	}
 }
 
-func printDoctorHelp() {
+func printHelp() {
 	fmt.Println("Usage: aw doctor [options]")
 	fmt.Println()
 	fmt.Println("Check system environment and profile configuration.")

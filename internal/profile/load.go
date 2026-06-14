@@ -3,10 +3,9 @@ package profile
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
+	"github.com/konono/aw/internal/gitroot"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,7 +35,7 @@ func Load() (*Config, error) {
 	}
 
 	var dir string
-	if repoRoot, err := findGitRoot(); err == nil {
+	if repoRoot, err := gitroot.FindRoot(); err == nil {
 		dir = repoRoot
 	} else if cwd, err := os.Getwd(); err == nil {
 		dir = cwd
@@ -189,7 +188,7 @@ func FindProfileSource(profileName string) string {
 	}
 
 	var dir string
-	if repoRoot, err := findGitRoot(); err == nil {
+	if repoRoot, err := gitroot.FindRoot(); err == nil {
 		dir = repoRoot
 	} else if cwd, err := os.Getwd(); err == nil {
 		dir = cwd
@@ -211,14 +210,4 @@ func FindProfileSource(profileName string) string {
 	}
 
 	return ""
-}
-
-// findGitRoot returns the top-level directory of the current git repository.
-var findGitRoot = func() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("not in a git repository")
-	}
-	return strings.TrimSpace(string(out)), nil
 }

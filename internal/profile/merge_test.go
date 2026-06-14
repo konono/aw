@@ -902,7 +902,7 @@ func TestApplyTopLevel_PropagatesToProfiles(t *testing.T) {
 		},
 	}
 
-	out := ApplyTopLevel(cfg)
+	out := ApplyDefaults(cfg)
 
 	shell := out.Profiles["shell"]
 	if shell.Environment != EnvironmentHost {
@@ -953,7 +953,7 @@ func TestApplyTopLevel_ProfileDockerfileOverridesTopLevelOS(t *testing.T) {
 		},
 	}
 
-	out := ApplyTopLevel(cfg)
+	out := ApplyDefaults(cfg)
 	p := out.Profiles["custom"]
 
 	if p.Dockerfile != "Dockerfile.custom" {
@@ -978,7 +978,7 @@ func TestApplyTopLevel_ProfileOSOverridesTopLevelDockerfile(t *testing.T) {
 		},
 	}
 
-	out := ApplyTopLevel(cfg)
+	out := ApplyDefaults(cfg)
 	p := out.Profiles["ubi9"]
 
 	if p.OS != OSUBI9 {
@@ -1003,7 +1003,7 @@ func TestApplyTopLevel_ProfileImageOverridesTopLevelOS(t *testing.T) {
 		},
 	}
 
-	out := ApplyTopLevel(cfg)
+	out := ApplyDefaults(cfg)
 	p := out.Profiles["airgap"]
 
 	if p.Image != "my-image:latest" {

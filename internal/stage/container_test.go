@@ -22,7 +22,6 @@ type mockDockerClient struct {
 	buildContextDir     string
 	buildArgs           map[string]string
 	buildContextFiles   map[string][]byte
-	volumeCalled        bool
 	runCalled           bool
 	runConfig           docker.RunConfig
 	imageExists         bool
@@ -65,11 +64,6 @@ func (m *mockDockerClient) Save(_ context.Context, imageName, outputPath string)
 	m.saveCalled = true
 	m.saveImageName = imageName
 	m.saveOutputPath = outputPath
-	return nil
-}
-
-func (m *mockDockerClient) VolumeCreate(_ context.Context, _ string) error {
-	m.volumeCalled = true
 	return nil
 }
 

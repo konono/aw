@@ -69,22 +69,6 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 		}
 	}
 
-	envVars := buildContainerEnvVars(ec, l.Tool)
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
-
-	hostUser := fmt.Sprintf("%d:0", os.Getuid())
-
-	runConfig := docker.RunConfig{
-		ImageName:    ec.DockerImage,
-		Mounts:       ec.DockerMounts,
-		EnvVars:      envVars,
-		WorkDir:      ec.WorkDir,
-		Command:      command,
-		SecurityOpts: ec.DockerSecurityOpts,
-		CapAdd:       ec.DockerCapAdd,
-		User:         hostUser,
-		Userns:       podmanUserns(runtime),
-	}
-
+	runConfig := pipeline.ToolRunConfig(ec, runtime, l.Tool, command)
 	return client.Run(ctx, runConfig)
 }

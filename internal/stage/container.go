@@ -12,8 +12,10 @@ import (
 	"github.com/konono/aw/internal/config"
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/gitroot"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/mount"
+	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
@@ -96,7 +98,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 	var extraMounts []docker.Mount
 	for _, m := range ec.Profile.Mounts {
-		source := expandTilde(m.Source, ec.HomeDir)
+		source := pathutil.ExpandTilde(m.Source, ec.HomeDir)
 		extraMounts = append(extraMounts, docker.Mount{
 			Source:   source,
 			Target:   m.Target,
@@ -315,12 +317,10 @@ func resolveDockerfilePath(dockerfilePath string) (string, error) {
 		return dockerfilePath, nil
 	}
 
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
+	repoRoot, err := gitroot.FindRoot()
 	if err != nil {
 		return "", fmt.Errorf("finding git root to resolve dockerfile path: %w", err)
 	}
-	repoRoot := strings.TrimSpace(string(out))
 	return filepath.Join(repoRoot, dockerfilePath), nil
 }
 
@@ -412,12 +412,5 @@ func ghCLIInstallScript() string {
 		`curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && ` +
 		`mv /tmp/gh_${GH_VER}_linux_${ARCH}/bin/gh /usr/local/bin/gh && ` +
 		`rm -rf /tmp/gh_${GH_VER}_linux_${ARCH}`
-}
-
-func expandTilde(path, homeDir string) string {
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(homeDir, path[2:])
-	}
-	return path
 }
 

@@ -107,20 +107,7 @@ func (l *ZellijLauncher) buildAgentCommand(ec *pipeline.ExecutionContext, tool s
 	switch ec.Profile.Environment {
 	case profile.EnvironmentContainer:
 		runtime := ec.Profile.EffectiveContainerRuntime()
-		envVars := buildContainerEnvVars(ec, tool)
-		envVars["HOST_WORKSPACE"] = ec.WorkDir
-
-		runConfig := docker.RunConfig{
-			ImageName:    ec.DockerImage,
-			Mounts:       ec.DockerMounts,
-			EnvVars:      envVars,
-			WorkDir:      ec.WorkDir,
-			Command:      []string{"bash", "-c", agentCmd + "; exec bash -i"},
-			SecurityOpts: ec.DockerSecurityOpts,
-			CapAdd:       ec.DockerCapAdd,
-			User:         fmt.Sprintf("%d:0", os.Getuid()),
-			Userns:       podmanUserns(runtime),
-		}
+		runConfig := pipeline.ToolRunConfig(ec, runtime, tool, []string{"bash", "-c", agentCmd + "; exec bash -i"})
 		args := docker.BuildRunArgs(runConfig)
 		return runtime + " " + shellJoin(args)
 	default:

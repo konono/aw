@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/konono/aw/internal/gitroot"
+	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/worktree"
 )
@@ -18,25 +20,25 @@ type WorktreeStage struct{}
 func (s *WorktreeStage) Name() string { return "worktree" }
 
 func (s *WorktreeStage) Run(_ context.Context, ec *pipeline.ExecutionContext) error {
-	// Find git repository root
-	repoRoot, err := gitRepoRoot()
+	if err := worktree.CheckRequiredDeps(); err != nil {
+		return err
+	}
+
+	repoRoot, err := gitroot.FindRoot()
 	if err != nil {
 		return fmt.Errorf("not in a git repository: %w", err)
 	}
 
-	// Generate random branch name
 	name, err := worktree.GenerateName()
 	if err != nil {
 		return fmt.Errorf("generating branch name: %w", err)
 	}
 
-	// Determine base ref
 	base := "origin/main"
 	if ec.Profile.Worktree != nil {
 		base = ec.Profile.Worktree.EffectiveBase()
 	}
 
-	// Fetch the base ref
 	refParts := strings.SplitN(base, "/", 2)
 	if len(refParts) == 2 {
 		fmt.Fprintf(os.Stderr, "Fetching %s...\n", base)
@@ -45,7 +47,6 @@ func (s *WorktreeStage) Run(_ context.Context, ec *pipeline.ExecutionContext) er
 		}
 	}
 
-	// Determine worktrees directory (config-overridable)
 	worktreesDir, err := resolveWorktreesDir(ec, repoRoot)
 	if err != nil {
 		return fmt.Errorf("resolving worktrees directory: %w", err)
@@ -54,24 +55,21 @@ func (s *WorktreeStage) Run(_ context.Context, ec *pipeline.ExecutionContext) er
 		return fmt.Errorf("creating worktrees directory: %w", err)
 	}
 
-	// Create worktree
 	worktreePath := filepath.Join(worktreesDir, name)
 	fmt.Fprintf(os.Stderr, "Creating worktree: %s\n", worktreePath)
 	if err := gitWorktreeAdd(repoRoot, name, worktreePath, base); err != nil {
 		return fmt.Errorf("creating worktree: %w", err)
 	}
 
-	// Update execution context
 	ec.WorkDir = worktreePath
 	ec.WorktreePath = worktreePath
 	ec.WorktreeBranch = name
 	ec.WorktreeBase = base
 	ec.RepoRoot = repoRoot
 
-	// Run on-create hook if configured
 	if ec.Profile.Worktree != nil && ec.Profile.Worktree.OnCreate != "" {
 		fmt.Fprintf(os.Stderr, "Running on-create hook...\n")
-		if err := runOnCreateHook(ec, repoRoot); err != nil {
+		if err := runWorktreeHook(ec.Profile.Worktree.OnCreate, ec, repoRoot); err != nil {
 			return fmt.Errorf("on-create hook: %w", err)
 		}
 	}
@@ -82,8 +80,8 @@ func (s *WorktreeStage) Run(_ context.Context, ec *pipeline.ExecutionContext) er
 // execCommand is a package-level var for testing.
 var execCommand = exec.Command
 
-func runOnCreateHook(ec *pipeline.ExecutionContext, repoRoot string) error {
-	cmd := execCommand("sh", "-c", ec.Profile.Worktree.OnCreate)
+func runWorktreeHook(script string, ec *pipeline.ExecutionContext, repoRoot string) error {
+	cmd := execCommand("sh", "-c", script)
 	cmd.Dir = ec.WorktreePath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -99,24 +97,9 @@ func runOnCreateHook(ec *pipeline.ExecutionContext, repoRoot string) error {
 
 // RunOnEndHook runs the on-end hook command after the launched process exits.
 func RunOnEndHook(ec *pipeline.ExecutionContext) error {
-	cmd := execCommand("sh", "-c", ec.Profile.Worktree.OnEnd)
-	cmd.Dir = ec.WorktreePath
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(),
-		"AW_WORKTREE_PATH="+ec.WorktreePath,
-		"AW_WORKTREE_BRANCH="+ec.WorktreeBranch,
-		"AW_REPO_ROOT="+ec.RepoRoot,
-		"AW_PROFILE_NAME="+ec.ProfileName,
-		"AW_ENVIRONMENT="+string(ec.Profile.Environment),
-	)
-	return cmd.Run()
+	return runWorktreeHook(ec.Profile.Worktree.OnEnd, ec, ec.RepoRoot)
 }
 
-// resolveWorktreesDir returns the absolute path of the directory under which
-// worktrees are created. If profile.Worktree.Dir is set, it is used (with ~
-// expansion; relative paths are resolved against repoRoot). Otherwise it
-// defaults to <repoRoot>/worktrees.
 func resolveWorktreesDir(ec *pipeline.ExecutionContext, repoRoot string) (string, error) {
 	dir := ""
 	if ec.Profile.Worktree != nil {
@@ -126,26 +109,11 @@ func resolveWorktreesDir(ec *pipeline.ExecutionContext, repoRoot string) (string
 		return filepath.Join(repoRoot, "worktrees"), nil
 	}
 
-	if strings.HasPrefix(dir, "~") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("expanding ~ in worktree dir: %w", err)
-		}
-		dir = filepath.Join(home, strings.TrimPrefix(dir, "~"))
-	}
+	dir = pathutil.ExpandTilde(dir, ec.HomeDir)
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(repoRoot, dir)
 	}
 	return filepath.Clean(dir), nil
-}
-
-func gitRepoRoot() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("not in a git repository")
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 func gitFetch(repoRoot, remote, ref string) error {
