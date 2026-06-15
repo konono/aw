@@ -51,12 +51,23 @@ type ShellConfig struct {
 
 // RunReport records the outcome of a reaper run.
 type RunReport struct {
-	StartedAt     time.Time    `json:"started_at"`
-	FinishedAt    time.Time    `json:"finished_at"`
-	ContainerName string       `json:"container_name"`
-	ExitCode      int          `json:"exit_code"`
-	ContainerKept bool         `json:"container_kept"`
-	Tasks         []TaskResult `json:"tasks"`
+	StartedAt     time.Time      `json:"started_at"`
+	FinishedAt    time.Time      `json:"finished_at"`
+	ContainerName string         `json:"container_name"`
+	ExitCode      int            `json:"exit_code"`
+	ContainerDiag *ContainerDiag `json:"container_diag,omitempty"`
+	ContainerKept bool           `json:"container_kept"`
+	Tasks         []TaskResult   `json:"tasks"`
+}
+
+// ContainerDiag records detailed container exit diagnostics.
+type ContainerDiag struct {
+	ExitCode  int    `json:"exit_code"`
+	OOMKilled bool   `json:"oom_killed"`
+	VMOOMHint bool   `json:"vm_oom_hint,omitempty"`
+	ExitedAt  string `json:"exited_at,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Summary   string `json:"summary"`
 }
 
 // TaskResult records the outcome of a single reaper task.

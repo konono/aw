@@ -1,17 +1,20 @@
 package doctor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
 	"github.com/konono/aw/internal/version"
 )
@@ -72,6 +75,7 @@ func Run(args []string) int {
 	sockOK := checkContainerSock(res, needContainerSock, runtimes, verbose)
 
 	checkProfiles(res, cfg, runtimeOK, ghOK, agentOK, sockOK, verbose)
+	checkReaper(res)
 
 	if verbose {
 		printSystemInfo()
@@ -458,6 +462,63 @@ func checkProfiles(res *result, cfg *profile.Config, runtimeOK map[string]bool, 
 
 	if passed > 0 {
 		fmt.Printf("  ✓ %d/%d profiles OK\n", passed, total)
+	}
+}
+
+func checkReaper(res *result) {
+	fmt.Println()
+	fmt.Println("Reaper")
+
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".config", "aw", "reaper")
+
+	// Check for orphan spec files
+	specs, _ := filepath.Glob(filepath.Join(dir, "*.spec.json"))
+	if len(specs) > 0 {
+		res.fail(fmt.Sprintf("%d orphaned reaper spec(s) found", len(specs)))
+		for _, s := range specs {
+			res.detail(fmt.Sprintf("→ %s", filepath.Base(s)))
+		}
+		res.detail("run: aw reaper recover <name> or aw reaper discard <name>")
+		return
+	}
+
+	// Check latest report (exclude *.spec.json)
+	allJSON, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	var reports []string
+	for _, f := range allJSON {
+		if !strings.HasSuffix(f, ".spec.json") {
+			reports = append(reports, f)
+		}
+	}
+	if len(reports) == 0 {
+		res.pass("no issues (no reports)")
+		return
+	}
+
+	sort.Strings(reports)
+	latest := reports[len(reports)-1]
+	data, err := os.ReadFile(latest)
+	if err != nil {
+		res.pass("no issues")
+		return
+	}
+
+	var report reaper.RunReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		res.pass("no issues")
+		return
+	}
+
+	if report.ExitCode == 0 {
+		res.pass("no issues")
+	} else {
+		summary := fmt.Sprintf("exit %d", report.ExitCode)
+		if report.ContainerDiag != nil && report.ContainerDiag.Summary != "" {
+			summary = report.ContainerDiag.Summary
+		}
+		res.fail(fmt.Sprintf("previous session exited abnormally (%s)", summary))
+		res.detail("→ aw reaper show")
 	}
 }
 
