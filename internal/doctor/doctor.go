@@ -469,12 +469,30 @@ func checkReaper(res *result) {
 
 	dir := reaper.ReaperDir()
 
-	// Check for orphan spec files
+	// Check for orphan spec files (skip active sessions)
 	specs, _ := filepath.Glob(filepath.Join(dir, "*.spec.json"))
-	if len(specs) > 0 {
-		res.fail(fmt.Sprintf("%d orphaned reaper spec(s) found", len(specs)))
-		for _, s := range specs {
-			res.detail(fmt.Sprintf("→ %s", filepath.Base(s)))
+	var active, orphaned []string
+	for _, s := range specs {
+		name := strings.TrimSuffix(filepath.Base(s), ".spec.json")
+		rt := reaper.RuntimeFromSpec(s)
+		out, err := exec.Command(rt, "inspect", name,
+			"--format", "{{.State.Running}}").Output()
+		if err == nil && strings.TrimSpace(string(out)) == "true" {
+			active = append(active, filepath.Base(s))
+		} else {
+			orphaned = append(orphaned, filepath.Base(s))
+		}
+	}
+	if len(active) > 0 {
+		res.pass(fmt.Sprintf("%d active session(s)", len(active)))
+		for _, s := range active {
+			res.detail(fmt.Sprintf("→ %s", s))
+		}
+	}
+	if len(orphaned) > 0 {
+		res.fail(fmt.Sprintf("%d orphaned reaper spec(s) found", len(orphaned)))
+		for _, s := range orphaned {
+			res.detail(fmt.Sprintf("→ %s", s))
 		}
 		res.detail("run: aw reaper recover <name> or aw reaper discard <name>")
 		return
