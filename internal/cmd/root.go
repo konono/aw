@@ -56,6 +56,10 @@ func Run(args []string) int {
 		return doctor.Run(args[1:])
 	}
 
+	if len(args) > 0 && args[0] == "reaper" {
+		return runReaperCommand(args[1:])
+	}
+
 	if len(args) > 0 && args[0] == "init" {
 		return runInit(args[1:])
 	}
@@ -315,7 +319,7 @@ func runDefaultDockerfile() int {
 
 var subcommands = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true,
-	"export": true, "init": true, "auth": true, "login": true, "doctor": true,
+	"export": true, "init": true, "auth": true, "login": true, "doctor": true, "reaper": true,
 }
 
 // hasVersionFlag checks if the args contain --version or -v before any subcommand or -c flag.
@@ -356,6 +360,7 @@ func printHelp() {
 	fmt.Println("  aw export <profile>     Build and export a profile's image as a tar archive")
 	fmt.Println("                          Use --snapshot to bake runtime setup into the image")
 	fmt.Println("  aw doctor               Check system environment and configuration")
+	fmt.Println("  aw reaper [command]     View/recover post-container cleanup reports")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()

@@ -4,3 +4,6 @@ mise.toml
 aw
 *.tar
 .claude/settings.local.json
+journal/
+docs/journal/
+docs/plan.md

@@ -378,6 +378,44 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "export.include[0]: dst must be an absolute path",
 		},
+		{
+			name: "valid reaper config",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper: &ReaperProfileConfig{
+					Timeout:         120,
+					ReportRetention: 20,
+				},
+			},
+		},
+		{
+			name: "reaper with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Reaper:      &ReaperProfileConfig{Timeout: 60},
+			},
+			wantErr: "reaper is only valid with environment: container",
+		},
+		{
+			name: "reaper timeout too large",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{Timeout: 99999},
+			},
+			wantErr: "reaper.timeout must be <=",
+		},
+		{
+			name: "reaper negative report retention",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{ReportRetention: -1},
+			},
+			wantErr: "reaper.report-retention must be >= 0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -459,6 +497,18 @@ func TestValidateConfig(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "reserved profile name",
+			config: Config{
+				Profiles: map[string]Profile{
+					"reaper": {
+						Environment: EnvironmentContainer,
+						Launch:      LaunchClaude,
+					},
+				},
+			},
+			wantErr: "name conflicts with aw subcommand",
 		},
 	}
 

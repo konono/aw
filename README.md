@@ -95,6 +95,8 @@ sudo loginctl enable-linger $(whoami)
 - **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
 - **ホスト設定の自動同期** — Git / Claude 設定を引き継ぎ（GitHub CLI はオプトイン）
 - **DooD (Docker outside of Docker) 対応** — `mount_container_sock: true` でコンテナ内から docker-compose 等を操作可能。詳細は [DooD ガイド](docs/dood.md)
+- **自動リソースクリーンアップ** — コンテナ終了後に reaper が SSH トンネル・ソケット・コンテナを自動削除。失敗時は `aw reaper recover` で再試行可能
+- **環境診断** — `aw doctor` でランタイム・認証・プロファイル・reaper の状態を一括チェック
 - **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
 
 ## 利便性とリスクのバランス
@@ -175,7 +177,7 @@ mount_container_sock: true    # docker-compose up/down
 
 ### 何が残り、何が消えるか
 
-コンテナは `--rm` で起動されるため毎回破棄されますが、以下のデータは保持されます:
+コンテナは毎回破棄されますが（終了後に reaper が自動削除）、以下のデータは保持されます:
 
 | データ | 永続化 | 保存先 |
 |--------|--------|--------|
@@ -189,6 +191,62 @@ mount_container_sock: true    # docker-compose up/down
 | コンテナ内の一時ファイル | ✗ | コンテナ破棄時に消失 |
 
 コンテナ内で `apt install` したパッケージを永続化したい場合は、`mise.toml` や `devbox.json` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。
+
+### Reaper（後処理）
+
+`aw` はコンテナを `syscall.Exec` でプロセス置換して起動します。このため、コンテナ終了後のクリーンアップ（SSH トンネル停止、VM 内ソケット削除、コンテナ本体の削除）は呼び出し元には戻れません。代わりに、コンテナ起動前に **reaper** と呼ばれるバックグラウンドプロセスを spawn し、パイプ経由でコンテナの終了を検知してクリーンアップを実行します。
+
+```
+aw プロセス
+  │
+  ├─ os.Pipe() で pipe (read, write) を作成
+  ├─ reaper 子プロセスを spawn（read 側を fd 3 として渡す）
+  │    └─ aw --internal-reaper として起動
+  │       fd 3 から ReaperSpec (JSON) を読み取り、EOF を待機
+  │
+  ├─ pipe write 側に ReaperSpec を書き込む
+  ├─ write 側の O_CLOEXEC を解除（コンテナランタイムに継承させるため）
+  │
+  └─ syscall.Exec で podman run に置換
+       │  pipe write 側は podman プロセスに継承される
+       │
+       └─ コンテナ終了 → podman 終了 → pipe write 側が close → EOF
+            │
+            reaper が EOF を検出してタスク実行:
+              ├── SSH トンネル kill (kill_process)
+              ├── VM ソケット削除 (remove_file)
+              ├── on-end フック (shell)
+              └── コンテナ rm
+            │
+            レポート書き出し → spec 削除（全タスク成功時）
+```
+
+`syscall.Exec` でプロセスが置換されるため、`aw` の Go コードには制御が戻りません。reaper は独立プロセス（`Setpgid: true` でプロセスグループ分離済み）として動作し、pipe の EOF をコンテナ終了のシグナルとして使います。`syscall.Exec` が失敗した場合は `Handle.Abort()` が reaper を kill し、spec ファイルを削除します。
+
+reaper はタスクの成功/失敗を `~/.config/aw/reaper/` に JSON レポートとして保存します。タスクが失敗した場合は spec ファイルを保持し、後から `aw reaper recover` で再試行できます。
+
+```bash
+aw reaper show              # 最新レポートの詳細表示
+aw reaper list              # レポート一覧
+aw reaper recover <name>    # 失敗したタスクを再実行（成功済みはスキップ）
+aw reaper discard <name>    # spec を破棄して復旧を放棄
+aw reaper clear             # 全レポートを削除
+```
+
+`aw doctor` の Reaper セクションでは、orphaned spec（reaper が異常終了して残った spec ファイル）や直近のセッションの異常終了を検出します。次回の `aw` 起動時にも orphaned spec は自動検出され、リソース管理タスクが自動復旧されます。
+
+reaper の動作はプロファイルの `reaper:` セクションでカスタマイズできます:
+
+```yaml
+profiles:
+  debug:
+    environment: container
+    launch: claude
+    reaper:
+      timeout: 120           # タスク実行タイムアウト（秒、デフォルト 60）
+      keep-container: true    # コンテナを削除せず保持（デバッグ用）
+      report-retention: 20    # 保持するレポート件数（デフォルト 10）
+```
 
 ### 認証の仕組み
 
@@ -234,7 +292,7 @@ container_runtime: docker
 ベースイメージには以下のツールがプリインストールされています:
 
 - `git`、`curl`、`wget`、`sudo`、`openssh-client`、`ca-certificates`、`xz-utils`
-- `mise`（ランタイムマネージャー）、`devbox`（Nix ベースのパッケージマネージャー）
+- `mise`（ランタイムマネージャー。`package_manager: devbox` の場合は代わりに `devbox` がインストールされます）
 
 コンテナからインターネットへのアクセスに制限はありません。エージェントは `curl` や `fetch` で外部の情報を取得できます。ネットワークの隔離ではなく、ファイルシステムの隔離によってホストを保護する設計です。
 
@@ -264,7 +322,7 @@ mise / devbox でインストールしたツールはコンテナ内に保存さ
 
 ### Worktree のライフサイクル
 
-worktree はホスト上に作成されるため、コンテナ終了後も残り続けます。不要になったら手動で `git worktree remove` してください。`worktree.on-create` / `worktree.on-end` フックはコンテナ内ではなくホスト上で実行されます。
+worktree はホスト上に作成されるため、コンテナ終了後も残り続けます。不要になったら手動で `git worktree remove` してください。`worktree.on-create` フックはコンテナ起動前にホスト上で実行されます。`worktree.on-end` フックは、`environment: container` の場合は reaper のタスクとして（コンテナ終了後に）、`environment: host` の場合はプロセス終了後にホスト上で実行されます。
 
 詳細は [コンテナ同期ガイド](docs/container-sync.md) を参照してください。
 
@@ -298,6 +356,8 @@ aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
 aw export <profile> [options]   # イメージをビルドして tar 出力
 aw default-dockerfile          # デフォルト Dockerfile を出力
+aw doctor                      # 環境・設定の診断
+aw reaper [show|list|clear|recover|discard]  # コンテナ終了後の cleanup レポート確認・復旧
 aw update                      # セルフアップデート
 aw --version                   # バージョン表示
 ```

@@ -5,6 +5,18 @@ import (
 	"strings"
 )
 
+const (
+	maxReaperTimeout       = 3600
+	maxReaperReportRetention = 100
+)
+
+// reservedProfileNames are aw subcommand names that cannot be used as profile names.
+var reservedProfileNames = map[string]bool{
+	"update": true, "profiles": true, "default-dockerfile": true,
+	"export": true, "init": true, "auth": true, "login": true,
+	"doctor": true, "reaper": true,
+}
+
 // Validate checks that a profile configuration is semantically valid.
 func Validate(p Profile) error {
 	// Validate environment
@@ -132,6 +144,32 @@ func Validate(p Profile) error {
 		return err
 	}
 
+	if err := validateReaper(p.Reaper, p.Environment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateReaper(reaper *ReaperProfileConfig, env Environment) error {
+	if reaper == nil {
+		return nil
+	}
+	if env != EnvironmentContainer {
+		return fmt.Errorf("reaper is only valid with environment: container")
+	}
+	if reaper.Timeout < 0 {
+		return fmt.Errorf("reaper.timeout must be >= 0")
+	}
+	if reaper.Timeout > maxReaperTimeout {
+		return fmt.Errorf("reaper.timeout must be <= %d", maxReaperTimeout)
+	}
+	if reaper.ReportRetention < 0 {
+		return fmt.Errorf("reaper.report-retention must be >= 0")
+	}
+	if reaper.ReportRetention > maxReaperReportRetention {
+		return fmt.Errorf("reaper.report-retention must be <= %d", maxReaperReportRetention)
+	}
 	return nil
 }
 
@@ -225,6 +263,9 @@ func ValidateConfig(cfg *Config) error {
 	// Validate each profile
 	var errs []string
 	for name, p := range cfg.Profiles {
+		if reservedProfileNames[name] {
+			errs = append(errs, fmt.Sprintf("profile %q: name conflicts with aw subcommand", name))
+		}
 		if err := Validate(p); err != nil {
 			errs = append(errs, fmt.Sprintf("profile %q: %v", name, err))
 		}

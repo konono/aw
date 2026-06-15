@@ -5,13 +5,13 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func diagnoseContainer(runtime, name string) *ContainerDiag {
 	var diag ContainerDiag
 
-	out, err := exec.Command(runtime, "inspect", name,
-		"--format", "{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.FinishedAt}}|{{.State.Error}}").Output()
+	out, err := inspectContainerState(runtime, name, 3)
 	if err != nil {
 		diag.ExitCode = -1
 		diag.Summary = "failed to inspect container state"
@@ -42,6 +42,29 @@ func diagnoseContainer(runtime, name string) *ContainerDiag {
 
 	diag.Summary = summarizeExit(diag)
 	return &diag
+}
+
+// inspectContainerState retrieves container state with retries.
+// The container runtime may not reflect the final state immediately after
+// the podman process exits, so retries are needed to avoid false negatives.
+func inspectContainerState(runtime, name string, maxRetries int) ([]byte, error) {
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		out, err := exec.Command(runtime, "inspect", name,
+			"--format", "{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.FinishedAt}}|{{.State.Error}}").Output()
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		if i < maxRetries-1 {
+			delay := 500 * time.Millisecond
+			if i > 0 {
+				delay = 2 * time.Second
+			}
+			time.Sleep(delay)
+		}
+	}
+	return nil, lastErr
 }
 
 func summarizeExit(d ContainerDiag) string {
