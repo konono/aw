@@ -54,65 +54,153 @@ Runs a user-defined shell command on the host after the container exits. Only ac
 
 **Precedent**: Host mode already warns that on-end hooks won't run (`root.go:168-171`).
 
-## Proposed phases
+## Design: cleanup watcher + exec
 
-### Phase 1: exec when no cleanup is needed (low risk, high coverage)
+Both cleanup responsibilities can be handled by a **detached watcher process** that runs alongside `podman run`, eliminating the need for a wrapper entirely.
 
-Use `syscall.Exec` to replace `aw` with `podman/docker run` when ALL of:
-- `ec.SSHAgentCleanup == nil` (not macOS + Podman, or SSH agent not configured)
-- `ec.Profile.Worktree == nil || ec.Profile.Worktree.OnEnd == ""` (no on-end hook)
+### Architecture
 
-This covers the majority of usage. The wrapper/wait path remains as fallback.
+```
+aw
+├── fork → cleanup watcher (reads from pipe, waits for podman exit)
+└── exec → podman run    (inherits pipe write end, closed on exit)
+```
+
+### How the pipe-based watcher works
+
+1. `aw` creates a pipe
+2. `aw` spawns a cleanup watcher as a child process, passing the pipe read end
+3. `aw` clears `O_CLOEXEC` on the pipe write end so it survives exec
+4. `aw` calls `syscall.Exec` to replace itself with `podman run`
+5. `podman run` runs (inheriting the write end of the pipe without knowing about it)
+6. When `podman run` exits, the write end is closed automatically by the OS
+7. The watcher reads EOF from the pipe → runs cleanup → exits
+
+### Implementation sketch
 
 ```go
-// In launchDockerShell / launchContainer:
-if ec.SSHAgentCleanup == nil && (ec.Profile.Worktree == nil || ec.Profile.Worktree.OnEnd == "") {
-    // exec: replace aw with podman/docker
-    args := docker.BuildRunArgs(runConfig)
-    bin, _ := exec.LookPath(runtime)
-    return syscall.Exec(bin, append([]string{runtime}, args...), os.Environ())
+func (c *ShellClient) ExecRun(config RunConfig, cleanups []func()) error {
+    args := BuildRunArgs(config)
+    binPath, err := exec.LookPath(c.dockerCmd())
+    if err != nil {
+        return err
+    }
+
+    if len(cleanups) > 0 {
+        if err := spawnCleanupWatcher(cleanups); err != nil {
+            return fmt.Errorf("cleanup watcher: %w", err)
+        }
+    }
+
+    argv := append([]string{c.dockerCmd()}, args...)
+    return syscall.Exec(binPath, argv, os.Environ())
 }
-// fallback: wrapper mode
-return client.Run(ctx, runConfig)
 ```
 
-### Phase 2: make SSH tunnel self-terminating
-
-Eliminate the need for aw-side cleanup, enabling exec on macOS + Podman too.
-
-| Approach | How it works | Tradeoff |
-|----------|-------------|----------|
-| **A. Entrypoint trap** | `entrypoint.sh` runs `trap` to delete VM socket on exit. SSH tunnel loses its forward target and exits. | Simplest. Relies on SSH behavior for tunnel cleanup. |
-| **B. Pidfile** | `aw` writes tunnel PID to a known file. Next `aw` invocation detects and kills stale tunnels. | Works with exec. Cleanup is deferred to next run. |
-| **C. SSH keepalive timeout** | Use `-o ServerAliveInterval=15 -o ServerAliveCountMax=3`. Tunnel exits ~45s after VM connectivity loss. | Lazy cleanup. Good as defense-in-depth alongside A or B. |
-| **D. Parent death signal** | Start tunnel without `-f`, use `prctl(PR_SET_PDEATHSIG)` equivalent. | Not portable to macOS (no prctl). |
-
-**Recommendation**: A (entrypoint trap) + C (keepalive as safety net). This makes the tunnel self-contained without any wrapper-side cleanup.
-
-### Phase 3: on-end hook parity
-
-Apply the same approach as host mode: warn that on-end hooks won't run with exec mode. Since host mode already accepts this limitation, container mode can do the same.
-
-Alternatively, spawn a detached cleanup process before exec:
+The watcher itself is a hidden subcommand of `aw`:
 
 ```go
-// spawn a background process that waits for podman to exit, then runs on-end
-cleanupCmd := exec.Command("sh", "-c", fmt.Sprintf("wait %d; %s", podmanPID, onEndCommand))
-cleanupCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-cleanupCmd.Start()
-// then exec podman
+// aw --internal-cleanup-watcher
+func runCleanupWatcher() {
+    // fd 3 = pipe read end, passed via ExtraFiles
+    pipe := os.NewFile(3, "pipe")
+
+    // Block until podman exits (pipe write end closes → EOF)
+    buf := make([]byte, 1)
+    pipe.Read(buf)
+
+    // Run all cleanup tasks
+    runSSHAgentCleanup()
+    runOnEndHook()
+}
 ```
 
-This is more complex and probably not worth it for the current use case.
+Spawning the watcher before exec:
+
+```go
+func spawnCleanupWatcher(cleanups []func()) error {
+    r, w, err := os.Pipe()
+    if err != nil {
+        return err
+    }
+
+    cmd := exec.Command(os.Args[0], "--internal-cleanup-watcher")
+    cmd.ExtraFiles = []*os.File{r}          // fd 3
+    cmd.SysProcAttr = &syscall.SysProcAttr{
+        Setpgid: true,                      // detach from foreground process group
+    }
+    if err := cmd.Start(); err != nil {
+        r.Close()
+        w.Close()
+        return err
+    }
+    r.Close()
+
+    // Clear O_CLOEXEC so the write end survives exec into podman
+    _, _, errno := syscall.RawSyscall(
+        syscall.SYS_FCNTL, w.Fd(), syscall.F_SETFD, 0,
+    )
+    if errno != 0 {
+        return fmt.Errorf("fcntl F_SETFD: %w", errno)
+    }
+
+    return nil
+}
+```
+
+### Watcher data passing
+
+The watcher needs to know what cleanup to run. Two approaches:
+
+**A. Self-contained subcommand**: The watcher re-reads the profile/config and determines cleanup tasks itself. Simple but requires the watcher to understand the full config.
+
+**B. Serialized instructions**: `aw` writes cleanup instructions (SSH tunnel PID, on-end command, etc.) to a temp file or passes them as arguments/env vars to the watcher. More explicit and testable.
+
+Recommended: **B** --- pass a JSON blob via env or temp file:
+
+```go
+type CleanupSpec struct {
+    SSHTunnelPID   int    `json:"ssh_tunnel_pid,omitempty"`
+    VMSocketPath   string `json:"vm_socket_path,omitempty"`
+    OnEndCommand   string `json:"on_end_command,omitempty"`
+    WorktreePath   string `json:"worktree_path,omitempty"`
+}
+```
+
+### Why this is better than the phased approach
+
+The previous design proposed 3 phases: (1) exec when no cleanup needed, (2) make SSH tunnel self-terminating, (3) handle on-end hooks. This required maintaining two code paths (wrapper + exec) and incremental migration.
+
+The cleanup watcher approach eliminates all phases:
+
+| Concern | Phased approach | Watcher approach |
+|---------|----------------|-----------------|
+| Code paths | Two (wrapper + exec), conditional | One (always exec) |
+| SSH tunnel cleanup | Needs self-terminating redesign | Watcher kills tunnel on exit |
+| On-end hook | Warning or separate process | Watcher runs it |
+| Signal handling | Still needed in wrapper fallback | Not needed (no wrapper) |
+| Complexity | Grows with edge cases | Constant |
+
+### Edge cases
+
+**Watcher is killed before podman exits**: Cleanup doesn't run. Same risk as the current wrapper being killed. Defense-in-depth: SSH keepalive timeout (`-o ServerAliveInterval=15 -o ServerAliveCountMax=3`) as safety net for tunnel cleanup.
+
+**Podman exits immediately (startup failure)**: Pipe write end closes right away, watcher runs cleanup immediately. Works correctly.
+
+**Multiple aw instances**: Each gets its own pipe + watcher. No interference.
+
+**macOS specifics**: `SYS_FCNTL` with `F_SETFD` works on macOS (Darwin). `Setpgid` also works. No portability issues.
 
 ## Summary
 
-| Phase | What | Risk | Effect |
-|-------|------|------|--------|
-| 1 | Exec when cleanup-free | Low | Eliminates signal problem for most users |
-| 2 | Self-terminating SSH tunnel | Medium | Enables exec on macOS + Podman |
-| 3 | On-end hook warning | Low | Full exec coverage |
+| Item | Description |
+|------|-------------|
+| **What** | Replace `exec.Command + Wait` with `syscall.Exec`, using a pipe-based cleanup watcher for post-exit tasks |
+| **Why** | Eliminates wrapper process, signal forwarding bugs, and SIGTERM swallowing |
+| **Risk** | Low --- pipe + fork is a well-established Unix pattern |
+| **Scope** | `internal/docker/client.go` (new `ExecRun`), new `--internal-cleanup-watcher` subcommand, launcher changes |
+| **Cleanup coverage** | SSH tunnel (macOS+Podman) + on-end hooks --- same as current wrapper |
 
 ## Related
 
-- PR #64 --- local fix (stop SIGTERM/SIGHUP forwarding)
+- PR #64 --- interim fix (stop SIGTERM/SIGHUP forwarding to podman run)
