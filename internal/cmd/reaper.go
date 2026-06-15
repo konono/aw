@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/konono/aw/internal/reaper"
@@ -49,9 +50,23 @@ func reaperShow(args []string) int {
 	var reportPath string
 
 	if len(args) > 0 {
-		reportPath = args[0]
-		if !filepath.IsAbs(reportPath) {
-			reportPath = filepath.Join(dir, reportPath)
+		arg := args[0]
+		if filepath.IsAbs(arg) {
+			reportPath = arg
+		} else if strings.HasSuffix(arg, ".json") {
+			reportPath = filepath.Join(dir, arg)
+		} else {
+			reports := reaper.ListReports()
+			for i := len(reports) - 1; i >= 0; i-- {
+				if strings.Contains(filepath.Base(reports[i]), arg) {
+					reportPath = reports[i]
+					break
+				}
+			}
+			if reportPath == "" {
+				fmt.Fprintf(os.Stderr, "No report matching %q\n", arg)
+				return 1
+			}
 		}
 	} else {
 		reports := reaper.ListReports()
