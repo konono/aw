@@ -49,32 +49,6 @@ func TestBuildStages_WorktreeHostShell(t *testing.T) {
 	}
 }
 
-func TestBuildStages_WorktreeDockerZellij(t *testing.T) {
-	p := profile.Profile{
-		Worktree:    &profile.WorktreeConfig{},
-		Environment: profile.EnvironmentContainer,
-		Launch:      profile.LaunchZellij,
-	}
-	stages := buildStages(p)
-
-	// Should have WorktreeStage + DockerStage + EnvStage + LaunchStage = 4 stages
-	if len(stages) != 4 {
-		t.Fatalf("got %d stages, want 4", len(stages))
-	}
-	if stages[0].Name() != "worktree" {
-		t.Errorf("stage[0] = %q, want 'worktree'", stages[0].Name())
-	}
-	if stages[1].Name() != "container" {
-		t.Errorf("stage[1] = %q, want 'container'", stages[1].Name())
-	}
-	if stages[2].Name() != "env" {
-		t.Errorf("stage[2] = %q, want 'env'", stages[2].Name())
-	}
-	if stages[3].Name() != "launch" {
-		t.Errorf("stage[3] = %q, want 'launch'", stages[3].Name())
-	}
-}
-
 func TestBuildStages_HostClaude(t *testing.T) {
 	p := profile.Profile{
 		Environment: profile.EnvironmentHost,
@@ -141,7 +115,7 @@ func TestRunOnEndIfConfigured_SkipsWhenWorktreePathEmpty(t *testing.T) {
 		Profile: profile.Profile{
 			Worktree:    &profile.WorktreeConfig{OnEnd: "echo done"},
 			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchZellij,
+			Launch:      profile.LaunchClaude,
 		},
 		WorktreePath: "",
 	}
@@ -171,11 +145,6 @@ func TestDescribeProfile(t *testing.T) {
 			"worktree host shell",
 			profile.Profile{Worktree: &profile.WorktreeConfig{}, Environment: profile.EnvironmentHost, Launch: profile.LaunchShell},
 			"worktree + host + shell",
-		},
-		{
-			"worktree container zellij",
-			profile.Profile{Worktree: &profile.WorktreeConfig{}, Environment: profile.EnvironmentContainer, Launch: profile.LaunchZellij},
-			"worktree + container + zellij",
 		},
 		{
 			"container claude with os",

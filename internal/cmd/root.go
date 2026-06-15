@@ -166,8 +166,7 @@ func Run(args []string) int {
 
 	// Warn about on-end limitations
 	if p.Worktree != nil && p.Worktree.OnEnd != "" &&
-		p.Environment == profile.EnvironmentHost &&
-		p.Launch != profile.LaunchZellij {
+		p.Environment == profile.EnvironmentHost {
 		fmt.Fprintf(os.Stderr, "Warning: on-end hook will not run with environment: host + launch: %s (process is replaced via exec)\n", p.Launch)
 	}
 

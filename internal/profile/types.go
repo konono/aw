@@ -49,7 +49,6 @@ type Profile struct {
 	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
 	Environment      Environment       `yaml:"environment"`
 	Launch           LaunchMode        `yaml:"launch"`
-	Zellij           *ZellijConfig     `yaml:"zellij,omitempty"`
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
@@ -221,12 +220,6 @@ func (w *WorktreeConfig) EffectiveBase() string {
 	return "origin/main"
 }
 
-// ZellijConfig controls zellij session settings.
-type ZellijConfig struct {
-	Layout string `yaml:"layout,omitempty"` // "default" or custom path (future)
-	Tool   string `yaml:"tool,omitempty"`   // AI tool to use: "claude" (default) or "codex"
-}
-
 // AuthConfig ties authentication behavior to a profile. It does not store
 // tokens or API keys; those remain in each tool's own credential store.
 type AuthConfig struct {
@@ -325,11 +318,9 @@ const (
 	LaunchClaude   LaunchMode = "claude"
 	LaunchCodex    LaunchMode = "codex"
 	LaunchOpenCode LaunchMode = "opencode"
-	LaunchZellij   LaunchMode = "zellij"
 )
 
-// EffectiveTool returns the AI tool name ("claude" or "codex") based on
-// the launch mode and, for zellij, the ZellijConfig.Tool override.
+// EffectiveTool returns the AI tool name based on the launch mode.
 func (p *Profile) EffectiveTool() string {
 	switch p.Launch {
 	case LaunchClaude:
@@ -338,11 +329,6 @@ func (p *Profile) EffectiveTool() string {
 		return "codex"
 	case LaunchOpenCode:
 		return "opencode"
-	case LaunchZellij:
-		if p.Zellij != nil && p.Zellij.Tool != "" {
-			return p.Zellij.Tool
-		}
-		return "claude"
 	default:
 		return ""
 	}

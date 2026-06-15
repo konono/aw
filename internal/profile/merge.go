@@ -6,7 +6,7 @@ import (
 
 // MergeProfile merges override into base.
 // Non-zero values in override take precedence over base.
-// Sub-structs (Worktree, Zellij) are merged field-by-field rather than replaced wholesale.
+// Sub-structs (Worktree) are merged field-by-field rather than replaced wholesale.
 func MergeProfile(base, override Profile) Profile {
 	merged := base
 
@@ -17,7 +17,6 @@ func MergeProfile(base, override Profile) Profile {
 		merged.Launch = override.Launch
 	}
 	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
-	merged.Zellij = mergeZellij(merged.Zellij, override.Zellij)
 	merged.Auth = mergeAuth(merged.Auth, override.Auth)
 	if override.Env != nil {
 		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
@@ -131,24 +130,6 @@ func mergeWorktree(base, override *WorktreeConfig) *WorktreeConfig {
 	return &merged
 }
 
-func mergeZellij(base, override *ZellijConfig) *ZellijConfig {
-	if override == nil {
-		return base
-	}
-	if base == nil {
-		v := *override
-		return &v
-	}
-	merged := *base
-	if override.Layout != "" {
-		merged.Layout = override.Layout
-	}
-	if override.Tool != "" {
-		merged.Tool = override.Tool
-	}
-	return &merged
-}
-
 // RelativeProfile returns the minimal profile override needed to reproduce
 // effective when merged on top of defaults.
 func RelativeProfile(defaults, effective Profile) Profile {
@@ -160,7 +141,6 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		relative.Launch = effective.Launch
 	}
 	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
-	relative.Zellij = relativeZellij(defaults.Zellij, effective.Zellij)
 	relative.Env = relativeEnv(defaults.Env, effective.Env)
 	if effective.OS != defaults.OS {
 		relative.OS = effective.OS
@@ -296,30 +276,6 @@ func relativeWorktree(defaults, effective *WorktreeConfig) *WorktreeConfig {
 	}
 	if effective.OnEnd != defaults.OnEnd {
 		relative.OnEnd = effective.OnEnd
-		changed = true
-	}
-	if !changed {
-		return nil
-	}
-	return &relative
-}
-
-func relativeZellij(defaults, effective *ZellijConfig) *ZellijConfig {
-	if effective == nil {
-		return nil
-	}
-	if defaults == nil {
-		v := *effective
-		return &v
-	}
-	relative := ZellijConfig{}
-	changed := false
-	if effective.Layout != defaults.Layout {
-		relative.Layout = effective.Layout
-		changed = true
-	}
-	if effective.Tool != defaults.Tool {
-		relative.Tool = effective.Tool
 		changed = true
 	}
 	if !changed {

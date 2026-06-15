@@ -7,7 +7,7 @@ import (
 )
 
 // requiredDeps are commands that must be present for --worktree to work.
-var requiredDeps = []string{"git", "zellij"}
+var requiredDeps = []string{"git"}
 
 // optionalDep describes an optional command with an install hint.
 type optionalDep struct {

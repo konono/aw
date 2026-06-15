@@ -90,22 +90,18 @@ func TestProfileOverride_FieldsTakeEffect(t *testing.T) {
 			base: Profile{
 				Worktree:    &WorktreeConfig{},
 				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default"},
+				Launch:      LaunchClaude,
 			},
 			override: Profile{},
 			check: func(t *testing.T, m Profile) {
 				if m.Environment != EnvironmentContainer {
 					t.Errorf("Environment = %q, want %q", m.Environment, EnvironmentContainer)
 				}
-				if m.Launch != LaunchZellij {
-					t.Errorf("Launch = %q, want %q", m.Launch, LaunchZellij)
+				if m.Launch != LaunchClaude {
+					t.Errorf("Launch = %q, want %q", m.Launch, LaunchClaude)
 				}
 				if m.Worktree == nil {
 					t.Fatal("Worktree should be preserved from base")
-				}
-				if m.Zellij == nil {
-					t.Fatal("Zellij should be preserved from base")
 				}
 			},
 		},
@@ -335,8 +331,7 @@ func TestProfileOverride_SubStructDeepMerge(t *testing.T) {
 			base: Profile{
 				Worktree:    &WorktreeConfig{Base: "origin/main"},
 				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default"},
+				Launch:      LaunchClaude,
 			},
 			override: Profile{
 				Worktree: &WorktreeConfig{Base: "origin/develop", OnCreate: "./setup.sh"},
@@ -358,8 +353,7 @@ func TestProfileOverride_SubStructDeepMerge(t *testing.T) {
 			base: Profile{
 				Worktree:    &WorktreeConfig{Base: "origin/main"},
 				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default"},
+				Launch:      LaunchClaude,
 			},
 			override: Profile{
 				Environment: EnvironmentHost,
@@ -387,65 +381,6 @@ func TestProfileOverride_SubStructDeepMerge(t *testing.T) {
 				}
 				if m.Worktree.Dir != "/override/wt" {
 					t.Errorf("Dir = %q, want %q (override)", m.Worktree.Dir, "/override/wt")
-				}
-			},
-		},
-		{
-			name: "AddZellij",
-			base: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-			},
-			override: Profile{
-				Zellij: &ZellijConfig{Layout: "custom"},
-			},
-			check: func(t *testing.T, m Profile) {
-				if m.Zellij == nil {
-					t.Fatal("Zellij should not be nil")
-				}
-				if m.Zellij.Layout != "custom" {
-					t.Errorf("Zellij.Layout = %q, want %q", m.Zellij.Layout, "custom")
-				}
-			},
-		},
-		{
-			name: "ZellijToolOverride",
-			base: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default", Tool: "claude"},
-			},
-			override: Profile{
-				Zellij: &ZellijConfig{Tool: "codex"},
-			},
-			check: func(t *testing.T, m Profile) {
-				if m.Zellij == nil {
-					t.Fatal("Zellij should not be nil")
-				}
-				if m.Zellij.Layout != "default" {
-					t.Errorf("Zellij.Layout = %q, want %q (preserved from base)", m.Zellij.Layout, "default")
-				}
-				if m.Zellij.Tool != "codex" {
-					t.Errorf("Zellij.Tool = %q, want %q (override)", m.Zellij.Tool, "codex")
-				}
-			},
-		},
-		{
-			name: "ZellijToolPreservedFromBase",
-			base: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
-			},
-			override: Profile{
-				Zellij: &ZellijConfig{Layout: "custom"},
-			},
-			check: func(t *testing.T, m Profile) {
-				if m.Zellij.Tool != "codex" {
-					t.Errorf("Zellij.Tool = %q, want %q (preserved from base)", m.Zellij.Tool, "codex")
-				}
-				if m.Zellij.Layout != "custom" {
-					t.Errorf("Zellij.Layout = %q, want %q (override)", m.Zellij.Layout, "custom")
 				}
 			},
 		},
@@ -1023,7 +958,6 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 		Environment:        EnvironmentContainer,
 		Launch:             LaunchClaude,
 		Worktree:           &WorktreeConfig{Base: "origin/main", Dir: "/base"},
-		Zellij:             &ZellijConfig{Layout: "default", Tool: "claude"},
 		Env:                map[string]string{"A": "1"},
 		OS:                 OSDebian12,
 		ContainerRuntime:   ContainerRuntimePodman,
@@ -1032,9 +966,8 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 		Mounts:             []CustomMount{{Source: "/src", Target: "/dst"}},
 	}
 	effective := MergeProfile(defaults, Profile{
-		Launch:             LaunchZellij,
+		Launch:             LaunchCodex,
 		Worktree:           &WorktreeConfig{Dir: "/override"},
-		Zellij:             &ZellijConfig{Tool: "codex"},
 		Env:                map[string]string{"B": "2"},
 		Dockerfile:         "Dockerfile.custom",
 		MountSSH:           boolPtr(false),
@@ -1053,9 +986,6 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	}
 	if roundTrip.Worktree == nil || effective.Worktree == nil || *roundTrip.Worktree != *effective.Worktree {
 		t.Errorf("Worktree = %+v, want %+v", roundTrip.Worktree, effective.Worktree)
-	}
-	if roundTrip.Zellij == nil || effective.Zellij == nil || *roundTrip.Zellij != *effective.Zellij {
-		t.Errorf("Zellij = %+v, want %+v", roundTrip.Zellij, effective.Zellij)
 	}
 	if len(roundTrip.Env) != len(effective.Env) || roundTrip.Env["A"] != effective.Env["A"] || roundTrip.Env["B"] != effective.Env["B"] {
 		t.Errorf("Env = %+v, want %+v", roundTrip.Env, effective.Env)
