@@ -22,7 +22,7 @@ var tools = map[string]ToolSpec{
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
-		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash",
+		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash && { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(which claude) $HOME/.local/bin/claude; }; }",
 		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
