@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/konono/aw/internal/doctor"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
 	"github.com/konono/aw/internal/update"
 	"github.com/konono/aw/internal/version"
@@ -16,6 +18,10 @@ import (
 
 // Run is the top-level entry point. Returns an exit code.
 func Run(args []string) int {
+	if len(args) > 0 && args[0] == "--internal-reaper" {
+		return reaper.Run()
+	}
+
 	if hasHelpFlag(args) {
 		printHelp()
 		return 0
@@ -177,6 +183,16 @@ func Run(args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: aw must not be run as root — the container user cannot match uid 0.\n")
 		fmt.Fprintf(os.Stderr, "Run as a regular user, or create one: useradd -m dev && su - dev\n")
 		return 1
+	}
+
+	// Generate container name early (before SSH tunnel setup)
+	if p.Environment == profile.EnvironmentContainer {
+		ec.ContainerName = fmt.Sprintf("aw-%s-%d", profileName, time.Now().Unix())
+
+		if err := reaper.CheckStaleContainer(p.EffectiveContainerRuntime(), ec.ContainerName); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
 	}
 
 	// Build pipeline stages

@@ -10,6 +10,7 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/toolinfo"
 )
 
@@ -53,7 +54,7 @@ func (l *ToolLauncher) launchHost(ec *pipeline.ExecutionContext) error {
 	return syscall.Exec(binPath, []string{spec.Binary}, os.Environ())
 }
 
-func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.ExecutionContext) error {
+func (l *ToolLauncher) launchContainer(_ context.Context, ec *pipeline.ExecutionContext) error {
 	if _, ok := toolinfo.Lookup(l.Tool); !ok {
 		return fmt.Errorf("unknown tool: %q", l.Tool)
 	}
@@ -69,6 +70,9 @@ func (l *ToolLauncher) launchContainer(ctx context.Context, ec *pipeline.Executi
 		}
 	}
 
+	spec := reaper.BuildSpec(ec)
 	runConfig := pipeline.ToolRunConfig(ec, runtime, l.Tool, command)
-	return client.Run(ctx, runConfig)
+	return client.ExecRun(ec.ContainerName, runConfig, func() (*os.File, error) {
+		return reaper.Spawn(spec)
+	})
 }

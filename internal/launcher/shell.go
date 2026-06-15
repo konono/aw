@@ -10,6 +10,7 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/reaper"
 )
 
 // ShellLauncher opens a shell in the workspace.
@@ -43,7 +44,7 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 	return syscall.Exec(shellPath, []string{shell}, env)
 }
 
-func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.ExecutionContext) error {
+func (l *ShellLauncher) launchDockerShell(_ context.Context, ec *pipeline.ExecutionContext) error {
 	runtime := ec.Profile.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
@@ -52,6 +53,9 @@ func (l *ShellLauncher) launchDockerShell(ctx context.Context, ec *pipeline.Exec
 		command = []string{"/bin/bash"}
 	}
 
+	spec := reaper.BuildSpec(ec)
 	runConfig := pipeline.ShellRunConfig(ec, runtime, command)
-	return client.Run(ctx, runConfig)
+	return client.ExecRun(ec.ContainerName, runConfig, func() (*os.File, error) {
+		return reaper.Spawn(spec)
+	})
 }

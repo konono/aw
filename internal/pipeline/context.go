@@ -21,6 +21,9 @@ type ExecutionContext struct {
 	WorktreeBase   string // base ref the worktree was created from (e.g. "origin/main")
 	RepoRoot       string // git repository root path
 
+	// Set before pipeline runs (container mode only)
+	ContainerName string
+
 	// Set by DockerStage (if applicable)
 	DockerImage        string
 	DockerMounts       []docker.Mount
@@ -33,6 +36,7 @@ type ExecutionContext struct {
 	// Set by DockerStage for SSH agent forwarding cleanup
 	SSHAgentReady   bool
 	SSHAgentCleanup func()
+	SSHForwardedAgent interface{} // *sshagent.ForwardedAgent (avoids import cycle)
 
 	// Set by DockerStage for container runtime socket mounting
 	ContainerSockReady bool

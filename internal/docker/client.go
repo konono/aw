@@ -240,6 +240,37 @@ func mountSuffix(m Mount) string {
 	return strings.Join(parts, ",")
 }
 
+// BuildExecRunArgs constructs docker CLI arguments for ExecRun.
+// Unlike BuildRunArgs, it omits --rm and includes --name.
+func BuildExecRunArgs(containerName string, config RunConfig) []string {
+	return buildRunArgs(config, runMode{interactive: true, initProcess: true, name: containerName})
+}
+
+// ExecRun replaces the current process with the container runtime via syscall.Exec.
+// This function does not return on success. Any deferred cleanup in the call stack
+// will NOT execute. Post-container tasks must be registered in ReaperSpec.Tasks.
+func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, error)) error {
+	args := BuildExecRunArgs(containerName, config)
+	binPath, err := exec.LookPath(c.dockerCmd())
+	if err != nil {
+		return fmt.Errorf("%s not found: %w", c.dockerCmd(), err)
+	}
+
+	writeFd, err := spawnReaper()
+	if err != nil {
+		return fmt.Errorf("reaper: %w", err)
+	}
+
+	// Clear O_CLOEXEC so the pipe write side is inherited by the container runtime
+	_, _, errno := syscall.RawSyscall(syscall.SYS_FCNTL, writeFd.Fd(), syscall.F_SETFD, 0)
+	if errno != 0 {
+		return fmt.Errorf("fcntl F_SETFD: %w", errno)
+	}
+
+	argv := append([]string{c.dockerCmd()}, args...)
+	return syscall.Exec(binPath, argv, os.Environ())
+}
+
 // Run runs a Docker container interactively with the given RunConfig.
 // SIGINT is forwarded to the child so Ctrl+C works as expected.
 // SIGTERM and SIGHUP are absorbed to prevent the wrapper from killing
