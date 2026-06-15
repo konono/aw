@@ -14,7 +14,7 @@ import (
 // CheckOrphanedReapers checks for spec files left by dead reapers and
 // recovers resource-management tasks automatically.
 func CheckOrphanedReapers(runtime string) {
-	specs, err := filepath.Glob(filepath.Join(reaperDir(), "*.spec.json"))
+	specs, err := filepath.Glob(filepath.Join(ReaperDir(), "*.spec.json"))
 	if err != nil || len(specs) == 0 {
 		return
 	}
@@ -47,8 +47,12 @@ func CheckOrphanedReapers(runtime string) {
 	}
 }
 
-// recoverReaper executes tasks from a spec file. If resourceOnly is true,
-// only kill_process and remove_file tasks are executed (not shell).
+// RecoverFromSpec executes all tasks from a spec file (including shell).
+// Used by `aw reaper recover` for manual full recovery.
+func RecoverFromSpec(specPath, containerName string) error {
+	return recoverReaper(specPath, containerName, false)
+}
+
 func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	data, err := os.ReadFile(specPath)
 	if err != nil {
@@ -59,9 +63,6 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 		return fmt.Errorf("parsing spec: %w", err)
 	}
 
-	// Wait for container to finish (no-op if already exited)
-	_ = exec.Command(spec.Runtime, "wait", containerName).Run()
-
 	timeout := 60 * time.Second
 	if spec.Timeout > 0 {
 		timeout = time.Duration(spec.Timeout) * time.Second
@@ -69,9 +70,14 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	// Wait for container to finish (no-op if already exited);
+	// use timeout context to avoid blocking indefinitely.
+	_ = exec.CommandContext(ctx, spec.Runtime, "wait", containerName).Run()
+
 	report := RunReport{
 		StartedAt:     time.Now(),
 		ContainerName: containerName,
+		Tasks:         make([]TaskResult, 0, len(spec.Tasks)),
 	}
 
 	diag := diagnoseContainer(spec.Runtime, containerName)
@@ -89,7 +95,13 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 			Label:    task.Label,
 			Duration: time.Since(start),
 		}
-		if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			result.Status = "timeout"
+			result.Error = "reaper timeout exceeded"
+			fmt.Fprintf(os.Stderr, "  ✗ %s (%s): timeout\n", task.Label, task.Type)
+			report.Tasks = append(report.Tasks, result)
+			break
+		} else if err != nil {
 			result.Status = "failed"
 			result.Error = err.Error()
 			fmt.Fprintf(os.Stderr, "  ✗ %s (%s): %v\n", task.Label, task.Type, err)
@@ -109,5 +121,15 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	report.FinishedAt = time.Now()
 	writeReport(report)
 	_ = os.Remove(specPath)
+
+	var failedTasks []string
+	for _, t := range report.Tasks {
+		if t.Status != "ok" {
+			failedTasks = append(failedTasks, t.Label)
+		}
+	}
+	if len(failedTasks) > 0 {
+		return fmt.Errorf("%d task(s) failed: %s", len(failedTasks), strings.Join(failedTasks, ", "))
+	}
 	return nil
 }

@@ -12,6 +12,7 @@ type ReaperSpec struct {
 	ContainerName string           `json:"container_name"`
 	Runtime       string           `json:"runtime"`
 	KeepContainer bool             `json:"keep_container"`
+	TTY           string           `json:"tty,omitempty"`
 	PodmanSSH     *PodmanSSHConfig `json:"podman_ssh,omitempty"`
 	Tasks         []ReaperTask     `json:"tasks"`
 }

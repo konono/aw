@@ -35,7 +35,7 @@ func (h *Handle) Abort() {
 		_ = h.Write.Close()
 	}
 	if h.containerName != "" {
-		specPath := filepath.Join(reaperDir(), h.containerName+".spec.json")
+		specPath := filepath.Join(ReaperDir(), h.containerName+".spec.json")
 		_ = os.Remove(specPath)
 	}
 }
@@ -53,7 +53,7 @@ func Spawn(spec ReaperSpec) (*Handle, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true, // separate from foreground process group
 	}
-	if logFile, err := os.OpenFile(filepath.Join(reaperDir(), "reaper.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+	if logFile, err := os.OpenFile(filepath.Join(ReaperDir(), "reaper.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 		cmd.Stderr = logFile
 	}
 

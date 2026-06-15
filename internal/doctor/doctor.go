@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 
 	"github.com/konono/aw/internal/docker"
@@ -469,8 +468,7 @@ func checkReaper(res *result) {
 	fmt.Println()
 	fmt.Println("Reaper")
 
-	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, ".config", "aw", "reaper")
+	dir := reaper.ReaperDir()
 
 	// Check for orphan spec files
 	specs, _ := filepath.Glob(filepath.Join(dir, "*.spec.json"))
@@ -483,20 +481,13 @@ func checkReaper(res *result) {
 		return
 	}
 
-	// Check latest report (exclude *.spec.json)
-	allJSON, _ := filepath.Glob(filepath.Join(dir, "*.json"))
-	var reports []string
-	for _, f := range allJSON {
-		if !strings.HasSuffix(f, ".spec.json") {
-			reports = append(reports, f)
-		}
-	}
+	// Check latest report
+	reports := reaper.ListReports()
 	if len(reports) == 0 {
 		res.pass("no issues (no reports)")
 		return
 	}
 
-	sort.Strings(reports)
 	latest := reports[len(reports)-1]
 	data, err := os.ReadFile(latest)
 	if err != nil {

@@ -242,6 +242,25 @@ profiles:
 - `AW_PROFILE_NAME`
 - `AW_ENVIRONMENT`
 
+### `reaper`（任意）
+
+コンテナ終了後の後処理（reaper）の動作を制御します。`environment: container` の場合のみ有効です。
+
+サポートされるフィールド:
+
+- `timeout` — reaper のタスク実行タイムアウト（秒）。デフォルト `60`
+- `keep-container` — `true` の場合、コンテナ終了後も削除せず保持（デバッグ用）。デフォルト `false`
+
+```yaml
+profiles:
+  debug-claude:
+    environment: container
+    launch: claude
+    reaper:
+      timeout: 120
+      keep-container: true
+```
+
 ### `auth`（任意）
 
 プロファイルに対する `aw auth ...` の動作と、起動時の認証状態チェック（任意）を制御します。

@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -93,8 +95,20 @@ func Run() int {
 	report.FinishedAt = time.Now()
 	writeReport(report)
 
-	// Remove spec file on successful completion
-	if specPath != "" {
+	// Check for task failures
+	var failedTasks []string
+	for _, t := range report.Tasks {
+		if t.Status != "ok" {
+			failedTasks = append(failedTasks, t.Label)
+		}
+	}
+
+	if len(failedTasks) > 0 {
+		// Keep spec so `aw reaper recover` can retry
+		notifyUser(spec, fmt.Sprintf("task failure (%s) in session %s",
+			strings.Join(failedTasks, ", "), spec.ContainerName))
+	} else if specPath != "" {
+		// All tasks succeeded — remove spec
 		if err := os.Remove(specPath); err != nil && !os.IsNotExist(err) {
 			log.Printf("reaper: removing spec: %v", err)
 		}
@@ -103,13 +117,26 @@ func Run() int {
 	return 0
 }
 
-func reaperDir() string {
+func ReaperDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "aw", "reaper")
 }
 
+// ListReports returns sorted report file paths, excluding spec files.
+func ListReports() []string {
+	all, _ := filepath.Glob(filepath.Join(ReaperDir(), "*.json"))
+	var reports []string
+	for _, f := range all {
+		if !strings.HasSuffix(f, ".spec.json") {
+			reports = append(reports, f)
+		}
+	}
+	sort.Strings(reports)
+	return reports
+}
+
 func saveSpec(spec ReaperSpec) string {
-	dir := reaperDir()
+	dir := ReaperDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("reaper: creating spec dir: %v", err)
 		return ""
@@ -128,7 +155,7 @@ func saveSpec(spec ReaperSpec) string {
 }
 
 func writeReport(report RunReport) {
-	dir := reaperDir()
+	dir := ReaperDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("reaper: creating report dir: %v", err)
 		return
@@ -142,5 +169,16 @@ func writeReport(report RunReport) {
 	}
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		log.Printf("reaper: writing report: %v", err)
+	}
+	rotateReports(10)
+}
+
+func rotateReports(keep int) {
+	reports := ListReports()
+	if len(reports) <= keep {
+		return
+	}
+	for _, r := range reports[:len(reports)-keep] {
+		_ = os.Remove(r)
 	}
 }

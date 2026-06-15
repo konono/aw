@@ -8,10 +8,21 @@ import (
 
 // BuildSpec constructs a ReaperSpec from the current execution context.
 func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
+	timeout := 60
+	keepContainer := false
+	if ec.Profile.Reaper != nil {
+		if ec.Profile.Reaper.Timeout > 0 {
+			timeout = ec.Profile.Reaper.Timeout
+		}
+		keepContainer = ec.Profile.Reaper.KeepContainer
+	}
+
 	spec := ReaperSpec{
-		Timeout:       60,
+		Timeout:       timeout,
 		ContainerName: ec.ContainerName,
 		Runtime:       ec.Profile.EffectiveContainerRuntime(),
+		KeepContainer: keepContainer,
+		TTY:           DetectTTY(),
 	}
 
 	// SSH tunnel cleanup (macOS + Podman only)
