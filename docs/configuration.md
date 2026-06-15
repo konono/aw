@@ -532,6 +532,9 @@ aw init
 25. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
 26. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
 27. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+28. `reaper` は `environment: container` の場合のみ有効
+29. `reaper.timeout` は 0〜3600 の範囲であること
+30. `reaper.report-retention` は 0〜100 の範囲であること
 
 ## コンテナに同期されるホスト設定
 

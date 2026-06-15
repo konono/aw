@@ -10,29 +10,29 @@
 aw export dev --snapshot -o image.tar
 ```
 
-1. **イメージビルド** — Dockerfile でベースイメージを作成（Nix, devbox, mise の基盤のみ）
+1. **イメージビルド** — Dockerfile でベースイメージを作成（mise の基盤のみ。`package_manager: devbox` の場合は Nix + devbox も含む）
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`
 3. **tar 出力** — `docker save` でイメージを tar に書き出す
 
 ## イメージビルド（Dockerfile）
 
-`internal/image/embed/Dockerfile.debian12` がベースイメージを定義しています。
+`internal/image/embed/Dockerfile.debian12.tmpl` がベースイメージを定義しています（`package_manager: apt` の場合）。
 
 ```
 debian:bookworm-slim
   ├── apt: git, curl, ca-certificates, wget, openssh-client, sudo, xz-utils
   ├── user: agent (sudo NOPASSWD for all UIDs)
-  ├── Nix: single-user mode (/nix owned by agent)
-  ├── devbox: /usr/local/bin/devbox
+  ├── AI ツール: curl ベースの install script でインストール（claude, codex 等）
   ├── ENV:
   │   ├── HOME=/home/agent
   │   ├── BASH_ENV=/home/agent/.aw_env.sh    ← 非インタラクティブシェルで自動読み込み
-  │   └── PATH に .nix-profile/bin, .local/bin を追加
-  ├── ~/.config/aw/devbox.json のパッケージをインストール（ビルド時）
+  │   └── PATH に .local/bin を追加
   ├── ~/.config/aw/mise.toml のツールをインストール（ビルド時）
   ├── ENTRYPOINT ["/entrypoint.sh"]
   └── WORKDIR /workspace
 ```
+
+> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。`~/.config/aw/devbox.json` のパッケージもビルド時にインストールされます。
 
 この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは entrypoint.sh 実行時（通常起動）または snapshot スクリプト実行時（export 時）です。
 
@@ -51,18 +51,18 @@ debian:bookworm-slim
 
 ### なぜワークスペースをコピーするか
 
-`devbox install` と `mise install` はカレントディレクトリに中間生成物を書き込みます:
+`mise install`（および `package_manager: devbox` の場合は `devbox install`）はカレントディレクトリに中間生成物を書き込みます:
 
-- devbox: `.devbox/gen/shell.nix`, `.devbox/virtenv/` など
 - mise: `.mise/` ディレクトリ
+- devbox（devbox モード時）: `.devbox/gen/shell.nix`, `.devbox/virtenv/` など
 
 `/workspace` は ro マウントなので、これらの書き込みが失敗します。そのため snapshot スクリプトは以下の手順を踏みます:
 
 ```bash
 WORK="/tmp/aw-snapshot-work"
 cp -a "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
-cd "$WORK" && devbox install     # こちらで実行
 cd "$WORK" && mise install       # こちらで実行
+cd "$WORK" && devbox install     # devbox モード時のみ
 rm -rf "$WORK"                   # commit 前にクリーンアップ
 ```
 
@@ -129,12 +129,13 @@ entrypoint.sh
   │   （ツールは snapshot で焼き込み済み）
   │
   ├── .aw_env.sh を新規生成 ← snapshot が書いたものを上書き
-  │   ├── Nix の PATH 設定
-  │   ├── devbox global shellenv → 焼き込み済みパッケージの PATH
-  │   ├── devbox shellenv (HOST_WORKSPACE) → プロジェクト devbox の PATH
   │   ├── mise shims の PATH
   │   ├── MISE_TRUSTED_CONFIG_PATHS=HOST_WORKSPACE
-  │   └── DOCKER_HOST（DooD 用）
+  │   ├── DOCKER_HOST（DooD 用）
+  │   └── devbox モード時のみ:
+  │       ├── Nix の PATH 設定
+  │       ├── devbox global shellenv → 焼き込み済みパッケージの PATH
+  │       └── devbox shellenv (HOST_WORKSPACE) → プロジェクト devbox の PATH
   │
   ├── .bashrc を新規生成（.aw_env.sh を source）
   ├── .bash_profile を新規生成（.bashrc を source）
@@ -165,8 +166,8 @@ entrypoint.sh が上書きするため、実行時のパスは常に正しい `H
 
 | 内容 | 焼き込み（snapshot） | 起動時（entrypoint） |
 |------|---------------------|---------------------|
-| devbox パッケージ（/nix/store） | install 済み | skip_devbox_install で省略 |
 | mise ツール（/home/agent/.local/share/mise） | install 済み | skip_mise_install で省略 |
+| devbox パッケージ（/nix/store）※devbox モード時 | install 済み | skip_devbox_install で省略 |
 | mise グローバル config | コピー済み | 変更なし |
 | .aw_env.sh | 生成される | **上書きされる** |
 | .bashrc / .bash_profile | 生成される | **上書きされる** |
