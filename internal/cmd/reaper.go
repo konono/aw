@@ -23,6 +23,8 @@ func runReaperCommand(args []string) int {
 		return reaperList()
 	case "clear":
 		return reaperClear()
+	case "dump":
+		return reaperDump(args[1:])
 	case "recover":
 		if len(args) < 2 {
 			fmt.Fprintf(os.Stderr, "Usage: aw reaper recover <container-name>\n")
@@ -119,6 +121,9 @@ func reaperShow(args []string) int {
 			fmt.Println(line)
 		}
 	}
+	if report.DumpPath != "" {
+		fmt.Printf("  Dump:       %s\n", report.DumpPath)
+	}
 	fmt.Printf("  Report:     %s\n", reportPath)
 
 	if report.ContainerDiag != nil {
@@ -164,6 +169,7 @@ func reaperClear() int {
 	for _, r := range reports {
 		_ = os.Remove(r)
 	}
+	reaper.ClearDumps()
 	fmt.Printf("Cleared %d report(s).\n", len(reports))
 	return 0
 }
@@ -193,13 +199,66 @@ func reaperDiscard(containerName string) int {
 	return 0
 }
 
+func reaperDump(args []string) int {
+	dir := reaper.ReaperDir()
+	var reportPath string
+
+	if len(args) > 0 {
+		arg := args[0]
+		if filepath.IsAbs(arg) {
+			return reaper.ShowDump(arg)
+		} else if strings.HasSuffix(arg, ".json") {
+			reportPath = filepath.Join(dir, arg)
+		} else {
+			reports := reaper.ListReports()
+			for i := len(reports) - 1; i >= 0; i-- {
+				if strings.Contains(filepath.Base(reports[i]), arg) {
+					reportPath = reports[i]
+					break
+				}
+			}
+			if reportPath == "" {
+				fmt.Fprintf(os.Stderr, "No report matching %q\n", arg)
+				return 1
+			}
+		}
+	} else {
+		reports := reaper.ListReports()
+		if len(reports) == 0 {
+			fmt.Println("No reaper reports found.")
+			return 0
+		}
+		reportPath = reports[len(reports)-1]
+	}
+
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	var report reaper.RunReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing report: %v\n", err)
+		return 1
+	}
+
+	if report.DumpPath == "" {
+		fmt.Println("No dump collected for this session.")
+		return 0
+	}
+
+	return reaper.ShowDump(report.DumpPath)
+}
+
 func reaperHelp() {
 	fmt.Println("Usage: aw reaper <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  show [file]      Show report details (default: latest)")
 	fmt.Println("  list             List recent reports")
-	fmt.Println("  clear            Delete all reports")
+	fmt.Println("  dump [file]      Show diagnostic dump (logs, inspect, dmesg)")
+	fmt.Println("  clear            Delete all reports and dumps")
 	fmt.Println("  recover <name>   Re-run pending tasks (skips already-succeeded)")
 	fmt.Println("  discard <name>   Discard spec and abandon recovery")
 }

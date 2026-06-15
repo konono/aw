@@ -8,14 +8,15 @@ import (
 // ReaperSpec describes the post-container tasks to execute.
 // It is serialized as a single JSON line over the pipe from aw to the reaper.
 type ReaperSpec struct {
-	Timeout       int              `json:"timeout"`
-	ContainerName string           `json:"container_name"`
-	Runtime       string           `json:"runtime"`
+	Timeout         int              `json:"timeout"`
+	ContainerName   string           `json:"container_name"`
+	Runtime         string           `json:"runtime"`
 	KeepContainer   bool             `json:"keep_container"`
 	TTY             string           `json:"tty,omitempty"`
 	ReportRetention int              `json:"report_retention,omitempty"`
+	CollectLogs     string           `json:"collect_logs,omitempty"`
 	PodmanSSH       *PodmanSSHConfig `json:"podman_ssh,omitempty"`
-	Tasks         []ReaperTask     `json:"tasks"`
+	Tasks           []ReaperTask     `json:"tasks"`
 }
 
 // PodmanSSHConfig holds SSH connection info for macOS Podman VM operations.
@@ -58,6 +59,7 @@ type RunReport struct {
 	ContainerName string         `json:"container_name"`
 	ExitCode      int            `json:"exit_code"`
 	ContainerDiag *ContainerDiag `json:"container_diag,omitempty"`
+	DumpPath      string         `json:"dump_path,omitempty"`
 	ContainerKept bool           `json:"container_kept"`
 	Tasks         []TaskResult   `json:"tasks"`
 }

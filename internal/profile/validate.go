@@ -170,6 +170,11 @@ func validateReaper(reaper *ReaperProfileConfig, env Environment) error {
 	if reaper.ReportRetention > maxReaperReportRetention {
 		return fmt.Errorf("reaper.report-retention must be <= %d", maxReaperReportRetention)
 	}
+	switch reaper.CollectLogs {
+	case "", "always", "on_failure", "never":
+	default:
+		return fmt.Errorf("reaper.collect-logs must be one of: always, on_failure, never")
+	}
 	return nil
 }
 
