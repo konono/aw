@@ -28,7 +28,7 @@ func CheckOrphanedReapers(runtime string) {
 		switch {
 		case err != nil:
 			// Container does not exist → stale spec, clean up
-			os.Remove(specPath)
+			_ = os.Remove(specPath)
 
 		case strings.TrimSpace(string(out)) == "true":
 			// Container still running → possibly another session
@@ -108,6 +108,6 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 
 	report.FinishedAt = time.Now()
 	writeReport(report)
-	os.Remove(specPath)
+	_ = os.Remove(specPath)
 	return nil
 }
