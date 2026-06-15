@@ -57,8 +57,10 @@ func Run() int {
 		Tasks:         make([]TaskResult, 0, len(spec.Tasks)),
 	}
 
-	// Inspect container exit code
-	report.ExitCode = inspectWithRetry(spec.Runtime, spec.ContainerName, 3)
+	// Diagnose container exit state
+	diag := diagnoseContainer(spec.Runtime, spec.ContainerName)
+	report.ExitCode = diag.ExitCode
+	report.ContainerDiag = diag
 
 	// Execute tasks
 	for _, task := range spec.Tasks {
