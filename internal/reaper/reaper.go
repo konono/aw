@@ -122,6 +122,22 @@ func ReaperDir() string {
 	return filepath.Join(home, ".config", "aw", "reaper")
 }
 
+// RuntimeFromSpec reads a spec file and returns the runtime field.
+// Falls back to "podman" if the file cannot be read or parsed.
+func RuntimeFromSpec(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "podman"
+	}
+	var spec struct {
+		Runtime string `json:"runtime"`
+	}
+	if err := json.Unmarshal(data, &spec); err != nil || spec.Runtime == "" {
+		return "podman"
+	}
+	return spec.Runtime
+}
+
 // ListReports returns sorted report file paths, excluding spec files.
 func ListReports() []string {
 	all, _ := filepath.Glob(filepath.Join(ReaperDir(), "*.json"))
