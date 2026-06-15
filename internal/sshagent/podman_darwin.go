@@ -12,19 +12,17 @@ import (
 	"syscall"
 )
 
-type podmanSSHConfig struct {
-	IdentityPath   string
-	Port           int
-	RemoteUsername string
-}
+// podmanSSHConfig is an alias for the exported PodmanSSHConfig in this package.
+type podmanSSHConfig = PodmanSSHConfig
 
-func setupPodmanDarwin(hostAuthSock string) (*ForwardedAgent, error) {
+func setupPodmanDarwin(hostAuthSock, containerName string) (*ForwardedAgent, error) {
 	sshCfg, err := podmanMachineSSHConfig()
 	if err != nil {
 		return nil, fmt.Errorf("reading podman machine SSH config: %w", err)
 	}
 
-	pid, err := startSSHTunnel(sshCfg, hostAuthSock)
+	socketPath := VMSocketPath(containerName)
+	pid, err := startSSHTunnel(sshCfg, hostAuthSock, socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("starting SSH tunnel: %w", err)
 	}
@@ -34,12 +32,14 @@ func setupPodmanDarwin(hostAuthSock string) (*ForwardedAgent, error) {
 			_ = p.Signal(syscall.SIGTERM)
 			_, _ = p.Wait()
 		}
-		podmanMachineExec(sshCfg, "rm", "-f", VMSocketPath)
+		podmanMachineExec(sshCfg, "rm", "-f", socketPath)
 	}
 
 	return &ForwardedAgent{
-		SocketPath: VMSocketPath,
+		SocketPath: socketPath,
 		Cleanup:    cleanup,
+		SSHTunnelPID: pid,
+		SSHConfig:    sshCfg,
 	}, nil
 }
 
@@ -71,10 +71,10 @@ func podmanMachineSSHConfig() (*podmanSSHConfig, error) {
 	}, nil
 }
 
-func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock string) (int, error) {
-	podmanMachineExec(cfg, "rm", "-f", VMSocketPath)
+func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock, socketPath string) (int, error) {
+	podmanMachineExec(cfg, "rm", "-f", socketPath)
 
-	remoteForward := fmt.Sprintf("%s:%s", VMSocketPath, hostAuthSock)
+	remoteForward := fmt.Sprintf("%s:%s", socketPath, hostAuthSock)
 	cmd := exec.Command("ssh",
 		"-f", "-N",
 		"-o", "StrictHostKeyChecking=no",
@@ -93,9 +93,9 @@ func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock string) (int, error) {
 		return 0, fmt.Errorf("ssh -R: %w", err)
 	}
 
-	podmanMachineExec(cfg, "chmod", "666", VMSocketPath)
+	podmanMachineExec(cfg, "chmod", "666", socketPath)
 
-	pid, err := findSSHTunnelPID(remoteForward)
+	pid, err := findSSHTunnelPID(socketPath)
 	if err != nil {
 		return 0, err
 	}
@@ -103,10 +103,10 @@ func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock string) (int, error) {
 	return pid, nil
 }
 
-func findSSHTunnelPID(remoteForward string) (int, error) {
-	out, err := exec.Command("pgrep", "-f", "ssh.*"+VMSocketPath).Output()
+func findSSHTunnelPID(socketPath string) (int, error) {
+	out, err := exec.Command("pgrep", "-f", "ssh.*"+socketPath).Output()
 	if err != nil {
-		return 0, fmt.Errorf("finding SSH tunnel process: %w (forward=%s)", err, remoteForward)
+		return 0, fmt.Errorf("finding SSH tunnel process: %w (socket=%s)", err, socketPath)
 	}
 	lines := strings.Fields(strings.TrimSpace(string(out)))
 	if len(lines) == 0 {

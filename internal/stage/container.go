@@ -110,13 +110,14 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
 	sshAuthSock := ""
 	if sshAgentFwd && !ec.Profile.EffectiveMountSSH() {
-		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime())
+		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: ssh_agent_forwarding: %v\n", err)
 		} else {
 			sshAuthSock = agent.SocketPath
 			ec.SSHAgentReady = true
 			ec.SSHAgentCleanup = agent.Cleanup
+			ec.SSHReaperInfo = agent
 		}
 	}
 
