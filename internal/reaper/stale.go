@@ -29,7 +29,7 @@ func CheckStaleContainer(runtime, containerName string) error {
 // CheckStaleContainers warns about any stopped aw-* containers on disk.
 func CheckStaleContainers(runtime string) {
 	out, err := exec.Command(runtime, "ps", "-a",
-		"--filter", "name=^aw-",
+		"--filter", "name=^aw-.*-[0-9]+$",
 		"--filter", "status=exited",
 		"--format", "{{.Names}} {{.Status}}").Output()
 	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
@@ -37,6 +37,6 @@ func CheckStaleContainers(runtime string) {
 	}
 	fmt.Fprintf(os.Stderr, "[reaper] stale containers found:\n")
 	fmt.Fprintf(os.Stderr, "%s", out)
-	fmt.Fprintf(os.Stderr, "  remove: %s rm $(%s ps -a --filter name=^aw- --filter status=exited -q)\n", runtime, runtime)
+	fmt.Fprintf(os.Stderr, "  remove: %s rm $(%s ps -a --filter name=^aw-.*-[0-9]+$ --filter status=exited -q)\n", runtime, runtime)
 	fmt.Fprintf(os.Stderr, "  inspect: %s logs <container-name>\n", runtime)
 }

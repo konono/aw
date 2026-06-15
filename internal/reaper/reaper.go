@@ -10,8 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -103,25 +101,6 @@ func Run() int {
 	}
 
 	return 0
-}
-
-func inspectWithRetry(runtime, name string, maxRetries int) int {
-	for i := 0; i < maxRetries; i++ {
-		out, err := exec.Command(runtime, "inspect", name,
-			"--format", "{{.State.ExitCode}}").Output()
-		if err == nil {
-			code, _ := strconv.Atoi(strings.TrimSpace(string(out)))
-			return code
-		}
-		if i < maxRetries-1 {
-			delay := 500 * time.Millisecond
-			if i > 0 {
-				delay = 2 * time.Second
-			}
-			time.Sleep(delay)
-		}
-	}
-	return -1
 }
 
 func reaperDir() string {

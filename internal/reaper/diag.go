@@ -30,9 +30,11 @@ func diagnoseContainer(runtime, name string) *ContainerDiag {
 	}
 
 	// exit 137 + no cgroup OOM → check for VM-level OOM
+	// Only scan recent kernel messages (tail -200) to avoid false positives
+	// from old OOM events in the VM's dmesg history.
 	if diag.ExitCode == 137 && !diag.OOMKilled && runtime == "podman" {
 		out, err := exec.Command("podman", "machine", "ssh",
-			"dmesg | grep -ci 'oom\\|killed process'").Output()
+			"dmesg | tail -200 | grep -ci 'oom\\|killed process'").Output()
 		if err == nil && strings.TrimSpace(string(out)) != "0" {
 			diag.VMOOMHint = true
 		}

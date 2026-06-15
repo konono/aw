@@ -483,8 +483,14 @@ func checkReaper(res *result) {
 		return
 	}
 
-	// Check latest report
-	reports, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	// Check latest report (exclude *.spec.json)
+	allJSON, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	var reports []string
+	for _, f := range allJSON {
+		if !strings.HasSuffix(f, ".spec.json") {
+			reports = append(reports, f)
+		}
+	}
 	if len(reports) == 0 {
 		res.pass("no issues (no reports)")
 		return
