@@ -24,12 +24,6 @@ profiles:
     environment: host
     launch: shell
 
-  worktree-zellij:
-    worktree: {}
-    environment: container
-    launch: zellij
-    zellij:
-      layout: default
 `
 
 	cfg, err := Parse([]byte(yaml))
@@ -41,8 +35,8 @@ profiles:
 		t.Errorf("Default = %q, want %q", cfg.Default, "container-claude")
 	}
 
-	if len(cfg.Profiles) != 3 {
-		t.Fatalf("got %d profiles, want 3", len(cfg.Profiles))
+	if len(cfg.Profiles) != 2 {
+		t.Fatalf("got %d profiles, want 2", len(cfg.Profiles))
 	}
 
 	// Check container-claude profile
@@ -72,20 +66,6 @@ profiles:
 		t.Errorf("worktree-shell.Launch = %q, want %q", ws.Launch, LaunchShell)
 	}
 
-	// Check worktree-zellij profile
-	wz := cfg.Profiles["worktree-zellij"]
-	if wz.Worktree == nil {
-		t.Fatal("worktree-zellij.Worktree should not be nil")
-	}
-	if wz.Launch != LaunchZellij {
-		t.Errorf("worktree-zellij.Launch = %q, want %q", wz.Launch, LaunchZellij)
-	}
-	if wz.Zellij == nil {
-		t.Fatal("worktree-zellij.Zellij should not be nil")
-	}
-	if wz.Zellij.Layout != "default" {
-		t.Errorf("worktree-zellij.Zellij.Layout = %q, want %q", wz.Zellij.Layout, "default")
-	}
 }
 
 func TestParse_EmptyProfiles(t *testing.T) {
@@ -140,12 +120,6 @@ profiles:
   codex:
     environment: container
     launch: codex
-  zellij-codex:
-    environment: container
-    launch: zellij
-    zellij:
-      layout: default
-      tool: codex
 `
 	cfg, err := Parse([]byte(yaml))
 	if err != nil {
@@ -155,17 +129,6 @@ profiles:
 	codex := cfg.Profiles["codex"]
 	if codex.Launch != LaunchCodex {
 		t.Errorf("codex.Launch = %q, want %q", codex.Launch, LaunchCodex)
-	}
-
-	zc := cfg.Profiles["zellij-codex"]
-	if zc.Launch != LaunchZellij {
-		t.Errorf("zellij-codex.Launch = %q, want %q", zc.Launch, LaunchZellij)
-	}
-	if zc.Zellij == nil {
-		t.Fatal("zellij-codex.Zellij should not be nil")
-	}
-	if zc.Zellij.Tool != "codex" {
-		t.Errorf("zellij-codex.Zellij.Tool = %q, want %q", zc.Zellij.Tool, "codex")
 	}
 }
 

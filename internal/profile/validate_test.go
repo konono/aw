@@ -27,15 +27,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "valid docker + zellij with config",
-			profile: Profile{
-				Worktree:    &WorktreeConfig{},
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default"},
-			},
-		},
-		{
 			name: "valid docker + codex",
 			profile: Profile{
 				Environment: EnvironmentContainer,
@@ -48,23 +39,6 @@ func TestValidate(t *testing.T) {
 				Environment: EnvironmentHost,
 				Launch:      LaunchCodex,
 			},
-		},
-		{
-			name: "valid zellij with tool codex",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default", Tool: "codex"},
-			},
-		},
-		{
-			name: "invalid zellij tool",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchZellij,
-				Zellij:      &ZellijConfig{Layout: "default", Tool: "gemini"},
-			},
-			wantErr: "unknown zellij tool",
 		},
 		{
 			name: "missing environment",
@@ -95,15 +69,6 @@ func TestValidate(t *testing.T) {
 				Launch:      "tmux",
 			},
 			wantErr: "unknown launch mode",
-		},
-		{
-			name: "zellij config with non-zellij launch",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Zellij:      &ZellijConfig{Layout: "default"},
-			},
-			wantErr: "zellij config is only valid with launch: zellij",
 		},
 		{
 			name: "valid docker with custom dockerfile",

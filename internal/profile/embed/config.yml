@@ -29,7 +29,7 @@ ssh_agent_forwarding: false   # forward SSH agent socket (default: false, prefer
 
 profiles:
   shell:
-    launch: shell             # "shell", "claude", "codex", "opencode", "zellij"
+    launch: shell             # "shell", "claude", "codex", "opencode"
 
   claude:
     launch: claude
@@ -60,7 +60,7 @@ profiles:
   #
   # custom:
   #   environment: container
-  #   launch: zellij
+  #   launch: claude
   #   os: ubuntu2604
   #   container_runtime: podman
   #   dockerfile: docker/Dockerfile.custom   # use either os, dockerfile, or image
@@ -119,11 +119,6 @@ profiles:
   #     dir: ~/worktrees/my-project
   #     on-create: ./scripts/setup.sh
   #     on-end: ./scripts/cleanup.sh
-  #
-  #   # ── Zellij settings ───────────────────────────────────────────
-  #   zellij:
-  #     layout: default
-  #     tool: claude                  # "claude", "codex", "opencode"
   #
   #   # ── Export settings (aw export) ───────────────────────────────
   #   # export:

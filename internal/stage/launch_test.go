@@ -36,7 +36,6 @@ func TestLaunchStage_Run(t *testing.T) {
 	}{
 		{"shell launcher", profile.LaunchShell, ""},
 		{"claude launcher", profile.LaunchClaude, ""},
-		{"zellij launcher", profile.LaunchZellij, ""},
 		{"unknown launcher", profile.LaunchMode("unknown"), "unknown launch mode"},
 	}
 

@@ -27,7 +27,6 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 | [Go](https://go.dev/dl/) 1.23+ | ✓ | `go install` によるインストール |
 | [Docker](https://docs.docker.com/get-docker/) または [Podman](https://podman.io/docs/installation) | ✓ | コンテナの実行（デフォルトは Podman） |
 | `git` | — | `worktree` 機能を使う場合 |
-| `zellij` | — | `launch: zellij` を使う場合 |
 
 ## クイックスタート
 
@@ -351,11 +350,9 @@ profiles:
     auth:
       on_launch:
         check: warn
-  worktree-zellij:
+  worktree-claude:
     worktree: {}
-    launch: zellij
-    zellij:
-      tool: claude
+    launch: claude
 ```
 
 全オプションの詳細は [docs/configuration.md](docs/configuration.md) を参照してください。
@@ -374,18 +371,16 @@ profiles:
     launch: claude
 ```
 
-ターミナルを複数開いて `aw worktree-claude` を実行すれば、それぞれ独立した worktree + コンテナで並列作業もできます。zellij と組み合わせてマルチペインにすることも可能です:
+ターミナルを複数開いて `aw worktree-claude` を実行すれば、それぞれ独立した worktree + コンテナで並列作業もできます:
 
 ```yaml
 profiles:
-  worktree-zellij:
+  worktree-claude:
     worktree:
       base: origin/main
       on-create: "./scripts/setup.sh"
     environment: container
-    launch: zellij
-    zellij:
-      tool: claude
+    launch: claude
 ```
 
 ### Vertex AI で Claude を使う

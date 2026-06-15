@@ -67,26 +67,6 @@ func TestProfile_EffectiveTool(t *testing.T) {
 			profile: Profile{Launch: LaunchShell},
 			want:    "",
 		},
-		{
-			name:    "launch zellij defaults to claude",
-			profile: Profile{Launch: LaunchZellij, Zellij: &ZellijConfig{Layout: "default"}},
-			want:    "claude",
-		},
-		{
-			name:    "launch zellij with tool codex",
-			profile: Profile{Launch: LaunchZellij, Zellij: &ZellijConfig{Layout: "default", Tool: "codex"}},
-			want:    "codex",
-		},
-		{
-			name:    "launch zellij with tool claude",
-			profile: Profile{Launch: LaunchZellij, Zellij: &ZellijConfig{Layout: "default", Tool: "claude"}},
-			want:    "claude",
-		},
-		{
-			name:    "launch zellij nil config defaults to claude",
-			profile: Profile{Launch: LaunchZellij},
-			want:    "claude",
-		},
 	}
 
 	for _, tt := range tests {
