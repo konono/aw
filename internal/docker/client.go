@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"os/exec"
-	"os/signal"
 	"slices"
 	"strings"
 	"syscall"
@@ -43,7 +42,6 @@ type Client interface {
 	Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string) error
 	ImageExists(ctx context.Context, imageName string) (bool, error)
 	Save(ctx context.Context, imageName, outputPath string) error
-	Run(ctx context.Context, config RunConfig) error
 	RunOneShot(ctx context.Context, config RunConfig) (containerID string, err error)
 	Commit(ctx context.Context, containerID, imageName string, changes []string) error
 	RemoveContainer(ctx context.Context, containerID string) error
@@ -260,6 +258,9 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	if err != nil {
 		return fmt.Errorf("reaper: %w", err)
 	}
+	// abort runs only when fcntl or syscall.Exec fails. On success the process is
+	// replaced and this defer is never reached. Handle owns the reaper PID (Spawn
+	// does not call cmd.Wait; Abort reaps via os.Process.Wait).
 	if abort != nil {
 		defer abort()
 	}
@@ -275,37 +276,6 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 		return err
 	}
 	return nil
-}
-
-// Run runs a Docker container interactively with the given RunConfig.
-// SIGINT is forwarded to the child so Ctrl+C works as expected.
-// SIGTERM and SIGHUP are absorbed to prevent the wrapper from killing
-// the container when the terminal closes or the wrapper is signalled.
-func (c *ShellClient) Run(ctx context.Context, config RunConfig) error {
-	args := BuildRunArgs(config)
-	cmd := exec.CommandContext(ctx, c.dockerCmd(), args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
-	go func() {
-		for sig := range sigCh {
-			if sig == syscall.SIGINT {
-				_ = cmd.Process.Signal(sig)
-			}
-		}
-	}()
-
-	err := cmd.Wait()
-	signal.Stop(sigCh)
-	close(sigCh)
-	return err
 }
 
 // RunOneShot runs a container non-interactively and returns the container name.

@@ -112,7 +112,11 @@ func inspectWithRetry(runtime, name string, maxRetries int) int {
 			return code
 		}
 		if i < maxRetries-1 {
-			time.Sleep(time.Duration(i+1) * 2 * time.Second)
+			delay := 500 * time.Millisecond
+			if i > 0 {
+				delay = 2 * time.Second
+			}
+			time.Sleep(delay)
 		}
 	}
 	return -1
@@ -149,7 +153,7 @@ func writeReport(report RunReport) {
 		return
 	}
 	ts := report.StartedAt.Format("2006-01-02T15-04-05")
-	path := filepath.Join(dir, fmt.Sprintf("%s.json", ts))
+	path := filepath.Join(dir, fmt.Sprintf("%s-%s.json", ts, report.ContainerName))
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		log.Printf("reaper: marshaling report: %v", err)

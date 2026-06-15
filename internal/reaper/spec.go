@@ -2,6 +2,7 @@ package reaper
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/sshagent"
@@ -45,6 +46,8 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 					Config: rmCfg,
 				})
 			}
+		} else {
+			log.Printf("reaper: SSHForwardedAgent has unexpected type %T", ec.SSHForwardedAgent)
 		}
 	}
 

@@ -185,9 +185,10 @@ func Run(args []string) int {
 		return 1
 	}
 
-	// Generate container name early (before SSH tunnel setup)
+	// Generate container name early (before SSH tunnel setup).
+	// Nanosecond suffix avoids collisions when the same profile starts twice in one second.
 	if p.Environment == profile.EnvironmentContainer {
-		ec.ContainerName = fmt.Sprintf("aw-%s-%d", profileName, time.Now().Unix())
+		ec.ContainerName = fmt.Sprintf("aw-%s-%d", profileName, time.Now().UnixNano())
 
 		if err := reaper.CheckStaleContainer(p.EffectiveContainerRuntime(), ec.ContainerName); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

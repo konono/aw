@@ -19,6 +19,8 @@ type Handle struct {
 
 // Abort kills the reaper subprocess and closes the pipe without waiting for
 // container cleanup. Used when syscall.Exec fails after Spawn.
+// Spawn transfers ownership of cmd.Process to Handle; Start() is called but
+// cmd.Wait() is only invoked here via os.Process.Wait.
 func (h *Handle) Abort() {
 	if h == nil {
 		return
@@ -51,8 +53,9 @@ func Spawn(spec ReaperSpec) (*Handle, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true, // separate from foreground process group
 	}
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	if logFile, err := os.OpenFile(filepath.Join(reaperDir(), "reaper.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		cmd.Stderr = logFile
+	}
 
 	if err := cmd.Start(); err != nil {
 		_ = r.Close()
