@@ -102,7 +102,7 @@ Codex は `~/.codex/` の一部を `~/.agent-workspace/codex/` にコピーし�
 | `~/.agent-workspace/claude/` | Claude 設定の stage |
 | `~/.agent-workspace/codex/` | Codex 設定と認証状態の stage |
 | `~/.agent-workspace/opencode/` | OpenCode 設定とデータの stage |
-| `~/.cache/agent-workspace/` | 環境キャッシュ（zellij レイアウト等） |
+| `~/.cache/agent-workspace/` | 環境キャッシュ |
 
 ## 同期されないもの
 

@@ -61,7 +61,6 @@
 
 - `env` はキーごとにマージ（後の値が優先）
 - `worktree` はフィールドごとにマージ
-- `zellij` はフィールドごとにマージ
 - `mounts` は指定時に全体を置換
 - `mount_gh` は明示的な三値動作:
   - 省略: 継承
@@ -111,7 +110,7 @@ profiles:
 ## フルの例
 
 ```yaml
-default: worktree-zellij
+default: claude
 
 environment: container
 container_runtime: podman
@@ -141,12 +140,9 @@ profiles:
     environment: host
     launch: shell
 
-  worktree-zellij:
+  worktree-claude:
     worktree: {}
-    launch: zellij
-    zellij:
-      layout: default
-      tool: codex
+    launch: claude
 
   ubi10-shell:
     launch: shell
@@ -202,7 +198,6 @@ profiles:
 - `dockerfile`
 - `container_user`
 - `worktree`
-- `zellij`
 
 ### `profiles`
 
@@ -225,7 +220,6 @@ profiles:
 - `claude`
 - `codex`
 - `opencode`
-- `zellij`
 
 ### `worktree`（任意）
 
@@ -247,15 +241,6 @@ profiles:
 - `AW_REPO_ROOT`
 - `AW_PROFILE_NAME`
 - `AW_ENVIRONMENT`
-
-### `zellij`（任意）
-
-`launch: zellij` の場合のみ有効です。
-
-サポートされるフィールド:
-
-- `layout` — デフォルト `default`
-- `tool` — `claude`、`codex`、または `opencode` のいずれか
 
 ### `auth`（任意）
 
@@ -502,32 +487,30 @@ aw init
 1. 少なくとも1つのプロファイルが存在すること
 2. `default` が設定されている場合、既存のプロファイルを指していること
 3. `environment` は必須で `host` または `container` であること
-4. `launch` は必須で `shell`、`claude`、`codex`、`opencode`、`zellij` のいずれかであること
-5. `zellij` は `launch: zellij` の場合のみ有効
-6. `zellij.tool` は `claude`、`codex`、`opencode` のいずれかであること
-7. `os` はサポートされている組み込みテンプレートのいずれかであること
-8. `os` は `environment: container` の場合のみ有効
-9. `dockerfile` は `environment: container` の場合のみ有効
-10. `image` は `environment: container` の場合のみ有効
-11. `os`、`dockerfile`、`image` は排他的（同時に1つのみ指定可能）
-12. `container_runtime` は `docker` または `podman` であること
-13. `package_manager` は `apt` または `devbox` であること
-14. `package_manager` は `environment: container` の場合のみ有効
-15. `skip_devbox_install` は `environment: container` の場合のみ有効
-16. `skip_mise_install` は `environment: container` の場合のみ有効
-17. `mounts` は `environment: container` の場合のみ有効
-18. すべてのマウントに `source` と `target` の両方が必要
-19. `container_user` は `environment: container` の場合のみ有効
-20. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
-21. `gh_token` は `environment: container` の場合のみ有効
-22. `mount_gh` と `gh_token` は排他的
-23. `mount_container_sock` は `environment: container` の場合のみ有効
-24. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
-25. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
-26. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
-27. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
-28. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
-29. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+4. `launch` は必須で `shell`、`claude`、`codex`、`opencode` のいずれかであること
+5. `os` はサポートされている組み込みテンプレートのいずれかであること
+6. `os` は `environment: container` の場合のみ有効
+7. `dockerfile` は `environment: container` の場合のみ有効
+8. `image` は `environment: container` の場合のみ有効
+9. `os`、`dockerfile`、`image` は排他的（同時に1つのみ指定可能）
+10. `container_runtime` は `docker` または `podman` であること
+11. `package_manager` は `apt` または `devbox` であること
+12. `package_manager` は `environment: container` の場合のみ有効
+13. `skip_devbox_install` は `environment: container` の場合のみ有効
+14. `skip_mise_install` は `environment: container` の場合のみ有効
+15. `mounts` は `environment: container` の場合のみ有効
+16. すべてのマウントに `source` と `target` の両方が必要
+17. `container_user` は `environment: container` の場合のみ有効
+18. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+19. `gh_token` は `environment: container` の場合のみ有効
+20. `mount_gh` と `gh_token` は排他的
+21. `mount_container_sock` は `environment: container` の場合のみ有効
+22. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+23. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+24. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+25. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+26. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+27. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
 
 ## コンテナに同期されるホスト設定
 
