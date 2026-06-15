@@ -117,7 +117,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 			sshAuthSock = agent.SocketPath
 			ec.SSHAgentReady = true
 			ec.SSHAgentCleanup = agent.Cleanup
-			ec.SSHForwardedAgent = agent
+			ec.SSHReaperInfo = agent
 		}
 	}
 

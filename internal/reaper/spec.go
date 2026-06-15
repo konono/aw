@@ -2,10 +2,8 @@ package reaper
 
 import (
 	"encoding/json"
-	"log"
 
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/sshagent"
 )
 
 // BuildSpec constructs a ReaperSpec from the current execution context.
@@ -17,37 +15,33 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 	}
 
 	// SSH tunnel cleanup (macOS + Podman only)
-	if ec.SSHForwardedAgent != nil {
-		if agent, ok := ec.SSHForwardedAgent.(*sshagent.ForwardedAgent); ok {
-			if agent.SSHTunnelPID > 0 {
-				cfg, _ := json.Marshal(KillProcessConfig{
-					PID:    agent.SSHTunnelPID,
-					Signal: 15, // SIGTERM
-				})
-				spec.Tasks = append(spec.Tasks, ReaperTask{
-					Type:   "kill_process",
-					Label:  "ssh-tunnel",
-					Config: cfg,
-				})
+	if ec.SSHReaperInfo != nil {
+		if pid := ec.SSHReaperInfo.ReaperTunnelPID(); pid > 0 {
+			cfg, _ := json.Marshal(KillProcessConfig{
+				PID:    pid,
+				Signal: 15, // SIGTERM
+			})
+			spec.Tasks = append(spec.Tasks, ReaperTask{
+				Type:   "kill_process",
+				Label:  "ssh-tunnel",
+				Config: cfg,
+			})
+		}
+		if sshCfg := ec.SSHReaperInfo.ReaperPodmanSSH(); sshCfg != nil {
+			spec.PodmanSSH = &PodmanSSHConfig{
+				IdentityPath:   sshCfg.IdentityPath,
+				Port:           sshCfg.Port,
+				RemoteUsername: sshCfg.RemoteUsername,
 			}
-			if agent.SSHConfig != nil {
-				spec.PodmanSSH = &PodmanSSHConfig{
-					IdentityPath:   agent.SSHConfig.IdentityPath,
-					Port:           agent.SSHConfig.Port,
-					RemoteUsername: agent.SSHConfig.RemoteUsername,
-				}
-				rmCfg, _ := json.Marshal(RemoveFileConfig{
-					Path: agent.SocketPath,
-					Host: "podman-vm",
-				})
-				spec.Tasks = append(spec.Tasks, ReaperTask{
-					Type:   "remove_file",
-					Label:  "vm-socket",
-					Config: rmCfg,
-				})
-			}
-		} else {
-			log.Printf("reaper: SSHForwardedAgent has unexpected type %T", ec.SSHForwardedAgent)
+			rmCfg, _ := json.Marshal(RemoveFileConfig{
+				Path: ec.SSHReaperInfo.ReaperSocketPath(),
+				Host: "podman-vm",
+			})
+			spec.Tasks = append(spec.Tasks, ReaperTask{
+				Type:   "remove_file",
+				Label:  "vm-socket",
+				Config: rmCfg,
+			})
 		}
 	}
 
