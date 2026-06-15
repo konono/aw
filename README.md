@@ -175,7 +175,7 @@ mount_container_sock: true    # docker-compose up/down
 
 ### 何が残り、何が消えるか
 
-コンテナは `--rm` で起動されるため毎回破棄されますが、以下のデータは保持されます:
+コンテナは毎回破棄されますが（終了後に reaper が自動削除）、以下のデータは保持されます:
 
 | データ | 永続化 | 保存先 |
 |--------|--------|--------|
@@ -299,7 +299,7 @@ aw init                        # スターター設定を書き出す
 aw export <profile> [options]   # イメージをビルドして tar 出力
 aw default-dockerfile          # デフォルト Dockerfile を出力
 aw doctor                      # 環境・設定の診断
-aw reaper [show|list|recover]  # コンテナ終了後の cleanup レポート確認・復旧
+aw reaper [show|list|clear|recover|discard]  # コンテナ終了後の cleanup レポート確認・復旧
 aw update                      # セルフアップデート
 aw --version                   # バージョン表示
 ```
