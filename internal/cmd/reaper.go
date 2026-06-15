@@ -90,7 +90,11 @@ func reaperShow(args []string) int {
 		fmt.Printf("  Tasks:\n")
 		for _, t := range report.Tasks {
 			icon := "✓"
-			if t.Status != "ok" {
+			switch t.Status {
+			case "ok":
+			case "skipped":
+				icon = "-"
+			default:
 				icon = "✗"
 			}
 			line := fmt.Sprintf("    %s %s (%s)  %s", icon, t.Label, t.Type, t.Duration)
@@ -181,6 +185,6 @@ func reaperHelp() {
 	fmt.Println("  show [file]      Show report details (default: latest)")
 	fmt.Println("  list             List recent reports")
 	fmt.Println("  clear            Delete all reports")
-	fmt.Println("  recover <name>   Recover a dead reaper and run pending tasks")
+	fmt.Println("  recover <name>   Re-run pending tasks (skips already-succeeded)")
 	fmt.Println("  discard <name>   Discard spec and abandon recovery")
 }

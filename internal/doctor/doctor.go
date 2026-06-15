@@ -1,7 +1,6 @@
 package doctor
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -481,36 +480,42 @@ func checkReaper(res *result) {
 		return
 	}
 
-	// Check latest report
+	// Check recent reports for abnormal exits
 	reports := reaper.ListReports()
 	if len(reports) == 0 {
 		res.pass("no issues (no reports)")
 		return
 	}
 
-	latest := reports[len(reports)-1]
-	data, err := os.ReadFile(latest)
-	if err != nil {
-		res.pass("no issues")
-		return
+	start := 0
+	if len(reports) > reaper.DoctorReportLookback {
+		start = len(reports) - reaper.DoctorReportLookback
 	}
 
-	var report reaper.RunReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		res.pass("no issues")
-		return
-	}
-
-	if report.ExitCode == 0 {
-		res.pass("no issues")
-	} else {
-		summary := fmt.Sprintf("exit %d", report.ExitCode)
-		if report.ContainerDiag != nil && report.ContainerDiag.Summary != "" {
-			summary = report.ContainerDiag.Summary
+	var abnormal int
+	var latestSummary string
+	for _, path := range reports[start:] {
+		report, err := reaper.ReadReport(path)
+		if err != nil {
+			continue
 		}
-		res.fail(fmt.Sprintf("previous session exited abnormally (%s)", summary))
-		res.detail("→ aw reaper show")
+		if report.ExitCode == 0 {
+			continue
+		}
+		abnormal++
+		latestSummary = fmt.Sprintf("exit %d", report.ExitCode)
+		if report.ContainerDiag != nil && report.ContainerDiag.Summary != "" {
+			latestSummary = report.ContainerDiag.Summary
+		}
 	}
+
+	if abnormal == 0 {
+		res.pass("no issues")
+		return
+	}
+
+	res.fail(fmt.Sprintf("%d recent session(s) exited abnormally (latest: %s)", abnormal, latestSummary))
+	res.detail("→ aw reaper show")
 }
 
 func printSystemInfo() {

@@ -248,8 +248,9 @@ profiles:
 
 サポートされるフィールド:
 
-- `timeout` — reaper のタスク実行タイムアウト（秒）。デフォルト `60`
+- `timeout` — reaper のタスク実行タイムアウト（秒）。デフォルト `60`、最大 `3600`
 - `keep-container` — `true` の場合、コンテナ終了後も削除せず保持（デバッグ用）。デフォルト `false`
+- `report-retention` — 保持するレポート件数。デフォルト `10`、最大 `100`
 
 ```yaml
 profiles:
@@ -259,6 +260,7 @@ profiles:
     reaper:
       timeout: 120
       keep-container: true
+      report-retention: 20
 ```
 
 ### `auth`（任意）

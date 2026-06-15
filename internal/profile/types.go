@@ -71,8 +71,9 @@ type Profile struct {
 
 // ReaperProfileConfig controls reaper behavior per-profile.
 type ReaperProfileConfig struct {
-	Timeout       int  `yaml:"timeout,omitempty"`
-	KeepContainer bool `yaml:"keep-container,omitempty"`
+	Timeout          int  `yaml:"timeout,omitempty"`
+	KeepContainer    bool `yaml:"keep-container,omitempty"`
+	ReportRetention  int  `yaml:"report-retention,omitempty"`
 }
 
 // ProfileDefaults describes top-level defaults shared by all profiles.

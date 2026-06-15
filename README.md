@@ -298,6 +298,8 @@ aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
 aw export <profile> [options]   # イメージをビルドして tar 出力
 aw default-dockerfile          # デフォルト Dockerfile を出力
+aw doctor                      # 環境・設定の診断
+aw reaper [show|list|recover]  # コンテナ終了後の cleanup レポート確認・復旧
 aw update                      # セルフアップデート
 aw --version                   # バージョン表示
 ```

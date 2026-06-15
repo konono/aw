@@ -44,7 +44,7 @@ func Run() int {
 	_, _ = io.Copy(io.Discard, reader)
 	_ = pipe.Close()
 
-	timeout := 60 * time.Second
+	timeout := time.Duration(DefaultReaperTimeout) * time.Second
 	if spec.Timeout > 0 {
 		timeout = time.Duration(spec.Timeout) * time.Second
 	}
@@ -93,7 +93,7 @@ func Run() int {
 	}
 
 	report.FinishedAt = time.Now()
-	writeReport(report)
+	writeReport(report, spec.ReportRetention)
 
 	// Check for task failures
 	var failedTasks []string
@@ -142,7 +142,9 @@ func saveSpec(spec ReaperSpec) string {
 		return ""
 	}
 	path := filepath.Join(dir, spec.ContainerName+".spec.json")
-	data, err := json.Marshal(spec)
+	saved := spec
+	saved.TTY = ""
+	data, err := json.Marshal(saved)
 	if err != nil {
 		log.Printf("reaper: marshaling spec: %v", err)
 		return ""
@@ -154,7 +156,7 @@ func saveSpec(spec ReaperSpec) string {
 	return path
 }
 
-func writeReport(report RunReport) {
+func writeReport(report RunReport, retention int) {
 	dir := ReaperDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("reaper: creating report dir: %v", err)
@@ -170,7 +172,7 @@ func writeReport(report RunReport) {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		log.Printf("reaper: writing report: %v", err)
 	}
-	rotateReports(10)
+	rotateReports(effectiveReportRetention(retention))
 }
 
 func rotateReports(keep int) {

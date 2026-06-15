@@ -27,8 +27,13 @@ func CheckOrphanedReapers(runtime string) {
 
 		switch {
 		case err != nil:
-			// Container does not exist → stale spec, clean up
-			_ = os.Remove(specPath)
+			// Container gone — still run resource cleanup from spec
+			fmt.Fprintf(os.Stderr, "[reaper] recovering cleanup for removed container: %s\n", name)
+			if recErr := recoverReaper(specPath, name, true); recErr != nil {
+				fmt.Fprintf(os.Stderr, "[reaper] recovery failed: %v\n", recErr)
+				fmt.Fprintf(os.Stderr, "  manual recover: aw reaper recover %s\n", name)
+				fmt.Fprintf(os.Stderr, "  discard: aw reaper discard %s\n", name)
+			}
 
 		case strings.TrimSpace(string(out)) == "true":
 			// Container still running → possibly another session
@@ -47,7 +52,8 @@ func CheckOrphanedReapers(runtime string) {
 	}
 }
 
-// RecoverFromSpec executes all tasks from a spec file (including shell).
+// RecoverFromSpec executes pending tasks from a spec file (including shell).
+// Tasks that already succeeded in the latest report are skipped.
 // Used by `aw reaper recover` for manual full recovery.
 func RecoverFromSpec(specPath, containerName string) error {
 	return recoverReaper(specPath, containerName, false)
@@ -63,7 +69,7 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 		return fmt.Errorf("parsing spec: %w", err)
 	}
 
-	timeout := 60 * time.Second
+	timeout := time.Duration(DefaultReaperTimeout) * time.Second
 	if spec.Timeout > 0 {
 		timeout = time.Duration(spec.Timeout) * time.Second
 	}
@@ -84,8 +90,19 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	report.ExitCode = diag.ExitCode
 	report.ContainerDiag = diag
 
+	succeeded := succeededTaskKeys(containerName)
+
 	for _, task := range spec.Tasks {
 		if resourceOnly && task.Type == "shell" {
+			continue
+		}
+		if succeeded != nil && succeeded[taskKey(task)] {
+			report.Tasks = append(report.Tasks, TaskResult{
+				Type:   task.Type,
+				Label:  task.Label,
+				Status: "skipped",
+			})
+			fmt.Fprintf(os.Stderr, "  - %s (%s): skipped (already succeeded)\n", task.Label, task.Type)
 			continue
 		}
 		start := time.Now()
@@ -119,17 +136,19 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	}
 
 	report.FinishedAt = time.Now()
-	writeReport(report)
-	_ = os.Remove(specPath)
+	writeReport(report, spec.ReportRetention)
 
 	var failedTasks []string
 	for _, t := range report.Tasks {
-		if t.Status != "ok" {
+		if t.Status != "ok" && t.Status != "skipped" {
 			failedTasks = append(failedTasks, t.Label)
 		}
 	}
 	if len(failedTasks) > 0 {
 		return fmt.Errorf("%d task(s) failed: %s", len(failedTasks), strings.Join(failedTasks, ", "))
+	}
+	if err := os.Remove(specPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing spec: %w", err)
 	}
 	return nil
 }
