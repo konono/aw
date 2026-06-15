@@ -95,7 +95,9 @@ func Run() int {
 
 	// Remove spec file on successful completion
 	if specPath != "" {
-		os.Remove(specPath)
+		if err := os.Remove(specPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("reaper: removing spec: %v", err)
+		}
 	}
 
 	return 0
@@ -123,18 +125,37 @@ func reaperDir() string {
 
 func saveSpec(spec ReaperSpec) string {
 	dir := reaperDir()
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Printf("reaper: creating spec dir: %v", err)
+		return ""
+	}
 	path := filepath.Join(dir, spec.ContainerName+".spec.json")
-	data, _ := json.Marshal(spec)
-	os.WriteFile(path, data, 0600)
+	data, err := json.Marshal(spec)
+	if err != nil {
+		log.Printf("reaper: marshaling spec: %v", err)
+		return ""
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		log.Printf("reaper: writing spec: %v", err)
+		return ""
+	}
 	return path
 }
 
 func writeReport(report RunReport) {
 	dir := reaperDir()
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Printf("reaper: creating report dir: %v", err)
+		return
+	}
 	ts := report.StartedAt.Format("2006-01-02T15-04-05")
 	path := filepath.Join(dir, fmt.Sprintf("%s.json", ts))
-	data, _ := json.MarshalIndent(report, "", "  ")
-	os.WriteFile(path, data, 0644)
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		log.Printf("reaper: marshaling report: %v", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("reaper: writing report: %v", err)
+	}
 }

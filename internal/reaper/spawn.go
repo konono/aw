@@ -5,13 +5,42 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
+// Handle holds the pipe write side passed to the container runtime after exec.
+// If exec fails, call Abort to stop the reaper without running post-container tasks.
+type Handle struct {
+	Write         *os.File
+	pid           int
+	containerName string
+}
+
+// Abort kills the reaper subprocess and closes the pipe without waiting for
+// container cleanup. Used when syscall.Exec fails after Spawn.
+func (h *Handle) Abort() {
+	if h == nil {
+		return
+	}
+	if h.pid > 0 {
+		if p, err := os.FindProcess(h.pid); err == nil {
+			_ = p.Kill()
+			_, _ = p.Wait()
+		}
+	}
+	if h.Write != nil {
+		_ = h.Write.Close()
+	}
+	if h.containerName != "" {
+		specPath := filepath.Join(reaperDir(), h.containerName+".spec.json")
+		_ = os.Remove(specPath)
+	}
+}
+
 // Spawn starts a reaper subprocess and writes the spec over a pipe.
-// It returns the write side of the pipe, which must have O_CLOEXEC cleared
-// so that the subsequent syscall.Exec inherits it to the container runtime.
-func Spawn(spec ReaperSpec) (*os.File, error) {
+// The caller must clear O_CLOEXEC on Handle.Write before syscall.Exec.
+func Spawn(spec ReaperSpec) (*Handle, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, fmt.Errorf("creating pipe: %w", err)
@@ -26,16 +55,20 @@ func Spawn(spec ReaperSpec) (*os.File, error) {
 	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
-		r.Close()
-		w.Close()
+		_ = r.Close()
+		_ = w.Close()
 		return nil, fmt.Errorf("starting reaper: %w", err)
 	}
-	r.Close()
+	_ = r.Close()
 
 	if err := json.NewEncoder(w).Encode(spec); err != nil {
-		w.Close()
+		_ = w.Close()
 		return nil, fmt.Errorf("writing spec: %w", err)
 	}
 
-	return w, nil
+	return &Handle{
+		Write:         w,
+		pid:           cmd.Process.Pid,
+		containerName: spec.ContainerName,
+	}, nil
 }

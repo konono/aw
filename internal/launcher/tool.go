@@ -72,7 +72,11 @@ func (l *ToolLauncher) launchContainer(_ context.Context, ec *pipeline.Execution
 
 	spec := reaper.BuildSpec(ec)
 	runConfig := pipeline.ToolRunConfig(ec, runtime, l.Tool, command)
-	return client.ExecRun(ec.ContainerName, runConfig, func() (*os.File, error) {
-		return reaper.Spawn(spec)
+	return client.ExecRun(ec.ContainerName, runConfig, func() (*os.File, func(), error) {
+		handle, err := reaper.Spawn(spec)
+		if err != nil {
+			return nil, nil, err
+		}
+		return handle.Write, handle.Abort, nil
 	})
 }

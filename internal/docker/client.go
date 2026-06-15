@@ -249,16 +249,19 @@ func BuildExecRunArgs(containerName string, config RunConfig) []string {
 // ExecRun replaces the current process with the container runtime via syscall.Exec.
 // This function does not return on success. Any deferred cleanup in the call stack
 // will NOT execute. Post-container tasks must be registered in ReaperSpec.Tasks.
-func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, error)) error {
+func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
 	args := BuildExecRunArgs(containerName, config)
 	binPath, err := exec.LookPath(c.dockerCmd())
 	if err != nil {
 		return fmt.Errorf("%s not found: %w", c.dockerCmd(), err)
 	}
 
-	writeFd, err := spawnReaper()
+	writeFd, abort, err := spawnReaper()
 	if err != nil {
 		return fmt.Errorf("reaper: %w", err)
+	}
+	if abort != nil {
+		defer abort()
 	}
 
 	// Clear O_CLOEXEC so the pipe write side is inherited by the container runtime
@@ -268,7 +271,10 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	}
 
 	argv := append([]string{c.dockerCmd()}, args...)
-	return syscall.Exec(binPath, argv, os.Environ())
+	if err := syscall.Exec(binPath, argv, os.Environ()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Run runs a Docker container interactively with the given RunConfig.
