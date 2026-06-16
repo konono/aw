@@ -335,7 +335,12 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 
 	// Get exit code before closing the pipe — once the reaper fires it may
 	// remove the container before we can inspect it.
-	exitCode := c.getContainerExitCode(containerName)
+	// Only query when the container has actually stopped; a running container's
+	// State.ExitCode is 0 (default) which would mask the abnormal exit.
+	exitCode := 1
+	if !c.isContainerRunning(containerName) {
+		exitCode = c.getContainerExitCode(containerName)
+	}
 
 	// Close pipe to signal the reaper. If the container already exited, the
 	// reaper proceeds to cleanup immediately. If still running (TTY lost),
