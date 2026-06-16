@@ -33,7 +33,10 @@ func authContainerEnv(ec *ExecutionContext) containerenv.Config {
 // Unlike ShellRunConfig/ToolRunConfig, auth omits SSH agent, gh token, skip flags,
 // and security/capability options to match pre-refactor behavior.
 func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []string) docker.RunConfig {
-	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, authContainerEnv(ec))
+	cenv := authContainerEnv(ec)
+	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, cenv)
+	envVars["AW_USER"] = cenv.User
+	envVars["AW_HOME"] = cenv.Home
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 	return docker.RunConfig{
 		ImageName: ec.DockerImage,

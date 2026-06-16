@@ -22,9 +22,6 @@ var dockerfileUBI10Tmpl string
 //go:embed embed/Dockerfile.ubuntu2604.tmpl
 var dockerfileUbuntu2604Tmpl string
 
-//go:embed embed/entrypoint.sh.tmpl
-var entrypointShTmpl string
-
 //go:embed embed/Dockerfile.debian12.devbox.tmpl
 var dockerfileDebian12DevboxTmpl string
 
@@ -37,8 +34,14 @@ var dockerfileUBI10DevboxTmpl string
 //go:embed embed/Dockerfile.ubuntu2604.devbox.tmpl
 var dockerfileUbuntu2604DevboxTmpl string
 
-//go:embed embed/entrypoint.sh.devbox.tmpl
-var entrypointShDevboxTmpl string
+//go:embed embed/entrypoint.sh
+var entrypointSh []byte
+
+//go:embed embed/entrypoint.sh.devbox
+var entrypointShDevbox []byte
+
+//go:embed embed/aw-init.sh
+var awInitSh []byte
 
 var dockerfileTmpls = map[profile.OSTemplate]string{
 	profile.OSDebian12:   dockerfileDebian12Tmpl,
@@ -66,12 +69,17 @@ func RenderDockerfile(os profile.OSTemplate, pkgMgr profile.PackageManager, cenv
 	return renderTemplate("Dockerfile", tmplStr, cenv)
 }
 
-func RenderEntrypoint(pkgMgr profile.PackageManager, cenv containerenv.Config) ([]byte, error) {
-	tmpl := entrypointShTmpl
+// Entrypoint returns the static entrypoint script for the given package manager.
+func Entrypoint(pkgMgr profile.PackageManager) []byte {
 	if pkgMgr == profile.PackageManagerDevbox {
-		tmpl = entrypointShDevboxTmpl
+		return entrypointShDevbox
 	}
-	return renderTemplate("entrypoint.sh", tmpl, cenv)
+	return entrypointSh
+}
+
+// InitScript returns the embedded aw-init.sh content.
+func InitScript() []byte {
+	return awInitSh
 }
 
 func DefaultDockerfile() []byte {

@@ -10,6 +10,9 @@ import (
 func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, ec.ContainerEnv)
 
+	envVars["AW_USER"] = ec.ContainerEnv.User
+	envVars["AW_HOME"] = ec.ContainerEnv.Home
+
 	if ec.SSHAgentReady {
 		envVars["SSH_AUTH_SOCK"] = mount.SSHAgentContainerPath
 	}

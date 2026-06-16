@@ -22,7 +22,10 @@ import (
 	"github.com/konono/aw/internal/toolinfo"
 )
 
-const defaultImageName = "aw-container"
+const (
+	defaultImageName        = "aw-container"
+	initScriptContainerPath = "/aw-init.sh"
+)
 
 // DockerStage builds the Docker image, creates volumes, syncs config, and builds mounts.
 type DockerStage struct {
@@ -76,6 +79,15 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 	tool := ec.Profile.EffectiveTool()
 	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
+
+	initScriptPath := filepath.Join(stageDir, "aw-init.sh")
+	if err := os.MkdirAll(stageDir, 0755); err != nil {
+		return fmt.Errorf("creating stage dir: %w", err)
+	}
+	if err := os.WriteFile(initScriptPath, image.InitScript(), 0755); err != nil {
+		return fmt.Errorf("writing aw-init.sh: %w", err)
+	}
+
 	toolStageDir := ""
 	toolContainerDir := ""
 
@@ -96,7 +108,13 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		}
 	}
 
-	var extraMounts []docker.Mount
+	extraMounts := []docker.Mount{
+		{
+			Source:   initScriptPath,
+			Target:   initScriptContainerPath,
+			ReadOnly: true,
+		},
+	}
 	for _, m := range ec.Profile.Mounts {
 		source := pathutil.ExpandTilde(m.Source, ec.HomeDir)
 		extraMounts = append(extraMounts, docker.Mount{

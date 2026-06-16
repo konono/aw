@@ -12,6 +12,55 @@ profiles:
     dockerfile: playwright-docker/Dockerfile  # git ルートからの相対パス
 ```
 
+## aw-init.sh — 共通初期化スクリプト
+
+aw はコンテナ起動時に `/aw-init.sh` を自動的にマウントします。このスクリプトをカスタム entrypoint で `source` するだけで、aw のランタイムセットアップが全て行われます:
+
+- UID マッピング（`/etc/passwd` 動的注入）
+- SSH 鍵のコピーとパーミッション修正
+- Git credential helper のセットアップ
+- ツール設定のシンボリンク
+- シェル環境（`.aw_env.sh`, `.bashrc`, `.bash_profile`）の生成
+
+### カスタム entrypoint のテンプレート
+
+```bash
+#!/bin/bash
+set -e
+
+# aw の共通セットアップ（SSH, git, UID修正 等）
+. /aw-init.sh
+
+# ここに独自のセットアップ処理を記述
+# 例: npm install, Playwright ブラウザインストール 等
+
+# 最後に aw_exec で起動（HOME/BASH_ENV を正しく設定して exec）
+aw_exec "$@"
+```
+
+### aw-init.sh が提供する環境変数と関数
+
+| 名前 | 種別 | 説明 |
+|------|------|------|
+| `$AW_HOME` | 変数 | コンテナユーザーのホームディレクトリ |
+| `$AW_USER` | 変数 | コンテナユーザー名 |
+| `$AW_WORKSPACE` | 変数 | ワークスペースパス |
+| `aw_log` | 関数 | `[aw:entrypoint]` プレフィックス付きログ出力 |
+| `run_as_user` | 関数 | コンテナユーザーとしてコマンド実行 |
+| `aw_exec` | 関数 | 正しい環境でコマンドを exec |
+
+## Dockerfile の最小要件
+
+カスタム Dockerfile には以下の2行が必要です:
+
+```dockerfile
+RUN useradd -m -s /bin/bash agent && \
+    echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+```
+
+- **ユーザー作成**: ホームディレクトリ付きのユーザーを作成
+- **sudoers**: aw は `--user UID:0` でコンテナを実行するため、UID ベースの sudo が必要
+
 ## 例: Playwright 対応コンテナ
 
 このリポジトリには `playwright-docker/` ディレクトリに実例があります:
@@ -32,19 +81,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       git curl ca-certificates wget openssh-client sudo \
       # Playwright browser dependencies
-      libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
-      libdbus-1-3 libx11-6 libxcomposite1 libxdamage1 libxext6 \
-      libxfixes3 libxrandr2 libgbm1 libxcb1 libpango-1.0-0 \
-      libcairo2 libasound2 libcups2 libdrm2 libxshmfence1 \
-      libxkbcommon0 libatspi2.0-0 && \
+      libglib2.0-0 libnspr4 libnss3 ... && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash agent && \
     echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-RUN su -s /bin/bash agent -c 'curl https://mise.jdx.dev/install.sh | sh'
-
-ENV PATH="/home/agent/.local/bin:/home/agent/.local/share/mise/shims:${PATH}"
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -54,11 +95,30 @@ ENTRYPOINT ["/entrypoint.sh"]
 CMD ["claude"]
 ```
 
-entrypoint.sh で Playwright ブラウザの自動インストールも行われます。詳細は `playwright-docker/entrypoint.sh` を参照してください。
+### entrypoint.sh (`playwright-docker/entrypoint.sh`)
 
-## ベースにする Dockerfile
+```bash
+#!/bin/bash
+set -e
+. /aw-init.sh
 
-デフォルトの Dockerfile と entrypoint.sh は `aw default-dockerfile` で確認できます。これをベースにカスタマイズするのが最も簡単です。
+# Playwright ブラウザのインストール等
+if command -v npx > /dev/null 2>&1; then
+  npx -y playwright install chromium
+fi
+
+aw_exec "$@"
+```
+
+## リファレンス用コマンド
+
+```bash
+# デフォルトの aw-init.sh を確認
+aw default-entrypoint
+
+# デフォルトの Dockerfile を確認
+aw default-dockerfile
+```
 
 ## `container_user` との連携
 

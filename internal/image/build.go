@@ -37,10 +37,7 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return "", nil, err
 	}
 
-	ep, err := RenderEntrypoint(pkgMgr, cenv)
-	if err != nil {
-		return "", nil, err
-	}
+	ep := Entrypoint(pkgMgr)
 
 	tmpDir, err := os.MkdirTemp("", "aw-build-*")
 	if err != nil {
