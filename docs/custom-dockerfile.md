@@ -14,7 +14,7 @@ profiles:
 
 ## aw-init.sh — 共通初期化スクリプト
 
-aw はコンテナ起動時に `/aw-init.sh` を自動的にマウントします。このスクリプトをカスタム entrypoint で `source` するだけで、aw のランタイムセットアップが全て行われます:
+aw はコンテナ起動時に `/aw-init.sh` を自動的にマウントします（最新版で上書き）。組み込み Dockerfile ではビルド時にもイメージに COPY されるため `docker run` 単体でも動作しますが、カスタム Dockerfile は **aw 経由での起動が前提** です。このスクリプトをカスタム entrypoint で `source` するだけで、aw のランタイムセットアップが全て行われます:
 
 - UID マッピング（`/etc/passwd` 動的注入）
 - SSH 鍵のコピーとパーミッション修正
