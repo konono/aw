@@ -265,19 +265,23 @@ func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 // is still running. This function does not return on success (calls os.Exit).
 // Post-container tasks must be registered in ReaperSpec.Tasks.
 func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
+	// Spawn reaper before starting the container so there is no window
+	// where a SIGKILL could leave an orphaned container with no reaper/spec.
+	writeFd, abort, err := spawnReaper()
+	if err != nil {
+		return fmt.Errorf("reaper: %w", err)
+	}
+
 	startArgs := BuildDetachedRunArgs(containerName, config)
 	startCmd := exec.Command(c.dockerCmd(), startArgs...)
 	startCmd.Stdin = os.Stdin
 	startCmd.Stdout = nil
 	startCmd.Stderr = os.Stderr
 	if err := startCmd.Run(); err != nil {
+		if abort != nil {
+			abort()
+		}
 		return fmt.Errorf("starting container: %w", err)
-	}
-
-	writeFd, _, err := spawnReaper()
-	if err != nil {
-		_ = exec.Command(c.dockerCmd(), "rm", "-f", containerName).Run()
-		return fmt.Errorf("reaper: %w", err)
 	}
 
 	sigCh := make(chan os.Signal, 1)
