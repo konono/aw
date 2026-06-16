@@ -274,6 +274,23 @@ func TestValidate(t *testing.T) {
 			wantErr: "mount_container_sock is only valid with environment: container",
 		},
 		{
+			name: "valid container with packages",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq", "tree"},
+			},
+		},
+		{
+			name: "packages with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Packages:    []string{"jq"},
+			},
+			wantErr: "packages is only valid with environment: container",
+		},
+		{
 			name: "valid auth config",
 			profile: Profile{
 				Environment: EnvironmentContainer,

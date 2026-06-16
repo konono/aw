@@ -117,6 +117,11 @@ func Validate(p Profile) error {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")
 	}
 
+	// Validate packages is only used with environment: container
+	if len(p.Packages) > 0 && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("packages is only valid with environment: container")
+	}
+
 	// Validate mounts are only used with environment: container
 	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mounts are only valid with environment: container")

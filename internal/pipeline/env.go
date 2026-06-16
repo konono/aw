@@ -1,6 +1,10 @@
 package pipeline
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/profile"
 )
@@ -25,5 +29,37 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
 	}
 
+	if pkgs := collectEnvPackages(ec.HomeDir, ec.Profile.Packages); pkgs != "" {
+		envVars["AW_PACKAGES"] = pkgs
+	}
+
 	return envVars
+}
+
+func collectEnvPackages(homeDir string, profilePkgs []string) string {
+	seen := make(map[string]bool)
+	var result []string
+	addPkg := func(pkg string) {
+		pkg = strings.TrimSpace(pkg)
+		if pkg != "" && !seen[pkg] {
+			seen[pkg] = true
+			result = append(result, pkg)
+		}
+	}
+
+	packagesFile := filepath.Join(homeDir, ".config", "aw", "packages.txt")
+	if data, err := os.ReadFile(packagesFile); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				addPkg(line)
+			}
+		}
+	}
+
+	for _, pkg := range profilePkgs {
+		addPkg(pkg)
+	}
+
+	return strings.Join(result, ",")
 }

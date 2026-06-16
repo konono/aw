@@ -15,8 +15,13 @@ ENV HOME="{{.Home}}" \
 
 ARG AW_TOOL_INSTALL_SCRIPT=""
 ARG AW_GH_INSTALL_SCRIPT=""
+ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
+RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends $AW_EXTRA_PACKAGES && \
+      rm -rf /var/lib/apt/lists/*; \
+    fi && \
+    if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
       bash -c "$AW_GH_INSTALL_SCRIPT"; \
     fi && \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \

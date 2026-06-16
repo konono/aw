@@ -198,6 +198,34 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
+func collectPackages(homeDir string, profilePkgs []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+	addPkg := func(pkg string) {
+		pkg = strings.TrimSpace(pkg)
+		if pkg != "" && !seen[pkg] {
+			seen[pkg] = true
+			result = append(result, pkg)
+		}
+	}
+
+	packagesFile := filepath.Join(homeDir, ".config", "aw", "packages.txt")
+	if data, err := os.ReadFile(packagesFile); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				addPkg(line)
+			}
+		}
+	}
+
+	for _, pkg := range profilePkgs {
+		addPkg(pkg)
+	}
+
+	return result
+}
+
 func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
 	customDockerfile := ""
 	if ec.Profile.Dockerfile != "" {
@@ -282,6 +310,13 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput += "\n" + ghInstallScript
 	}
 
+	packages := collectPackages(ec.HomeDir, ec.Profile.Packages)
+	extraPackages := ""
+	if len(packages) > 0 {
+		extraPackages = strings.Join(packages, " ")
+		hashInput += "\n" + extraPackages
+	}
+
 	imageName := defaultImageName
 	if hashInput != "" {
 		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
@@ -297,6 +332,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	if ghInstallScript != "" {
 		buildArgs["AW_GH_INSTALL_SCRIPT"] = ghInstallScript
+	}
+	if extraPackages != "" && customDockerfile == "" {
+		buildArgs["AW_EXTRA_PACKAGES"] = extraPackages
 	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)

@@ -44,6 +44,37 @@ if [ "$(stat -c '%u' "$AW_HOME")" != "$(id -u)" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Extra package installation
+# ---------------------------------------------------------------------------
+if [ -n "${AW_PACKAGES:-}" ]; then
+  IFS=',' read -ra _aw_pkgs <<< "$AW_PACKAGES"
+  _aw_install=()
+  if command -v apt-get > /dev/null 2>&1; then
+    for _p in "${_aw_pkgs[@]}"; do
+      _p=$(echo "$_p" | xargs)
+      [ -z "$_p" ] && continue
+      dpkg -s "$_p" > /dev/null 2>&1 || _aw_install+=("$_p")
+    done
+    if [ ${#_aw_install[@]} -gt 0 ]; then
+      aw_log "Installing packages: ${_aw_install[*]}"
+      sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends "${_aw_install[@]}"
+      sudo rm -rf /var/lib/apt/lists/*
+    fi
+  elif command -v dnf > /dev/null 2>&1; then
+    for _p in "${_aw_pkgs[@]}"; do
+      _p=$(echo "$_p" | xargs)
+      [ -z "$_p" ] && continue
+      rpm -q "$_p" > /dev/null 2>&1 || _aw_install+=("$_p")
+    done
+    if [ ${#_aw_install[@]} -gt 0 ]; then
+      aw_log "Installing packages: ${_aw_install[*]}"
+      sudo dnf install -y "${_aw_install[@]}"
+      sudo dnf clean all
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Tool config symlinks
 # ---------------------------------------------------------------------------
 if [ -n "$AW_CONTAINER_CONFIG_DIR" ] && [ -f "$AW_CONTAINER_CONFIG_DIR/.claude.json" ]; then

@@ -138,6 +138,47 @@ func TestEntrypoint_Devbox(t *testing.T) {
 	}
 }
 
+func TestRenderDockerfile_ContainsExtraPackagesArg(t *testing.T) {
+	cenv := containerenv.Default()
+	for _, tmplOS := range []profile.OSTemplate{
+		profile.OSDebian12, profile.OSUBI9, profile.OSUBI10, profile.OSUbuntu2604,
+	} {
+		for _, pkgMgr := range []profile.PackageManager{
+			profile.PackageManagerApt, profile.PackageManagerDevbox,
+		} {
+			name := string(tmplOS) + "_" + string(pkgMgr)
+			t.Run(name, func(t *testing.T) {
+				df, err := RenderDockerfile(tmplOS, pkgMgr, cenv)
+				if err != nil {
+					t.Fatalf("RenderDockerfile() error: %v", err)
+				}
+				content := string(df)
+				if !strings.Contains(content, `ARG AW_EXTRA_PACKAGES=""`) {
+					t.Error("Dockerfile should contain ARG AW_EXTRA_PACKAGES")
+				}
+				if !strings.Contains(content, "AW_EXTRA_PACKAGES") {
+					t.Error("Dockerfile should reference AW_EXTRA_PACKAGES in a RUN command")
+				}
+			})
+		}
+	}
+}
+
+func TestInitScript_ContainsAWPackages(t *testing.T) {
+	content := string(InitScript())
+	for _, want := range []string{
+		"AW_PACKAGES",
+		"apt-get",
+		"dnf",
+		"dpkg -s",
+		"rpm -q",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("aw-init.sh should contain %q", want)
+		}
+	}
+}
+
 func TestEntrypoint_DiffersPerPackageManager(t *testing.T) {
 	apt := Entrypoint(profile.PackageManagerApt)
 	devbox := Entrypoint(profile.PackageManagerDevbox)

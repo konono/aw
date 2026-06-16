@@ -552,7 +552,70 @@ func TestProfileOverride_BooleanFlags(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Group 6: TestProfileOverride_Export
+// Group 6: TestProfileOverride_Packages
+// ---------------------------------------------------------------------------
+
+func TestProfileOverride_Packages(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     Profile
+		override Profile
+		check    func(t *testing.T, m Profile)
+	}{
+		{
+			name: "PackagesReplaced",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq", "tree"},
+			},
+			override: Profile{
+				Packages: []string{"curl", "wget"},
+			},
+			check: func(t *testing.T, m Profile) {
+				if len(m.Packages) != 2 || m.Packages[0] != "curl" || m.Packages[1] != "wget" {
+					t.Errorf("Packages = %v, want [curl wget]", m.Packages)
+				}
+			},
+		},
+		{
+			name: "PackagesPreservedWhenNilOverride",
+			base: Profile{
+				Packages: []string{"jq"},
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if len(m.Packages) != 1 || m.Packages[0] != "jq" {
+					t.Errorf("Packages = %v, want [jq]", m.Packages)
+				}
+			},
+		},
+		{
+			name: "PackagesEmptySliceOverridesBase",
+			base: Profile{
+				Packages: []string{"jq"},
+			},
+			override: Profile{
+				Packages: []string{},
+			},
+			check: func(t *testing.T, m Profile) {
+				if len(m.Packages) != 0 {
+					t.Errorf("Packages = %v, want empty", m.Packages)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeProfile(tt.base, tt.override)
+			tt.check(t, merged)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Group 7: TestProfileOverride_Export
 // ---------------------------------------------------------------------------
 
 func TestProfileOverride_Export(t *testing.T) {

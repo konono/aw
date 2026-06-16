@@ -15,8 +15,13 @@ ENV HOME="{{.Home}}" \
 
 ARG AW_TOOL_PKG=""
 ARG AW_GH_INSTALL_SCRIPT=""
+ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
+RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
+      dnf install -y $AW_EXTRA_PACKAGES && \
+      dnf clean all; \
+    fi && \
+    if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
       bash -c "$AW_GH_INSTALL_SCRIPT"; \
     fi && \
     mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \

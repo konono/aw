@@ -65,6 +65,7 @@ type Profile struct {
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
+	Packages         []string          `yaml:"packages,omitempty"`
 	Export           *ExportConfig     `yaml:"export,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
 }
