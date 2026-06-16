@@ -237,6 +237,21 @@ func TestPrepareBuildContext(t *testing.T) {
 	if epInfo.Mode().Perm()&0111 == 0 {
 		t.Error("entrypoint.sh should be executable")
 	}
+
+	initContent, err := os.ReadFile(filepath.Join(dir, "aw-init.sh"))
+	if err != nil {
+		t.Fatalf("reading aw-init.sh: %v", err)
+	}
+	if string(initContent) != string(InitScript()) {
+		t.Error("aw-init.sh content does not match embedded content")
+	}
+	initInfo, err := os.Stat(filepath.Join(dir, "aw-init.sh"))
+	if err != nil {
+		t.Fatalf("stat aw-init.sh: %v", err)
+	}
+	if initInfo.Mode().Perm()&0111 == 0 {
+		t.Error("aw-init.sh should be executable")
+	}
 }
 
 func TestPrepareBuildContext_WithOS(t *testing.T) {

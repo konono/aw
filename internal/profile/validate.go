@@ -12,7 +12,7 @@ const (
 
 // reservedProfileNames are aw subcommand names that cannot be used as profile names.
 var reservedProfileNames = map[string]bool{
-	"update": true, "profiles": true, "default-dockerfile": true, "default-entrypoint": true,
+	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "init": true, "auth": true, "login": true,
 	"doctor": true, "reaper": true,
 }

@@ -1,27 +1,13 @@
 #!/bin/bash
 set -e
 
-# Source aw shared init (mounted at /aw-init.sh by the aw CLI)
-if [ -f /aw-init.sh ]; then
-  . /aw-init.sh
-else
-  echo "Warning: /aw-init.sh not found, running without aw init" >&2
-  export AW_HOME="${AW_HOME:-/home/agent}"
-  export AW_WORKSPACE="${HOST_WORKSPACE:-/workspace}"
-fi
+. /aw-init.sh
 
 # Install workspace packages (devbox/mise)
 if [ -f "$AW_WORKSPACE/devbox.json" ]; then
   echo "Installing packages from devbox.json..."
-  run_as_agent() {
-    if [ "$(id -un)" = "agent" ]; then
-      /bin/bash -lc "$1"
-    else
-      su -s /bin/bash agent -c "$1"
-    fi
-  }
-  run_as_agent "cd \"$AW_WORKSPACE\" && devbox install"
-  run_as_agent "cd \"$AW_WORKSPACE\" && devbox run install 2>/dev/null" || true
+  run_as_user "cd \"$AW_WORKSPACE\" && devbox install"
+  run_as_user "cd \"$AW_WORKSPACE\" && devbox run install 2>/dev/null" || true
 elif [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
   if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
     echo "Installing mise..."
@@ -36,7 +22,7 @@ elif [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
     run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mise run install"
   fi
 else
-  echo "No devbox.json or mise.toml found. devbox is available for installing tools."
+  echo "No devbox.json or mise.toml found."
 fi
 
 # Install Playwright browsers if npx is available
@@ -47,8 +33,4 @@ if run_as_user 'eval "$(devbox global shellenv 2>/dev/null)"; command -v npx' > 
   fi
 fi
 
-if type aw_exec >/dev/null 2>&1; then
-  aw_exec "$@"
-else
-  exec env HOME="$AW_HOME" bash -lc 'exec "$@"' -- "$@"
-fi
+aw_exec "$@"

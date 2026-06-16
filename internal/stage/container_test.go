@@ -103,12 +103,15 @@ func (m *mockConfigSyncer) EnsureOnboardingState(_ string) error {
 }
 
 type mockMountBuilder struct {
-	mounts []docker.Mount
-	err    error
+	mounts  []docker.Mount
+	err     error
+	lastOpts mount.MountOptions
 }
 
-func (m *mockMountBuilder) BuildMounts(_ mount.MountOptions) ([]docker.Mount, error) {
-	return m.mounts, m.err
+func (m *mockMountBuilder) BuildMounts(opts mount.MountOptions) ([]docker.Mount, error) {
+	m.lastOpts = opts
+	result := append(m.mounts, opts.ExtraMounts...)
+	return result, m.err
 }
 
 func TestDockerStage_DockerNotAvailable(t *testing.T) {
@@ -561,6 +564,51 @@ func TestDockerStage_NoSPCTWhenNotNeeded(t *testing.T) {
 		if opt == "label=type:spc_t" {
 			t.Errorf("DockerSecurityOpts should NOT contain spc_t when no sockets and WorkDir != HomeDir, got %v", ec.DockerSecurityOpts)
 		}
+	}
+}
+
+func TestDockerStage_MountsAwInitScript(t *testing.T) {
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	homeDir := t.TempDir()
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	initScriptPath := filepath.Join(homeDir, ".agent-workspace", "aw-init.sh")
+	if _, err := os.Stat(initScriptPath); err != nil {
+		t.Fatalf("aw-init.sh should be written to staging dir: %v", err)
+	}
+
+	found := false
+	for _, m := range ec.DockerMounts {
+		if m.Target == "/aw-init.sh" {
+			found = true
+			if m.Source != initScriptPath {
+				t.Errorf("aw-init.sh mount source = %q, want %q", m.Source, initScriptPath)
+			}
+			if !m.ReadOnly {
+				t.Error("aw-init.sh mount should be read-only")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("DockerMounts should contain /aw-init.sh mount")
 	}
 }
 

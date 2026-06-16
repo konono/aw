@@ -44,7 +44,7 @@ aw_exec "$@"
 |------|------|------|
 | `$AW_HOME` | 変数 | コンテナユーザーのホームディレクトリ |
 | `$AW_USER` | 変数 | コンテナユーザー名 |
-| `$AW_WORKSPACE` | 変数 | ワークスペースパス |
+| `$AW_WORKSPACE` | 変数 | ワークスペースパス（`HOST_WORKSPACE` から導出、デフォルト `/workspace`） |
 | `aw_log` | 関数 | `[aw:entrypoint]` プレフィックス付きログ出力 |
 | `run_as_user` | 関数 | コンテナユーザーとしてコマンド実行 |
 | `aw_exec` | 関数 | 正しい環境でコマンドを exec |
@@ -114,7 +114,7 @@ aw_exec "$@"
 
 ```bash
 # デフォルトの aw-init.sh を確認
-aw default-entrypoint
+aw default-init-script
 
 # デフォルトの Dockerfile を確認
 aw default-dockerfile

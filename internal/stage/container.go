@@ -249,6 +249,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	if epBytes, err := os.ReadFile(filepath.Join(buildDir, "entrypoint.sh")); err == nil {
 		hashInput += "\n" + string(epBytes)
 	}
+	if initBytes, err := os.ReadFile(filepath.Join(buildDir, "aw-init.sh")); err == nil {
+		hashInput += "\n" + string(initBytes)
+	}
 	hashInput += "\n" + string(osTemplate)
 	hashInput += "\n" + cenv.User
 

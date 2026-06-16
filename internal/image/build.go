@@ -56,5 +56,10 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return "", nil, fmt.Errorf("writing entrypoint.sh: %w", err)
 	}
 
+	if err := os.WriteFile(filepath.Join(tmpDir, "aw-init.sh"), InitScript(), 0755); err != nil {
+		cleanupFn()
+		return "", nil, fmt.Errorf("writing aw-init.sh: %w", err)
+	}
+
 	return tmpDir, cleanupFn, nil
 }

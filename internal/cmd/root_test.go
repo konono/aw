@@ -130,10 +130,10 @@ func TestRunDefaultDockerfile_ReturnsZero(t *testing.T) {
 	}
 }
 
-func TestRunDefaultEntrypoint_ReturnsZero(t *testing.T) {
-	code := runDefaultEntrypoint()
+func TestRunDefaultInitScript_ReturnsZero(t *testing.T) {
+	code := runDefaultInitScript()
 	if code != 0 {
-		t.Errorf("runDefaultEntrypoint() = %d, want 0", code)
+		t.Errorf("runDefaultInitScript() = %d, want 0", code)
 	}
 }
 

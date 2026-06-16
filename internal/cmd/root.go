@@ -48,8 +48,8 @@ func Run(args []string) int {
 		return runDefaultDockerfile()
 	}
 
-	if len(args) > 0 && args[0] == "default-entrypoint" {
-		return runDefaultEntrypoint()
+	if len(args) > 0 && args[0] == "default-init-script" {
+		return runDefaultInitScript()
 	}
 
 	if len(args) > 0 && args[0] == "export" {
@@ -321,17 +321,17 @@ func runDefaultDockerfile() int {
 	return 0
 }
 
-func runDefaultEntrypoint() int {
+func runDefaultInitScript() int {
 	_, err := os.Stdout.Write(image.InitScript())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing entrypoint: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error writing init script: %v\n", err)
 		return 1
 	}
 	return 0
 }
 
 var subcommands = map[string]bool{
-	"update": true, "profiles": true, "default-dockerfile": true, "default-entrypoint": true,
+	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "init": true, "auth": true, "login": true, "doctor": true, "reaper": true,
 }
 
@@ -375,7 +375,7 @@ func printHelp() {
 	fmt.Println("  aw doctor               Check system environment and configuration")
 	fmt.Println("  aw reaper [command]     View/recover post-container cleanup reports")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
-	fmt.Println("  aw default-entrypoint   Print aw-init.sh (shared entrypoint init script)")
+	fmt.Println("  aw default-init-script   Print aw-init.sh (shared entrypoint init script)")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
 	fmt.Println("Options:")
