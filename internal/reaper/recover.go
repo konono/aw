@@ -90,6 +90,9 @@ func recoverReaper(specPath, containerName string, resourceOnly bool) error {
 	report.ExitCode = diag.ExitCode
 	report.ContainerDiag = diag
 
+	// Collect diagnostic dump if container is still present
+	report.DumpPath = collectDump(spec.Runtime, containerName, diag.ExitCode, spec.CollectLogs)
+
 	succeeded := succeededTaskKeys(containerName)
 
 	for _, task := range spec.Tasks {

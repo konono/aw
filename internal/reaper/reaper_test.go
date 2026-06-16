@@ -137,3 +137,50 @@ func TestRunReportJSON(t *testing.T) {
 		t.Errorf("Tasks[0].Status = %q, want %q", decoded.Tasks[0].Status, "ok")
 	}
 }
+
+func TestRunReportJSON_WithDumpPath(t *testing.T) {
+	report := RunReport{
+		ContainerName: "aw-test-456",
+		ExitCode:      137,
+		DumpPath:      "/home/user/.config/aw/reaper/dumps/2024-01-01T00-00-00-aw-test-456",
+		Tasks:         []TaskResult{},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	var decoded RunReport
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal error: %v", err)
+	}
+
+	if decoded.DumpPath != report.DumpPath {
+		t.Errorf("DumpPath = %q, want %q", decoded.DumpPath, report.DumpPath)
+	}
+}
+
+func TestReaperSpecJSON_WithCollectLogs(t *testing.T) {
+	spec := ReaperSpec{
+		Timeout:       60,
+		ContainerName: "aw-test-789",
+		Runtime:       "podman",
+		CollectLogs:   "on_failure",
+		Tasks:         []ReaperTask{},
+	}
+
+	data, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	var decoded ReaperSpec
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal error: %v", err)
+	}
+
+	if decoded.CollectLogs != "on_failure" {
+		t.Errorf("CollectLogs = %q, want %q", decoded.CollectLogs, "on_failure")
+	}
+}

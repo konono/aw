@@ -62,6 +62,9 @@ func Run() int {
 	report.ExitCode = diag.ExitCode
 	report.ContainerDiag = diag
 
+	// Collect diagnostic dump before container removal
+	report.DumpPath = collectDump(spec.Runtime, spec.ContainerName, diag.ExitCode, spec.CollectLogs)
+
 	// Execute tasks
 	for _, task := range spec.Tasks {
 		start := time.Now()
@@ -197,6 +200,10 @@ func rotateReports(keep int) {
 		return
 	}
 	for _, r := range reports[:len(reports)-keep] {
+		report, err := ReadReport(r)
+		if err == nil && report.DumpPath != "" {
+			_ = os.RemoveAll(report.DumpPath)
+		}
 		_ = os.Remove(r)
 	}
 }

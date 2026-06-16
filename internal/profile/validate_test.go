@@ -416,6 +416,39 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "reaper.report-retention must be >= 0",
 		},
+		{
+			name: "valid reaper collect-logs on_failure",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{CollectLogs: "on_failure"},
+			},
+		},
+		{
+			name: "valid reaper collect-logs always",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{CollectLogs: "always"},
+			},
+		},
+		{
+			name: "valid reaper collect-logs never",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{CollectLogs: "never"},
+			},
+		},
+		{
+			name: "invalid reaper collect-logs value",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Reaper:      &ReaperProfileConfig{CollectLogs: "invalid"},
+			},
+			wantErr: "reaper.collect-logs must be one of",
+		},
 	}
 
 	for _, tt := range tests {

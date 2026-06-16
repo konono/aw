@@ -11,6 +11,7 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 	timeout := DefaultReaperTimeout
 	keepContainer := false
 	reportRetention := DefaultReportRetention
+	collectLogs := DefaultCollectLogs
 	if ec.Profile.Reaper != nil {
 		if ec.Profile.Reaper.Timeout > 0 {
 			timeout = ec.Profile.Reaper.Timeout
@@ -18,6 +19,9 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 		keepContainer = ec.Profile.Reaper.KeepContainer
 		if ec.Profile.Reaper.ReportRetention > 0 {
 			reportRetention = ec.Profile.Reaper.ReportRetention
+		}
+		if ec.Profile.Reaper.CollectLogs != "" {
+			collectLogs = ec.Profile.Reaper.CollectLogs
 		}
 	}
 
@@ -27,6 +31,7 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 		Runtime:         ec.Profile.EffectiveContainerRuntime(),
 		KeepContainer:   keepContainer,
 		ReportRetention: reportRetention,
+		CollectLogs:     collectLogs,
 		TTY:             DetectTTY(),
 	}
 

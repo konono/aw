@@ -11,6 +11,7 @@ const (
 	MaxReaperTimeout         = 3600
 	MaxReportRetention       = 100
 	DoctorReportLookback     = 10
+	DefaultCollectLogs       = "on_failure"
 )
 
 func effectiveReportRetention(n int) int {
