@@ -36,9 +36,8 @@ func CheckOrphanedReapers(runtime string) {
 			}
 
 		case strings.TrimSpace(string(out)) == "true":
-			// Container still running → possibly another session
-			fmt.Fprintf(os.Stderr, "[reaper] container still running (another session?): %s\n", name)
-			fmt.Fprintf(os.Stderr, "  recover after stop: aw reaper recover %s\n", name)
+			// Container still running — another session's reaper is managing it.
+			continue
 
 		default:
 			// Container exited → auto-recover resource tasks
