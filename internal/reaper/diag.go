@@ -1,12 +1,13 @@
 package reaper
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/konono/aw/internal/docker"
 )
 
 func diagnoseContainer(runtime, name string) *ContainerDiag {
@@ -79,7 +80,7 @@ func isContainerRunning(runtime, name string) bool {
 		if err == nil {
 			return strings.TrimSpace(string(out)) == "true"
 		}
-		if isInspectNotRecoverable(out, err) {
+		if docker.IsInspectNotRecoverable(out, err) {
 			return false
 		}
 		if i < maxRetries-1 {
@@ -87,16 +88,6 @@ func isContainerRunning(runtime, name string) bool {
 		}
 	}
 	return true
-}
-
-func isInspectNotRecoverable(output []byte, err error) bool {
-	var execErr *exec.Error
-	if errors.As(err, &execErr) {
-		return true
-	}
-	msg := strings.ToLower(strings.TrimSpace(string(output)))
-	return strings.Contains(msg, "no such container") ||
-		strings.Contains(msg, "no such object")
 }
 
 func summarizeExit(d ContainerDiag) string {

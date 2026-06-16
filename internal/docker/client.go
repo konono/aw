@@ -291,9 +291,12 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 		}
 	}()
 
-	const maxRapidFailures = 3
+	const (
+		maxRapidFailures = 3
+		maxAttachAttempts = 20
+	)
 	rapidFailures := 0
-	containerExited := false
+	attachAttempts := 0
 
 	for {
 		start := time.Now()
@@ -305,11 +308,15 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 		_ = attachCmd.Run()
 
 		if !c.isContainerRunning(containerName) {
-			containerExited = true
 			break
 		}
 
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			break
+		}
+
+		attachAttempts++
+		if attachAttempts >= maxAttachAttempts {
 			break
 		}
 
@@ -328,10 +335,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 
 	// Get exit code before closing the pipe — once the reaper fires it may
 	// remove the container before we can inspect it.
-	exitCode := 1
-	if containerExited {
-		exitCode = c.getContainerExitCode(containerName)
-	}
+	exitCode := c.getContainerExitCode(containerName)
 
 	// Close pipe to signal the reaper. If the container already exited, the
 	// reaper proceeds to cleanup immediately. If still running (TTY lost),
@@ -360,7 +364,7 @@ func (c *ShellClient) isContainerRunning(name string) bool {
 		if err == nil {
 			return strings.TrimSpace(string(out)) == "true"
 		}
-		if isInspectNotRecoverable(out, err) {
+		if IsInspectNotRecoverable(out, err) {
 			return false
 		}
 		if i < maxRetries-1 {
@@ -372,7 +376,9 @@ func (c *ShellClient) isContainerRunning(name string) bool {
 	return true
 }
 
-func isInspectNotRecoverable(output []byte, err error) bool {
+// IsInspectNotRecoverable returns true when an inspect error is permanent
+// (container not found or runtime binary missing) rather than transient.
+func IsInspectNotRecoverable(output []byte, err error) bool {
 	var execErr *exec.Error
 	if errors.As(err, &execErr) {
 		return true
@@ -383,15 +389,19 @@ func isInspectNotRecoverable(output []byte, err error) bool {
 }
 
 func (c *ShellClient) getContainerExitCode(name string) int {
-	val, err := c.inspectField(name, "{{.State.ExitCode}}")
-	if err != nil {
-		return 1
+	const maxRetries = 3
+	for i := range maxRetries {
+		val, err := c.inspectField(name, "{{.State.ExitCode}}")
+		if err == nil {
+			if code, perr := strconv.Atoi(val); perr == nil {
+				return code
+			}
+		}
+		if i < maxRetries-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
-	code, err := strconv.Atoi(val)
-	if err != nil {
-		return 1
-	}
-	return code
+	return 1
 }
 
 // RunOneShot runs a container non-interactively and returns the container name.

@@ -50,7 +50,11 @@ func Run() int {
 	if isContainerRunning(spec.Runtime, spec.ContainerName) {
 		log.Printf("reaper: container %s still running, waiting for exit", spec.ContainerName)
 		if err := exec.Command(spec.Runtime, "wait", spec.ContainerName).Run(); err != nil {
-			log.Printf("reaper: wait error for %s: %v", spec.ContainerName, err)
+			log.Printf("reaper: wait error for %s: %v, re-checking state", spec.ContainerName, err)
+			if isContainerRunning(spec.Runtime, spec.ContainerName) {
+				log.Printf("reaper: container %s still running after wait failure, retrying wait", spec.ContainerName)
+				_ = exec.Command(spec.Runtime, "wait", spec.ContainerName).Run()
+			}
 		}
 	}
 
