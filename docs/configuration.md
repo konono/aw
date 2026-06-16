@@ -21,6 +21,7 @@
 | ファイル | 用途 |
 |---------|------|
 | `config.yml` | プロファイル設定 |
+| `packages.txt` | 全コンテナ共通の追加 OS パッケージ（1 行 1 パッケージ、`#` コメント対応） |
 | `mise.toml` | 全コンテナ共通の mise ツール定義（ビルド時にイメージに組み込み） |
 | `devbox.json` | 全コンテナ共通の devbox パッケージ定義（ビルド時にイメージに組み込み） |
 
@@ -61,6 +62,7 @@
 
 - `env` はキーごとにマージ（後の値が優先）
 - `worktree` はフィールドごとにマージ
+- `packages` は指定時に全体を置換（`~/.config/aw/packages.txt` とのマージは実行時に行われる）
 - `mounts` は指定時に全体を置換
 - `mount_gh` は明示的な三値動作:
   - 省略: 継承
@@ -192,6 +194,7 @@ profiles:
 - `ssh_agent_forwarding`
 - `mount_container_sock`
 - `gh_token`
+- `packages`
 - `package_manager`
 - `mounts`
 - `os`
@@ -385,6 +388,40 @@ profiles:
 
 省略した場合、デフォルトは `apt` です。
 
+### `packages`（任意）
+
+コンテナイメージに追加でインストールする OS パッケージのリスト。`environment: container` の場合のみ有効。
+
+```yaml
+profiles:
+  claude:
+    environment: container
+    launch: claude
+    packages:
+      - jq
+      - tree
+      - ripgrep
+```
+
+パッケージは 2 つの経路でインストールされます:
+
+1. **ビルド時**（`os` テンプレート使用時）— `AW_EXTRA_PACKAGES` ビルド引数として Dockerfile に渡され、イメージレイヤーに組み込まれます。イメージハッシュにも含まれるため、パッケージ構成が変わるとイメージが再ビルドされます
+2. **ランタイム**（カスタム `dockerfile` 使用時を含む全モード）— `AW_PACKAGES` 環境変数としてコンテナに渡され、`aw-init.sh` がコンテナ起動時にインストールします
+
+パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチする必要があります。不正な名前はサイレントにスキップされます。
+
+#### グローバルパッケージファイル
+
+`~/.config/aw/packages.txt` にパッケージ名を 1 行 1 つで記述すると、全プロファイルに共通で適用されます。`#` で始まる行はコメントとして無視されます。プロファイルの `packages` とマージされ、重複は自動的に除去されます。
+
+```
+# ~/.config/aw/packages.txt
+jq
+tree
+```
+
+指定時に全体を置換します。マージ時の動作は `mounts` と同じです。
+
 ### `mount_gh`（任意）
 
 ホストの `~/.config/gh` を読み取り専用でコンテナにマウントするかどうか。`gh` コマンド（PR 作成、Issue 管理など）をコンテナ内で使う場合に有効化します。
@@ -535,6 +572,8 @@ aw init
 28. `reaper` は `environment: container` の場合のみ有効
 29. `reaper.timeout` は 0〜3600 の範囲であること
 30. `reaper.report-retention` は 0〜100 の範囲であること
+31. `packages` は `environment: container` の場合のみ有効
+32. `packages` の各パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチすること
 
 ## コンテナに同期されるホスト設定
 

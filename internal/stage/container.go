@@ -282,6 +282,8 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput += "\n" + ghInstallScript
 	}
 
+	// Build-time: space-delimited for shell word splitting in Dockerfile RUN.
+	// Runtime (AW_PACKAGES in env.go): comma-delimited, parsed by IFS=',' in aw-init.sh.
 	packages := pipeline.CollectPackages(ec.HomeDir, ec.Profile.Packages)
 	extraPackages := ""
 	if len(packages) > 0 {

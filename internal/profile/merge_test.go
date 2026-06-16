@@ -1027,6 +1027,7 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 		MountSSH:           boolPtr(true),
 		MountContainerSock: boolPtr(false),
 		Mounts:             []CustomMount{{Source: "/src", Target: "/dst"}},
+		Packages:           []string{"curl"},
 	}
 	effective := MergeProfile(defaults, Profile{
 		Launch:             LaunchCodex,
@@ -1036,6 +1037,7 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 		MountSSH:           boolPtr(false),
 		MountContainerSock: boolPtr(true),
 		Mounts:             []CustomMount{},
+		Packages:           []string{"curl", "jq"},
 	})
 
 	relative := RelativeProfile(defaults, effective)
@@ -1074,6 +1076,14 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	for i := range roundTrip.Mounts {
 		if roundTrip.Mounts[i] != effective.Mounts[i] {
 			t.Errorf("Mounts[%d] = %+v, want %+v", i, roundTrip.Mounts[i], effective.Mounts[i])
+		}
+	}
+	if len(roundTrip.Packages) != len(effective.Packages) {
+		t.Fatalf("Packages len = %d, want %d", len(roundTrip.Packages), len(effective.Packages))
+	}
+	for i := range roundTrip.Packages {
+		if roundTrip.Packages[i] != effective.Packages[i] {
+			t.Errorf("Packages[%d] = %q, want %q", i, roundTrip.Packages[i], effective.Packages[i])
 		}
 	}
 }
@@ -1116,4 +1126,59 @@ func TestRelativeProfile_Export(t *testing.T) {
 	if relative2.Export != nil {
 		t.Error("Export should be nil when defaults and effective match")
 	}
+}
+
+func TestRelativeProfile_Packages(t *testing.T) {
+	defaults := Profile{
+		Environment: EnvironmentContainer,
+		Launch:      LaunchClaude,
+		Packages:    []string{"curl"},
+	}
+
+	t.Run("different packages appear in relative", func(t *testing.T) {
+		effective := Profile{
+			Environment: EnvironmentContainer,
+			Launch:      LaunchClaude,
+			Packages:    []string{"curl", "jq"},
+		}
+		relative := RelativeProfile(defaults, effective)
+		if len(relative.Packages) != 2 || relative.Packages[0] != "curl" || relative.Packages[1] != "jq" {
+			t.Errorf("Packages = %v, want [curl jq]", relative.Packages)
+		}
+	})
+
+	t.Run("same packages omitted from relative", func(t *testing.T) {
+		effective := Profile{
+			Environment: EnvironmentContainer,
+			Launch:      LaunchClaude,
+			Packages:    []string{"curl"},
+		}
+		relative := RelativeProfile(defaults, effective)
+		if relative.Packages != nil {
+			t.Errorf("Packages = %v, want nil", relative.Packages)
+		}
+	})
+
+	t.Run("empty slice overrides default", func(t *testing.T) {
+		effective := Profile{
+			Environment: EnvironmentContainer,
+			Launch:      LaunchClaude,
+			Packages:    []string{},
+		}
+		relative := RelativeProfile(defaults, effective)
+		if relative.Packages == nil || len(relative.Packages) != 0 {
+			t.Errorf("Packages = %v, want []", relative.Packages)
+		}
+	})
+
+	t.Run("nil effective preserves default", func(t *testing.T) {
+		effective := Profile{
+			Environment: EnvironmentContainer,
+			Launch:      LaunchClaude,
+		}
+		relative := RelativeProfile(defaults, effective)
+		if relative.Packages != nil {
+			t.Errorf("Packages = %v, want nil", relative.Packages)
+		}
+	})
 }
