@@ -154,13 +154,7 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		ReadOnly: true,
 	})
 
-	if p.EffectiveSkipDevboxInstall() {
-		rc.EnvVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
-	}
-	if p.EffectiveSkipMiseInstall() {
-		rc.EnvVars["AW_SKIP_MISE_INSTALL"] = "1"
-	}
-
+	// skip_*_install flags are for the runtime entrypoint only, not for snapshot.
 	for i, inc := range includes {
 		absSrc, err := filepath.Abs(inc.Src)
 		if err != nil {
