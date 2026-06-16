@@ -321,16 +321,19 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	signal.Stop(sigCh)
 	close(sigCh)
 
+	// Get exit code before closing the pipe — once the reaper fires it may
+	// remove the container before we can inspect it.
+	exitCode := 1
+	if containerExited {
+		exitCode = c.getContainerExitCode(containerName)
+	}
+
 	// Close pipe to signal the reaper. If the container already exited, the
 	// reaper proceeds to cleanup immediately. If still running (TTY lost),
 	// the reaper's podman-wait blocks until the container eventually stops,
 	// then runs cleanup (SSH tunnel, container rm, report).
 	_ = writeFd.Close()
-
-	if containerExited {
-		os.Exit(c.getContainerExitCode(containerName))
-	}
-	os.Exit(1)
+	os.Exit(exitCode)
 	return nil
 }
 
