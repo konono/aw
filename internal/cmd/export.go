@@ -154,7 +154,7 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		ReadOnly: true,
 	})
 
-
+	// skip_*_install flags are for the runtime entrypoint only, not for snapshot.
 	for i, inc := range includes {
 		absSrc, err := filepath.Abs(inc.Src)
 		if err != nil {
