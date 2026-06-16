@@ -95,6 +95,9 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
+	if override.Packages != nil {
+		merged.Packages = override.Packages
+	}
 	merged.Export = mergeExport(merged.Export, override.Export)
 
 	return merged
@@ -191,6 +194,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
+	}
+	if !equalStrings(effective.Packages, defaults.Packages) && effective.Packages != nil {
+		relative.Packages = append([]string{}, effective.Packages...)
 	}
 	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
 		relative.Export = cloneExport(effective.Export)
@@ -378,6 +384,21 @@ func cloneExportIncludes(includes []ExportInclude) []ExportInclude {
 	cloned := make([]ExportInclude, len(includes))
 	copy(cloned, includes)
 	return cloned
+}
+
+func equalStrings(a, b []string) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func equalExport(a, b *ExportConfig) bool {

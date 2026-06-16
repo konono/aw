@@ -282,6 +282,13 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput += "\n" + ghInstallScript
 	}
 
+	packages := pipeline.CollectPackages(ec.HomeDir, ec.Profile.Packages)
+	extraPackages := ""
+	if len(packages) > 0 {
+		extraPackages = strings.Join(packages, " ")
+		hashInput += "\n" + extraPackages
+	}
+
 	imageName := defaultImageName
 	if hashInput != "" {
 		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
@@ -297,6 +304,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	if ghInstallScript != "" {
 		buildArgs["AW_GH_INSTALL_SCRIPT"] = ghInstallScript
+	}
+	if extraPackages != "" && customDockerfile == "" {
+		buildArgs["AW_EXTRA_PACKAGES"] = extraPackages
 	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)

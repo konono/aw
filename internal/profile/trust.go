@@ -18,6 +18,7 @@ var sensitiveFieldDescriptions = map[string]string{
 	"dockerfile":         "use a custom Dockerfile for the container image",
 	"image":              "use a pre-built container image",
 	"env":                "set environment variables inside the container",
+	"packages":           "install OS packages inside the container",
 }
 
 // hasSensitiveFields checks whether a parsed project config contains any
@@ -69,6 +70,9 @@ func profileSensitiveFields(profileName string, p Profile) []string {
 		for k, v := range p.Env {
 			found = append(found, fmt.Sprintf("%senv: %s=%s", prefix, k, v))
 		}
+	}
+	if len(p.Packages) > 0 {
+		found = append(found, fmt.Sprintf("%spackages: %s", prefix, strings.Join(p.Packages, ", ")))
 	}
 
 	return found
@@ -142,7 +146,7 @@ var promptTrust = func(configPath string, fields []string) bool {
 	}
 	fmt.Fprintf(os.Stderr, "\nWhat these settings can do:\n")
 	seen := make(map[string]bool)
-	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "dockerfile", "image", "env"} {
+	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "packages", "dockerfile", "image", "env"} {
 		desc := sensitiveFieldDescriptions[key]
 		if !seen[desc] {
 			fmt.Fprintf(os.Stderr, "  %s: %s\n", key, desc)
@@ -183,6 +187,7 @@ func stripProfileSensitive(p Profile) Profile {
 		p.Worktree = &wt
 	}
 	p.Mounts = nil
+	p.Packages = nil
 	p.Dockerfile = ""
 	p.Image = ""
 	p.Env = nil

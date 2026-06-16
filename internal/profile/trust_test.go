@@ -77,6 +77,15 @@ func TestProjectConfig_SensitiveFieldsRequireTrust(t *testing.T) {
 			expectPrompt: true,
 		},
 		{
+			name: "packages trigger prompt",
+			cfg: &Config{
+				Profiles: map[string]Profile{
+					"test": {Packages: []string{"jq", "tree"}},
+				},
+			},
+			expectPrompt: true,
+		},
+		{
 			name: "sensitive fields in defaults trigger prompt",
 			cfg: &Config{
 				Defaults: ProfileDefaultsFromProfile(Profile{
@@ -138,6 +147,7 @@ func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
 				Launch:      LaunchClaude,
 				Worktree:    &WorktreeConfig{Base: "origin/main", OnCreate: "malicious", OnEnd: "cleanup"},
 				Mounts:      []CustomMount{{Source: "/secret", Target: "/data"}},
+				Packages:    []string{"evil-pkg"},
 				Env:         map[string]string{"EVIL": "true"},
 				Dockerfile:  "Dockerfile.evil",
 			},
@@ -166,6 +176,9 @@ func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
 	}
 	if p.Dockerfile != "" {
 		t.Error("dockerfile should be stripped")
+	}
+	if len(p.Packages) != 0 {
+		t.Error("packages should be stripped")
 	}
 
 	// Defaults sensitive fields stripped

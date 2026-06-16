@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/konono/aw/internal/containerenv"
@@ -34,5 +36,137 @@ func TestContainerEnvVars_CustomUser(t *testing.T) {
 	}
 	if envVars["AW_HOME"] != "/home/dev" {
 		t.Errorf("AW_HOME = %q, want %q", envVars["AW_HOME"], "/home/dev")
+	}
+}
+
+func TestContainerEnvVars_AWPackages_FromProfile(t *testing.T) {
+	ec := &ExecutionContext{
+		Profile: profile.Profile{
+			Packages: []string{"jq", "tree"},
+		},
+		HomeDir:      t.TempDir(),
+		ContainerEnv: containerenv.Default(),
+	}
+	envVars := ContainerEnvVars(ec, "claude")
+
+	if envVars["AW_PACKAGES"] != "jq,tree" {
+		t.Errorf("AW_PACKAGES = %q, want %q", envVars["AW_PACKAGES"], "jq,tree")
+	}
+}
+
+func TestContainerEnvVars_AWPackages_FromFile(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("curl\nwget\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ec := &ExecutionContext{
+		Profile:      profile.Profile{},
+		HomeDir:      homeDir,
+		ContainerEnv: containerenv.Default(),
+	}
+	envVars := ContainerEnvVars(ec, "claude")
+
+	if envVars["AW_PACKAGES"] != "curl,wget" {
+		t.Errorf("AW_PACKAGES = %q, want %q", envVars["AW_PACKAGES"], "curl,wget")
+	}
+}
+
+func TestContainerEnvVars_AWPackages_NotSetWhenEmpty(t *testing.T) {
+	ec := &ExecutionContext{
+		Profile:      profile.Profile{},
+		HomeDir:      t.TempDir(),
+		ContainerEnv: containerenv.Default(),
+	}
+	envVars := ContainerEnvVars(ec, "claude")
+
+	if _, ok := envVars["AW_PACKAGES"]; ok {
+		t.Error("AW_PACKAGES should not be set when no packages")
+	}
+}
+
+func TestCollectPackages_FromFile(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ntree\n# comment\n\ncurl\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs := CollectPackages(homeDir, nil)
+	want := []string{"jq", "tree", "curl"}
+	if len(pkgs) != len(want) {
+		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
+	}
+	for i, p := range pkgs {
+		if p != want[i] {
+			t.Errorf("CollectPackages()[%d] = %q, want %q", i, p, want[i])
+		}
+	}
+}
+
+func TestCollectPackages_FromProfile(t *testing.T) {
+	homeDir := t.TempDir()
+	pkgs := CollectPackages(homeDir, []string{"jq", "tree"})
+	if len(pkgs) != 2 || pkgs[0] != "jq" || pkgs[1] != "tree" {
+		t.Errorf("CollectPackages() = %v, want [jq tree]", pkgs)
+	}
+}
+
+func TestCollectPackages_MergedAndDeduped(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ncurl\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs := CollectPackages(homeDir, []string{"curl", "tree"})
+	want := []string{"jq", "curl", "tree"}
+	if len(pkgs) != len(want) {
+		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
+	}
+	for i, p := range pkgs {
+		if p != want[i] {
+			t.Errorf("CollectPackages()[%d] = %q, want %q", i, p, want[i])
+		}
+	}
+}
+
+func TestCollectPackages_NoFileNoProfile(t *testing.T) {
+	homeDir := t.TempDir()
+	pkgs := CollectPackages(homeDir, nil)
+	if len(pkgs) != 0 {
+		t.Errorf("CollectPackages() = %v, want empty", pkgs)
+	}
+}
+
+func TestCollectPackages_FiltersInvalidNames(t *testing.T) {
+	homeDir := t.TempDir()
+	configDir := filepath.Join(homeDir, ".config", "aw")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\n$(evil)\nvalid-pkg\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs := CollectPackages(homeDir, []string{"good", "rm -rf /", "ok"})
+	want := []string{"jq", "valid-pkg", "good", "ok"}
+	if len(pkgs) != len(want) {
+		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
+	}
+	for i, p := range pkgs {
+		if p != want[i] {
+			t.Errorf("CollectPackages()[%d] = %q, want %q", i, p, want[i])
+		}
 	}
 }

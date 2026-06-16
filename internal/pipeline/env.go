@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"strings"
+
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/profile"
 )
@@ -23,6 +25,10 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 
 	if ec.Profile.EffectivePackageManager() == profile.PackageManagerDevbox && ec.Profile.EffectiveSkipDevboxInstall() {
 		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
+	}
+
+	if pkgs := CollectPackages(ec.HomeDir, ec.Profile.Packages); len(pkgs) > 0 {
+		envVars["AW_PACKAGES"] = strings.Join(pkgs, ",")
 	}
 
 	return envVars

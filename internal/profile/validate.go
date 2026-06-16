@@ -2,8 +2,13 @@ package profile
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+// ValidPackageName matches safe apt/dnf package names.
+// Exported so that pipeline.CollectPackages can reuse it.
+var ValidPackageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*$`)
 
 const (
 	maxReaperTimeout       = 3600
@@ -115,6 +120,16 @@ func Validate(p Profile) error {
 	// Validate mount_container_sock is only used with environment: container
 	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")
+	}
+
+	// Validate packages is only used with environment: container
+	if len(p.Packages) > 0 && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("packages is only valid with environment: container")
+	}
+	for i, pkg := range p.Packages {
+		if !ValidPackageName.MatchString(pkg) {
+			return fmt.Errorf("packages[%d]: invalid package name %q (must match %s)", i, pkg, ValidPackageName.String())
+		}
 	}
 
 	// Validate mounts are only used with environment: container
