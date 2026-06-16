@@ -43,6 +43,7 @@ func TestBuildMounts_FixedMountsAlwaysPresent(t *testing.T) {
 	cfg := findMount(mounts, "/home/agent/.claude")
 	if cfg == nil {
 		t.Fatal("missing mount for /home/agent/.claude")
+		return
 	}
 	if cfg.Source != opts.ToolStageDir {
 		t.Errorf("tool config source = %q, want %q", cfg.Source, opts.ToolStageDir)
@@ -52,6 +53,7 @@ func TestBuildMounts_FixedMountsAlwaysPresent(t *testing.T) {
 	ws := findMount(mounts, workDir)
 	if ws == nil {
 		t.Fatalf("missing workspace mount for %s", workDir)
+		return
 	}
 	if ws.Source != workDir {
 		t.Errorf("workspace source = %q, want %q", ws.Source, workDir)
@@ -77,6 +79,7 @@ func TestBuildMounts_GitconfigWhenPresent(t *testing.T) {
 	m := findMount(mounts, "/home/agent/.gitconfig")
 	if m == nil {
 		t.Fatal("missing .gitconfig mount")
+		return
 	}
 	if m.Source != filepath.Join(homeDir, ".gitconfig") {
 		t.Errorf("source = %q, want %q", m.Source, filepath.Join(homeDir, ".gitconfig"))
@@ -120,6 +123,7 @@ func TestBuildMounts_GhConfigWhenPresent(t *testing.T) {
 	m := findMount(mounts, "/home/agent/.config/gh")
 	if m == nil {
 		t.Fatal("missing .config/gh mount")
+		return
 	}
 	if !m.ReadOnly {
 		t.Error(".config/gh mount should be read-only")
@@ -186,6 +190,7 @@ func TestBuildMounts_SSHReadOnlyWhenEnabled(t *testing.T) {
 	m := findMount(mounts, "/home/agent/.ssh-host")
 	if m == nil {
 		t.Fatal("missing .ssh-host mount")
+		return
 	}
 	if !m.ReadOnly {
 		t.Error(".ssh mount should be read-only")
@@ -244,6 +249,7 @@ func TestBuildMounts_WorktreeAddsMount(t *testing.T) {
 	m := findMount(mounts, absMainGitDir)
 	if m == nil {
 		t.Fatalf("missing worktree mount for %s", absMainGitDir)
+		return
 	}
 	if m.Source != absMainGitDir {
 		t.Errorf("source = %q, want %q", m.Source, absMainGitDir)
@@ -276,6 +282,7 @@ func TestBuildMounts_CodexToolConfig(t *testing.T) {
 	codex := findMount(mounts, "/home/agent/.codex")
 	if codex == nil {
 		t.Fatal("missing codex config mount")
+		return
 	}
 	if codex.Source != codexStageDir {
 		t.Errorf("codex source = %q, want %q", codex.Source, codexStageDir)
@@ -358,6 +365,7 @@ func TestBuildMounts_SSHAgentForwardingMountsAgentSocket(t *testing.T) {
 	m := findMount(mounts, SSHAgentContainerPath)
 	if m == nil {
 		t.Fatal("missing SSH agent socket mount")
+		return
 	}
 	if m.Source != sockPath {
 		t.Errorf("source = %q, want %q", m.Source, sockPath)
@@ -432,6 +440,7 @@ func TestBuildMounts_SSHAgentForwardingVMPath(t *testing.T) {
 	m := findMount(mounts, SSHAgentContainerPath)
 	if m == nil {
 		t.Fatal("SSH agent socket should be mounted even for VM-internal paths")
+		return
 	}
 	if m.Source != "/tmp/aw-ssh-agent.sock" {
 		t.Errorf("source = %q, want %q", m.Source, "/tmp/aw-ssh-agent.sock")
@@ -454,6 +463,7 @@ func TestBuildMounts_ContainerSockMountsSocket(t *testing.T) {
 	m := findMount(mounts, ContainerSockContainerPath)
 	if m == nil {
 		t.Fatal("missing container socket mount")
+		return
 	}
 	if m.Source != "/var/run/docker.sock" {
 		t.Errorf("source = %q, want %q", m.Source, "/var/run/docker.sock")
@@ -518,6 +528,7 @@ func TestBuildMounts_ContainerSockPodmanVMPath(t *testing.T) {
 	m := findMount(mounts, ContainerSockContainerPath)
 	if m == nil {
 		t.Fatal("container socket should be mounted for VM-internal paths")
+		return
 	}
 	if m.Source != "/run/podman/podman.sock" {
 		t.Errorf("source = %q, want %q", m.Source, "/run/podman/podman.sock")
@@ -541,6 +552,7 @@ func TestBuildMounts_SkipSELinuxOnHomeDir(t *testing.T) {
 	ws := findMount(mounts, homeDir)
 	if ws == nil {
 		t.Fatalf("missing workspace mount for %s", homeDir)
+		return
 	}
 	if hasSELinuxOpt(ws.Options) {
 		t.Errorf("workspace mount (source == HomeDir) should not have :z, got options %q", ws.Options)
@@ -549,6 +561,7 @@ func TestBuildMounts_SkipSELinuxOnHomeDir(t *testing.T) {
 	toolMount := findMount(mounts, "/home/agent/.claude")
 	if toolMount == nil {
 		t.Fatal("missing tool config mount")
+		return
 	}
 	if !hasSELinuxOpt(toolMount.Options) {
 		t.Errorf("tool config mount should have :z, got options %q", toolMount.Options)
@@ -573,6 +586,7 @@ func TestBuildMounts_SELinuxOnSubdirOfHomeDir(t *testing.T) {
 	ws := findMount(mounts, workDir)
 	if ws == nil {
 		t.Fatalf("missing workspace mount for %s", workDir)
+		return
 	}
 	if !hasSELinuxOpt(ws.Options) {
 		t.Errorf("workspace mount (subdir of HomeDir) should have :z, got options %q", ws.Options)
