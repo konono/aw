@@ -73,7 +73,6 @@ type Profile struct {
 // ReaperProfileConfig controls reaper behavior per-profile.
 type ReaperProfileConfig struct {
 	Timeout          int    `yaml:"timeout,omitempty"`
-	WaitTimeout      int    `yaml:"wait-timeout,omitempty"`
 	KeepContainer    bool   `yaml:"keep-container,omitempty"`
 	ReportRetention  int    `yaml:"report-retention,omitempty"`
 	CollectLogs      string `yaml:"collect-logs,omitempty"`

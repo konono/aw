@@ -9,16 +9,12 @@ import (
 // BuildSpec constructs a ReaperSpec from the current execution context.
 func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 	timeout := DefaultReaperTimeout
-	waitTimeout := 0
 	keepContainer := false
 	reportRetention := DefaultReportRetention
 	collectLogs := DefaultCollectLogs
 	if ec.Profile.Reaper != nil {
 		if ec.Profile.Reaper.Timeout > 0 {
 			timeout = ec.Profile.Reaper.Timeout
-		}
-		if ec.Profile.Reaper.WaitTimeout > 0 {
-			waitTimeout = ec.Profile.Reaper.WaitTimeout
 		}
 		keepContainer = ec.Profile.Reaper.KeepContainer
 		if ec.Profile.Reaper.ReportRetention > 0 {
@@ -31,7 +27,6 @@ func BuildSpec(ec *pipeline.ExecutionContext) ReaperSpec {
 
 	spec := ReaperSpec{
 		Timeout:         timeout,
-		WaitTimeout:     waitTimeout,
 		ContainerName:   ec.ContainerName,
 		Runtime:         ec.Profile.EffectiveContainerRuntime(),
 		KeepContainer:   keepContainer,
