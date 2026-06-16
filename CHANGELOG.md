@@ -6,6 +6,34 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.0.0](https://github.com/konono/aw/compare/v2.1.0...v3.0.0) (2026-06-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace container wrapper with exec + reaper ([#69](https://github.com/konono/aw/issues/69))
+* remove zellij launcher support ([#68](https://github.com/konono/aw/issues/68))
+
+### Features
+
+* add aw reaper CLI and UX extensions ([#71](https://github.com/konono/aw/issues/71)) ([9ff1a9c](https://github.com/konono/aw/commit/9ff1a9cca27e0613db2a17571c7e3ac6c7ffa341))
+* add package injection for container images ([#76](https://github.com/konono/aw/issues/76)) ([d5ae350](https://github.com/konono/aw/commit/d5ae350c705635f5e24866a837ca7ea62a46161d))
+* add reaper observability (auto-recovery, diagnostics, aw doctor) ([#70](https://github.com/konono/aw/issues/70)) ([be7cfda](https://github.com/konono/aw/commit/be7cfdaa7ef1ac28016cdc6f6665619f7b5fb484))
+* extract shared entrypoint logic into aw-init.sh ([#75](https://github.com/konono/aw/issues/75)) ([16ab710](https://github.com/konono/aw/commit/16ab7107af319a971baf8bb4755d5d403225021d))
+* **reaper:** collect diagnostic dump on container abnormal exit ([#74](https://github.com/konono/aw/issues/74)) ([cad3a50](https://github.com/konono/aw/commit/cad3a50f5020423717c8be50d7610adac14fc1bd))
+* remove zellij launcher support ([#68](https://github.com/konono/aw/issues/68)) ([e5d599a](https://github.com/konono/aw/commit/e5d599aa8b31b66d6095906d65566b87bb505e95))
+* replace container wrapper with exec + reaper ([#69](https://github.com/konono/aw/issues/69)) ([175d0a4](https://github.com/konono/aw/commit/175d0a497d7ff53b9bc1941018177207e119fb7e))
+
+
+### Bug Fixes
+
+* add symlink fallback for Claude Code install path ([#67](https://github.com/konono/aw/issues/67)) ([8ac301e](https://github.com/konono/aw/commit/8ac301e9fcdf7cf63634daf80b009acebbac3d00))
+* **doctor:** skip active sessions in reaper orphan check ([#72](https://github.com/konono/aw/issues/72)) ([d9f2a9c](https://github.com/konono/aw/commit/d9f2a9cdb5401a53319ba69654ed5d8344b901eb))
+* **export:** do not skip package install during snapshot ([#78](https://github.com/konono/aw/issues/78)) ([14bd10d](https://github.com/konono/aw/commit/14bd10dfa4d7ce47199b51d9dc95d3fa6593a621))
+* **launch:** prevent container death from SIGTERM/SIGHUP (exit 143) ([#80](https://github.com/konono/aw/issues/80)) ([70a9b67](https://github.com/konono/aw/commit/70a9b67e5431ebcfd6c48c673ee9cfb8b4d5b485))
+* **reaper:** allow show to match reports by container name ([#73](https://github.com/konono/aw/issues/73)) ([24de962](https://github.com/konono/aw/commit/24de962d9d17092d430c8c753d13d69b1542362f))
+* stop forwarding SIGTERM/SIGHUP to container process ([#64](https://github.com/konono/aw/issues/64)) ([5a95112](https://github.com/konono/aw/commit/5a95112e278be5413ca224190b432ee14d0467ee))
+
 ## [2.1.0](https://github.com/konono/aw/compare/v2.0.0...v2.1.0) (2026-06-14)
 
 
