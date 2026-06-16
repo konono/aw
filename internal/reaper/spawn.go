@@ -17,9 +17,9 @@ type Handle struct {
 	containerName string
 }
 
-// Abort kills the reaper subprocess and closes the pipe without waiting for
-// container cleanup. Used when the wrapper exits without a clean container exit
-// (e.g. terminal lost while container is still running).
+// Abort kills the reaper subprocess, closes the pipe, and removes the spec
+// file without running post-container tasks. Called when the container fails
+// to start so that no orphaned reaper or spec is left behind.
 func (h *Handle) Abort() {
 	if h == nil {
 		return

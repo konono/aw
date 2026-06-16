@@ -61,7 +61,8 @@ func checkStaleRunning(runtime string) {
 		if _, err := os.Stat(specPath); err == nil {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "[reaper] container still running (another session?): %s\n", name)
-		fmt.Fprintf(os.Stderr, "  recover after stop: aw reaper recover %s\n", name)
+		fmt.Fprintf(os.Stderr, "[reaper] orphan container still running (no reaper tracking): %s\n", name)
+		fmt.Fprintf(os.Stderr, "  stop:   %s stop %s\n", runtime, name)
+		fmt.Fprintf(os.Stderr, "  remove: %s rm %s\n", runtime, name)
 	}
 }

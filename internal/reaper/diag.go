@@ -1,6 +1,7 @@
 package reaper
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -67,12 +68,35 @@ func inspectContainerState(runtime, name string, maxRetries int) ([]byte, error)
 	return nil, lastErr
 }
 
+// isContainerRunning returns true if the container is confirmed running.
+// Retries on transient inspect failures; defaults to true (running) when
+// all retries fail so the reaper proceeds to podman wait rather than
+// skipping cleanup.
 func isContainerRunning(runtime, name string) bool {
-	out, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", name).Output()
-	if err != nil {
-		return false
+	const maxRetries = 3
+	for i := range maxRetries {
+		out, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", name).CombinedOutput()
+		if err == nil {
+			return strings.TrimSpace(string(out)) == "true"
+		}
+		if isInspectNotRecoverable(out, err) {
+			return false
+		}
+		if i < maxRetries-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
-	return strings.TrimSpace(string(out)) == "true"
+	return true
+}
+
+func isInspectNotRecoverable(output []byte, err error) bool {
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+	msg := strings.ToLower(strings.TrimSpace(string(output)))
+	return strings.Contains(msg, "no such container") ||
+		strings.Contains(msg, "no such object")
 }
 
 func summarizeExit(d ContainerDiag) string {
