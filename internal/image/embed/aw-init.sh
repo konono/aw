@@ -157,5 +157,5 @@ BASH_PROFILE
 aw_exec() {
   aw_log "Launching: $*"
   exec env HOME="$AW_HOME" BASH_ENV="$AW_ENV_FILE" \
-    bash -lc 'exec "$@"' -- "$@"
+    bash -lc "$*"
 }
