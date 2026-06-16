@@ -8,9 +8,14 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
+
+	"golang.org/x/term"
 )
 
 // Mount represents a Docker mount (bind mount or named volume).
@@ -151,6 +156,7 @@ type runMode struct {
 	interactive bool
 	autoRemove  bool
 	initProcess bool
+	detached    bool
 	name        string
 }
 
@@ -177,6 +183,9 @@ func buildRunArgs(config RunConfig, mode runMode) []string {
 	}
 	if mode.initProcess {
 		args = append(args, "--init")
+	}
+	if mode.detached {
+		args = append(args, "-d")
 	}
 	if mode.name != "" {
 		args = append(args, "--name", mode.name)
@@ -244,38 +253,162 @@ func BuildExecRunArgs(containerName string, config RunConfig) []string {
 	return buildRunArgs(config, runMode{interactive: true, initProcess: true, name: containerName})
 }
 
-// ExecRun replaces the current process with the container runtime via syscall.Exec.
-// This function does not return on success. Any deferred cleanup in the call stack
-// will NOT execute. Post-container tasks must be registered in ReaperSpec.Tasks.
-func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
-	args := BuildExecRunArgs(containerName, config)
-	binPath, err := exec.LookPath(c.dockerCmd())
-	if err != nil {
-		return fmt.Errorf("%s not found: %w", c.dockerCmd(), err)
-	}
+// BuildDetachedRunArgs constructs docker CLI arguments for a detached container start.
+// Like BuildExecRunArgs but adds -d for detached mode.
+func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
+	return buildRunArgs(config, runMode{interactive: true, initProcess: true, detached: true, name: containerName})
+}
 
+// ExecRun starts a container in detached mode, then attaches to it.
+// SIGTERM and SIGHUP are absorbed so the container survives external signals.
+// If the attach session is interrupted, it auto-reconnects while the container
+// is still running. This function does not return on success (calls os.Exit).
+// Post-container tasks must be registered in ReaperSpec.Tasks.
+func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
+	// Spawn reaper before starting the container so there is no window
+	// where a SIGKILL could leave an orphaned container with no reaper/spec.
 	writeFd, abort, err := spawnReaper()
 	if err != nil {
 		return fmt.Errorf("reaper: %w", err)
 	}
-	// abort runs only when fcntl or syscall.Exec fails. On success the process is
-	// replaced and this defer is never reached. Handle owns the reaper PID (Spawn
-	// does not call cmd.Wait; Abort reaps via os.Process.Wait).
-	if abort != nil {
-		defer abort()
+
+	startArgs := BuildDetachedRunArgs(containerName, config)
+	startCmd := exec.Command(c.dockerCmd(), startArgs...)
+	startCmd.Stdin = os.Stdin
+	startCmd.Stdout = nil
+	startCmd.Stderr = os.Stderr
+	if err := startCmd.Run(); err != nil {
+		if abort != nil {
+			abort()
+		}
+		return fmt.Errorf("starting container: %w", err)
 	}
 
-	// Clear O_CLOEXEC so the pipe write side is inherited by the container runtime
-	_, _, errno := syscall.RawSyscall(syscall.SYS_FCNTL, writeFd.Fd(), syscall.F_SETFD, 0)
-	if errno != 0 {
-		return fmt.Errorf("fcntl F_SETFD: %w", errno)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		for range sigCh {
+		}
+	}()
+
+	const (
+		maxRapidFailures = 3
+		maxAttachAttempts = 20
+	)
+	rapidFailures := 0
+	attachAttempts := 0
+
+	for {
+		start := time.Now()
+
+		attachCmd := exec.Command(c.dockerCmd(), "attach", "--sig-proxy=false", containerName)
+		attachCmd.Stdin = os.Stdin
+		attachCmd.Stdout = os.Stdout
+		attachCmd.Stderr = os.Stderr
+		_ = attachCmd.Run()
+
+		if !c.isContainerRunning(containerName) {
+			break
+		}
+
+		// Non-TTY stdin (pipes, redirects, CI) cannot reconnect attach,
+		// so exit the loop and let the reaper handle the container.
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			break
+		}
+
+		attachAttempts++
+		if attachAttempts >= maxAttachAttempts {
+			break
+		}
+
+		if time.Since(start) < time.Second {
+			rapidFailures++
+			if rapidFailures >= maxRapidFailures {
+				break
+			}
+		} else {
+			rapidFailures = 0
+		}
 	}
 
-	argv := append([]string{c.dockerCmd()}, args...)
-	if err := syscall.Exec(binPath, argv, os.Environ()); err != nil {
-		return err
+	signal.Stop(sigCh)
+	close(sigCh)
+
+	// Get exit code before closing the pipe — once the reaper fires it may
+	// remove the container before we can inspect it.
+	// Only query when the container has actually stopped; a running container's
+	// State.ExitCode is 0 (default) which would mask the abnormal exit.
+	exitCode := 1
+	if !c.isContainerRunning(containerName) {
+		exitCode = c.getContainerExitCode(containerName)
 	}
+
+	// Close pipe to signal the reaper. If the container already exited, the
+	// reaper proceeds to cleanup immediately. If still running (TTY lost),
+	// the reaper's podman-wait blocks until the container eventually stops,
+	// then runs cleanup (SSH tunnel, container rm, report).
+	_ = writeFd.Close()
+	os.Exit(exitCode)
 	return nil
+}
+
+func (c *ShellClient) inspectField(name, tmpl string) (string, error) {
+	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", tmpl, name).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// isContainerRunning returns true if the container is confirmed running,
+// false if confirmed stopped or not found. Retries on transient inspect
+// failures to avoid misidentifying a running container as stopped.
+func (c *ShellClient) isContainerRunning(name string) bool {
+	const maxRetries = 3
+	for i := range maxRetries {
+		out, err := exec.Command(c.dockerCmd(), "inspect", "--format", "{{.State.Running}}", name).CombinedOutput()
+		if err == nil {
+			return strings.TrimSpace(string(out)) == "true"
+		}
+		if IsInspectNotRecoverable(out, err) {
+			return false
+		}
+		if i < maxRetries-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	// All retries failed — assume still running so the attach loop
+	// continues rather than exiting with a wrong exit code.
+	return true
+}
+
+// IsInspectNotRecoverable returns true when an inspect error is permanent
+// (container not found or runtime binary missing) rather than transient.
+func IsInspectNotRecoverable(output []byte, err error) bool {
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+	msg := strings.ToLower(strings.TrimSpace(string(output)))
+	return strings.Contains(msg, "no such container") ||
+		strings.Contains(msg, "no such object")
+}
+
+func (c *ShellClient) getContainerExitCode(name string) int {
+	const maxRetries = 3
+	for i := range maxRetries {
+		val, err := c.inspectField(name, "{{.State.ExitCode}}")
+		if err == nil {
+			if code, perr := strconv.Atoi(val); perr == nil {
+				return code
+			}
+		}
+		if i < maxRetries-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	return 1
 }
 
 // RunOneShot runs a container non-interactively and returns the container name.

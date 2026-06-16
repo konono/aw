@@ -194,10 +194,12 @@ mount_container_sock: true    # docker-compose up/down
 
 ### Reaper（後処理）
 
-`aw` はコンテナを `syscall.Exec` でプロセス置換して起動します。このため、コンテナ終了後のクリーンアップ（SSH トンネル停止、VM 内ソケット削除、コンテナ本体の削除）は呼び出し元には戻れません。代わりに、コンテナ起動前に **reaper** と呼ばれるバックグラウンドプロセスを spawn し、パイプ経由でコンテナの終了を検知してクリーンアップを実行します。
+`aw` はコンテナを detached モード（`podman run -d`）で起動し、`podman attach --sig-proxy=false` で I/O を接続するラッパーモデルを採用しています。SIGTERM/SIGHUP はラッパーが吸収するため、外部シグナルでコンテナが死ぬことはありません。
+
+コンテナ終了後のクリーンアップ（SSH トンネル停止、VM 内ソケット削除、コンテナ本体の削除）は、コンテナ起動前に spawn される **reaper** バックグラウンドプロセスが担当します。
 
 ```
-aw プロセス
+aw プロセス（ラッパー）
   │
   ├─ os.Pipe() で pipe (read, write) を作成
   ├─ reaper 子プロセスを spawn（read 側を fd 3 として渡す）
@@ -205,12 +207,13 @@ aw プロセス
   │       fd 3 から ReaperSpec (JSON) を読み取り、EOF を待機
   │
   ├─ pipe write 側に ReaperSpec を書き込む
-  ├─ write 側の O_CLOEXEC を解除（コンテナランタイムに継承させるため）
+  ├─ podman run -itd でコンテナを detached 起動
   │
-  └─ syscall.Exec で podman run に置換
-       │  pipe write 側は podman プロセスに継承される
+  └─ podman attach --sig-proxy=false で I/O 接続（自動再接続ループ）
+       │  SIGTERM/SIGHUP → ラッパーが吸収、attach 再接続
+       │  Ctrl+C → PTY 経由で ^C バイト → コンテナ内 SIGINT
        │
-       └─ コンテナ終了 → podman 終了 → pipe write 側が close → EOF
+       └─ コンテナ終了 → ループ脱出 → pipe write 側を close → EOF
             │
             reaper が EOF を検出してタスク実行:
               ├── SSH トンネル kill (kill_process)
@@ -221,7 +224,7 @@ aw プロセス
             レポート書き出し → spec 削除（全タスク成功時）
 ```
 
-`syscall.Exec` でプロセスが置換されるため、`aw` の Go コードには制御が戻りません。reaper は独立プロセス（`Setpgid: true` でプロセスグループ分離済み）として動作し、pipe の EOF をコンテナ終了のシグナルとして使います。`syscall.Exec` が失敗した場合は `Handle.Abort()` が reaper を kill し、spec ファイルを削除します。
+ラッパーが先に終了した場合（ターミナルクローズ等）、コンテナは生存し、reaper は `podman wait` でコンテナの実際の終了を待ってからクリーンアップを実行します。reaper は独立プロセス（`Setpgid: true` でプロセスグループ分離済み）として動作します。
 
 reaper はタスクの成功/失敗を `~/.config/aw/reaper/` に JSON レポートとして保存します。タスクが失敗した場合は spec ファイルを保持し、後から `aw reaper recover` で再試行できます。
 

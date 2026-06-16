@@ -1,6 +1,10 @@
 package docker
 
-import "testing"
+import (
+	"fmt"
+	"os/exec"
+	"testing"
+)
 
 func TestIsImageInspectNotFound(t *testing.T) {
 	tests := []struct {
@@ -392,6 +396,92 @@ func TestBuildOneShotRunArgs_Userns(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected --userns keep-id in one-shot args, got: %v", args)
+	}
+}
+
+func TestBuildDetachedRunArgs(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"claude"},
+	}
+
+	args := BuildDetachedRunArgs("aw-claude-123", config)
+
+	expected := []string{"run", "-it", "--init", "-d", "--name", "aw-claude-123", "--pids-limit", "8192"}
+	if len(args) < len(expected) {
+		t.Fatalf("expected args to start with %v, got %v", expected, args)
+	}
+	for i, e := range expected {
+		if args[i] != e {
+			t.Errorf("args[%d] = %q, want %q", i, args[i], e)
+		}
+	}
+
+	for _, a := range args {
+		if a == "--rm" {
+			t.Error("detached args should not contain --rm")
+		}
+	}
+}
+
+func TestIsInspectNotRecoverable(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		err    error
+		want   bool
+	}{
+		{
+			name:   "docker no such container",
+			output: "Error: No such container: aw-test-123",
+			err:    fmt.Errorf("exit status 1"),
+			want:   true,
+		},
+		{
+			name:   "podman no such container",
+			output: "Error: no such container aw-test-123",
+			err:    fmt.Errorf("exit status 125"),
+			want:   true,
+		},
+		{
+			name:   "no such object",
+			output: "Error: No such object: aw-test-123",
+			err:    fmt.Errorf("exit status 1"),
+			want:   true,
+		},
+		{
+			name:   "runtime binary not found",
+			output: "",
+			err:    &exec.Error{Name: "podman", Err: exec.ErrNotFound},
+			want:   true,
+		},
+		{
+			name:   "transient API error",
+			output: "Error: unable to connect to podman socket",
+			err:    fmt.Errorf("exit status 125"),
+			want:   false,
+		},
+		{
+			name:   "connection refused",
+			output: "Cannot connect to the Docker daemon",
+			err:    fmt.Errorf("exit status 1"),
+			want:   false,
+		},
+		{
+			name:   "empty output with exit error",
+			output: "",
+			err:    fmt.Errorf("exit status 1"),
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsInspectNotRecoverable([]byte(tt.output), tt.err)
+			if got != tt.want {
+				t.Fatalf("IsInspectNotRecoverable(%q, %v) = %v, want %v", tt.output, tt.err, got, tt.want)
+			}
+		})
 	}
 }
 

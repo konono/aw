@@ -40,9 +40,23 @@ func Run() int {
 
 	specPath := saveSpec(spec)
 
-	// Wait for EOF = container process exited (pipe write side closed)
+	// Wait for EOF = wrapper process exited (pipe write side closed).
+	// The container may still be running if the wrapper was killed externally.
 	_, _ = io.Copy(io.Discard, reader)
 	_ = pipe.Close()
+
+	// If the container is still running (wrapper killed but container survived),
+	// wait for the container to actually exit before proceeding with cleanup.
+	if isContainerRunning(spec.Runtime, spec.ContainerName) {
+		log.Printf("reaper: container %s still running, waiting for exit", spec.ContainerName)
+		if err := exec.Command(spec.Runtime, "wait", spec.ContainerName).Run(); err != nil {
+			log.Printf("reaper: wait error for %s: %v, re-checking state", spec.ContainerName, err)
+			if isContainerRunning(spec.Runtime, spec.ContainerName) {
+				log.Printf("reaper: container %s still running after wait failure, retrying wait", spec.ContainerName)
+				_ = exec.Command(spec.Runtime, "wait", spec.ContainerName).Run()
+			}
+		}
+	}
 
 	timeout := time.Duration(DefaultReaperTimeout) * time.Second
 	if spec.Timeout > 0 {
@@ -120,7 +134,13 @@ func Run() int {
 	return 0
 }
 
+// reaperDirOverride allows tests to redirect all reaper I/O to a temp directory.
+var reaperDirOverride string
+
 func ReaperDir() string {
+	if reaperDirOverride != "" {
+		return reaperDirOverride
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "aw", "reaper")
 }

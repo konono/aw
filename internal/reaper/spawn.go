@@ -9,18 +9,17 @@ import (
 	"syscall"
 )
 
-// Handle holds the pipe write side passed to the container runtime after exec.
-// If exec fails, call Abort to stop the reaper without running post-container tasks.
+// Handle holds the pipe write side kept by the ExecRun wrapper.
+// Call Abort to stop the reaper without running post-container tasks.
 type Handle struct {
 	Write         *os.File
 	pid           int
 	containerName string
 }
 
-// Abort kills the reaper subprocess and closes the pipe without waiting for
-// container cleanup. Used when syscall.Exec fails after Spawn.
-// Spawn transfers ownership of cmd.Process to Handle; Start() is called but
-// cmd.Wait() is only invoked here via os.Process.Wait.
+// Abort kills the reaper subprocess, closes the pipe, and removes the spec
+// file without running post-container tasks. Called when the container fails
+// to start so that no orphaned reaper or spec is left behind.
 func (h *Handle) Abort() {
 	if h == nil {
 		return
@@ -41,7 +40,7 @@ func (h *Handle) Abort() {
 }
 
 // Spawn starts a reaper subprocess and writes the spec over a pipe.
-// The caller must clear O_CLOEXEC on Handle.Write before syscall.Exec.
+// The caller keeps Handle.Write open; when it closes, the reaper detects EOF.
 func Spawn(spec ReaperSpec) (*Handle, error) {
 	r, w, err := os.Pipe()
 	if err != nil {

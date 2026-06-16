@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/konono/aw/internal/docker"
 )
 
 func diagnoseContainer(runtime, name string) *ContainerDiag {
@@ -65,6 +67,27 @@ func inspectContainerState(runtime, name string, maxRetries int) ([]byte, error)
 		}
 	}
 	return nil, lastErr
+}
+
+// isContainerRunning returns true if the container is confirmed running.
+// Retries on transient inspect failures; defaults to true (running) when
+// all retries fail so the reaper proceeds to podman wait rather than
+// skipping cleanup.
+func isContainerRunning(runtime, name string) bool {
+	const maxRetries = 3
+	for i := range maxRetries {
+		out, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", name).CombinedOutput()
+		if err == nil {
+			return strings.TrimSpace(string(out)) == "true"
+		}
+		if docker.IsInspectNotRecoverable(out, err) {
+			return false
+		}
+		if i < maxRetries-1 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	return true
 }
 
 func summarizeExit(d ContainerDiag) string {

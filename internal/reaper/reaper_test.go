@@ -161,6 +161,13 @@ func TestRunReportJSON_WithDumpPath(t *testing.T) {
 	}
 }
 
+func TestIsContainerRunning_NotFound(t *testing.T) {
+	running := isContainerRunning("podman", "aw-nonexistent-container-999999")
+	if running {
+		t.Error("isContainerRunning should return false for non-existent container")
+	}
+}
+
 func TestReaperSpecJSON_WithCollectLogs(t *testing.T) {
 	spec := ReaperSpec{
 		Timeout:       60,

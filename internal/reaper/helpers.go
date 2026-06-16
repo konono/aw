@@ -8,7 +8,6 @@ import (
 const (
 	DefaultReaperTimeout     = 60
 	DefaultReportRetention   = 10
-	MaxReaperTimeout         = 3600
 	MaxReportRetention       = 100
 	DoctorReportLookback     = 10
 	DefaultCollectLogs       = "on_failure"
