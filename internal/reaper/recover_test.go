@@ -27,6 +27,9 @@ func writeTestSpec(t *testing.T, dir, name string, tasks []ReaperTask) string {
 
 func TestRecoverReaperKeepsSpecOnFailure(t *testing.T) {
 	dir := t.TempDir()
+	reaperDirOverride = dir
+	t.Cleanup(func() { reaperDirOverride = "" })
+
 	specPath := writeTestSpec(t, dir, "aw-recover-fail", []ReaperTask{{
 		Type:   "shell",
 		Label:  "fail",
@@ -43,6 +46,9 @@ func TestRecoverReaperKeepsSpecOnFailure(t *testing.T) {
 
 func TestRecoverReaperRemovesSpecOnSuccess(t *testing.T) {
 	dir := t.TempDir()
+	reaperDirOverride = dir
+	t.Cleanup(func() { reaperDirOverride = "" })
+
 	specPath := writeTestSpec(t, dir, "aw-recover-ok", []ReaperTask{{
 		Type:   "shell",
 		Label:  "ok",

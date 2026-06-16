@@ -130,7 +130,13 @@ func Run() int {
 	return 0
 }
 
+// reaperDirOverride allows tests to redirect all reaper I/O to a temp directory.
+var reaperDirOverride string
+
 func ReaperDir() string {
+	if reaperDirOverride != "" {
+		return reaperDirOverride
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "aw", "reaper")
 }
