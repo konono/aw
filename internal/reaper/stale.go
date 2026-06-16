@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -26,8 +27,13 @@ func CheckStaleContainer(runtime, containerName string) error {
 	return nil
 }
 
-// CheckStaleContainers warns about any stopped aw-* containers on disk.
+// CheckStaleContainers warns about any stopped or orphaned running aw-* containers.
 func CheckStaleContainers(runtime string) {
+	checkStaleExited(runtime)
+	checkStaleRunning(runtime)
+}
+
+func checkStaleExited(runtime string) {
 	out, err := exec.Command(runtime, "ps", "-a",
 		"--filter", "name=^aw-.*-[0-9]+$",
 		"--filter", "status=exited",
@@ -39,4 +45,23 @@ func CheckStaleContainers(runtime string) {
 	fmt.Fprintf(os.Stderr, "%s", out)
 	fmt.Fprintf(os.Stderr, "  remove: %s rm $(%s ps -a --filter name=^aw-.*-[0-9]+$ --filter status=exited -q)\n", runtime, runtime)
 	fmt.Fprintf(os.Stderr, "  inspect: %s logs <container-name>\n", runtime)
+}
+
+func checkStaleRunning(runtime string) {
+	out, err := exec.Command(runtime, "ps",
+		"--filter", "name=^aw-.*-[0-9]+$",
+		"--format", "{{.Names}}").Output()
+	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
+		return
+	}
+	names := strings.Fields(strings.TrimSpace(string(out)))
+	for _, name := range names {
+		// Skip containers that have a spec file — a reaper is already tracking them.
+		specPath := filepath.Join(ReaperDir(), name+".spec.json")
+		if _, err := os.Stat(specPath); err == nil {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "[reaper] container still running (another session?): %s\n", name)
+		fmt.Fprintf(os.Stderr, "  recover after stop: aw reaper recover %s\n", name)
+	}
 }
