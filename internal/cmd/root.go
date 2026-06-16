@@ -218,8 +218,8 @@ func Run(args []string) int {
 		return 1
 	}
 
-	// Container launch replaces this process via syscall.Exec; runCleanups is
-	// unreachable on success. Post-container cleanup runs in the reaper subprocess.
+	// Container launch calls os.Exit on success; runCleanups is unreachable
+	// in that case. Post-container cleanup runs in the reaper subprocess.
 	runCleanups(ec)
 	return 0
 }

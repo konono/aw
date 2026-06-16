@@ -48,7 +48,13 @@ func Run() int {
 	// If the container is still running (wrapper killed but container survived),
 	// wait for the container to actually exit before proceeding with cleanup.
 	if isContainerRunning(spec.Runtime, spec.ContainerName) {
-		_ = exec.Command(spec.Runtime, "wait", spec.ContainerName).Run()
+		waitTimeout := time.Duration(MaxReaperTimeout) * time.Second
+		if spec.Timeout > 0 {
+			waitTimeout = time.Duration(spec.Timeout) * time.Second
+		}
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), waitTimeout)
+		_ = exec.CommandContext(waitCtx, spec.Runtime, "wait", spec.ContainerName).Run()
+		waitCancel()
 	}
 
 	timeout := time.Duration(DefaultReaperTimeout) * time.Second

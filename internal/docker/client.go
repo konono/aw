@@ -267,12 +267,13 @@ func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
 	startArgs := BuildDetachedRunArgs(containerName, config)
 	startCmd := exec.Command(c.dockerCmd(), startArgs...)
+	startCmd.Stdout = nil
 	startCmd.Stderr = os.Stderr
 	if err := startCmd.Run(); err != nil {
 		return fmt.Errorf("starting container: %w", err)
 	}
 
-	writeFd, _, err := spawnReaper()
+	writeFd, abort, err := spawnReaper()
 	if err != nil {
 		_ = exec.Command(c.dockerCmd(), "rm", "-f", containerName).Run()
 		return fmt.Errorf("reaper: %w", err)
@@ -287,6 +288,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 
 	const maxRapidFailures = 3
 	rapidFailures := 0
+	containerExited := false
 
 	for {
 		start := time.Now()
@@ -298,6 +300,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 		_ = attachCmd.Run()
 
 		if !c.isContainerRunning(containerName) {
+			containerExited = true
 			break
 		}
 
@@ -317,27 +320,42 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 
 	signal.Stop(sigCh)
 	close(sigCh)
-	_ = writeFd.Close()
 
-	exitCode := c.getContainerExitCode(containerName)
-	os.Exit(exitCode)
+	if containerExited {
+		_ = writeFd.Close()
+		os.Exit(c.getContainerExitCode(containerName))
+	}
+
+	// Container is still running but we lost the terminal — abort reaper
+	// and exit with error. The container stays alive for manual re-attach.
+	if abort != nil {
+		abort()
+	} else {
+		_ = writeFd.Close()
+	}
+	os.Exit(1)
 	return nil
 }
 
-func (c *ShellClient) isContainerRunning(name string) bool {
-	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", "{{.State.Running}}", name).Output()
+func (c *ShellClient) inspectField(name, tmpl string) (string, error) {
+	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", tmpl, name).Output()
 	if err != nil {
-		return false
+		return "", err
 	}
-	return strings.TrimSpace(string(out)) == "true"
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (c *ShellClient) isContainerRunning(name string) bool {
+	val, err := c.inspectField(name, "{{.State.Running}}")
+	return err == nil && val == "true"
 }
 
 func (c *ShellClient) getContainerExitCode(name string) int {
-	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", "{{.State.ExitCode}}", name).Output()
+	val, err := c.inspectField(name, "{{.State.ExitCode}}")
 	if err != nil {
 		return 1
 	}
-	code, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	code, err := strconv.Atoi(val)
 	if err != nil {
 		return 1
 	}
