@@ -311,6 +311,8 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 			break
 		}
 
+		// Non-TTY stdin (pipes, redirects, CI) cannot reconnect attach,
+		// so exit the loop and let the reaper handle the container.
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			break
 		}
