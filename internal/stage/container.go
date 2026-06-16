@@ -198,34 +198,6 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
-func collectPackages(homeDir string, profilePkgs []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-	addPkg := func(pkg string) {
-		pkg = strings.TrimSpace(pkg)
-		if pkg != "" && !seen[pkg] {
-			seen[pkg] = true
-			result = append(result, pkg)
-		}
-	}
-
-	packagesFile := filepath.Join(homeDir, ".config", "aw", "packages.txt")
-	if data, err := os.ReadFile(packagesFile); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" && !strings.HasPrefix(line, "#") {
-				addPkg(line)
-			}
-		}
-	}
-
-	for _, pkg := range profilePkgs {
-		addPkg(pkg)
-	}
-
-	return result
-}
-
 func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
 	customDockerfile := ""
 	if ec.Profile.Dockerfile != "" {
@@ -310,7 +282,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput += "\n" + ghInstallScript
 	}
 
-	packages := collectPackages(ec.HomeDir, ec.Profile.Packages)
+	packages := pipeline.CollectPackages(ec.HomeDir, ec.Profile.Packages)
 	extraPackages := ""
 	if len(packages) > 0 {
 		extraPackages = strings.Join(packages, " ")
