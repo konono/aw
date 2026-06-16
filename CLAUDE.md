@@ -1,7 +1,6 @@
 # Development
 
 - Run tests: `go test ./...`
-- Run lint: `golangci-lint run ./...`
 - After changing Dockerfiles or OS templates: `go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration`
 - Before pushing, always run `golangci-lint run ./...` — CI runs staticcheck (SA5011 etc.) and will fail on lint errors
 - Common lint pitfall: `if x == nil { t.Fatal(...) }` then `x.Field` → staticcheck SA5011. Add `return` after `t.Fatal` in tests
