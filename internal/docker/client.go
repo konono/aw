@@ -267,6 +267,7 @@ func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
 	startArgs := BuildDetachedRunArgs(containerName, config)
 	startCmd := exec.Command(c.dockerCmd(), startArgs...)
+	startCmd.Stdin = os.Stdin
 	startCmd.Stdout = nil
 	startCmd.Stderr = os.Stderr
 	if err := startCmd.Run(); err != nil {
