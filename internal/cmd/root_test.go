@@ -130,6 +130,13 @@ func TestRunDefaultDockerfile_ReturnsZero(t *testing.T) {
 	}
 }
 
+func TestRunDefaultInitScript_ReturnsZero(t *testing.T) {
+	code := runDefaultInitScript()
+	if code != 0 {
+		t.Errorf("runDefaultInitScript() = %d, want 0", code)
+	}
+}
+
 func TestDescribeProfile(t *testing.T) {
 	tests := []struct {
 		name    string

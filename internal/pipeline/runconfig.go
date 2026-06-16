@@ -29,11 +29,20 @@ func authContainerEnv(ec *ExecutionContext) containerenv.Config {
 	return containerenv.Default()
 }
 
+// baseEnvVars builds tool-specific env vars and adds core aw env vars (AW_USER, AW_HOME).
+func baseEnvVars(userEnvVars map[string]string, tool string, cenv containerenv.Config) map[string]string {
+	envVars := toolinfo.ContainerEnvVarsFor(userEnvVars, tool, cenv)
+	envVars["AW_USER"] = cenv.User
+	envVars["AW_HOME"] = cenv.Home
+	return envVars
+}
+
 // AuthRunConfig constructs a minimal RunConfig for one-shot auth commands.
 // Unlike ShellRunConfig/ToolRunConfig, auth omits SSH agent, gh token, skip flags,
 // and security/capability options to match pre-refactor behavior.
 func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []string) docker.RunConfig {
-	envVars := toolinfo.ContainerEnvVarsFor(ec.EnvVars, tool, authContainerEnv(ec))
+	cenv := authContainerEnv(ec)
+	envVars := baseEnvVars(ec.EnvVars, tool, cenv)
 	envVars["HOST_WORKSPACE"] = ec.WorkDir
 	return docker.RunConfig{
 		ImageName: ec.DockerImage,

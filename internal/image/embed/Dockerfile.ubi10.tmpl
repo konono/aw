@@ -31,8 +31,9 @@ RUN if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
     fi && rm -rf /tmp/aw-build && \
     chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 
+COPY aw-init.sh /aw-init.sh
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
+RUN chmod +x /aw-init.sh /entrypoint.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 
 USER {{.User}}

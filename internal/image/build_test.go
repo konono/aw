@@ -98,36 +98,90 @@ func TestRenderDockerfile_CustomUser(t *testing.T) {
 	}
 }
 
-func TestRenderEntrypoint(t *testing.T) {
-	cenv := containerenv.Default()
-	ep, err := RenderEntrypoint(profile.PackageManagerApt, cenv)
-	if err != nil {
-		t.Fatalf("RenderEntrypoint() error: %v", err)
-	}
+func TestEntrypoint(t *testing.T) {
+	ep := Entrypoint(profile.PackageManagerApt)
 	content := string(ep)
 	if !strings.HasPrefix(content, "#!/bin/bash") {
 		t.Error("entrypoint.sh should start with shebang")
 	}
-	if !strings.Contains(content, "/home/agent/.aw_env.sh") {
-		t.Error("entrypoint.sh should reference /home/agent/.aw_env.sh")
+	if !strings.Contains(content, ". /aw-init.sh") {
+		t.Error("entrypoint.sh should source /aw-init.sh")
 	}
-	if !strings.Contains(content, "AW_BASH_ENV_LOADED") {
-		t.Error("entrypoint.sh should guard against reloading .aw_env.sh")
+	if strings.Contains(content, "{{") {
+		t.Error("entrypoint.sh should not contain Go template variables")
+	}
+	if !strings.Contains(content, "aw_exec") {
+		t.Error("entrypoint.sh should call aw_exec")
 	}
 }
 
-func TestRenderEntrypoint_CustomUser(t *testing.T) {
-	cenv := containerenv.FromUser("dev")
-	ep, err := RenderEntrypoint(profile.PackageManagerApt, cenv)
-	if err != nil {
-		t.Fatalf("RenderEntrypoint() error: %v", err)
-	}
+func TestEntrypoint_Devbox(t *testing.T) {
+	ep := Entrypoint(profile.PackageManagerDevbox)
 	content := string(ep)
-	if !strings.Contains(content, "/home/dev/.aw_env.sh") {
-		t.Error("entrypoint.sh should reference /home/dev/.aw_env.sh")
+	if !strings.HasPrefix(content, "#!/bin/bash") {
+		t.Error("devbox entrypoint should start with shebang")
 	}
-	if strings.Contains(content, "/home/agent") {
-		t.Error("entrypoint.sh should not contain /home/agent when using custom user")
+	if !strings.Contains(content, ". /aw-init.sh") {
+		t.Error("devbox entrypoint should source /aw-init.sh")
+	}
+	if strings.Contains(content, "{{") {
+		t.Error("devbox entrypoint should not contain Go template variables")
+	}
+	if !strings.Contains(content, "devbox") {
+		t.Error("devbox entrypoint should handle devbox packages")
+	}
+	if !strings.Contains(content, "/nix/var") {
+		t.Error("devbox entrypoint should fix /nix/var ownership")
+	}
+	if !strings.Contains(content, "aw_exec") {
+		t.Error("devbox entrypoint should call aw_exec")
+	}
+}
+
+func TestEntrypoint_DiffersPerPackageManager(t *testing.T) {
+	apt := Entrypoint(profile.PackageManagerApt)
+	devbox := Entrypoint(profile.PackageManagerDevbox)
+	if string(apt) == string(devbox) {
+		t.Error("apt and devbox entrypoints should differ")
+	}
+}
+
+func TestInitScript(t *testing.T) {
+	content := string(InitScript())
+	if len(content) == 0 {
+		t.Fatal("InitScript() returned empty content")
+	}
+	if !strings.HasPrefix(content, "#!/bin/bash") {
+		t.Error("aw-init.sh should start with shebang")
+	}
+	for _, want := range []string{
+		"AW_USER",
+		"AW_HOME",
+		"AW_WORKSPACE",
+		"aw_exec",
+		"/etc/passwd",
+		"AW_BASH_ENV_LOADED",
+		".ssh-host",
+		"GITHUB_TOKEN",
+		"AW_CONTAINER_CONFIG_DIR",
+		"AW_DATA_SYMLINKS",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("aw-init.sh should contain %q", want)
+		}
+	}
+	if strings.Contains(content, "{{") {
+		t.Error("aw-init.sh should not contain Go template variables")
+	}
+}
+
+func TestInitScript_DynamicPasswd(t *testing.T) {
+	content := string(InitScript())
+	if !strings.Contains(content, "grep -v") || !strings.Contains(content, "/etc/passwd") {
+		t.Error("aw-init.sh should remove stale UID entries from /etc/passwd")
+	}
+	if !strings.Contains(content, ">> /etc/passwd") {
+		t.Error("aw-init.sh should dynamically add UID to /etc/passwd")
 	}
 }
 
@@ -167,13 +221,13 @@ func TestPrepareBuildContext(t *testing.T) {
 		t.Error("Dockerfile content does not match rendered debian12 content")
 	}
 
-	expectedEP, _ := RenderEntrypoint(profile.PackageManagerApt, cenv)
+	expectedEP := Entrypoint(profile.PackageManagerApt)
 	epContent, err := os.ReadFile(filepath.Join(dir, "entrypoint.sh"))
 	if err != nil {
 		t.Fatalf("reading entrypoint.sh: %v", err)
 	}
 	if string(epContent) != string(expectedEP) {
-		t.Error("entrypoint.sh content does not match rendered content")
+		t.Error("entrypoint.sh content does not match embedded content")
 	}
 
 	epInfo, err := os.Stat(filepath.Join(dir, "entrypoint.sh"))
@@ -182,6 +236,21 @@ func TestPrepareBuildContext(t *testing.T) {
 	}
 	if epInfo.Mode().Perm()&0111 == 0 {
 		t.Error("entrypoint.sh should be executable")
+	}
+
+	initContent, err := os.ReadFile(filepath.Join(dir, "aw-init.sh"))
+	if err != nil {
+		t.Fatalf("reading aw-init.sh: %v", err)
+	}
+	if string(initContent) != string(InitScript()) {
+		t.Error("aw-init.sh content does not match embedded content")
+	}
+	initInfo, err := os.Stat(filepath.Join(dir, "aw-init.sh"))
+	if err != nil {
+		t.Fatalf("stat aw-init.sh: %v", err)
+	}
+	if initInfo.Mode().Perm()&0111 == 0 {
+		t.Error("aw-init.sh should be executable")
 	}
 }
 
@@ -330,24 +399,6 @@ func TestRenderDockerfile_GID0Pattern(t *testing.T) {
 				t.Error("Dockerfile should create user with fixed UID 1001 and GID 0")
 			}
 		})
-	}
-}
-
-func TestRenderEntrypoint_DynamicPasswd(t *testing.T) {
-	cenv := containerenv.Default()
-	ep, err := RenderEntrypoint(profile.PackageManagerApt, cenv)
-	if err != nil {
-		t.Fatalf("RenderEntrypoint() error: %v", err)
-	}
-	content := string(ep)
-	if !strings.Contains(content, "grep -v") || !strings.Contains(content, "/etc/passwd") {
-		t.Error("entrypoint.sh should remove stale UID entries from /etc/passwd")
-	}
-	if !strings.Contains(content, ">> /etc/passwd") {
-		t.Error("entrypoint.sh should dynamically add UID to /etc/passwd")
-	}
-	if strings.Contains(content, "sudo find") {
-		t.Error("entrypoint.sh should not use chown-based ownership fix")
 	}
 }
 

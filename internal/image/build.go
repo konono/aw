@@ -37,10 +37,7 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return "", nil, err
 	}
 
-	ep, err := RenderEntrypoint(pkgMgr, cenv)
-	if err != nil {
-		return "", nil, err
-	}
+	ep := Entrypoint(pkgMgr)
 
 	tmpDir, err := os.MkdirTemp("", "aw-build-*")
 	if err != nil {
@@ -57,6 +54,11 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 	if err := os.WriteFile(filepath.Join(tmpDir, "entrypoint.sh"), ep, 0755); err != nil {
 		cleanupFn()
 		return "", nil, fmt.Errorf("writing entrypoint.sh: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "aw-init.sh"), InitScript(), 0755); err != nil {
+		cleanupFn()
+		return "", nil, fmt.Errorf("writing aw-init.sh: %w", err)
 	}
 
 	return tmpDir, cleanupFn, nil

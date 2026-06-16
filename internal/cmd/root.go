@@ -48,6 +48,10 @@ func Run(args []string) int {
 		return runDefaultDockerfile()
 	}
 
+	if len(args) > 0 && args[0] == "default-init-script" {
+		return runDefaultInitScript()
+	}
+
 	if len(args) > 0 && args[0] == "export" {
 		return runExport(args[1:])
 	}
@@ -317,8 +321,17 @@ func runDefaultDockerfile() int {
 	return 0
 }
 
+func runDefaultInitScript() int {
+	_, err := os.Stdout.Write(image.InitScript())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing init script: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 var subcommands = map[string]bool{
-	"update": true, "profiles": true, "default-dockerfile": true,
+	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "init": true, "auth": true, "login": true, "doctor": true, "reaper": true,
 }
 
@@ -362,6 +375,7 @@ func printHelp() {
 	fmt.Println("  aw doctor               Check system environment and configuration")
 	fmt.Println("  aw reaper [command]     View/recover post-container cleanup reports")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
+	fmt.Println("  aw default-init-script   Print aw-init.sh (shared entrypoint init script)")
 	fmt.Println("  aw update               Update aw to the latest version")
 	fmt.Println()
 	fmt.Println("Options:")

@@ -2,7 +2,7 @@
 
 `aw export` がイメージをビルドし、`--snapshot` でツールを焼き込み、エクスポートしたイメージが起動時にどう動くかを説明します。
 
-> **Note:** Dockerfile テンプレート、entrypoint.sh、snapshot スクリプトはすべて Go テンプレートとして実装されており、`container_user` プロファイルフィールドの値に応じてユーザー名やホームディレクトリが動的にレンダリングされます。以下の説明ではデフォルトユーザー `agent`（ホーム `/home/agent`）を使用しています。
+> **Note:** Dockerfile テンプレートは Go テンプレートとして実装されており、`container_user` の値に応じてユーザー名やホームディレクトリが動的にレンダリングされます。entrypoint.sh と aw-init.sh は静的スクリプトで、ランタイム環境変数（`AW_USER`, `AW_HOME`）で動作します。以下の説明ではデフォルトユーザー `agent`（ホーム `/home/agent`）を使用しています。
 
 ## 全体の流れ
 
@@ -34,7 +34,7 @@ debian:bookworm-slim
 
 > **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。`~/.config/aw/devbox.json` のパッケージもビルド時にインストールされます。
 
-この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは entrypoint.sh 実行時（通常起動）または snapshot スクリプト実行時（export 時）です。
+この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（export 時）です。
 
 ## snapshot スクリプトの動作
 
@@ -89,13 +89,13 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 | `/home/agent/.bashrc` | `.aw_env.sh` を source する |
 | `/home/agent/.bash_profile` | `.bashrc` を source する |
 
-**ただし、これらは通常起動時に entrypoint.sh が上書きします。** snapshot が生成した env ファイルはあくまで commit されるイメージに含まれるだけで、実際の起動時には entrypoint.sh が正しいパス（`HOST_WORKSPACE`）で再生成します。
+**ただし、これらは通常起動時に aw-init.sh が上書きします。** snapshot が生成した env ファイルはあくまで commit されるイメージに含まれるだけで、実際の起動時には aw-init.sh が正しいパス（`HOST_WORKSPACE`）で再生成します。
 
 ### --env の焼き込み
 
 `--env KEY=VAL` はスクリプト内ではなく、`docker commit --change 'ENV KEY=VAL'` でイメージメタデータとして焼き込まれます。これにより entrypoint.sh に関係なく、コンテナ起動時に環境変数が常に設定されます。
 
-## 通常起動時の entrypoint.sh
+## 通常起動時の entrypoint.sh + aw-init.sh
 
 エクスポートしたイメージを `aw dev` で起動すると、以下が起きます:
 
@@ -112,35 +112,35 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 ```
 
 通常起動では `HOST_WORKSPACE` 環境変数にホスト側パスが渡されます。
+aw CLI はランタイムで `/aw-init.sh` をマウントし、イメージ内蔵版を最新で上書きします。
 
-### 2. entrypoint.sh の処理
+### 2. aw-init.sh + entrypoint.sh の処理
 
 ```
-entrypoint.sh
+entrypoint.sh → source /aw-init.sh
   │
-  ├── UID 不一致の検出と修正
+  ├── [aw-init.sh] UID 不一致の検出と修正
   │   （--user で渡されたホスト UID とイメージ内のホームディレクトリ所有者が
-  │   異なる場合、sudo find -xdev + chown で修正。マウント境界は越えない）
+  │   異なる場合、sudo chown -R で修正）
   │
-  ├── skip_devbox_install: true の場合 → devbox install をスキップ
-  │   （パッケージは snapshot で焼き込み済み）
+  ├── [aw-init.sh] SSH 鍵コピー、git credential helper 設定
   │
-  ├── skip_mise_install: true の場合 → mise install をスキップ
-  │   （ツールは snapshot で焼き込み済み）
-  │
-  ├── .aw_env.sh を新規生成 ← snapshot が書いたものを上書き
+  ├── [aw-init.sh] .aw_env.sh を新規生成 ← snapshot が書いたものを上書き
   │   ├── mise shims の PATH
   │   ├── MISE_TRUSTED_CONFIG_PATHS=HOST_WORKSPACE
-  │   ├── DOCKER_HOST（DooD 用）
-  │   └── devbox モード時のみ:
-  │       ├── Nix の PATH 設定
-  │       ├── devbox global shellenv → 焼き込み済みパッケージの PATH
-  │       └── devbox shellenv (HOST_WORKSPACE) → プロジェクト devbox の PATH
+  │   └── git credential helper
   │
-  ├── .bashrc を新規生成（.aw_env.sh を source）
-  ├── .bash_profile を新規生成（.bashrc を source）
+  ├── [aw-init.sh] .bashrc / .bash_profile を新規生成
   │
-  └── exec bash -lc "$@"  ← ツール起動（claude, codex 等）
+  ├── [entrypoint.sh] skip_mise_install: true の場合 → mise install をスキップ
+  │   （ツールは snapshot で焼き込み済み）
+  │
+  ├── [entrypoint.sh.devbox] skip_devbox_install: true の場合 → devbox install をスキップ
+  │   （パッケージは snapshot で焼き込み済み）
+  │
+  ├── [entrypoint.sh.devbox] devbox/nix 固有の env を .aw_env.sh に追記
+  │
+  └── aw_exec "$@"  ← ツール起動（claude, codex 等）
 ```
 
 ### 3. .aw_env.sh の読み込みチェーン
@@ -155,16 +155,16 @@ bash 起動
 
 ### 4. snapshot の env ファイルが上書きされても問題ない理由
 
-snapshot が生成する `.aw_env.sh` と entrypoint.sh が生成する `.aw_env.sh` はほぼ同じ内容ですが、1 点違いがあります:
+snapshot が生成する `.aw_env.sh` と aw-init.sh が生成する `.aw_env.sh` はほぼ同じ内容ですが、1 点違いがあります:
 
 - snapshot 版: `MISE_TRUSTED_CONFIG_PATHS="/workspace"`, `devbox shellenv` のパスも `/workspace`
-- entrypoint 版: `MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE}"`, `devbox shellenv` のパスも `${HOST_WORKSPACE}`
+- aw-init.sh 版: `MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE}"`, `devbox shellenv` のパスも `${HOST_WORKSPACE}`
 
-entrypoint.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（ホスト側のプロジェクトパス）になります。焼き込み済みツール（devbox global、mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
+aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（ホスト側のプロジェクトパス）になります。焼き込み済みツール（devbox global、mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
 
 ## まとめ: 何がイメージに焼き込まれ、何が起動時に設定されるか
 
-| 内容 | 焼き込み（snapshot） | 起動時（entrypoint） |
+| 内容 | 焼き込み（snapshot） | 起動時（aw-init.sh + entrypoint） |
 |------|---------------------|---------------------|
 | mise ツール（/home/agent/.local/share/mise） | install 済み | skip_mise_install で省略 |
 | devbox パッケージ（/nix/store）※devbox モード時 | install 済み | skip_devbox_install で省略 |

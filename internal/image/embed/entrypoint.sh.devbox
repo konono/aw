@@ -1,0 +1,74 @@
+#!/bin/bash
+set -e
+
+. /aw-init.sh
+
+# Devbox-specific: fix /nix/var ownership
+if [ -d /nix/var ] && [ "$(stat -c '%u' /nix/var)" != "$(id -u)" ]; then
+  sudo chown -R "$(id -u):0" /nix/var 2>/dev/null || true
+fi
+
+aw_log "Checking workspace packages..."
+NIX_ENV=""
+if [ -f "$AW_HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+  NIX_ENV="export HOME=$AW_HOME && . $AW_HOME/.nix-profile/etc/profile.d/nix.sh 2>/dev/null;"
+fi
+AW_PKG_FOUND=0
+if [ -f "$AW_WORKSPACE/devbox.json" ]; then
+  if [ "${AW_SKIP_DEVBOX_INSTALL:-}" = "1" ]; then
+    echo "Skipping devbox install (skip_devbox_install is enabled)"
+  elif command -v devbox >/dev/null 2>&1 || run_as_user "$NIX_ENV command -v devbox" >/dev/null 2>&1; then
+    echo "Installing packages from devbox.json..."
+    run_as_user "$NIX_ENV cd \"$AW_WORKSPACE\" && devbox install"
+  else
+    echo "devbox.json found but devbox is not installed, skipping"
+  fi
+  AW_PKG_FOUND=1
+fi
+if [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
+  if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
+    echo "Skipping mise install (skip_mise_install is enabled)"
+  else
+    if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
+      echo "Installing mise..."
+      run_as_user 'curl https://mise.jdx.dev/install.sh | sh'
+    fi
+    MISE_CMD="export HOME=$AW_HOME && export MISE_DATA_DIR=$AW_HOME/.local/share/mise && export MISE_CONFIG_DIR=$AW_HOME/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$AW_WORKSPACE && export MISE_YES=1"
+    mkdir -p "$AW_HOME/.config/mise"
+    echo "Installing tools from mise.toml..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mise install"
+  fi
+  AW_PKG_FOUND=1
+fi
+if [ "$AW_PKG_FOUND" = "0" ]; then
+  echo "No devbox.json or mise.toml found in workspace."
+fi
+
+# Append devbox/nix-specific environment to .aw_env.sh
+cat >> "$AW_ENV_FILE" <<DEVBOXEOF
+if [ -n "\${AW_BASH_ENV_RECURSION_GUARD:-}" ]; then
+  return 0
+fi
+if [ -f $AW_HOME/.nix-profile/etc/profile.d/nix.sh ]; then
+  echo "Loading nix environment..." >&2
+  . $AW_HOME/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+fi
+case ":\${PATH}:" in
+  *:$AW_HOME/.nix-profile/bin:*) ;;
+  *) export PATH="$AW_HOME/.nix-profile/bin:\${PATH}" ;;
+esac
+if [ -f $AW_HOME/.devbox_global_env ]; then
+  . $AW_HOME/.devbox_global_env
+elif command -v devbox >/dev/null 2>&1; then
+  export AW_BASH_ENV_RECURSION_GUARD=1
+  eval "\$(devbox global shellenv 2>/dev/null | grep '^export ' || true)"
+  unset AW_BASH_ENV_RECURSION_GUARD
+fi
+if [ -f "\${AW_WORKSPACE}/devbox.json" ] && command -v devbox >/dev/null 2>&1; then
+  export AW_BASH_ENV_RECURSION_GUARD=1
+  eval "\$(cd "\${AW_WORKSPACE}" && devbox shellenv 2>/dev/null | grep '^export PATH=' || true)"
+  unset AW_BASH_ENV_RECURSION_GUARD
+fi
+DEVBOXEOF
+
+aw_exec "$@"
