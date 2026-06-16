@@ -97,6 +97,7 @@ func TestReaperPodmanSSH(t *testing.T) {
 		got := a.ReaperPodmanSSH()
 		if got == nil {
 			t.Fatal("ReaperPodmanSSH() = nil, want non-nil")
+			return
 		}
 		want := &pipeline.PodmanSSHConfig{
 			IdentityPath:   "/home/user/.ssh/id_ed25519",
