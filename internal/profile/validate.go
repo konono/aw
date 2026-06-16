@@ -2,8 +2,11 @@ package profile
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var validPackageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+\-:]*$`)
 
 const (
 	maxReaperTimeout       = 3600
@@ -120,6 +123,11 @@ func Validate(p Profile) error {
 	// Validate packages is only used with environment: container
 	if len(p.Packages) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("packages is only valid with environment: container")
+	}
+	for i, pkg := range p.Packages {
+		if !validPackageName.MatchString(pkg) {
+			return fmt.Errorf("packages[%d]: invalid package name %q (must match %s)", i, pkg, validPackageName.String())
+		}
 	}
 
 	// Validate mounts are only used with environment: container

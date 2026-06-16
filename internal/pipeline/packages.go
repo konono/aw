@@ -3,17 +3,21 @@ package pipeline
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
+var validPkgName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+\-:]*$`)
+
 // CollectPackages reads ~/.config/aw/packages.txt and merges with profile-level
 // packages, deduplicating while preserving order. File entries come first.
+// Invalid package names are silently skipped.
 func CollectPackages(homeDir string, profilePkgs []string) []string {
 	seen := make(map[string]bool)
 	var result []string
 	addPkg := func(pkg string) {
 		pkg = strings.TrimSpace(pkg)
-		if pkg != "" && !seen[pkg] {
+		if pkg != "" && !seen[pkg] && validPkgName.MatchString(pkg) {
 			seen[pkg] = true
 			result = append(result, pkg)
 		}
