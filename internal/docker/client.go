@@ -273,7 +273,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 		return fmt.Errorf("starting container: %w", err)
 	}
 
-	writeFd, abort, err := spawnReaper()
+	writeFd, _, err := spawnReaper()
 	if err != nil {
 		_ = exec.Command(c.dockerCmd(), "rm", "-f", containerName).Run()
 		return fmt.Errorf("reaper: %w", err)
@@ -321,17 +321,14 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	signal.Stop(sigCh)
 	close(sigCh)
 
-	if containerExited {
-		_ = writeFd.Close()
-		os.Exit(c.getContainerExitCode(containerName))
-	}
+	// Close pipe to signal the reaper. If the container already exited, the
+	// reaper proceeds to cleanup immediately. If still running (TTY lost),
+	// the reaper's podman-wait blocks until the container eventually stops,
+	// then runs cleanup (SSH tunnel, container rm, report).
+	_ = writeFd.Close()
 
-	// Container is still running but we lost the terminal — abort reaper
-	// and exit with error. The container stays alive for manual re-attach.
-	if abort != nil {
-		abort()
-	} else {
-		_ = writeFd.Close()
+	if containerExited {
+		os.Exit(c.getContainerExitCode(containerName))
 	}
 	os.Exit(1)
 	return nil
