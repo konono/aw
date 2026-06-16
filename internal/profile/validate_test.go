@@ -326,6 +326,14 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid RPM package with underscore",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Packages:    []string{"mod_ssl", "python3_devel"},
+			},
+		},
+		{
 			name: "valid auth config",
 			profile: Profile{
 				Environment: EnvironmentContainer,

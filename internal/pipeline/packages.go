@@ -3,11 +3,10 @@ package pipeline
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-)
 
-var validPkgName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+\-:]*$`)
+	"github.com/konono/aw/internal/profile"
+)
 
 // CollectPackages reads ~/.config/aw/packages.txt and merges with profile-level
 // packages, deduplicating while preserving order. File entries come first.
@@ -17,7 +16,7 @@ func CollectPackages(homeDir string, profilePkgs []string) []string {
 	var result []string
 	addPkg := func(pkg string) {
 		pkg = strings.TrimSpace(pkg)
-		if pkg != "" && !seen[pkg] && validPkgName.MatchString(pkg) {
+		if pkg != "" && !seen[pkg] && profile.ValidPackageName.MatchString(pkg) {
 			seen[pkg] = true
 			result = append(result, pkg)
 		}

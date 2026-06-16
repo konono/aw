@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-var validPackageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+\-:]*$`)
+// ValidPackageName matches safe apt/dnf package names.
+// Exported so that pipeline.CollectPackages can reuse it.
+var ValidPackageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*$`)
 
 const (
 	maxReaperTimeout       = 3600
@@ -125,8 +127,8 @@ func Validate(p Profile) error {
 		return fmt.Errorf("packages is only valid with environment: container")
 	}
 	for i, pkg := range p.Packages {
-		if !validPackageName.MatchString(pkg) {
-			return fmt.Errorf("packages[%d]: invalid package name %q (must match %s)", i, pkg, validPackageName.String())
+		if !ValidPackageName.MatchString(pkg) {
+			return fmt.Errorf("packages[%d]: invalid package name %q (must match %s)", i, pkg, ValidPackageName.String())
 		}
 	}
 
