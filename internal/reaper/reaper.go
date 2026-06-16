@@ -40,9 +40,16 @@ func Run() int {
 
 	specPath := saveSpec(spec)
 
-	// Wait for EOF = container process exited (pipe write side closed)
+	// Wait for EOF = wrapper process exited (pipe write side closed).
+	// The container may still be running if the wrapper was killed externally.
 	_, _ = io.Copy(io.Discard, reader)
 	_ = pipe.Close()
+
+	// If the container is still running (wrapper killed but container survived),
+	// wait for the container to actually exit before proceeding with cleanup.
+	if isContainerRunning(spec.Runtime, spec.ContainerName) {
+		_ = exec.Command(spec.Runtime, "wait", spec.ContainerName).Run()
+	}
 
 	timeout := time.Duration(DefaultReaperTimeout) * time.Second
 	if spec.Timeout > 0 {

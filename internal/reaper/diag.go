@@ -67,6 +67,14 @@ func inspectContainerState(runtime, name string, maxRetries int) ([]byte, error)
 	return nil, lastErr
 }
 
+func isContainerRunning(runtime, name string) bool {
+	out, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", name).Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "true"
+}
+
 func summarizeExit(d ContainerDiag) string {
 	switch {
 	case d.ExitCode == 0:

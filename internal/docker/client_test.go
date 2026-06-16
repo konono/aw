@@ -395,6 +395,31 @@ func TestBuildOneShotRunArgs_Userns(t *testing.T) {
 	}
 }
 
+func TestBuildDetachedRunArgs(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"claude"},
+	}
+
+	args := BuildDetachedRunArgs("aw-claude-123", config)
+
+	expected := []string{"run", "-it", "--init", "-d", "--name", "aw-claude-123", "--pids-limit", "8192"}
+	if len(args) < len(expected) {
+		t.Fatalf("expected args to start with %v, got %v", expected, args)
+	}
+	for i, e := range expected {
+		if args[i] != e {
+			t.Errorf("args[%d] = %q, want %q", i, args[i], e)
+		}
+	}
+
+	for _, a := range args {
+		if a == "--rm" {
+			t.Error("detached args should not contain --rm")
+		}
+	}
+}
+
 func TestBuildRunArgs_MountOptions(t *testing.T) {
 	tests := []struct {
 		name    string

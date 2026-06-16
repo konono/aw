@@ -8,9 +8,14 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
+
+	"golang.org/x/term"
 )
 
 // Mount represents a Docker mount (bind mount or named volume).
@@ -151,6 +156,7 @@ type runMode struct {
 	interactive bool
 	autoRemove  bool
 	initProcess bool
+	detached    bool
 	name        string
 }
 
@@ -177,6 +183,9 @@ func buildRunArgs(config RunConfig, mode runMode) []string {
 	}
 	if mode.initProcess {
 		args = append(args, "--init")
+	}
+	if mode.detached {
+		args = append(args, "-d")
 	}
 	if mode.name != "" {
 		args = append(args, "--name", mode.name)
@@ -244,38 +253,95 @@ func BuildExecRunArgs(containerName string, config RunConfig) []string {
 	return buildRunArgs(config, runMode{interactive: true, initProcess: true, name: containerName})
 }
 
-// ExecRun replaces the current process with the container runtime via syscall.Exec.
-// This function does not return on success. Any deferred cleanup in the call stack
-// will NOT execute. Post-container tasks must be registered in ReaperSpec.Tasks.
+// BuildDetachedRunArgs constructs docker CLI arguments for a detached container start.
+// Like BuildExecRunArgs but adds -d for detached mode.
+func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
+	return buildRunArgs(config, runMode{interactive: true, initProcess: true, detached: true, name: containerName})
+}
+
+// ExecRun starts a container in detached mode, then attaches to it.
+// SIGTERM and SIGHUP are absorbed so the container survives external signals.
+// If the attach session is interrupted, it auto-reconnects while the container
+// is still running. This function does not return on success (calls os.Exit).
+// Post-container tasks must be registered in ReaperSpec.Tasks.
 func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
-	args := BuildExecRunArgs(containerName, config)
-	binPath, err := exec.LookPath(c.dockerCmd())
-	if err != nil {
-		return fmt.Errorf("%s not found: %w", c.dockerCmd(), err)
+	startArgs := BuildDetachedRunArgs(containerName, config)
+	startCmd := exec.Command(c.dockerCmd(), startArgs...)
+	startCmd.Stderr = os.Stderr
+	if err := startCmd.Run(); err != nil {
+		return fmt.Errorf("starting container: %w", err)
 	}
 
-	writeFd, abort, err := spawnReaper()
+	writeFd, _, err := spawnReaper()
 	if err != nil {
+		_ = exec.Command(c.dockerCmd(), "rm", "-f", containerName).Run()
 		return fmt.Errorf("reaper: %w", err)
 	}
-	// abort runs only when fcntl or syscall.Exec fails. On success the process is
-	// replaced and this defer is never reached. Handle owns the reaper PID (Spawn
-	// does not call cmd.Wait; Abort reaps via os.Process.Wait).
-	if abort != nil {
-		defer abort()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		for range sigCh {
+		}
+	}()
+
+	const maxRapidFailures = 3
+	rapidFailures := 0
+
+	for {
+		start := time.Now()
+
+		attachCmd := exec.Command(c.dockerCmd(), "attach", "--sig-proxy=false", containerName)
+		attachCmd.Stdin = os.Stdin
+		attachCmd.Stdout = os.Stdout
+		attachCmd.Stderr = os.Stderr
+		_ = attachCmd.Run()
+
+		if !c.isContainerRunning(containerName) {
+			break
+		}
+
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			break
+		}
+
+		if time.Since(start) < time.Second {
+			rapidFailures++
+			if rapidFailures >= maxRapidFailures {
+				break
+			}
+		} else {
+			rapidFailures = 0
+		}
 	}
 
-	// Clear O_CLOEXEC so the pipe write side is inherited by the container runtime
-	_, _, errno := syscall.RawSyscall(syscall.SYS_FCNTL, writeFd.Fd(), syscall.F_SETFD, 0)
-	if errno != 0 {
-		return fmt.Errorf("fcntl F_SETFD: %w", errno)
-	}
+	signal.Stop(sigCh)
+	close(sigCh)
+	_ = writeFd.Close()
 
-	argv := append([]string{c.dockerCmd()}, args...)
-	if err := syscall.Exec(binPath, argv, os.Environ()); err != nil {
-		return err
-	}
+	exitCode := c.getContainerExitCode(containerName)
+	os.Exit(exitCode)
 	return nil
+}
+
+func (c *ShellClient) isContainerRunning(name string) bool {
+	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", "{{.State.Running}}", name).Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "true"
+}
+
+func (c *ShellClient) getContainerExitCode(name string) int {
+	out, err := exec.Command(c.dockerCmd(), "inspect", "--format", "{{.State.ExitCode}}", name).Output()
+	if err != nil {
+		return 1
+	}
+	code, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 1
+	}
+	return code
 }
 
 // RunOneShot runs a container non-interactively and returns the container name.
