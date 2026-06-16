@@ -48,11 +48,19 @@ func Run() int {
 	// If the container is still running (wrapper killed but container survived),
 	// wait for the container to actually exit before proceeding with cleanup.
 	if isContainerRunning(spec.Runtime, spec.ContainerName) {
-		// spec.Timeout is for post-container tasks, not for waiting.
-		// Use MaxReaperTimeout (1h) so the container has time to finish.
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Duration(MaxReaperTimeout)*time.Second)
-		_ = exec.CommandContext(waitCtx, spec.Runtime, "wait", spec.ContainerName).Run()
+		waitSec := MaxReaperTimeout
+		if spec.WaitTimeout > 0 {
+			waitSec = spec.WaitTimeout
+		}
+		log.Printf("reaper: container %s still running, waiting up to %ds", spec.ContainerName, waitSec)
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Duration(waitSec)*time.Second)
+		err := exec.CommandContext(waitCtx, spec.Runtime, "wait", spec.ContainerName).Run()
 		waitCancel()
+		if waitCtx.Err() == context.DeadlineExceeded {
+			log.Printf("reaper: wait timeout (%ds) exceeded for %s, proceeding with cleanup", waitSec, spec.ContainerName)
+		} else if err != nil {
+			log.Printf("reaper: wait error for %s: %v", spec.ContainerName, err)
+		}
 	}
 
 	timeout := time.Duration(DefaultReaperTimeout) * time.Second

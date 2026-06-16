@@ -9,6 +9,7 @@ import (
 // It is serialized as a single JSON line over the pipe from aw to the reaper.
 type ReaperSpec struct {
 	Timeout         int              `json:"timeout"`
+	WaitTimeout     int              `json:"wait_timeout,omitempty"`
 	ContainerName   string           `json:"container_name"`
 	Runtime         string           `json:"runtime"`
 	KeepContainer   bool             `json:"keep_container"`
