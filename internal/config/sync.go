@@ -25,7 +25,7 @@ type ToolSyncSpec struct {
 // ClaudeSyncSpec syncs Claude Code settings while preserving session data.
 var ClaudeSyncSpec = ToolSyncSpec{
 	Files: []string{"settings.json", "CLAUDE.md"},
-	Dirs:  []string{"hooks", "plugins", "commands", "agents"},
+	Dirs:  []string{"hooks", "plugins", "commands", "agents", "skills"},
 	Patch: map[string]Patcher{
 		"settings.json": patchSettingsForContainer,
 	},
