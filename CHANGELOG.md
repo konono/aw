@@ -6,6 +6,18 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.1.0](https://github.com/konono/aw/compare/v3.0.0...v3.1.0) (2026-06-17)
+
+
+### Features
+
+* **export:** skip tar generation when --apply is used without -o ([#84](https://github.com/konono/aw/issues/84)) ([654cb16](https://github.com/konono/aw/commit/654cb162326145c111a3a1309940b80c24c3ea23))
+
+
+### Bug Fixes
+
+* **sync:** include skills directory in ClaudeSyncSpec ([#82](https://github.com/konono/aw/issues/82)) ([0f70276](https://github.com/konono/aw/commit/0f702769aeca15a926ccb36c4ce20e6051f83fa8))
+
 ## [3.0.0](https://github.com/konono/aw/compare/v2.1.0...v3.0.0) (2026-06-16)
 
 
