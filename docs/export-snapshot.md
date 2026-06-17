@@ -12,7 +12,20 @@ aw export dev --snapshot -o image.tar
 
 1. **イメージビルド** — Dockerfile でベースイメージを作成（mise の基盤のみ。`package_manager: devbox` の場合は Nix + devbox も含む）
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`
-3. **tar 出力** — `docker save` でイメージを tar に書き出す
+3. **tar 出力** — `docker save` でイメージを tar に書き出す（`--apply` のみの場合はスキップ）
+
+### フラグの組み合わせと動作
+
+| コマンド | ビルド | snapshot | tar 生成 | config 書き戻し |
+|---|---|---|---|---|
+| `aw export <profile>` | o | - | o | - |
+| `aw export <profile> --snapshot` | o | o | o | - |
+| `aw export <profile> --apply` | o | - | **スキップ** | o |
+| `aw export <profile> --apply --snapshot` | o | o | **スキップ** | o |
+| `aw export <profile> --apply -o file.tar` | o | - | o | o |
+| `aw export <profile> --apply --snapshot -o file.tar` | o | o | o | o |
+
+`--apply` 単体ではローカルキャッシュとして使う想定のため、tar ファイルは生成しない。airgap 用途で tar も必要な場合は `-o` を併用する。
 
 ## イメージビルド（Dockerfile）
 
