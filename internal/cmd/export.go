@@ -90,16 +90,20 @@ func runExport(args []string) int {
 		}
 	}
 
+	saveTar := !opts.Apply || opts.OutputPath != ""
+
 	outputPath := opts.OutputPath
-	if outputPath == "" {
+	if saveTar && outputPath == "" {
 		safe := strings.NewReplacer(":", "-", "/", "-").Replace(ec.DockerImage)
 		outputPath = safe + ".tar"
 	}
 
-	fmt.Fprintf(os.Stderr, "Exporting image '%s' to %s...\n", ec.DockerImage, outputPath)
-	if err := client.Save(context.Background(), ec.DockerImage, outputPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
-		return 1
+	if saveTar {
+		fmt.Fprintf(os.Stderr, "Exporting image '%s' to %s...\n", ec.DockerImage, outputPath)
+		if err := client.Save(context.Background(), ec.DockerImage, outputPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving image: %v\n", err)
+			return 1
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
@@ -118,8 +122,10 @@ func runExport(args []string) int {
 			return 1
 		}
 		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", ec.DockerImage, opts.ProfileName, targetFile)
-		fmt.Fprintf(os.Stderr, "# Load on target machine:\n")
-		fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, outputPath)
+		if saveTar {
+			fmt.Fprintf(os.Stderr, "# Load on target machine:\n")
+			fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, outputPath)
+		}
 	} else {
 		printConfigSnippet(ec.DockerImage, runtime, string(p.Launch), outputPath, snapshot)
 	}
@@ -315,7 +321,7 @@ func printExportHelp() {
 	fmt.Println("  --snapshot         Run setup in a temporary container and commit the result")
 	fmt.Println("  --include src:dst  Copy host path into the image (repeatable; implies --snapshot)")
 	fmt.Println("  --env KEY=VAL      Bake environment variable into the image (repeatable; implies --snapshot)")
-	fmt.Println("  --apply            Write image name back to the config file")
+	fmt.Println("  --apply            Write image name back to the config file (skips tar unless -o is also given)")
 	fmt.Println("  -h, --help         Show this help")
 }
 
