@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"fmt"
@@ -76,7 +77,11 @@ func (u *Updater) Execute() error {
 	}
 
 	// 5. Extract binary
-	binaryData, err := extractBinary(archiveData)
+	targetBinary := binaryName
+	if u.GOOS == "windows" {
+		targetBinary = binaryName + ".exe"
+	}
+	binaryData, err := extractBinary(archiveData, u.GOOS, targetBinary)
 	if err != nil {
 		return fmt.Errorf("extracting binary: %w", err)
 	}
@@ -116,8 +121,17 @@ func (u *Updater) download(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-// extractBinary extracts the binary named "aw" from a tar.gz archive.
-func extractBinary(archiveData []byte) ([]byte, error) {
+// extractBinary extracts the binary from an archive.
+// For Windows (zip format), it looks for targetBinary in a zip archive.
+// For other platforms (tar.gz), it looks in a tar.gz archive.
+func extractBinary(archiveData []byte, goos, targetBinary string) ([]byte, error) {
+	if goos == "windows" {
+		return extractBinaryFromZip(archiveData, targetBinary)
+	}
+	return extractBinaryFromTarGz(archiveData, targetBinary)
+}
+
+func extractBinaryFromTarGz(archiveData []byte, targetBinary string) ([]byte, error) {
 	gr, err := gzip.NewReader(bytes.NewReader(archiveData))
 	if err != nil {
 		return nil, fmt.Errorf("opening gzip: %w", err)
@@ -134,7 +148,7 @@ func extractBinary(archiveData []byte) ([]byte, error) {
 			return nil, fmt.Errorf("reading tar: %w", err)
 		}
 
-		if filepath.Base(hdr.Name) == binaryName {
+		if filepath.Base(hdr.Name) == targetBinary {
 			data, err := io.ReadAll(tr)
 			if err != nil {
 				return nil, fmt.Errorf("reading binary from archive: %w", err)
@@ -143,7 +157,31 @@ func extractBinary(archiveData []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("binary %q not found in archive", binaryName)
+	return nil, fmt.Errorf("binary %q not found in archive", targetBinary)
+}
+
+func extractBinaryFromZip(archiveData []byte, targetBinary string) ([]byte, error) {
+	zr, err := zip.NewReader(bytes.NewReader(archiveData), int64(len(archiveData)))
+	if err != nil {
+		return nil, fmt.Errorf("opening zip: %w", err)
+	}
+
+	for _, f := range zr.File {
+		if filepath.Base(f.Name) == targetBinary {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, fmt.Errorf("opening file in zip: %w", err)
+			}
+			defer func() { _ = rc.Close() }()
+			data, err := io.ReadAll(rc)
+			if err != nil {
+				return nil, fmt.Errorf("reading binary from zip: %w", err)
+			}
+			return data, nil
+		}
+	}
+
+	return nil, fmt.Errorf("binary %q not found in archive", targetBinary)
 }
 
 // executablePath returns the resolved path of the currently running binary.
@@ -178,9 +216,11 @@ func replaceBinary(targetPath string, newBinary []byte) error {
 		_ = tmpFile.Close()
 		return fmt.Errorf("writing temp file: %w", err)
 	}
-	if err := tmpFile.Chmod(0755); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("setting permissions: %w", err)
+	if runtime.GOOS != "windows" {
+		if err := tmpFile.Chmod(0755); err != nil {
+			_ = tmpFile.Close()
+			return fmt.Errorf("setting permissions: %w", err)
+		}
 	}
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("closing temp file: %w", err)
