@@ -11,14 +11,12 @@ func TestDetectContainerSock_Docker(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DetectContainerSock(docker) on darwin: unexpected error: %v", err)
 		}
-		if path != defaultDockerSock {
-			t.Errorf("path = %q, want %q", path, defaultDockerSock)
+		if path != "/var/run/docker.sock" {
+			t.Errorf("path = %q, want %q", path, "/var/run/docker.sock")
 		}
-	} else {
-		// On Linux, the socket may or may not exist depending on the environment.
-		// Just verify the path is correct when it succeeds.
-		if err == nil && path != defaultDockerSock {
-			t.Errorf("path = %q, want %q", path, defaultDockerSock)
+	} else if runtime.GOOS != "windows" {
+		if err == nil && path != "/var/run/docker.sock" {
+			t.Errorf("path = %q, want %q", path, "/var/run/docker.sock")
 		}
 	}
 }
@@ -31,8 +29,8 @@ func TestDetectContainerSock_PodmanDarwin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DetectContainerSock(podman) on darwin: unexpected error: %v", err)
 	}
-	if path != defaultPodmanSock {
-		t.Errorf("path = %q, want %q", path, defaultPodmanSock)
+	if path != "/run/podman/podman.sock" {
+		t.Errorf("path = %q, want %q", path, "/run/podman/podman.sock")
 	}
 }
 
