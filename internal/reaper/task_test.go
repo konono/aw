@@ -78,7 +78,10 @@ func TestExecuteTask_Dispatch(t *testing.T) {
 			name: "remove_file dispatch",
 			task: ReaperTask{
 				Type:   "remove_file",
-				Config: json.RawMessage(`{"path": "` + filepath.Join(t.TempDir(), "nonexistent") + `"}`),
+				Config: func() json.RawMessage {
+					cfg, _ := json.Marshal(RemoveFileConfig{Path: filepath.Join(t.TempDir(), "nonexistent")})
+					return cfg
+				}(),
 			},
 		},
 		{

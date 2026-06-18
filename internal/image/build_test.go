@@ -3,6 +3,7 @@ package image
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -275,7 +276,7 @@ func TestPrepareBuildContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat entrypoint.sh: %v", err)
 	}
-	if epInfo.Mode().Perm()&0111 == 0 {
+	if runtime.GOOS != "windows" && epInfo.Mode().Perm()&0111 == 0 {
 		t.Error("entrypoint.sh should be executable")
 	}
 
@@ -290,7 +291,7 @@ func TestPrepareBuildContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat aw-init.sh: %v", err)
 	}
-	if initInfo.Mode().Perm()&0111 == 0 {
+	if runtime.GOOS != "windows" && initInfo.Mode().Perm()&0111 == 0 {
 		t.Error("aw-init.sh should be executable")
 	}
 }

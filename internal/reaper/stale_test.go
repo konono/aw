@@ -60,11 +60,11 @@ exit 1
 }
 
 func TestHandleAbort(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Spawn uses ExtraFiles (fd 3) which is not supported on Windows")
+	}
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(dir, ".config"))
-	}
 
 	specPath := filepath.Join(dir, ".config", "aw", "reaper", "aw-abort-test.spec.json")
 	if err := os.MkdirAll(filepath.Dir(specPath), 0755); err != nil {

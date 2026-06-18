@@ -2,6 +2,7 @@ package mount
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -119,7 +120,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if fileExists(gitconfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   gitconfig,
-			Target:   filepath.Join(containerHome, ".gitconfig"),
+			Target:   path.Join(containerHome, ".gitconfig"),
 			ReadOnly: true,
 		})
 	}
@@ -128,7 +129,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if mountGH && dirExists(ghConfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   ghConfig,
-			Target:   filepath.Join(containerHome, ".config", "gh"),
+			Target:   path.Join(containerHome, ".config", "gh"),
 			ReadOnly: true,
 		})
 	}
@@ -137,7 +138,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if mountSSH && dirExists(sshDir) {
 		mounts = append(mounts, docker.Mount{
 			Source:   sshDir,
-			Target:   filepath.Join(containerHome, ".ssh-host"),
+			Target:   path.Join(containerHome, ".ssh-host"),
 			ReadOnly: true,
 		})
 	}
