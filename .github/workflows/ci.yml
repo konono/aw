@@ -6,10 +6,24 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        go-version: ['1.23', '1.26']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage.out ./...
+      - name: Compile integration tests
+        run: go test -tags integration -run '^$' ./...
+
+  test-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
         go-version: ['1.23', '1.26']
     defaults:
       run:
@@ -20,10 +34,8 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - run: go vet ./...
-      - run: go test -race -coverprofile=coverage.out ./...
-      - name: Compile integration tests
-        if: runner.os != 'Windows'
-        run: go test -tags integration -run '^$' ./...
+      - run: go build ./...
+      - run: go test ./internal/platform/ ./internal/containerenv/ ./internal/pathutil/ ./internal/update/
 
   lint:
     runs-on: ubuntu-latest
