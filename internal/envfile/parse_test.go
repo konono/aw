@@ -118,7 +118,7 @@ func TestParse_DuplicateKeyLastWins(t *testing.T) {
 }
 
 func TestParseFile_NonexistentFile(t *testing.T) {
-	env, err := ParseFile("/tmp/nonexistent-aw-env-test-file")
+	env, err := ParseFile(filepath.Join(t.TempDir(), "nonexistent-file"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

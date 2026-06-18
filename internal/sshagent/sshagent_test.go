@@ -1,6 +1,7 @@
 package sshagent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/internal/pipeline"
@@ -10,30 +11,30 @@ func TestVMSocketPath(t *testing.T) {
 	tests := []struct {
 		name          string
 		containerName string
-		want          string
+		wantContains  string
 	}{
 		{
 			name:          "normal name",
 			containerName: "my-container",
-			want:          "/tmp/aw-ssh-agent-my-container.sock",
+			wantContains:  "aw-ssh-agent-my-container.sock",
 		},
 		{
 			name:          "empty name",
 			containerName: "",
-			want:          "/tmp/aw-ssh-agent-.sock",
+			wantContains:  "aw-ssh-agent-.sock",
 		},
 		{
 			name:          "name with dots",
 			containerName: "aw.project.claude",
-			want:          "/tmp/aw-ssh-agent-aw.project.claude.sock",
+			wantContains:  "aw-ssh-agent-aw.project.claude.sock",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := VMSocketPath(tt.containerName)
-			if got != tt.want {
-				t.Errorf("VMSocketPath(%q) = %q, want %q", tt.containerName, got, tt.want)
+			if !strings.Contains(got, tt.wantContains) {
+				t.Errorf("VMSocketPath(%q) = %q, want path containing %q", tt.containerName, got, tt.wantContains)
 			}
 		})
 	}

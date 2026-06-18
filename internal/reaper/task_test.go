@@ -3,6 +3,8 @@ package reaper
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -33,7 +35,7 @@ func TestExecuteTask_KillProcess_PIDNotExist(t *testing.T) {
 }
 
 func TestExecuteTask_RemoveFile_NotExist(t *testing.T) {
-	cfg, _ := json.Marshal(RemoveFileConfig{Path: "/tmp/nonexistent-aw-test-file-12345"})
+	cfg, _ := json.Marshal(RemoveFileConfig{Path: filepath.Join(t.TempDir(), "nonexistent-file")})
 	task := ReaperTask{
 		Type:   "remove_file",
 		Config: cfg,
@@ -49,7 +51,11 @@ func TestRunShell_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err := runShell(ctx, ShellConfig{Command: "sleep 10"})
+	cmd := "sleep 10"
+	if runtime.GOOS == "windows" {
+		cmd = "ping -n 20 127.0.0.1"
+	}
+	err := runShell(ctx, ShellConfig{Command: cmd})
 	if err == nil {
 		t.Error("expected error from timed-out shell command")
 	}
@@ -72,14 +78,14 @@ func TestExecuteTask_Dispatch(t *testing.T) {
 			name: "remove_file dispatch",
 			task: ReaperTask{
 				Type:   "remove_file",
-				Config: json.RawMessage(`{"path": "/tmp/nonexistent-12345"}`),
+				Config: json.RawMessage(`{"path": "` + filepath.Join(t.TempDir(), "nonexistent") + `"}`),
 			},
 		},
 		{
 			name: "shell dispatch",
 			task: ReaperTask{
 				Type:   "shell",
-				Config: json.RawMessage(`{"command": "true"}`),
+				Config: json.RawMessage(`{"command": "echo ok"}`),
 			},
 		},
 		{

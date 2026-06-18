@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,9 @@ func testReaperHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(dir, ".config"))
+	}
 	return filepath.Join(dir, ".config", "aw", "reaper")
 }
 

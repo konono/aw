@@ -6,7 +6,12 @@ import (
 	"testing"
 
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/platform"
 )
+
+func containerPath(hostPath string) string {
+	return platform.ToContainerPath(hostPath)
+}
 
 func newTestOpts(homeDir, workDir string) MountOptions {
 	return MountOptions{
@@ -50,9 +55,9 @@ func TestBuildMounts_FixedMountsAlwaysPresent(t *testing.T) {
 	}
 
 	// Workspace mount
-	ws := findMount(mounts, workDir)
+	ws := findMount(mounts, containerPath(workDir))
 	if ws == nil {
-		t.Fatalf("missing workspace mount for %s", workDir)
+		t.Fatalf("missing workspace mount for %s", containerPath(workDir))
 		return
 	}
 	if ws.Source != workDir {
@@ -246,9 +251,9 @@ func TestBuildMounts_WorktreeAddsMount(t *testing.T) {
 	}
 
 	absMainGitDir, _ := filepath.Abs(mainGitDir)
-	m := findMount(mounts, absMainGitDir)
+	m := findMount(mounts, containerPath(absMainGitDir))
 	if m == nil {
-		t.Fatalf("missing worktree mount for %s", absMainGitDir)
+		t.Fatalf("missing worktree mount for %s", containerPath(absMainGitDir))
 		return
 	}
 	if m.Source != absMainGitDir {
@@ -294,7 +299,7 @@ func TestBuildMounts_CodexToolConfig(t *testing.T) {
 	}
 
 	// Workspace should still be present
-	if findMount(mounts, workDir) == nil {
+	if findMount(mounts, containerPath(workDir)) == nil {
 		t.Error("workspace mount should still be present for codex")
 	}
 }
@@ -549,9 +554,9 @@ func TestBuildMounts_SkipSELinuxOnHomeDir(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	ws := findMount(mounts, homeDir)
+	ws := findMount(mounts, containerPath(homeDir))
 	if ws == nil {
-		t.Fatalf("missing workspace mount for %s", homeDir)
+		t.Fatalf("missing workspace mount for %s", containerPath(homeDir))
 		return
 	}
 	if hasSELinuxOpt(ws.Options) {
@@ -583,9 +588,9 @@ func TestBuildMounts_SELinuxOnSubdirOfHomeDir(t *testing.T) {
 		t.Fatalf("BuildMounts() error: %v", err)
 	}
 
-	ws := findMount(mounts, workDir)
+	ws := findMount(mounts, containerPath(workDir))
 	if ws == nil {
-		t.Fatalf("missing workspace mount for %s", workDir)
+		t.Fatalf("missing workspace mount for %s", containerPath(workDir))
 		return
 	}
 	if !hasSELinuxOpt(ws.Options) {

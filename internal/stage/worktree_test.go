@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -30,7 +31,7 @@ func TestRunOnCreateHook_ShellInvocation(t *testing.T) {
 	execCommand = func(name string, args ...string) *exec.Cmd {
 		capturedName = name
 		capturedArgs = args
-		return exec.Command("true")
+		return exec.Command("echo")
 	}
 
 	ec := &pipeline.ExecutionContext{
@@ -48,11 +49,13 @@ func TestRunOnCreateHook_ShellInvocation(t *testing.T) {
 		t.Fatalf("runWorktreeHook() error: %v", err)
 	}
 
-	if capturedName != "sh" {
-		t.Errorf("expected command 'sh', got %q", capturedName)
+	shell, shellFlags := platform.ShellCommand()
+	if capturedName != shell {
+		t.Errorf("expected command %q, got %q", shell, capturedName)
 	}
-	if len(capturedArgs) != 2 || capturedArgs[0] != "-c" || capturedArgs[1] != "./setup.sh" {
-		t.Errorf("expected args [-c ./setup.sh], got %v", capturedArgs)
+	wantArgs := append(shellFlags, "./setup.sh")
+	if len(capturedArgs) != len(wantArgs) || capturedArgs[0] != wantArgs[0] || capturedArgs[len(capturedArgs)-1] != "./setup.sh" {
+		t.Errorf("expected args %v, got %v", wantArgs, capturedArgs)
 	}
 }
 
@@ -65,7 +68,7 @@ func TestRunOnCreateHook_SetsEnvironmentAndDir(t *testing.T) {
 	// Use a real command that prints env vars
 	execCommand = func(name string, args ...string) *exec.Cmd {
 		// Create a real command that will succeed and let us inspect env via the Cmd struct
-		cmd := exec.Command("true")
+		cmd := exec.Command("echo")
 		return cmd
 	}
 
@@ -168,7 +171,7 @@ func TestRunOnEndHook_ShellInvocation(t *testing.T) {
 	execCommand = func(name string, args ...string) *exec.Cmd {
 		capturedName = name
 		capturedArgs = args
-		return exec.Command("true")
+		return exec.Command("echo")
 	}
 
 	ec := &pipeline.ExecutionContext{
@@ -187,11 +190,13 @@ func TestRunOnEndHook_ShellInvocation(t *testing.T) {
 		t.Fatalf("RunOnEndHook() error: %v", err)
 	}
 
-	if capturedName != "sh" {
-		t.Errorf("expected command 'sh', got %q", capturedName)
+	shell, shellFlags := platform.ShellCommand()
+	if capturedName != shell {
+		t.Errorf("expected command %q, got %q", shell, capturedName)
 	}
-	if len(capturedArgs) != 2 || capturedArgs[0] != "-c" || capturedArgs[1] != "./cleanup.sh" {
-		t.Errorf("expected args [-c ./cleanup.sh], got %v", capturedArgs)
+	wantArgs := append(shellFlags, "./cleanup.sh")
+	if len(capturedArgs) != len(wantArgs) || capturedArgs[0] != wantArgs[0] || capturedArgs[len(capturedArgs)-1] != "./cleanup.sh" {
+		t.Errorf("expected args %v, got %v", wantArgs, capturedArgs)
 	}
 }
 
@@ -291,45 +296,51 @@ func TestRunOnEndHook_FailureReturnsError(t *testing.T) {
 }
 
 func TestResolveWorktreesDir_Default(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "repo")
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{},
 	}
-	got, err := resolveWorktreesDir(ec, "/repo")
+	got, err := resolveWorktreesDir(ec, repoRoot)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/repo/worktrees" {
-		t.Errorf("got %q, want %q", got, "/repo/worktrees")
+	want := filepath.Join(repoRoot, "worktrees")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
 func TestResolveWorktreesDir_AbsoluteOverride(t *testing.T) {
+	absDir := filepath.Join(t.TempDir(), "abs", "wt")
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Worktree: &profile.WorktreeConfig{Dir: "/abs/wt"},
+			Worktree: &profile.WorktreeConfig{Dir: absDir},
 		},
 	}
-	got, err := resolveWorktreesDir(ec, "/repo")
+	got, err := resolveWorktreesDir(ec, filepath.Join(t.TempDir(), "repo"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/abs/wt" {
-		t.Errorf("got %q, want %q", got, "/abs/wt")
+	if got != absDir {
+		t.Errorf("got %q, want %q", got, absDir)
 	}
 }
 
 func TestResolveWorktreesDir_RelativeIsRepoRelative(t *testing.T) {
+	base := t.TempDir()
+	repoSub := filepath.Join(base, "repo", "sub")
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
 			Worktree: &profile.WorktreeConfig{Dir: "../shared-worktrees"},
 		},
 	}
-	got, err := resolveWorktreesDir(ec, "/repo/sub")
+	got, err := resolveWorktreesDir(ec, repoSub)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/repo/shared-worktrees" {
-		t.Errorf("got %q, want %q", got, "/repo/shared-worktrees")
+	want := filepath.Join(base, "repo", "shared-worktrees")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
@@ -341,11 +352,11 @@ func TestResolveWorktreesDir_TildeExpansion(t *testing.T) {
 			Worktree: &profile.WorktreeConfig{Dir: "~/aw-wt"},
 		},
 	}
-	got, err := resolveWorktreesDir(ec, "/repo")
+	got, err := resolveWorktreesDir(ec, filepath.Join(t.TempDir(), "repo"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := home + "/aw-wt"
+	want := filepath.Join(home, "aw-wt")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
