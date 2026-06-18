@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+
+	"github.com/konono/aw/internal/platform"
 )
 
 // VMSocketPath returns the session-specific socket path for SSH agent forwarding
 // into the Podman VM. Each session gets its own socket to avoid interference
 // between concurrent aw instances.
 func VMSocketPath(containerName string) string {
-	return fmt.Sprintf("/tmp/aw-ssh-agent-%s.sock", containerName)
+	return platform.TempSocketPath(containerName)
 }
 
 // ForwardedAgent holds the result of SSH agent forwarding setup.
@@ -34,12 +36,20 @@ type PodmanSSHConfig struct {
 // containerName is used to create a session-specific socket path.
 func Setup(containerRuntime, containerName string) (*ForwardedAgent, error) {
 	hostSock := os.Getenv("SSH_AUTH_SOCK")
-	if hostSock == "" {
-		return nil, fmt.Errorf("SSH_AUTH_SOCK is not set; ensure ssh-agent is running")
-	}
 
 	if runtime.GOOS == "darwin" && containerRuntime == "podman" {
+		if hostSock == "" {
+			return nil, fmt.Errorf("SSH_AUTH_SOCK is not set; ensure ssh-agent is running")
+		}
 		return setupPodmanDarwin(hostSock, containerName)
+	}
+
+	if runtime.GOOS == "windows" && containerRuntime == "podman" {
+		return setupPodmanWindows(hostSock, containerName)
+	}
+
+	if hostSock == "" {
+		return nil, fmt.Errorf("SSH_AUTH_SOCK is not set; ensure ssh-agent is running")
 	}
 
 	if _, err := os.Stat(hostSock); err != nil {

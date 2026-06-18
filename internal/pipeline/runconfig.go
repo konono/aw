@@ -3,6 +3,7 @@ package pipeline
 import (
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/toolinfo"
 )
 
@@ -12,7 +13,7 @@ func BuildRunConfig(ec *ExecutionContext, runtime string, command []string, envV
 		ImageName:    ec.DockerImage,
 		Mounts:       ec.DockerMounts,
 		EnvVars:      envVars,
-		WorkDir:      ec.WorkDir,
+		WorkDir:      platform.ToContainerPath(ec.WorkDir),
 		Command:      command,
 		SecurityOpts: ec.DockerSecurityOpts,
 		CapAdd:       ec.DockerCapAdd,
@@ -48,7 +49,7 @@ func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []
 		ImageName: ec.DockerImage,
 		Mounts:    ec.DockerMounts,
 		EnvVars:   envVars,
-		WorkDir:   ec.WorkDir,
+		WorkDir:   platform.ToContainerPath(ec.WorkDir),
 		Command:   command,
 		User:      docker.HostUserID(),
 		Userns:    docker.PodmanUserns(runtime),

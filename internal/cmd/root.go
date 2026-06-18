@@ -9,6 +9,7 @@ import (
 	"github.com/konono/aw/internal/doctor"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
@@ -187,7 +188,7 @@ func Run(args []string) int {
 	// The launcher passes --user <host-uid>:<host-gid> so the container
 	// process owns the same files as the host user. uid 0 is rejected
 	// because Claude Code refuses to run as root.
-	if p.Environment == profile.EnvironmentContainer && os.Getuid() == 0 {
+	if p.Environment == profile.EnvironmentContainer && platform.IsRunningAsRoot() {
 		fmt.Fprintf(os.Stderr, "Error: aw must not be run as root — the container user cannot match uid 0.\n")
 		fmt.Fprintf(os.Stderr, "Run as a regular user, or create one: useradd -m dev && su - dev\n")
 		return 1

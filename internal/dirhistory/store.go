@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/konono/aw/internal/gitroot"
+	"github.com/konono/aw/internal/platform"
 )
 
 const (
@@ -166,15 +167,7 @@ func (s *Store) compact() {
 }
 
 func filePath() string {
-	dir := os.Getenv("XDG_STATE_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		dir = filepath.Join(home, ".local", "state")
-	}
-	return filepath.Join(dir, "aw", "dirs.json")
+	return filepath.Join(platform.StateDir(), "dirs.json")
 }
 
 func cleanPath(p string) string {

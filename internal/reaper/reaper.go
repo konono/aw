@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/konono/aw/internal/platform"
 )
 
 // Run is the entry point for the reaper subprocess.
@@ -141,8 +143,7 @@ func ReaperDir() string {
 	if reaperDirOverride != "" {
 		return reaperDirOverride
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "aw", "reaper")
+	return filepath.Join(platform.ConfigDir(), "reaper")
 }
 
 // RuntimeFromSpec reads a spec file and returns the runtime field.

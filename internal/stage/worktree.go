@@ -11,6 +11,7 @@ import (
 	"github.com/konono/aw/internal/gitroot"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/worktree"
 )
 
@@ -81,7 +82,9 @@ func (s *WorktreeStage) Run(_ context.Context, ec *pipeline.ExecutionContext) er
 var execCommand = exec.Command
 
 func runWorktreeHook(script string, ec *pipeline.ExecutionContext, repoRoot string) error {
-	cmd := execCommand("sh", "-c", script)
+	shell, shellArgs := platform.ShellCommand()
+	args := append(shellArgs, script)
+	cmd := execCommand(shell, args...)
 	cmd.Dir = ec.WorktreePath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

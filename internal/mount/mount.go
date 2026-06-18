@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/platform"
 )
 
 // SSHAgentContainerPath is the fixed path where the SSH agent socket is mounted inside the container.
@@ -53,7 +54,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 
 	mounts = append(mounts, docker.Mount{
 		Source: opts.WorkDir,
-		Target: opts.WorkDir,
+		Target: platform.ToContainerPath(opts.WorkDir),
 	})
 
 	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.ContainerHome, opts.MountGH, opts.MountSSH)...)
@@ -159,7 +160,7 @@ func worktreeMount(workDir string) (*docker.Mount, error) {
 
 	return &docker.Mount{
 		Source: mainGitDir,
-		Target: mainGitDir,
+		Target: platform.ToContainerPath(mainGitDir),
 	}, nil
 }
 

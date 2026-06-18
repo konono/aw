@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/toolinfo"
@@ -51,7 +51,7 @@ func (l *ToolLauncher) launchHost(ec *pipeline.ExecutionContext) error {
 
 	fmt.Fprintf(os.Stderr, "Launching %s in %s\n", spec.DisplayName, ec.WorkDir)
 
-	return syscall.Exec(binPath, []string{spec.Binary}, os.Environ())
+	return platform.ExecReplace(binPath, []string{spec.Binary}, os.Environ())
 }
 
 func (l *ToolLauncher) launchContainer(_ context.Context, ec *pipeline.ExecutionContext) error {

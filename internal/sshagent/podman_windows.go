@@ -1,4 +1,4 @@
-//go:build !darwin && !windows
+//go:build windows
 
 package sshagent
 
@@ -9,5 +9,5 @@ func setupPodmanDarwin(hostAuthSock, containerName string) (*ForwardedAgent, err
 }
 
 func setupPodmanWindows(hostAuthSock, containerName string) (*ForwardedAgent, error) {
-	return nil, fmt.Errorf("podman SSH agent forwarding is not supported on this platform")
+	return nil, fmt.Errorf("podman SSH agent forwarding is not yet supported on Windows; use Docker Desktop or set SSH_AUTH_SOCK in a Git Bash environment")
 }

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 )
@@ -28,10 +28,7 @@ func (l *ShellLauncher) Launch(ctx context.Context, ec *pipeline.ExecutionContex
 }
 
 func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
-	}
+	shell := platform.DefaultShell()
 
 	shellPath, err := exec.LookPath(shell)
 	if err != nil {
@@ -41,7 +38,7 @@ func (l *ShellLauncher) launchHostShell(ec *pipeline.ExecutionContext) error {
 	fmt.Fprintf(os.Stderr, "Opening shell in %s\n", ec.WorkDir)
 
 	env := os.Environ()
-	return syscall.Exec(shellPath, []string{shell}, env)
+	return platform.ExecReplace(shellPath, []string{shell}, env)
 }
 
 func (l *ShellLauncher) launchDockerShell(_ context.Context, ec *pipeline.ExecutionContext) error {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/konono/aw/internal/gitroot"
+	"github.com/konono/aw/internal/platform"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,11 +17,7 @@ var globalConfigFileNames = []string{"config.yml", "config.yaml"}
 
 // globalConfigDir returns the directory for the global config file (~/.config/aw).
 var globalConfigDir = func() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "aw"), nil
+	return platform.ConfigDir(), nil
 }
 
 // Load finds and loads the config file.

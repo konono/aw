@@ -12,8 +12,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/konono/aw/internal/platform"
 
 	"golang.org/x/term"
 )
@@ -285,7 +286,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	}
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGHUP)
+	signal.Notify(sigCh, platform.ContainerSurvivalSignals()...)
 	go func() {
 		for range sigCh {
 		}
