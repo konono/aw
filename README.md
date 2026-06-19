@@ -586,6 +586,8 @@ ca_cert: "~/certs/corp.pem"   # Linux: ~/.config に展開, Windows: %USERPROFIL
 | `aw update` (自己更新) | Windows では実行中のバイナリを上書きできないため、失敗する場合があります。`go install github.com/konono/aw@latest` で更新してください |
 | ホストモードのデフォルトシェル | `cmd.exe` が使用されます。Git Bash 環境では `SHELL` 環境変数が設定されていればそれが使われます |
 | 設定ディレクトリ | Unix の `~/.config/aw` ではなく `%APPDATA%\aw` です |
+| Reaper のプロセス kill | Unix ではコマンドライン確認後に kill しますが、Windows では PID のみで判断します。reaper spec 由来の信頼された PID を使用するため通常は問題ありません |
+| UNC パス (`\\server\share`) | マウントソースとしてはサポートされません。ローカルパスを使用してください |
 
 ## トラブルシューティング
 

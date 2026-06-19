@@ -255,7 +255,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		}
 	}
 	if caCertInBuildDir != "" {
-		defer os.Remove(caCertInBuildDir)
+		defer func() { _ = os.Remove(caCertInBuildDir) }()
 	}
 
 	dockerfilePath := customDockerfile

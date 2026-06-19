@@ -31,9 +31,11 @@ func ShellCommand() (string, []string) {
 }
 
 // RunShellCommand executes a command string via the system shell.
-// On Windows, this uses cmd /c.
+// On Windows with Git Bash (SHELL is set), uses sh -c for Unix script
+// compatibility. Otherwise uses cmd /c.
 func RunShellCommand(ctx context.Context, command, dir string) error {
-	cmd := exec.CommandContext(ctx, "cmd", "/c", command)
+	shell, args := ShellCommand()
+	cmd := exec.CommandContext(ctx, shell, append(args, command)...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
