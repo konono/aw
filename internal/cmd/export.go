@@ -27,6 +27,7 @@ type exportOptions struct {
 	OutputPath  string
 	Snapshot    bool
 	Apply       bool
+	NoCache     bool
 	Include     []profile.ExportInclude
 	Env         map[string]string
 }
@@ -69,6 +70,7 @@ func runExport(args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
+	ec.NoCache = opts.NoCache
 
 	dockerStage := stage.NewDockerStage()
 	if err := dockerStage.Run(context.Background(), ec); err != nil {
@@ -247,6 +249,8 @@ func parseExportArgs(args []string) (exportOptions, error) {
 			opts.Snapshot = true
 		case "--apply":
 			opts.Apply = true
+		case "--no-cache":
+			opts.NoCache = true
 		case "--include":
 			if i+1 >= len(args) {
 				return exportOptions{}, fmt.Errorf("--include requires src:dst argument")
@@ -426,7 +430,8 @@ func setYAMLMapBool(mapping *yaml.Node, key string, value bool) {
 }
 
 func renderSnapshotScript(cenv containerenv.Config) (string, error) {
-	t, err := template.New("snapshot").Parse(snapshotScriptTmpl)
+	tmpl := strings.ReplaceAll(snapshotScriptTmpl, "\r", "")
+	t, err := template.New("snapshot").Parse(tmpl)
 	if err != nil {
 		return "", fmt.Errorf("parsing snapshot script template: %w", err)
 	}

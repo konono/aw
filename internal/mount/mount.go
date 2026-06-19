@@ -2,10 +2,12 @@ package mount
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/internal/platform"
 )
 
 // SSHAgentContainerPath is the fixed path where the SSH agent socket is mounted inside the container.
@@ -53,7 +55,7 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 
 	mounts = append(mounts, docker.Mount{
 		Source: opts.WorkDir,
-		Target: opts.WorkDir,
+		Target: platform.ToContainerPath(opts.WorkDir),
 	})
 
 	mounts = append(mounts, optionalMounts(opts.HomeDir, opts.ContainerHome, opts.MountGH, opts.MountSSH)...)
@@ -118,7 +120,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if fileExists(gitconfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   gitconfig,
-			Target:   filepath.Join(containerHome, ".gitconfig"),
+			Target:   path.Join(containerHome, ".gitconfig"),
 			ReadOnly: true,
 		})
 	}
@@ -127,7 +129,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if mountGH && dirExists(ghConfig) {
 		mounts = append(mounts, docker.Mount{
 			Source:   ghConfig,
-			Target:   filepath.Join(containerHome, ".config", "gh"),
+			Target:   path.Join(containerHome, ".config", "gh"),
 			ReadOnly: true,
 		})
 	}
@@ -136,7 +138,7 @@ func optionalMounts(homeDir, containerHome string, mountGH, mountSSH bool) []doc
 	if mountSSH && dirExists(sshDir) {
 		mounts = append(mounts, docker.Mount{
 			Source:   sshDir,
-			Target:   filepath.Join(containerHome, ".ssh-host"),
+			Target:   path.Join(containerHome, ".ssh-host"),
 			ReadOnly: true,
 		})
 	}
@@ -159,7 +161,7 @@ func worktreeMount(workDir string) (*docker.Mount, error) {
 
 	return &docker.Mount{
 		Source: mainGitDir,
-		Target: mainGitDir,
+		Target: platform.ToContainerPath(mainGitDir),
 	}, nil
 }
 

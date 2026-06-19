@@ -148,6 +148,19 @@ func TestParseRunArgs_NoRecord(t *testing.T) {
 	}
 }
 
+func TestParseRunArgs_NoCache(t *testing.T) {
+	opts, err := parseRunArgs([]string{"codex", "--no-cache"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !opts.NoCache {
+		t.Error("expected NoCache to be true")
+	}
+	if opts.ProfileName != "codex" {
+		t.Errorf("got profile %q, want codex", opts.ProfileName)
+	}
+}
+
 func TestParseRunArgs_RecentAndCwdConflict(t *testing.T) {
 	_, err := parseRunArgs([]string{"codex", "--recent", "-C", "/tmp"})
 	if err == nil {

@@ -3,6 +3,7 @@ package reaper
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -14,6 +15,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestCheckStaleContainer(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires shell script execution")
+	}
 	dir := t.TempDir()
 	runtimePath := filepath.Join(dir, "fake-runtime")
 	script := `#!/bin/sh
@@ -56,6 +60,9 @@ exit 1
 }
 
 func TestHandleAbort(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Spawn uses ExtraFiles (fd 3) which is not supported on Windows")
+	}
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 

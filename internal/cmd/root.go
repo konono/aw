@@ -9,6 +9,7 @@ import (
 	"github.com/konono/aw/internal/doctor"
 	"github.com/konono/aw/internal/image"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
@@ -160,6 +161,7 @@ func Run(args []string) int {
 		return 1
 	}
 	ec.CommandOverride = opts.Command
+	ec.NoCache = opts.NoCache
 
 	if len(ec.CommandOverride) > 0 && p.Environment == profile.EnvironmentHost {
 		fmt.Fprintf(os.Stderr, "Error: -c flag is only supported with environment: container\n")
@@ -187,7 +189,7 @@ func Run(args []string) int {
 	// The launcher passes --user <host-uid>:<host-gid> so the container
 	// process owns the same files as the host user. uid 0 is rejected
 	// because Claude Code refuses to run as root.
-	if p.Environment == profile.EnvironmentContainer && os.Getuid() == 0 {
+	if p.Environment == profile.EnvironmentContainer && platform.IsRunningAsRoot() {
 		fmt.Fprintf(os.Stderr, "Error: aw must not be run as root — the container user cannot match uid 0.\n")
 		fmt.Fprintf(os.Stderr, "Run as a regular user, or create one: useradd -m dev && su - dev\n")
 		return 1
@@ -384,6 +386,7 @@ func printHelp() {
 	fmt.Println("  --query <text>          Initial query for --recent picker")
 	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")
 	fmt.Println("  --no-record             Don't record this launch in directory history")
+	fmt.Println("  --no-cache              Rebuild the container image without using cache")
 	fmt.Println("  -h, --help              Show this help")
 	fmt.Println("  -v, --version           Show version")
 }

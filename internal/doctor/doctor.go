@@ -308,16 +308,27 @@ func checkSSH(res *result, needSSH, needAgent bool, verbose bool) bool {
 			res.fail("SSH_AUTH_SOCK is not set (ssh_agent_forwarding)")
 			if verbose {
 				res.detail("env SSH_AUTH_SOCK: (empty)")
-				res.detail("hint: start ssh-agent — eval \"$(ssh-agent -s)\"")
+				if runtime.GOOS == "windows" {
+					res.detail("hint: set SSH_AUTH_SOCK in Git Bash, or use Docker Desktop")
+				} else {
+					res.detail("hint: start ssh-agent — eval \"$(ssh-agent -s)\"")
+				}
 			}
 			ok = false
 		} else {
-			if _, err := os.Stat(sock); err != nil {
-				res.fail(fmt.Sprintf("SSH_AUTH_SOCK=%s (socket not found)", sock))
-				if verbose {
-					res.detail(fmt.Sprintf("stat %s: %v", sock, err))
+			if runtime.GOOS != "windows" {
+				if _, err := os.Stat(sock); err != nil {
+					res.fail(fmt.Sprintf("SSH_AUTH_SOCK=%s (socket not found)", sock))
+					if verbose {
+						res.detail(fmt.Sprintf("stat %s: %v", sock, err))
+					}
+					ok = false
+				} else {
+					res.pass("SSH_AUTH_SOCK is set")
+					if verbose {
+						res.detail(fmt.Sprintf("env SSH_AUTH_SOCK: %s", sock))
+					}
 				}
-				ok = false
 			} else {
 				res.pass("SSH_AUTH_SOCK is set")
 				if verbose {

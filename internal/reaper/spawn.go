@@ -6,7 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
+
+	"github.com/konono/aw/internal/platform"
 )
 
 // Handle holds the pipe write side kept by the ExecRun wrapper.
@@ -48,10 +49,8 @@ func Spawn(spec ReaperSpec) (*Handle, error) {
 	}
 
 	cmd := exec.Command(os.Args[0], "--internal-reaper")
-	cmd.ExtraFiles = []*os.File{r} // fd 3
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // separate from foreground process group
-	}
+	platform.SetupReaperPipe(cmd, r)
+	cmd.SysProcAttr = platform.ReaperSysProcAttr()
 	_ = os.MkdirAll(ReaperDir(), 0755)
 	logPath := filepath.Join(ReaperDir(), "reaper.log")
 	if info, err := os.Stat(logPath); err == nil && info.Size() > 1<<20 {

@@ -5,11 +5,21 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/konono/aw/internal/profile"
 )
+
+func setTestHome(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(home, ".config"))
+		t.Setenv("LOCALAPPDATA", filepath.Join(home, ".local"))
+	}
+}
 
 func captureOutput(t *testing.T, fn func()) (string, string) {
 	t.Helper()
@@ -55,7 +65,7 @@ func captureOutput(t *testing.T, fn func()) (string, string) {
 
 func TestRunInit_CreatesConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	stdout, stderr := captureOutput(t, func() {
 		if code := Run([]string{"init"}); code != 0 {
@@ -82,7 +92,7 @@ func TestRunInit_CreatesConfig(t *testing.T) {
 
 func TestRunInit_DoesNotOverwriteExistingConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	configPath := filepath.Join(home, ".config", "aw", "config.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
@@ -116,7 +126,7 @@ func TestRunInit_DoesNotOverwriteExistingConfig(t *testing.T) {
 
 func TestRunInit_ForceOverwritesExistingConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	configPath := filepath.Join(home, ".config", "aw", "config.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
@@ -150,7 +160,7 @@ func TestRunInit_ForceOverwritesExistingConfig(t *testing.T) {
 
 func TestRunInit_RejectsUpdateFlag(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	stdout, stderr := captureOutput(t, func() {
 		if code := Run([]string{"init", "--update"}); code != 1 {

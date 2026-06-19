@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/konono/aw/internal/config"
@@ -17,6 +19,7 @@ import (
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
@@ -218,11 +221,11 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
+	userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
 
 	if customDockerfile == "" {
 		if pkgMgr == profile.PackageManagerDevbox {
-			userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
+			userDevboxJSON := filepath.Join(platform.ConfigDir(), "devbox.json")
 			if data, err := os.ReadFile(userDevboxJSON); err == nil {
 				if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
 					return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
@@ -234,6 +237,25 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
 			}
 		}
+	}
+
+	caCertInBuildDir := ""
+	if ec.Profile.CACert != "" {
+		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+		data, err := os.ReadFile(certPath)
+		if err != nil {
+			return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
+		}
+		dst := filepath.Join(buildDir, "ca-cert.pem")
+		if err := os.WriteFile(dst, data, 0644); err != nil {
+			return "", fmt.Errorf("copying ca_cert to build context: %w", err)
+		}
+		if customDockerfile != "" {
+			caCertInBuildDir = dst
+		}
+	}
+	if caCertInBuildDir != "" {
+		defer func() { _ = os.Remove(caCertInBuildDir) }()
 	}
 
 	dockerfilePath := customDockerfile
@@ -270,7 +292,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 			hashInput += "\n" + string(miseData)
 		}
 		if pkgMgr == profile.PackageManagerDevbox {
-			if devboxData, err := os.ReadFile(filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")); err == nil {
+			if devboxData, err := os.ReadFile(filepath.Join(platform.ConfigDir(), "devbox.json")); err == nil {
 				hashInput += "\n" + string(devboxData)
 			}
 		}
@@ -284,11 +306,21 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 
 	// Build-time: space-delimited for shell word splitting in Dockerfile RUN.
 	// Runtime (AW_PACKAGES in env.go): comma-delimited, parsed by IFS=',' in aw-init.sh.
-	packages := pipeline.CollectPackages(ec.HomeDir, ec.Profile.Packages)
+	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages)
 	extraPackages := ""
 	if len(packages) > 0 {
 		extraPackages = strings.Join(packages, " ")
 		hashInput += "\n" + extraPackages
+	}
+
+	if ec.Profile.CACert != "" {
+		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+		if certData, err := os.ReadFile(certPath); err == nil {
+			hashInput += "\n" + string(certData)
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(ec.Profile.BuildEnv)) {
+		hashInput += "\n" + k + "=" + ec.Profile.BuildEnv[k]
 	}
 
 	imageName := defaultImageName
@@ -310,12 +342,15 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	if extraPackages != "" && customDockerfile == "" {
 		buildArgs["AW_EXTRA_PACKAGES"] = extraPackages
 	}
+	for k, v := range ec.Profile.BuildEnv {
+		buildArgs[k] = v
+	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
 	} else {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (os: %s)...\n", imageName, osTemplate)
 	}
-	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
+	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs, ec.NoCache); err != nil {
 		return "", fmt.Errorf("building image: %w", err)
 	}
 

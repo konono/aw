@@ -151,6 +151,19 @@ func Validate(p Profile) error {
 		}
 	}
 
+	if len(p.BuildEnv) > 0 && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("build_env is only valid with environment: container")
+	}
+	for k := range p.BuildEnv {
+		if strings.HasPrefix(k, "AW_") {
+			return fmt.Errorf("build_env key %q conflicts with reserved AW_* prefix", k)
+		}
+	}
+
+	if p.CACert != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("ca_cert is only valid with environment: container")
+	}
+
 	if err := validateAuth(p.Auth); err != nil {
 		return err
 	}

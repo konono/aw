@@ -20,6 +20,14 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 
 `aw` は使い捨てコンテナの中でエージェントを全権限で自律実行させます。コーディング対象のプロジェクトディレクトリだけをコンテナにマウントし、それ以外のホストリソースには触れられないようにします。コンテナ内で何が起きても、捨てれば元通りです。
 
+## 対応 OS
+
+| OS | Docker | Podman | 備考 |
+|----|:------:|:------:|------|
+| Linux (x86_64, arm64) | ✓ | ✓ | |
+| macOS (Apple Silicon, Intel) | ✓ | ✓ | |
+| Windows 10/11 | ✓ | ✓ | Docker Desktop または Podman Desktop (WSL2) |
+
 ## 前提条件
 
 | ツール | 必須 | 用途 |
@@ -27,6 +35,8 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 | [Go](https://go.dev/dl/) 1.23+ | ✓ | `go install` によるインストール |
 | [Docker](https://docs.docker.com/get-docker/) または [Podman](https://podman.io/docs/installation) | ✓ | コンテナの実行（デフォルトは Podman） |
 | `git` | — | `worktree` 機能を使う場合 |
+
+> **Windows ユーザーへ:** Docker Desktop または Podman Desktop（WSL2 バックエンド）が必要です。設定ディレクトリは `%APPDATA%\aw` です。企業プロキシ環境では [`build_env`](#企業プロキシca-証明書) と [`ca_cert`](#企業プロキシca-証明書) オプションを参照してください。
 
 ## クイックスタート
 
@@ -202,9 +212,9 @@ mount_container_sock: true    # docker-compose up/down
 aw プロセス（ラッパー）
   │
   ├─ os.Pipe() で pipe (read, write) を作成
-  ├─ reaper 子プロセスを spawn（read 側を fd 3 として渡す）
+  ├─ reaper 子プロセスを spawn（read 側をパイプとして渡す）
   │    └─ aw --internal-reaper として起動
-  │       fd 3 から ReaperSpec (JSON) を読み取り、EOF を待機
+  │       パイプから ReaperSpec (JSON) を読み取り、EOF を待機
   │
   ├─ pipe write 側に ReaperSpec を書き込む
   ├─ podman run -itd でコンテナを detached 起動
@@ -224,7 +234,7 @@ aw プロセス（ラッパー）
             レポート書き出し → spec 削除（全タスク成功時）
 ```
 
-ラッパーが先に終了した場合（ターミナルクローズ等）、コンテナは生存し、reaper は `podman wait` でコンテナの実際の終了を待ってからクリーンアップを実行します。reaper は独立プロセス（`Setpgid: true` でプロセスグループ分離済み）として動作します。
+ラッパーが先に終了した場合（ターミナルクローズ等）、コンテナは生存し、reaper は `podman wait` でコンテナの実際の終了を待ってからクリーンアップを実行します。reaper は独立プロセス（Unix: `Setpgid` でプロセスグループ分離、Windows: `CREATE_NEW_PROCESS_GROUP`）として動作します。
 
 reaper はタスクの成功/失敗を `~/.config/aw/reaper/` に JSON レポートとして保存します。タスクが失敗した場合は spec ファイルを保持し、後から `aw reaper recover` で再試行できます。
 
@@ -527,6 +537,57 @@ profiles:
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
 | [Export & Snapshot](docs/export-snapshot.md) | `aw export` のビルド・焼き込み・起動時の動作詳細 |
+
+## 企業プロキシ・CA 証明書
+
+企業ネットワーク環境では、コンテナイメージのビルド時にプロキシ設定や CA 証明書が必要になることがあります。
+
+```yaml
+defaults:
+  build_env:
+    HTTP_PROXY: "http://proxy.corp:8080"
+    HTTPS_PROXY: "http://proxy.corp:8080"
+    NO_PROXY: "localhost,127.0.0.1"
+  ca_cert: "C:/certs/corporate-ca.pem"  # または ~/certs/corp.pem
+```
+
+- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します
+- `ca_cert`: 証明書ファイルをビルドコンテキストにコピーし、ツールインストール前に `update-ca-certificates`（Debian/Ubuntu）または `update-ca-trust`（UBI）を実行します
+
+> **Note:** `build_env` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
+
+## Windows でのパスの書き方
+
+設定ファイル（`.aw.yml`、`config.yml`）ではフォワードスラッシュ `/` を使用してください。バックスラッシュ `\` は YAML のエスケープ文字と衝突します。
+
+```yaml
+# ✓ 正しい書き方
+ca_cert: "C:/certs/corporate-ca.pem"
+mounts:
+  - source: "C:/Users/me/.config/gcloud"
+    target: /home/agent/.config/gcloud
+
+# ✗ 動作しない書き方
+ca_cert: "C:\certs\corporate-ca.pem"     # YAML エスケープ問題
+ca_cert: 'C:\certs\corporate-ca.pem'     # シングルクォートなら動くが非推奨
+```
+
+チルダ展開 (`~/`) も使えます:
+
+```yaml
+ca_cert: "~/certs/corp.pem"   # Linux: ~/.config に展開, Windows: %USERPROFILE% に展開
+```
+
+## Windows での既知の制限
+
+| 制限 | 詳細 |
+|------|------|
+| SSH エージェント転送 (Podman) | 未サポート。Docker Desktop では `SSH_AUTH_SOCK` が設定されていれば動作します |
+| `aw update` (自己更新) | Windows では実行中のバイナリを上書きできないため、失敗する場合があります。`go install github.com/konono/aw@latest` で更新してください |
+| ホストモードのデフォルトシェル | `cmd.exe` が使用されます。Git Bash 環境では `SHELL` 環境変数が設定されていればそれが使われます |
+| 設定ディレクトリ | Unix の `~/.config/aw` ではなく `%APPDATA%\aw` です |
+| Reaper のプロセス kill | Unix ではコマンドライン確認後に kill しますが、Windows では PID のみで判断します。reaper spec 由来の信頼された PID を使用するため通常は問題ありません |
+| UNC パス (`\\server\share`) | マウントソースとしてはサポートされません。ローカルパスを使用してください |
 
 ## トラブルシューティング
 

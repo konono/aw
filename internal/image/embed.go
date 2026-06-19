@@ -10,6 +10,10 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
+func sanitizeLF(b []byte) []byte {
+	return bytes.ReplaceAll(b, []byte("\r"), nil)
+}
+
 //go:embed embed/Dockerfile.debian12.tmpl
 var dockerfileDebian12Tmpl string
 
@@ -72,14 +76,14 @@ func RenderDockerfile(os profile.OSTemplate, pkgMgr profile.PackageManager, cenv
 // Entrypoint returns the static entrypoint script for the given package manager.
 func Entrypoint(pkgMgr profile.PackageManager) []byte {
 	if pkgMgr == profile.PackageManagerDevbox {
-		return entrypointShDevbox
+		return sanitizeLF(entrypointShDevbox)
 	}
-	return entrypointSh
+	return sanitizeLF(entrypointSh)
 }
 
 // InitScript returns the embedded aw-init.sh content.
 func InitScript() []byte {
-	return awInitSh
+	return sanitizeLF(awInitSh)
 }
 
 func DefaultDockerfile() []byte {
@@ -99,5 +103,5 @@ func renderTemplate(name, tmplStr string, data interface{}) ([]byte, error) {
 	if err := t.Execute(&buf, data); err != nil {
 		return nil, fmt.Errorf("rendering %s template: %w", name, err)
 	}
-	return buf.Bytes(), nil
+	return sanitizeLF(buf.Bytes()), nil
 }

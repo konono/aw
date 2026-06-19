@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -108,9 +109,5 @@ func parseInitArgs(args []string) (initFlags, error) {
 }
 
 func globalConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "aw", "config.yml"), nil
+	return filepath.Join(platform.ConfigDir(), "config.yml"), nil
 }

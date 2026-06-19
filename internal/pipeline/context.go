@@ -49,4 +49,7 @@ type ExecutionContext struct {
 
 	// CommandOverride replaces the default launch command when set (via -c flag)
 	CommandOverride []string
+
+	// NoCache disables Docker build cache when set (via --no-cache flag)
+	NoCache bool
 }

@@ -82,6 +82,16 @@ func TestParseExportArgs(t *testing.T) {
 		}
 	})
 
+	t.Run("no-cache flag", func(t *testing.T) {
+		opts, err := parseExportArgs([]string{"claude", "--no-cache"})
+		if err != nil {
+			t.Fatalf("parseExportArgs() error = %v", err)
+		}
+		if !opts.NoCache {
+			t.Fatal("NoCache should be true")
+		}
+	})
+
 	t.Run("include single", func(t *testing.T) {
 		opts, err := parseExportArgs([]string{"claude", "--include", "./certs:/usr/local/share/ca-certificates"})
 		if err != nil {

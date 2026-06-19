@@ -1,6 +1,7 @@
 package toolinfo
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/konono/aw/internal/containerenv"
@@ -51,14 +52,14 @@ func TestInstallScript(t *testing.T) {
 }
 
 func TestHomePath(t *testing.T) {
-	home := "/home/testuser"
+	home := t.TempDir()
 	tests := []struct {
 		tool string
 		want string
 	}{
-		{"claude", "/home/testuser/.claude"},
-		{"codex", "/home/testuser/.codex"},
-		{"opencode", "/home/testuser/.config/opencode"},
+		{"claude", filepath.Join(home, ".claude")},
+		{"codex", filepath.Join(home, ".codex")},
+		{"opencode", filepath.Join(home, ".config", "opencode")},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
@@ -69,10 +70,11 @@ func TestHomePath(t *testing.T) {
 }
 
 func TestHomePath_EnvOverride(t *testing.T) {
-	t.Setenv("CLAUDE_HOME", "/custom/claude")
-	got := HomePath("claude", "/home/testuser")
-	if got != "/custom/claude" {
-		t.Errorf("HomePath with CLAUDE_HOME override = %q, want %q", got, "/custom/claude")
+	customDir := filepath.Join(t.TempDir(), "custom-claude")
+	t.Setenv("CLAUDE_HOME", customDir)
+	got := HomePath("claude", t.TempDir())
+	if got != customDir {
+		t.Errorf("HomePath with CLAUDE_HOME override = %q, want %q", got, customDir)
 	}
 }
 

@@ -509,6 +509,49 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "reaper.collect-logs must be one of",
 		},
+		{
+			name: "valid build_env with container",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				BuildEnv:    map[string]string{"HTTP_PROXY": "http://proxy:8080"},
+			},
+		},
+		{
+			name: "build_env requires container",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				BuildEnv:    map[string]string{"HTTP_PROXY": "http://proxy:8080"},
+			},
+			wantErr: "build_env is only valid with environment: container",
+		},
+		{
+			name: "build_env rejects AW_ prefix",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				BuildEnv:    map[string]string{"AW_TOOL_INSTALL_SCRIPT": "bad"},
+			},
+			wantErr: "conflicts with reserved AW_* prefix",
+		},
+		{
+			name: "valid ca_cert with container",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				CACert:      "/path/to/cert.pem",
+			},
+		},
+		{
+			name: "ca_cert requires container",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchShell,
+				CACert:      "/path/to/cert.pem",
+			},
+			wantErr: "ca_cert is only valid with environment: container",
+		},
 	}
 
 	for _, tt := range tests {

@@ -13,15 +13,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/konono/aw/internal/platform"
 )
 
 // Run is the entry point for the reaper subprocess.
-// It reads a ReaperSpec from fd 3, waits for EOF (= container exit),
-// then executes tasks and cleans up.
+// It reads a ReaperSpec from a pipe (fd 3 on Unix, Stdin on Windows),
+// waits for EOF (= container exit), then executes tasks and cleans up.
 func Run() int {
-	pipe := os.NewFile(3, "pipe")
+	pipe := platform.ReaperPipe()
 	if pipe == nil {
-		log.Print("reaper: fd 3 not available")
+		log.Print("reaper: pipe not available")
 		return 1
 	}
 	reader := bufio.NewReader(pipe)
@@ -141,8 +143,7 @@ func ReaperDir() string {
 	if reaperDirOverride != "" {
 		return reaperDirOverride
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "aw", "reaper")
+	return filepath.Join(platform.ConfigDir(), "reaper")
 }
 
 // RuntimeFromSpec reads a spec file and returns the runtime field.

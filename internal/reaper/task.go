@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
-	"syscall"
+
+	"github.com/konono/aw/internal/platform"
 )
 
 func executeTask(ctx context.Context, task ReaperTask, spec *ReaperSpec) error {
@@ -39,20 +39,7 @@ func executeTask(ctx context.Context, task ReaperTask, spec *ReaperSpec) error {
 }
 
 func killProcess(cfg KillProcessConfig) error {
-	out, err := exec.Command("ps", "-p", strconv.Itoa(cfg.PID), "-o", "command=").Output()
-	if err != nil {
-		return nil // process does not exist
-	}
-	cmd := strings.TrimSpace(string(out))
-	if !strings.Contains(cmd, "ssh") || !strings.Contains(cmd, "aw-ssh-agent") {
-		return nil // PID reused by a different process
-	}
-
-	p, err := os.FindProcess(cfg.PID)
-	if err != nil {
-		return nil
-	}
-	return p.Signal(syscall.Signal(cfg.Signal))
+	return platform.KillProcessIfSSH(cfg.PID, cfg.Signal)
 }
 
 func removeFile(cfg RemoveFileConfig, sshCfg *PodmanSSHConfig) error {
@@ -75,11 +62,5 @@ func removeFile(cfg RemoveFileConfig, sshCfg *PodmanSSHConfig) error {
 }
 
 func runShell(ctx context.Context, cfg ShellConfig) error {
-	cmd := exec.CommandContext(ctx, "sh", "-c", cfg.Command)
-	if cfg.Dir != "" {
-		cmd.Dir = cfg.Dir
-	}
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return platform.RunShellCommand(ctx, cfg.Command, cfg.Dir)
 }

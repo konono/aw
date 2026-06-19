@@ -66,6 +66,8 @@ type Profile struct {
 	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
 	Packages         []string          `yaml:"packages,omitempty"`
+	BuildEnv         map[string]string `yaml:"build_env,omitempty"`
+	CACert           string            `yaml:"ca_cert,omitempty"`
 	Export           *ExportConfig     `yaml:"export,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
 }

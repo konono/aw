@@ -207,7 +207,7 @@ func TestExtractBinary(t *testing.T) {
 	content := []byte("binary-content-here")
 	archive := createTestArchive(t, content)
 
-	got, err := extractBinary(archive)
+	got, err := extractBinary(archive, "linux", "aw")
 	if err != nil {
 		t.Fatalf("extractBinary() error: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestExtractBinary_NotFound(t *testing.T) {
 	_ = tw.Close()
 	_ = gw.Close()
 
-	_, err := extractBinary(buf.Bytes())
+	_, err := extractBinary(buf.Bytes(), "linux", "aw")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

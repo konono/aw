@@ -9,15 +9,18 @@ import (
 )
 
 func TestRecord_NewEntry(t *testing.T) {
-	s := &Store{path: filepath.Join(t.TempDir(), "dirs.json")}
-	s.Record("/home/user/project", "claude")
+	dir := t.TempDir()
+	s := &Store{path: filepath.Join(dir, "dirs.json")}
+	projectDir := filepath.Join(dir, "project")
+	_ = os.MkdirAll(projectDir, 0755)
+	s.Record(projectDir, "claude")
 
 	if len(s.entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(s.entries))
 	}
 	e := s.entries[0]
-	if e.Path != "/home/user/project" {
-		t.Errorf("got path %q", e.Path)
+	if e.Path != projectDir {
+		t.Errorf("got path %q, want %q", e.Path, projectDir)
 	}
 	if e.Count != 1 {
 		t.Errorf("got count %d, want 1", e.Count)

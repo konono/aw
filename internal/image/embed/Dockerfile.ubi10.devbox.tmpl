@@ -17,7 +17,11 @@ ARG AW_TOOL_PKG=""
 ARG AW_GH_INSTALL_SCRIPT=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
+RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
+      cp /tmp/aw-build/ca-cert.pem /etc/pki/ca-trust/source/anchors/custom-ca.crt && \
+      update-ca-trust; \
+    fi && \
+    if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       set -- $AW_EXTRA_PACKAGES && \
       dnf install -y "$@" && \
       dnf clean all; \
@@ -26,6 +30,9 @@ RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       bash -c "$AW_GH_INSTALL_SCRIPT"; \
     fi && \
     mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \
+    mkdir -p {{.Home}}/.config/nix && \
+    printf 'sandbox = false\nfilter-syscalls = false\n' > {{.Home}}/.config/nix/nix.conf && \
+    chown -R {{.User}}:0 {{.Home}}/.config/nix && \
     su -s /bin/bash {{.User}} -c 'curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon' && \
     ln -s {{.Home}}/.local/state/nix/profiles/profile /nix/var/nix/profiles/default && \
     curl -fsSL -o /usr/local/bin/devbox https://releases.jetify.com/devbox && \
@@ -45,7 +52,7 @@ RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       mkdir -p {{.Home}}/.config/mise {{.Home}}/.local/share && \
       cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
       chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
+      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install && {{.Home}}/.local/bin/mise ls 2>/dev/null | awk "\\$2 ~ /^[0-9]/ {print \\$1\"@\"\\$2}" | xargs -r {{.Home}}/.local/bin/mise use -g'; \
     fi && rm -rf /tmp/aw-build && \
     su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true' && \
     su -s /bin/bash {{.User}} -c '. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null && nix-collect-garbage -d 2>/dev/null || true' && \

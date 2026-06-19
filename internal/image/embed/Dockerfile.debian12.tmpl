@@ -17,7 +17,11 @@ ARG AW_TOOL_INSTALL_SCRIPT=""
 ARG AW_GH_INSTALL_SCRIPT=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
+RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
+      cp /tmp/aw-build/ca-cert.pem /usr/local/share/ca-certificates/custom-ca.crt && \
+      update-ca-certificates; \
+    fi && \
+    if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       set -- $AW_EXTRA_PACKAGES && \
       apt-get update && apt-get install -y --no-install-recommends "$@" && \
       rm -rf /var/lib/apt/lists/*; \
@@ -33,7 +37,7 @@ RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       mkdir -p {{.Home}}/.config/mise {{.Home}}/.local/share && \
       cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
       chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install'; \
+      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install && {{.Home}}/.local/bin/mise ls 2>/dev/null | awk "\\$2 ~ /^[0-9]/ {print \\$1\"@\"\\$2}" | xargs -r {{.Home}}/.local/bin/mise use -g'; \
     fi && rm -rf /tmp/aw-build && \
     chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 

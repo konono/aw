@@ -119,6 +119,10 @@ func findSSHTunnelPID(socketPath string) (int, error) {
 	return pid, nil
 }
 
+func setupPodmanWindows(hostAuthSock, containerName string) (*ForwardedAgent, error) {
+	return nil, fmt.Errorf("podman SSH agent forwarding is not supported on this platform")
+}
+
 func podmanMachineExec(cfg *podmanSSHConfig, args ...string) (string, error) {
 	sshArgs := []string{
 		"-o", "StrictHostKeyChecking=no",

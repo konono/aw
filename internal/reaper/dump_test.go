@@ -59,7 +59,7 @@ func TestShowDump_WithFiles(t *testing.T) {
 }
 
 func TestShowDump_NonexistentDir(t *testing.T) {
-	code := ShowDump("/tmp/nonexistent-aw-dump-test-dir-12345")
+	code := ShowDump(filepath.Join(t.TempDir(), "nonexistent-subdir"))
 	if code != 1 {
 		t.Errorf("ShowDump on nonexistent dir returned %d, want 1", code)
 	}
