@@ -21,9 +21,9 @@ import (
 // It reads a ReaperSpec from fd 3, waits for EOF (= container exit),
 // then executes tasks and cleans up.
 func Run() int {
-	pipe := os.NewFile(3, "pipe")
+	pipe := platform.ReaperPipe()
 	if pipe == nil {
-		log.Print("reaper: fd 3 not available")
+		log.Print("reaper: pipe not available")
 		return 1
 	}
 	reader := bufio.NewReader(pipe)

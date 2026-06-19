@@ -49,7 +49,7 @@ func Spawn(spec ReaperSpec) (*Handle, error) {
 	}
 
 	cmd := exec.Command(os.Args[0], "--internal-reaper")
-	cmd.ExtraFiles = []*os.File{r} // fd 3
+	platform.SetupReaperPipe(cmd, r)
 	cmd.SysProcAttr = platform.ReaperSysProcAttr()
 	_ = os.MkdirAll(ReaperDir(), 0755)
 	logPath := filepath.Join(ReaperDir(), "reaper.log")
