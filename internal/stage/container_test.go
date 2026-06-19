@@ -1021,3 +1021,118 @@ func TestDockerStage_ImageHash_DiffersByPackages(t *testing.T) {
 	}
 }
 
+func TestDockerStage_BuildEnv_PassedAsBuildArgs(t *testing.T) {
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			BuildEnv:    map[string]string{"HTTP_PROXY": "http://proxy:8080", "HTTPS_PROXY": "http://proxy:8080"},
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.buildArgs["HTTP_PROXY"] != "http://proxy:8080" {
+		t.Errorf("HTTP_PROXY build arg = %q, want %q", dc.buildArgs["HTTP_PROXY"], "http://proxy:8080")
+	}
+	if dc.buildArgs["HTTPS_PROXY"] != "http://proxy:8080" {
+		t.Errorf("HTTPS_PROXY build arg = %q, want %q", dc.buildArgs["HTTPS_PROXY"], "http://proxy:8080")
+	}
+}
+
+func TestDockerStage_CACert_CopiedToBuildContext(t *testing.T) {
+	homeDir := t.TempDir()
+	certContent := []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n")
+	certPath := filepath.Join(homeDir, "corp-ca.pem")
+	if err := os.WriteFile(certPath, certContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dc := &mockDockerClient{available: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			CACert:      certPath,
+		},
+		HomeDir: homeDir,
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	got, ok := dc.buildContextFiles["ca-cert.pem"]
+	if !ok {
+		t.Fatal("ca-cert.pem not found in build context")
+	}
+	if string(got) != string(certContent) {
+		t.Errorf("ca-cert.pem content = %q, want %q", string(got), string(certContent))
+	}
+}
+
+func TestDockerStage_BuildEnv_AffectsImageHash(t *testing.T) {
+	dc1 := &mockDockerClient{available: true}
+	s1 := &DockerStage{
+		DockerClient: dc1,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec1 := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s1.Run(context.Background(), ec1); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	dc2 := &mockDockerClient{available: true}
+	s2 := &DockerStage{
+		DockerClient: dc2,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec2 := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			BuildEnv:    map[string]string{"HTTP_PROXY": "http://proxy:8080"},
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s2.Run(context.Background(), ec2); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc1.buildImageName == dc2.buildImageName {
+		t.Errorf("image hashes should differ with/without build_env, both got %q", dc1.buildImageName)
+	}
+}
+
