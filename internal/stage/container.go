@@ -237,15 +237,16 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
 			}
 		}
-		if ec.Profile.CACert != "" {
-			certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
-			data, err := os.ReadFile(certPath)
-			if err != nil {
-				return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
-			}
-			if err := os.WriteFile(filepath.Join(buildDir, "ca-cert.pem"), data, 0644); err != nil {
-				return "", fmt.Errorf("copying ca_cert to build context: %w", err)
-			}
+	}
+
+	if ec.Profile.CACert != "" {
+		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+		data, err := os.ReadFile(certPath)
+		if err != nil {
+			return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
+		}
+		if err := os.WriteFile(filepath.Join(buildDir, "ca-cert.pem"), data, 0644); err != nil {
+			return "", fmt.Errorf("copying ca_cert to build context: %w", err)
 		}
 	}
 

@@ -18,8 +18,8 @@ import (
 )
 
 // Run is the entry point for the reaper subprocess.
-// It reads a ReaperSpec from fd 3, waits for EOF (= container exit),
-// then executes tasks and cleans up.
+// It reads a ReaperSpec from a pipe (fd 3 on Unix, Stdin on Windows),
+// waits for EOF (= container exit), then executes tasks and cleans up.
 func Run() int {
 	pipe := platform.ReaperPipe()
 	if pipe == nil {

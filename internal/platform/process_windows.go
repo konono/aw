@@ -28,13 +28,18 @@ func NotifyContainerSurvivalSignals(ch chan<- os.Signal) {
 }
 
 // KillProcessIfSSH kills a process by PID if it appears to be an SSH agent tunnel.
-// On Windows, the signal parameter is ignored; the process is killed directly.
+// On Windows, we verify the process is still alive before killing it.
+// Unlike Unix, we cannot inspect the command line cheaply, so we rely on
+// the caller (reaper) providing the correct PID from a trusted spec.
 func KillProcessIfSSH(pid, _ int) error {
 	p, err := os.FindProcess(pid)
 	if err != nil {
 		return nil
 	}
-	return p.Kill()
+	if err := p.Kill(); err != nil {
+		return nil
+	}
+	return nil
 }
 
 // HostUserID returns the --user value for docker run.

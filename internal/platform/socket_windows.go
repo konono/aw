@@ -15,6 +15,9 @@ const windowsDockerPipe = `//./pipe/docker_engine`
 // Docker Desktop for Windows uses a named pipe.
 func DetectDockerSock() (string, error) {
 	if host := os.Getenv("DOCKER_HOST"); host != "" {
+		if strings.HasPrefix(host, "tcp://") || strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+			return "", fmt.Errorf("DOCKER_HOST=%s is a TCP endpoint and cannot be bind-mounted; mount_container_sock requires a local socket/pipe", host)
+		}
 		return host, nil
 	}
 	return windowsDockerPipe, nil

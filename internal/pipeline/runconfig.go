@@ -44,7 +44,7 @@ func baseEnvVars(userEnvVars map[string]string, tool string, cenv containerenv.C
 func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []string) docker.RunConfig {
 	cenv := authContainerEnv(ec)
 	envVars := baseEnvVars(ec.EnvVars, tool, cenv)
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
+	envVars["HOST_WORKSPACE"] = platform.ToContainerPath(ec.WorkDir)
 	return docker.RunConfig{
 		ImageName: ec.DockerImage,
 		Mounts:    ec.DockerMounts,
@@ -69,13 +69,13 @@ func ShellEnvTool(ec *ExecutionContext) string {
 // ShellRunConfig constructs a RunConfig for an interactive shell in the container.
 func ShellRunConfig(ec *ExecutionContext, runtime string, command []string) docker.RunConfig {
 	envVars := ContainerEnvVars(ec, ShellEnvTool(ec))
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
+	envVars["HOST_WORKSPACE"] = platform.ToContainerPath(ec.WorkDir)
 	return BuildRunConfig(ec, runtime, command, envVars)
 }
 
 // ToolRunConfig constructs a RunConfig for launching an AI tool in the container.
 func ToolRunConfig(ec *ExecutionContext, runtime, tool string, command []string) docker.RunConfig {
 	envVars := ContainerEnvVars(ec, tool)
-	envVars["HOST_WORKSPACE"] = ec.WorkDir
+	envVars["HOST_WORKSPACE"] = platform.ToContainerPath(ec.WorkDir)
 	return BuildRunConfig(ec, runtime, command, envVars)
 }
