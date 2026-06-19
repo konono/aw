@@ -1,0 +1,5 @@
+# Embedded files must keep LF line endings — they are copied into
+# Linux containers where CRLF breaks shebang interpretation.
+internal/image/embed/*.sh     eol=lf
+internal/image/embed/*.tmpl   eol=lf
+internal/image/embed/*.devbox eol=lf
