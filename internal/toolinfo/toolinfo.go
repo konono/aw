@@ -31,7 +31,7 @@ var tools = map[string]ToolSpec{
 	"codex": {
 		Binary:            "codex",
 		DisplayName:       "Codex",
-		InstallScript:     "curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=true sh",
+		InstallScript:     "curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=true sh && cp -L $HOME/.local/bin/codex $HOME/.local/bin/codex.tmp && mv $HOME/.local/bin/codex.tmp $HOME/.local/bin/codex",
 		DevboxPkg:         "codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
