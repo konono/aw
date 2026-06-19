@@ -43,8 +43,13 @@ func StateDir() string {
 }
 
 // TempSocketPath returns a temporary socket path for SSH agent forwarding.
-// On Unix: /tmp/aw-ssh-agent-{name}.sock
-// On Windows: %TEMP%\aw-ssh-agent-{name}.sock
+// On Unix, /tmp is used to keep paths short (Unix sockets have a ~104 char limit;
+// macOS os.TempDir() returns /var/folders/... which is too long).
+// On Windows, os.TempDir() (%TEMP%) is used since /tmp does not exist.
 func TempSocketPath(containerName string) string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("aw-ssh-agent-%s.sock", containerName))
+	dir := "/tmp"
+	if runtime.GOOS == "windows" {
+		dir = os.TempDir()
+	}
+	return filepath.Join(dir, fmt.Sprintf("aw-ssh-agent-%s.sock", containerName))
 }
