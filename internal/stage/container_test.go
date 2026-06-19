@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -761,6 +762,10 @@ func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
 
 func TestDockerStage_DevboxMode_CopiesDevboxJSON(t *testing.T) {
 	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
+	}
 	configDir := filepath.Join(homeDir, ".config", "aw")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatal(err)
@@ -802,6 +807,10 @@ func TestDockerStage_DevboxMode_CopiesDevboxJSON(t *testing.T) {
 
 func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
 	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
+	}
 	configDir := filepath.Join(homeDir, ".config", "aw")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatal(err)
@@ -837,6 +846,10 @@ func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
 
 func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
 	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
+	}
 	configDir := filepath.Join(homeDir, ".config", "aw")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatal(err)

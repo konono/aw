@@ -8,10 +8,10 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-// CollectPackages reads ~/.config/aw/packages.txt and merges with profile-level
-// packages, deduplicating while preserving order. File entries come first.
-// Invalid package names are silently skipped.
-func CollectPackages(homeDir string, profilePkgs []string) []string {
+// CollectPackages reads packages.txt from the aw config directory and merges
+// with profile-level packages, deduplicating while preserving order.
+// configDir is the aw configuration directory (platform.ConfigDir()).
+func CollectPackages(configDir string, profilePkgs []string) []string {
 	seen := make(map[string]bool)
 	var result []string
 	addPkg := func(pkg string) {
@@ -22,7 +22,7 @@ func CollectPackages(homeDir string, profilePkgs []string) []string {
 		}
 	}
 
-	packagesFile := filepath.Join(homeDir, ".config", "aw", "packages.txt")
+	packagesFile := filepath.Join(configDir, "packages.txt")
 	if data, err := os.ReadFile(packagesFile); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)

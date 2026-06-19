@@ -19,6 +19,7 @@ import (
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
@@ -220,11 +221,11 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	userMiseToml := filepath.Join(ec.HomeDir, ".config", "aw", "mise.toml")
+	userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
 
 	if customDockerfile == "" {
 		if pkgMgr == profile.PackageManagerDevbox {
-			userDevboxJSON := filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")
+			userDevboxJSON := filepath.Join(platform.ConfigDir(), "devbox.json")
 			if data, err := os.ReadFile(userDevboxJSON); err == nil {
 				if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
 					return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
@@ -282,7 +283,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 			hashInput += "\n" + string(miseData)
 		}
 		if pkgMgr == profile.PackageManagerDevbox {
-			if devboxData, err := os.ReadFile(filepath.Join(ec.HomeDir, ".config", "aw", "devbox.json")); err == nil {
+			if devboxData, err := os.ReadFile(filepath.Join(platform.ConfigDir(), "devbox.json")); err == nil {
 				hashInput += "\n" + string(devboxData)
 			}
 		}
@@ -296,7 +297,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 
 	// Build-time: space-delimited for shell word splitting in Dockerfile RUN.
 	// Runtime (AW_PACKAGES in env.go): comma-delimited, parsed by IFS=',' in aw-init.sh.
-	packages := pipeline.CollectPackages(ec.HomeDir, ec.Profile.Packages)
+	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages)
 	extraPackages := ""
 	if len(packages) > 0 {
 		extraPackages = strings.Join(packages, " ")
