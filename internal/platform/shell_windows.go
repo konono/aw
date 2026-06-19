@@ -21,8 +21,12 @@ func DefaultShell() string {
 }
 
 // ShellCommand returns the shell binary and its prefix arguments for executing
-// a command string. On Windows, this returns ("cmd", ["/c"]).
+// a command string. On Windows with Git Bash (SHELL is set), uses sh -c for
+// compatibility with Unix-style hook scripts. Otherwise uses cmd /c.
 func ShellCommand() (string, []string) {
+	if shell := os.Getenv("SHELL"); shell != "" {
+		return "sh", []string{"-c"}
+	}
 	return "cmd", []string{"/c"}
 }
 

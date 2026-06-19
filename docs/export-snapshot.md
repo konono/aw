@@ -124,7 +124,7 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 /Users/kono/project → /workspace (ro)
 ```
 
-通常起動では `HOST_WORKSPACE` 環境変数にホスト側パスが渡されます。
+通常起動では `HOST_WORKSPACE` 環境変数にコンテナ内から見えるワークスペースパスが渡されます（Linux/macOS ではホストパスと同一、Windows では `/c/Users/...` 形式に変換されます）。
 aw CLI はランタイムで `/aw-init.sh` をマウントし、イメージ内蔵版を最新で上書きします。
 
 ### 2. aw-init.sh + entrypoint.sh の処理
@@ -173,7 +173,7 @@ snapshot が生成する `.aw_env.sh` と aw-init.sh が生成する `.aw_env.sh
 - snapshot 版: `MISE_TRUSTED_CONFIG_PATHS="/workspace"`, `devbox shellenv` のパスも `/workspace`
 - aw-init.sh 版: `MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE}"`, `devbox shellenv` のパスも `${HOST_WORKSPACE}`
 
-aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（ホスト側のプロジェクトパス）になります。焼き込み済みツール（devbox global、mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
+aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（コンテナ内から見えるプロジェクトパス）になります。焼き込み済みツール（devbox global、mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
 
 ## まとめ: 何がイメージに焼き込まれ、何が起動時に設定されるか
 
