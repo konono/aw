@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.2.0](https://github.com/konono/aw/compare/v3.1.0...v3.2.0) (2026-06-19)
+
+
+### Features
+
+* add Windows support via platform abstraction package ([#85](https://github.com/konono/aw/issues/85)) ([ce91b36](https://github.com/konono/aw/commit/ce91b36d8915bfdc72ffb2a2ccaa2af4fce0a627))
+
 ## [3.1.0](https://github.com/konono/aw/compare/v3.0.0...v3.1.0) (2026-06-17)
 
 
