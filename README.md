@@ -556,6 +556,28 @@ defaults:
 
 > **Note:** `build_env` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
 
+## Windows でのパスの書き方
+
+設定ファイル（`.aw.yml`、`config.yml`）ではフォワードスラッシュ `/` を使用してください。バックスラッシュ `\` は YAML のエスケープ文字と衝突します。
+
+```yaml
+# ✓ 正しい書き方
+ca_cert: "C:/certs/corporate-ca.pem"
+mounts:
+  - source: "C:/Users/me/.config/gcloud"
+    target: /home/agent/.config/gcloud
+
+# ✗ 動作しない書き方
+ca_cert: "C:\certs\corporate-ca.pem"     # YAML エスケープ問題
+ca_cert: 'C:\certs\corporate-ca.pem'     # シングルクォートなら動くが非推奨
+```
+
+チルダ展開 (`~/`) も使えます:
+
+```yaml
+ca_cert: "~/certs/corp.pem"   # Linux: ~/.config に展開, Windows: %USERPROFILE% に展開
+```
+
 ## Windows での既知の制限
 
 | 制限 | 詳細 |

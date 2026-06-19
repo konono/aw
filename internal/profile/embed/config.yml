@@ -1,9 +1,13 @@
 # aw - agent-workspace configuration
 #
-# Run `aw init` to write this file to ~/.config/aw/config.yml.
+# Run `aw init` to write this file to:
+#   Linux/macOS: ~/.config/aw/config.yml
+#   Windows:     %APPDATA%\aw\config.yml
+#
 # Top-level fields act as defaults for all profiles below.
 #
-# Config is loaded in order: built-in → ~/.config/aw/config.yml → .aw.yml
+# Config is loaded in order: built-in → global config → .aw.yml
+# Paths use forward slashes on all platforms: ~/certs/corp.pem or C:/certs/corp.pem
 # Project-level .aw.yml can override these settings. If a project
 # config contains security-sensitive fields (mounts, env, dockerfile, image,
 # worktree.on-create, worktree.on-end), aw will prompt you to trust it on
@@ -26,6 +30,17 @@ mount_ssh: false              # mount ~/.ssh read-only (default: false)
 ssh_agent_forwarding: false   # forward SSH agent socket (default: false, preferred over mount_ssh)
 # mount_container_sock: false  # mount container runtime socket (default: false)
                                # enables docker-compose / docker CLI inside the container (DooD)
+
+# ── Build-time settings ─────────────────────────────────────────────
+# build_env:                   # passed as --build-arg to docker/podman build
+#   HTTP_PROXY: "http://proxy.corp:8080"
+#   HTTPS_PROXY: "http://proxy.corp:8080"
+#   NO_PROXY: "localhost,127.0.0.1"
+# ca_cert: "~/certs/corporate-ca.pem"   # CA certificate for corporate proxy
+                                         # installed via update-ca-certificates before tool install
+# packages:                    # extra OS packages to install in the container
+#   - jq
+#   - tree
 
 profiles:
   shell:
@@ -80,6 +95,22 @@ profiles:
   #       target: /home/agent/.config/gcloud
   #       # mode: ro                  # "ro" (default) or "rw"
   #       # options: "z"              # SELinux, nocopy, cached, etc.
+  #
+  #   # ── Extra packages ──────────────────────────────────────────────
+  #   packages:
+  #     - jq
+  #     - tree
+  #
+  #   # ── Build-time arguments (passed to docker/podman build) ──────
+  #   # Keys starting with AW_ are reserved and will be rejected.
+  #   build_env:
+  #     HTTP_PROXY: "http://proxy.corp:8080"
+  #     HTTPS_PROXY: "http://proxy.corp:8080"
+  #
+  #   # ── CA certificate for corporate proxy ────────────────────────
+  #   # Installed via update-ca-certificates before tool installation.
+  #   # Path format: ~/certs/corp.pem or C:/certs/corp.pem (Windows)
+  #   # ca_cert: "~/certs/corporate-ca.pem"
   #
   #   # ── Entrypoint install control ──────────────────────────────────
   #   # skip_devbox_install: true          # skip project devbox install on startup
