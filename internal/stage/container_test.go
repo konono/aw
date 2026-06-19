@@ -39,7 +39,7 @@ func (m *mockDockerClient) CheckAvailable() error {
 	return nil
 }
 
-func (m *mockDockerClient) Build(_ context.Context, imageName, contextDir, _ string, buildArgs map[string]string) error {
+func (m *mockDockerClient) Build(_ context.Context, imageName, contextDir, _ string, buildArgs map[string]string, _ bool) error {
 	m.buildCalled = true
 	m.buildImageName = imageName
 	m.buildContextDir = contextDir

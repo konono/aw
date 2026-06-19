@@ -161,6 +161,7 @@ func Run(args []string) int {
 		return 1
 	}
 	ec.CommandOverride = opts.Command
+	ec.NoCache = opts.NoCache
 
 	if len(ec.CommandOverride) > 0 && p.Environment == profile.EnvironmentHost {
 		fmt.Fprintf(os.Stderr, "Error: -c flag is only supported with environment: container\n")
@@ -385,6 +386,7 @@ func printHelp() {
 	fmt.Println("  --query <text>          Initial query for --recent picker")
 	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")
 	fmt.Println("  --no-record             Don't record this launch in directory history")
+	fmt.Println("  --no-cache              Rebuild the container image without using cache")
 	fmt.Println("  -h, --help              Show this help")
 	fmt.Println("  -v, --version           Show version")
 }

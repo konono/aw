@@ -340,7 +340,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	} else {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (os: %s)...\n", imageName, osTemplate)
 	}
-	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs); err != nil {
+	if err := s.DockerClient.Build(ctx, imageName, buildDir, dockerfilePath, buildArgs, ec.NoCache); err != nil {
 		return "", fmt.Errorf("building image: %w", err)
 	}
 

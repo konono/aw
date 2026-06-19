@@ -11,6 +11,7 @@ type runOptions struct {
 	Query       string
 	Cwd         string
 	NoRecord    bool
+	NoCache     bool
 	Command     []string
 }
 
@@ -25,6 +26,8 @@ func parseRunArgs(args []string) (*runOptions, error) {
 			opts.Recent = true
 		case a == "--no-record":
 			opts.NoRecord = true
+		case a == "--no-cache":
+			opts.NoCache = true
 		case a == "--query":
 			i++
 			if i >= len(args) {
