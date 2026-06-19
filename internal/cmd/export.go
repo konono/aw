@@ -426,7 +426,8 @@ func setYAMLMapBool(mapping *yaml.Node, key string, value bool) {
 }
 
 func renderSnapshotScript(cenv containerenv.Config) (string, error) {
-	t, err := template.New("snapshot").Parse(snapshotScriptTmpl)
+	tmpl := strings.ReplaceAll(snapshotScriptTmpl, "\r", "")
+	t, err := template.New("snapshot").Parse(tmpl)
 	if err != nil {
 		return "", fmt.Errorf("parsing snapshot script template: %w", err)
 	}

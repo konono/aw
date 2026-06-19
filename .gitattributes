@@ -3,3 +3,4 @@
 internal/image/embed/*.sh     eol=lf
 internal/image/embed/*.tmpl   eol=lf
 internal/image/embed/*.devbox eol=lf
+internal/cmd/embed/*.tmpl     eol=lf
