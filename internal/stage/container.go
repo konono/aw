@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/konono/aw/internal/config"
@@ -234,6 +236,16 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
 			}
 		}
+		if ec.Profile.CACert != "" {
+			certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+			data, err := os.ReadFile(certPath)
+			if err != nil {
+				return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
+			}
+			if err := os.WriteFile(filepath.Join(buildDir, "ca-cert.pem"), data, 0644); err != nil {
+				return "", fmt.Errorf("copying ca_cert to build context: %w", err)
+			}
+		}
 	}
 
 	dockerfilePath := customDockerfile
@@ -291,6 +303,16 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		hashInput += "\n" + extraPackages
 	}
 
+	if ec.Profile.CACert != "" {
+		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+		if certData, err := os.ReadFile(certPath); err == nil {
+			hashInput += "\n" + string(certData)
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(ec.Profile.BuildEnv)) {
+		hashInput += "\n" + k + "=" + ec.Profile.BuildEnv[k]
+	}
+
 	imageName := defaultImageName
 	if hashInput != "" {
 		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
@@ -309,6 +331,9 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	if extraPackages != "" && customDockerfile == "" {
 		buildArgs["AW_EXTRA_PACKAGES"] = extraPackages
+	}
+	for k, v := range ec.Profile.BuildEnv {
+		buildArgs[k] = v
 	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)

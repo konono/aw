@@ -17,7 +17,11 @@ ARG AW_TOOL_PKG=""
 ARG AW_GH_INSTALL_SCRIPT=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
-RUN if [ -n "$AW_EXTRA_PACKAGES" ]; then \
+RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
+      cp /tmp/aw-build/ca-cert.pem /etc/pki/ca-trust/source/anchors/custom-ca.crt && \
+      update-ca-trust; \
+    fi && \
+    if [ -n "$AW_EXTRA_PACKAGES" ]; then \
       set -- $AW_EXTRA_PACKAGES && \
       dnf install -y "$@" && \
       dnf clean all; \

@@ -98,6 +98,19 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Packages != nil {
 		merged.Packages = override.Packages
 	}
+	if override.BuildEnv != nil {
+		envCopy := make(map[string]string, len(merged.BuildEnv)+len(override.BuildEnv))
+		for k, v := range merged.BuildEnv {
+			envCopy[k] = v
+		}
+		for k, v := range override.BuildEnv {
+			envCopy[k] = v
+		}
+		merged.BuildEnv = envCopy
+	}
+	if override.CACert != "" {
+		merged.CACert = override.CACert
+	}
 	merged.Export = mergeExport(merged.Export, override.Export)
 
 	return merged
@@ -200,6 +213,10 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
 		relative.Export = cloneExport(effective.Export)
+	}
+	relative.BuildEnv = relativeEnv(defaults.BuildEnv, effective.BuildEnv)
+	if effective.CACert != defaults.CACert {
+		relative.CACert = effective.CACert
 	}
 	return relative
 }
