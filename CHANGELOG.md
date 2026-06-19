@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.2.1](https://github.com/konono/aw/compare/v3.2.0...v3.2.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **codex:** resolve binary not found caused by volume mount shadowing ([#87](https://github.com/konono/aw/issues/87)) ([6b6dd9d](https://github.com/konono/aw/commit/6b6dd9dbb56b39b9ddf23742890d281a8009bd3e))
+
 ## [3.2.0](https://github.com/konono/aw/compare/v3.1.0...v3.2.0) (2026-06-19)
 
 
