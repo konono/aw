@@ -112,6 +112,7 @@ func MergeProfile(base, override Profile) Profile {
 		merged.CACert = override.CACert
 	}
 	merged.Export = mergeExport(merged.Export, override.Export)
+	merged.Reaper = mergeReaper(merged.Reaper, override.Reaper)
 
 	return merged
 }
@@ -214,11 +215,25 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
 		relative.Export = cloneExport(effective.Export)
 	}
+	if !equalReaper(effective.Reaper, defaults.Reaper) && effective.Reaper != nil {
+		c := *effective.Reaper
+		relative.Reaper = &c
+	}
 	relative.BuildEnv = relativeEnv(defaults.BuildEnv, effective.BuildEnv)
 	if effective.CACert != defaults.CACert {
 		relative.CACert = effective.CACert
 	}
 	return relative
+}
+
+func equalReaper(a, b *ReaperProfileConfig) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 // MergeConfig merges a higher-precedence config on top of a lower-precedence config.
@@ -442,4 +457,28 @@ func equalExport(a, b *ExportConfig) bool {
 		}
 	}
 	return true
+}
+
+func mergeReaper(base, override *ReaperProfileConfig) *ReaperProfileConfig {
+	if override == nil {
+		return base
+	}
+	if base == nil {
+		c := *override
+		return &c
+	}
+	merged := *base
+	if override.Timeout > 0 {
+		merged.Timeout = override.Timeout
+	}
+	if override.KeepContainer {
+		merged.KeepContainer = true
+	}
+	if override.ReportRetention > 0 {
+		merged.ReportRetention = override.ReportRetention
+	}
+	if override.CollectLogs != "" {
+		merged.CollectLogs = override.CollectLogs
+	}
+	return &merged
 }

@@ -23,9 +23,9 @@ func ShellCommand() (string, []string) {
 }
 
 // RunShellCommand executes a command string via the system shell.
-// On Unix, this uses sh -c.
 func RunShellCommand(ctx context.Context, command, dir string) error {
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	shell, args := ShellCommand()
+	cmd := exec.CommandContext(ctx, shell, append(args, command)...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
