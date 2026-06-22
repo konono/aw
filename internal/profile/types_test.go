@@ -63,6 +63,11 @@ func TestProfile_EffectiveTool(t *testing.T) {
 			want:    "codex",
 		},
 		{
+			name:    "launch cursor returns cursor",
+			profile: Profile{Launch: LaunchCursor},
+			want:    "cursor",
+		},
+		{
 			name:    "launch shell returns empty",
 			profile: Profile{Launch: LaunchShell},
 			want:    "",

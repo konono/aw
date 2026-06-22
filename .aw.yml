@@ -45,9 +45,13 @@ profiles:
     launch: claude
     package_manager: devbox
 
+  test-debian12-cursor:
+    os: debian12
+    launch: cursor
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude
     gh_token: false
     mount_container_sock: true
     mount_gh: true
+

@@ -46,6 +46,14 @@ var tools = map[string]ToolSpec{
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		InstallHint:       "Install via: curl -fsSL https://opencode.ai/install | bash",
 	},
+	"cursor": {
+		Binary:            "agent",
+		DisplayName:       "Cursor",
+		InstallScript:     "curl -fsSL https://cursor.com/install | bash && { [ -f $HOME/.local/bin/agent ] || { mkdir -p $HOME/.local/bin && ln -sf $(which agent) $HOME/.local/bin/agent; }; }",
+		HomeEnvVar:        "CURSOR_CONFIG_DIR",
+		DefaultHomeSubdir: ".cursor",
+		InstallHint:       "Install Cursor CLI: curl https://cursor.com/install -fsS | bash",
+	},
 }
 
 // Lookup returns the ToolSpec for the given tool name.

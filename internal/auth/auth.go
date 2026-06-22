@@ -57,10 +57,10 @@ func CheckLaunch(ctx context.Context, ec *pipeline.ExecutionContext) (CheckResul
 		}, nil
 	}
 
-	if tool == "opencode" {
+	if tool == "opencode" || tool == "cursor" {
 		return CheckResult{
 			Supported: false,
-			Message:   "OpenCode は認証状態を厳密に判定しにくいため、auth.on_launch.check は未対応です。必要なら `aw auth status opencode` か `aw auth status --profile <name>` を使ってください",
+			Message:   fmt.Sprintf("%s は認証状態を厳密に判定しにくいため、auth.on_launch.check は未対応です。必要なら `aw auth status %s` か `aw auth status --profile <name>` を使ってください", tool, tool),
 		}, nil
 	}
 
@@ -143,6 +143,8 @@ func resolveActionCommand(p profile.Profile, action Action) (commandSpec, error)
 			cfg = *p.Auth.OpenCode
 		}
 		return commandSpec{tool: tool, command: buildOpenCodeCommand(action, cfg)}, nil
+	case "cursor":
+		return commandSpec{tool: tool, command: buildCursorCommand(action)}, nil
 	default:
 		return commandSpec{}, fmt.Errorf("unsupported auth tool: %q", tool)
 	}
@@ -218,6 +220,19 @@ func buildOpenCodeCommand(action Action, cfg profile.OpenCodeAuthConfig) []strin
 	}
 }
 
+func buildCursorCommand(action Action) []string {
+	switch action {
+	case ActionLogin:
+		return []string{"agent", "login"}
+	case ActionLogout:
+		return []string{"agent", "logout"}
+	case ActionStatus:
+		return []string{"agent", "status"}
+	default:
+		return []string{"agent", "login"}
+	}
+}
+
 func runHostCommand(ctx context.Context, command []string) error {
 	path, err := exec.LookPath(command[0])
 	if err != nil {
@@ -289,6 +304,8 @@ func usesExternalAuth(p profile.Profile, tool string) bool {
 		)
 	case "codex":
 		return hasAnyEnv(p.Env, "OPENAI_API_KEY", "CODEX_ACCESS_TOKEN")
+	case "cursor":
+		return hasAnyEnv(p.Env, "CURSOR_API_KEY")
 	default:
 		return false
 	}

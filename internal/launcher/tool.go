@@ -19,7 +19,8 @@ import (
 var toolContainerCommands = map[string][]string{
 	"claude":   {"claude", "--permission-mode", "bypassPermissions"},
 	"codex":    {"codex", "-a", "never"},
-	"opencode": {"opencode"},
+	"opencode": {"opencode", "--dangerously-skip-permissions"},
+	"cursor":   {"agent", "--force"},
 }
 
 // ToolLauncher is a data-driven launcher for any registered tool.

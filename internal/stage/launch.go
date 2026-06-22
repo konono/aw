@@ -42,6 +42,8 @@ func defaultLauncherFactory(mode profile.LaunchMode) (launcher.Launcher, error) 
 		return &launcher.ToolLauncher{Tool: "codex"}, nil
 	case profile.LaunchOpenCode:
 		return &launcher.ToolLauncher{Tool: "opencode"}, nil
+	case profile.LaunchCursor:
+		return &launcher.ToolLauncher{Tool: "cursor"}, nil
 	default:
 		return nil, fmt.Errorf("unknown launch mode: %q", mode)
 	}
