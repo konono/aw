@@ -144,6 +144,7 @@ func assertStarterProfiles(t *testing.T, cfg *Config) {
 		{name: "claude", launch: LaunchClaude, os: OSDebian12},
 		{name: "codex", launch: LaunchCodex, os: OSDebian12},
 		{name: "opencode", launch: LaunchOpenCode, os: OSDebian12},
+		{name: "cursor", launch: LaunchCursor, os: OSDebian12},
 		{name: "ubi9-shell", launch: LaunchShell, os: OSUBI9},
 		{name: "ubi10-shell", launch: LaunchShell, os: OSUBI10},
 		{name: "ubuntu2604-shell", launch: LaunchShell, os: OSUbuntu2604},

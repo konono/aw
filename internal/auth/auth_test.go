@@ -113,3 +113,33 @@ func TestResolveActionCommand_OpenCodeLoginWithProviderAndMethod(t *testing.T) {
 		t.Fatalf("command = %v, want %v", spec.command, want)
 	}
 }
+
+func TestResolveActionCommand_CursorLogin(t *testing.T) {
+	spec, err := resolveActionCommand(profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchCursor,
+	}, ActionLogin)
+	if err != nil {
+		t.Fatalf("resolveActionCommand() error: %v", err)
+	}
+
+	want := []string{"agent", "login"}
+	if strings.Join(spec.command, " ") != strings.Join(want, " ") {
+		t.Fatalf("command = %v, want %v", spec.command, want)
+	}
+}
+
+func TestResolveActionCommand_CursorStatus(t *testing.T) {
+	spec, err := resolveActionCommand(profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchCursor,
+	}, ActionStatus)
+	if err != nil {
+		t.Fatalf("resolveActionCommand() error: %v", err)
+	}
+
+	want := []string{"agent", "status"}
+	if strings.Join(spec.command, " ") != strings.Join(want, " ") {
+		t.Fatalf("command = %v, want %v", spec.command, want)
+	}
+}

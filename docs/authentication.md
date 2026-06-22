@@ -8,6 +8,7 @@
 aw auth login claude       # Claude を認証
 aw auth login codex        # Codex を認証
 aw auth login opencode     # OpenCode を認証
+aw auth login cursor       # Cursor CLI を認証
 aw auth status claude      # 認証状態を確認
 aw auth logout claude      # ログアウト
 aw login claude            # aw auth login claude の短縮形
@@ -44,6 +45,10 @@ aw login claude            # aw auth login claude の短縮形
 ### OpenCode
 
 `aw auth login opencode` は `opencode auth login` を実行します。`auth.opencode.provider` / `auth.opencode.method` を設定すると対話プロンプトを減らせます。`aw auth status opencode` は `opencode auth list` を実行します。
+
+### Cursor
+
+`aw auth login cursor` は `agent login` を実行します。OAuth トークンは macOS では Keychain から、Linux では `~/.config/cursor/auth.json` からコンテナ staging に seed されます。API キーで使う場合は `env: CURSOR_API_KEY` を設定し、`auth` を省略できます。`auth.on_launch.check` は Cursor では未対応です。
 
 ## `auth.on_launch.check`
 

@@ -80,6 +80,7 @@ func TestToolDir(t *testing.T) {
 		{"claude", "/home/dev/.claude"},
 		{"codex", "/home/dev/.codex"},
 		{"opencode", "/home/dev/.config/opencode"},
+		{"cursor", "/home/dev/.cursor"},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
@@ -97,6 +98,12 @@ func TestToolDataSymlinks(t *testing.T) {
 	want := "/home/dev/.local/share/opencode:/home/dev/.config/opencode/data"
 	if got != want {
 		t.Errorf("ToolDataSymlinks(opencode) = %q, want %q", got, want)
+	}
+
+	got = c.ToolDataSymlinks("cursor")
+	wantCursor := "/home/dev/.config/cursor:/home/dev/.cursor"
+	if got != wantCursor {
+		t.Errorf("ToolDataSymlinks(cursor) = %q, want %q", got, wantCursor)
 	}
 
 	got = c.ToolDataSymlinks("claude")

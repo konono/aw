@@ -270,7 +270,7 @@ profiles:
 
 プロファイルに対する `aw auth ...` の動作と、起動時の認証状態チェック（任意）を制御します。
 
-通常は `aw auth login claude|codex|opencode` がメインのエントリポイントです。このコマンドはデフォルトの Debian コンテナを使うため、ホストにツールがインストールされていなくても動作します。
+通常は `aw auth login claude|codex|opencode|cursor` がメインのエントリポイントです。このコマンドはデフォルトの Debian コンテナを使うため、ホストにツールがインストールされていなくても動作します。
 
 Codex の場合、`aw auth login codex` はデフォルトで `codex login --device-auth` を実行します。コンテナや Podman machine 内ではブラウザコールバックが不安定なためです。明示的に localhost コールバックフローを使いたい場合のみ `auth.codex.login_mode: browser` を設定してください。
 

@@ -363,7 +363,7 @@ aw profiles     # 一覧を表示
 ```bash
 aw [profile-name]              # プロファイルを実行
 aw profiles                    # 利用可能なプロファイル一覧
-aw auth login claude|codex|opencode   # ツールの認証
+aw auth login claude|codex|opencode|cursor   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
