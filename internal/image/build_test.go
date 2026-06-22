@@ -465,3 +465,36 @@ func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderDockerfile_MiseGlobalUseAwk(t *testing.T) {
+	cenv := containerenv.Default()
+	want := `awk "\$2 ~ /^[0-9]/ {print \$1\"@\"\$2}"`
+	broken := `awk "\\$2 ~ /^[0-9]/ {print \\$1\"@\"\\$2}"`
+
+	for _, osTemplate := range []profile.OSTemplate{
+		profile.OSDebian12,
+		profile.OSUBI9,
+		profile.OSUBI10,
+		profile.OSUbuntu2604,
+	} {
+		for _, pkgMgr := range []profile.PackageManager{
+			profile.PackageManagerApt,
+			profile.PackageManagerDevbox,
+		} {
+			name := string(osTemplate) + "/" + string(pkgMgr)
+			t.Run(name, func(t *testing.T) {
+				df, err := RenderDockerfile(osTemplate, pkgMgr, cenv)
+				if err != nil {
+					t.Fatalf("RenderDockerfile() error: %v", err)
+				}
+				content := string(df)
+				if !strings.Contains(content, want) {
+					t.Errorf("Dockerfile should contain correctly escaped mise awk program")
+				}
+				if strings.Contains(content, broken) {
+					t.Errorf("Dockerfile should not contain broken awk escaping (\\\\$2 expands as empty shell positional)")
+				}
+			})
+		}
+	}
+}

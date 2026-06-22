@@ -3,16 +3,15 @@ package stage
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
-
-	"encoding/json"
-	"runtime"
 
 	"github.com/konono/aw/internal/config"
 	"github.com/konono/aw/internal/containerenv"

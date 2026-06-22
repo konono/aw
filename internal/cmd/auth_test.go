@@ -83,3 +83,29 @@ func TestBuildToolAuthProfile_UsesDefaultDebianContainer(t *testing.T) {
 		t.Errorf("ContainerRuntime = %q, want %q", p.ContainerRuntime, profile.ContainerRuntimeDocker)
 	}
 }
+
+func TestBuildToolAuthProfile_Cursor(t *testing.T) {
+	p, name, err := buildToolAuthProfile(nil, "cursor")
+	if err != nil {
+		t.Fatalf("buildToolAuthProfile() error: %v", err)
+	}
+	if name != "cursor" {
+		t.Errorf("name = %q, want %q", name, "cursor")
+	}
+	if p.Launch != profile.LaunchCursor {
+		t.Errorf("Launch = %q, want %q", p.Launch, profile.LaunchCursor)
+	}
+}
+
+func TestResolveAuthTarget_CursorUsesToolProfile(t *testing.T) {
+	p, name, err := resolveAuthTarget(nil, authTarget{Name: "cursor"})
+	if err != nil {
+		t.Fatalf("resolveAuthTarget() error: %v", err)
+	}
+	if name != "cursor" {
+		t.Errorf("name = %q, want %q", name, "cursor")
+	}
+	if p.Launch != profile.LaunchCursor {
+		t.Errorf("Launch = %q, want %q", p.Launch, profile.LaunchCursor)
+	}
+}

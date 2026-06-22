@@ -19,7 +19,7 @@ func TestBuiltinConfig_ParsesAndValidates(t *testing.T) {
 }
 
 func TestBuiltinConfig_ExpectedProfilesExist(t *testing.T) {
-	for _, name := range []string{"claude", "shell", "codex", "opencode"} {
+	for _, name := range []string{"claude", "shell", "codex", "opencode", "cursor"} {
 		if _, ok := builtinConfig.Profiles[name]; !ok {
 			t.Errorf("builtin config missing expected profile %q", name)
 		}

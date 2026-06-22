@@ -614,7 +614,7 @@ func TestDockerStage_MountsAwInitScript(t *testing.T) {
 }
 
 func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
-	for _, tool := range []string{"claude", "codex", "opencode"} {
+	for _, tool := range []string{"claude", "codex", "opencode", "cursor"} {
 		t.Run(tool, func(t *testing.T) {
 			dc := &mockDockerClient{available: true}
 			s := &DockerStage{
@@ -631,6 +631,8 @@ func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
 				launch = profile.LaunchCodex
 			case "opencode":
 				launch = profile.LaunchOpenCode
+			case "cursor":
+				launch = profile.LaunchCursor
 			}
 
 			ec := &pipeline.ExecutionContext{

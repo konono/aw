@@ -127,7 +127,7 @@ func resolveAuthTarget(cfg *profile.Config, target authTarget) (profile.Profile,
 	}
 
 	switch target.Name {
-	case "claude", "codex", "opencode":
+	case "claude", "codex", "opencode", "cursor":
 		return buildToolAuthProfile(cfg, target.Name)
 	default:
 		return loadExplicitProfile(cfg, target.Name)
@@ -150,6 +150,8 @@ func buildToolAuthProfile(cfg *profile.Config, tool string) (profile.Profile, st
 		p.Launch = profile.LaunchCodex
 	case "opencode":
 		p.Launch = profile.LaunchOpenCode
+	case "cursor":
+		p.Launch = profile.LaunchCursor
 	default:
 		return profile.Profile{}, "", fmt.Errorf("unknown tool %q", tool)
 	}

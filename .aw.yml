@@ -12,6 +12,9 @@ profiles:
   test-debian12-opencode:
     os: debian12
     launch: opencode
+  test-debian12-cursor:
+    os: debian12
+    launch: cursor
   test-ubi9-claude:
     os: ubi9
     launch: claude
@@ -21,6 +24,9 @@ profiles:
   test-ubi9-opencode:
     os: ubi9
     launch: opencode
+  test-ubi9-cursor:
+    os: ubi9
+    launch: cursor
   test-ubi10-claude:
     os: ubi10
     launch: claude
@@ -30,6 +36,9 @@ profiles:
   test-ubi10-opencode:
     os: ubi10
     launch: opencode
+  test-ubi10-cursor:
+    os: ubi10
+    launch: cursor
   test-ubuntu2604-claude:
     os: ubuntu2604
     launch: claude
@@ -39,15 +48,15 @@ profiles:
   test-ubuntu2604-opencode:
     os: ubuntu2604
     launch: opencode
+  test-ubuntu2604-cursor:
+    os: ubuntu2604
+    launch: cursor
   # ── devbox mode (deprecated) ────────────────────────────────────
   test-devbox-claude:
     os: debian12
     launch: claude
     package_manager: devbox
 
-  test-debian12-cursor:
-    os: debian12
-    launch: cursor
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude
