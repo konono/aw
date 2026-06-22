@@ -57,6 +57,9 @@ profiles:
     launch: claude
     package_manager: devbox
 
+  test-debian12-cursor:
+    os: debian12
+    launch: cursor
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude

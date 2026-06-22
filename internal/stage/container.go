@@ -13,6 +13,9 @@ import (
 	"slices"
 	"strings"
 
+	"encoding/json"
+	"runtime"
+
 	"github.com/konono/aw/internal/config"
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
