@@ -6,6 +6,14 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.3.0](https://github.com/konono/aw/compare/v3.2.1...v3.3.0) (2026-06-22)
+
+
+### Features
+
+* **cursor:** add Cursor CLI (agent) support with auth token seeding ([#90](https://github.com/konono/aw/issues/90)) ([6f7394a](https://github.com/konono/aw/commit/6f7394a04902a7890249fda22309be2c22fb4b93))
+* **opencode:** add --dangerously-skip-permissions flag for container mode ([#89](https://github.com/konono/aw/issues/89)) ([07bdb1b](https://github.com/konono/aw/commit/07bdb1b5177c7bb6da6e3be34b8631f41fc0bfdb))
+
 ## [3.2.1](https://github.com/konono/aw/compare/v3.2.0...v3.2.1) (2026-06-19)
 
 
