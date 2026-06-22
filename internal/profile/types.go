@@ -330,6 +330,7 @@ const (
 	LaunchClaude   LaunchMode = "claude"
 	LaunchCodex    LaunchMode = "codex"
 	LaunchOpenCode LaunchMode = "opencode"
+	LaunchCursor   LaunchMode = "cursor"
 )
 
 // EffectiveTool returns the AI tool name based on the launch mode.
@@ -341,6 +342,8 @@ func (p *Profile) EffectiveTool() string {
 		return "codex"
 	case LaunchOpenCode:
 		return "opencode"
+	case LaunchCursor:
+		return "cursor"
 	default:
 		return ""
 	}

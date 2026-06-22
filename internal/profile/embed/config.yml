@@ -44,7 +44,7 @@ ssh_agent_forwarding: false   # forward SSH agent socket (default: false, prefer
 
 profiles:
   shell:
-    launch: shell             # "shell", "claude", "codex", "opencode"
+    launch: shell             # "shell", "claude", "codex", "opencode", "cursor"
 
   claude:
     launch: claude
@@ -57,7 +57,11 @@ profiles:
 
   opencode:
     launch: opencode
-    # `aw auth login opencode` -> `opencode auth login`
+
+  cursor:
+    launch: cursor
+    # `aw auth login cursor` -> `agent login`
+    # API key で使う場合は auth を省略し、env: CURSOR_API_KEY で認証
 
   ubi9-shell:
     os: ubi9

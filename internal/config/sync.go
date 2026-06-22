@@ -47,6 +47,13 @@ var OpenCodeSyncSpec = ToolSyncSpec{
 	Dirs:  []string{"agents", "commands", "plugins", "skills", "tools", "themes", "modes"},
 }
 
+// CursorSyncSpec syncs Cursor CLI config while preserving session data.
+// auth.json is seeded (not overwritten) so in-container login persists.
+var CursorSyncSpec = ToolSyncSpec{
+	Files:     []string{"cli-config.json"},
+	SeedFiles: []string{"auth.json"},
+}
+
 // Syncer syncs host AI tool settings to the container-side staging directory.
 type Syncer interface {
 	SyncToolSettings(srcDir, dstDir string, spec ToolSyncSpec) error

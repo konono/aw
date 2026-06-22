@@ -41,6 +41,20 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid docker + cursor",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchCursor,
+			},
+		},
+		{
+			name: "valid host + cursor",
+			profile: Profile{
+				Environment: EnvironmentHost,
+				Launch:      LaunchCursor,
+			},
+		},
+		{
 			name: "missing environment",
 			profile: Profile{
 				Launch: LaunchClaude,

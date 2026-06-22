@@ -36,12 +36,12 @@ func Validate(p Profile) error {
 
 	// Validate launch mode
 	switch p.Launch {
-	case LaunchShell, LaunchClaude, LaunchCodex, LaunchOpenCode:
+	case LaunchShell, LaunchClaude, LaunchCodex, LaunchOpenCode, LaunchCursor:
 		// ok
 	case "":
-		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", or \"opencode\")")
+		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", \"opencode\", or \"cursor\")")
 	default:
-		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", or \"opencode\")", p.Launch)
+		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", \"opencode\", or \"cursor\")", p.Launch)
 	}
 
 	// Validate os

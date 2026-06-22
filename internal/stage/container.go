@@ -11,6 +11,9 @@ import (
 	"slices"
 	"strings"
 
+	"encoding/json"
+	"runtime"
+
 	"github.com/konono/aw/internal/config"
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
@@ -101,6 +104,12 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		toolContainerDir = toolinfo.ContainerDirFor(tool, cenv)
 		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
 			return fmt.Errorf("syncing %s settings: %w", tool, err)
+		}
+	}
+
+	if tool == "cursor" && toolStageDir != "" {
+		if err := seedCursorAuth(toolStageDir, ec.HomeDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cursor auth seed: %v\n", err)
 		}
 	}
 
@@ -376,6 +385,8 @@ func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
 		return &spec
 	case "opencode":
 		return &config.OpenCodeSyncSpec
+	case "cursor":
+		return &config.CursorSyncSpec
 	default:
 		return nil
 	}
@@ -473,6 +484,89 @@ func DetectGhToken() (string, error) {
 		return "", fmt.Errorf("'gh auth token' returned empty token")
 	}
 	return token, nil
+}
+
+type cursorAuth struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+}
+
+// seedCursorAuth populates auth.json in the staging directory if missing.
+//
+// Token sources tried in order:
+//  1. macOS Keychain (cursor-access-token / cursor-refresh-token)
+//  2. ~/.config/cursor/auth.json (Linux file-based storage, also works
+//     as a macOS fallback when Keychain is unavailable)
+func seedCursorAuth(stageDir, homeDir string) error {
+	authPath := filepath.Join(stageDir, "auth.json")
+	if _, err := os.Stat(authPath); err == nil {
+		return nil
+	}
+
+	if data := cursorAuthFromKeychain(); data != nil {
+		if err := os.MkdirAll(stageDir, 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(authPath, data, 0600)
+	}
+
+	if data := cursorAuthFromFile(homeDir); data != nil {
+		if err := os.MkdirAll(stageDir, 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(authPath, data, 0600)
+	}
+
+	return nil
+}
+
+func cursorAuthFromKeychain() []byte {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+
+	access, err := readKeychainPassword("cursor-access-token", "cursor-user")
+	if err != nil || access == "" {
+		return nil
+	}
+	refresh, err := readKeychainPassword("cursor-refresh-token", "cursor-user")
+	if err != nil || refresh == "" {
+		return nil
+	}
+
+	data, err := json.MarshalIndent(cursorAuth{
+		AccessToken:  access,
+		RefreshToken: refresh,
+	}, "", "  ")
+	if err != nil {
+		return nil
+	}
+	return append(data, '\n')
+}
+
+func cursorAuthFromFile(homeDir string) []byte {
+	path := filepath.Join(homeDir, ".config", "cursor", "auth.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var auth cursorAuth
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return nil
+	}
+	if auth.AccessToken == "" {
+		return nil
+	}
+	return data
+}
+
+func readKeychainPassword(service, account string) (string, error) {
+	out, err := exec.Command("security", "find-generic-password",
+		"-s", service, "-a", account, "-w").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func ghCLIInstallScript() string {
