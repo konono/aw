@@ -60,6 +60,8 @@ func (c Config) ToolDir(tool string) string {
 		return path.Join(c.Home, ".codex")
 	case "opencode":
 		return path.Join(c.Home, ".config", "opencode")
+	case "cursor":
+		return path.Join(c.Home, ".cursor")
 	default:
 		return ""
 	}
@@ -71,6 +73,10 @@ func (c Config) ToolDataSymlinks(tool string) string {
 		return fmt.Sprintf("%s:%s",
 			path.Join(c.Home, ".local", "share", "opencode"),
 			path.Join(c.Home, ".config", "opencode", "data"))
+	case "cursor":
+		return fmt.Sprintf("%s:%s",
+			path.Join(c.Home, ".config", "cursor"),
+			path.Join(c.Home, ".cursor"))
 	default:
 		return ""
 	}

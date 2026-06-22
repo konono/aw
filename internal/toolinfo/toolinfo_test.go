@@ -9,7 +9,7 @@ import (
 
 func TestLookup_KnownTools(t *testing.T) {
 	cenv := containerenv.Default()
-	for _, tool := range []string{"claude", "codex", "opencode"} {
+	for _, tool := range []string{"claude", "codex", "opencode", "cursor"} {
 		spec, ok := Lookup(tool)
 		if !ok {
 			t.Errorf("Lookup(%q) returned false", tool)
@@ -41,7 +41,7 @@ func TestLookup_UnknownTool(t *testing.T) {
 }
 
 func TestInstallScript(t *testing.T) {
-	for _, tool := range []string{"claude", "codex", "opencode"} {
+	for _, tool := range []string{"claude", "codex", "opencode", "cursor"} {
 		if got := InstallScript(tool); got == "" {
 			t.Errorf("InstallScript(%q) should not be empty", tool)
 		}
@@ -60,6 +60,7 @@ func TestHomePath(t *testing.T) {
 		{"claude", filepath.Join(home, ".claude")},
 		{"codex", filepath.Join(home, ".codex")},
 		{"opencode", filepath.Join(home, ".config", "opencode")},
+		{"cursor", filepath.Join(home, ".cursor")},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
@@ -87,6 +88,7 @@ func TestContainerDirFor(t *testing.T) {
 		{"claude", "/home/agent/.claude"},
 		{"codex", "/home/agent/.codex"},
 		{"opencode", "/home/agent/.config/opencode"},
+		{"cursor", "/home/agent/.cursor"},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
