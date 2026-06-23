@@ -12,6 +12,7 @@ on:
       - 'internal/profile/**'
       - '.goreleaser.yml'
       - '.github/workflows/integration.yml'
+      - '.release-please-manifest.json'
   pull_request:
     paths:
       - 'internal/image/**'
@@ -22,6 +23,7 @@ on:
       - 'internal/profile/**'
       - '.goreleaser.yml'
       - '.github/workflows/integration.yml'
+      - '.release-please-manifest.json'
   workflow_dispatch:
     inputs:
       full_matrix:
