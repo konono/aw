@@ -157,3 +157,59 @@ func TestPerRequestDBConnection(t *testing.T) {
 		t.Fatalf("expected 2 unread (per-request DB open), got %d", len(inbox))
 	}
 }
+
+func TestAuthorizeMessage_DifferentAgent(t *testing.T) {
+	dbPath := testDB(t)
+	store, _ := messaging.OpenStore(dbPath)
+	id, _, _ := store.Send(testTeam, "developer-1", "reviewer-1", "secret review")
+	_ = store.Close()
+
+	// developer-2 should not be able to read reviewer-1's message
+	otherSrv := NewServer(dbPath, "developer-2", testTeam)
+	result := callToolError(t, otherSrv, dbPath, "read_message", map[string]interface{}{"id": float64(id)})
+	if result == nil {
+		t.Fatal("expected error reading another agent's message")
+	}
+}
+
+func TestAuthorizeMessage_DifferentTeam(t *testing.T) {
+	dbPath := testDB(t)
+	store, _ := messaging.OpenStore(dbPath)
+	id, _, _ := store.Send("team-alpha", "developer-1", "reviewer-1", "alpha secret")
+	_ = store.Close()
+
+	// Same agent name but different team should not have access
+	otherSrv := NewServer(dbPath, "reviewer-1", "team-beta")
+	result := callToolError(t, otherSrv, dbPath, "read_message", map[string]interface{}{"id": float64(id)})
+	if result == nil {
+		t.Fatal("expected error reading message from different team")
+	}
+}
+
+func TestAuthorizeMessage_SenderCanRead(t *testing.T) {
+	dbPath := testDB(t)
+	store, _ := messaging.OpenStore(dbPath)
+	id, _, _ := store.Send(testTeam, "developer-1", "reviewer-1", "my message")
+	_ = store.Close()
+
+	// Sender should be able to read their own sent message
+	senderSrv := NewServer(dbPath, "developer-1", testTeam)
+	result := callTool(t, senderSrv, dbPath, "read_message", map[string]interface{}{"id": float64(id)})
+	var msg map[string]interface{}
+	_ = json.Unmarshal(result, &msg)
+	if msg["body"] != "my message" {
+		t.Errorf("sender should be able to read own message, got %v", msg)
+	}
+}
+
+func callToolError(t *testing.T, srv *Server, dbPath, name string, args interface{}) error {
+	t.Helper()
+	argsJSON, _ := json.Marshal(args)
+	store, err := messaging.OpenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	_, err = srv.callTool(store, name, argsJSON)
+	return err
+}

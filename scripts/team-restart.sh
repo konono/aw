@@ -1,8 +1,6 @@
 #!/bin/bash
-set -e
-
-#!/bin/bash
 # Example helper for development testing. Adjust paths for your environment.
+set -e
 TEAM_NAME="${1:-review-team}"
 TASK="${2:-README.md に Hello World と書いてください}"
 SRC_DIR="${AW_SRC_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"

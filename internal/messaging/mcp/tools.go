@@ -168,6 +168,9 @@ func (s *Server) toolMarkRead(store *messaging.Store, args json.RawMessage) (int
 }
 
 func (s *Server) authorizeMessage(msg *messaging.Message) error {
+	if msg.Team != s.teamName {
+		return fmt.Errorf("access denied: message #%d belongs to a different team", msg.ID)
+	}
 	if msg.To != s.agentName && msg.From != s.agentName {
 		return fmt.Errorf("access denied: message #%d does not belong to %s", msg.ID, s.agentName)
 	}

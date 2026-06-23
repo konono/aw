@@ -14,6 +14,7 @@ import (
 // Message represents a single inter-agent message.
 type Message struct {
 	ID        int64
+	Team      string
 	From      string
 	To        string
 	Body      string
@@ -132,18 +133,19 @@ func (s *Store) ReadInbox(team, agent string) ([]MessagePreview, error) {
 
 // ReadMessage returns a full message by ID without marking it as read.
 func (s *Store) ReadMessage(id int64) (*Message, error) {
-	var from, to, body, createdAt string
+	var team, from, to, body, createdAt string
 	var readAt sql.NullString
 	err := s.db.QueryRow(
-		`SELECT from_agent, to_agent, body, created_at, read_at FROM messages WHERE id = ?`,
+		`SELECT team, from_agent, to_agent, body, created_at, read_at FROM messages WHERE id = ?`,
 		id,
-	).Scan(&from, &to, &body, &createdAt, &readAt)
+	).Scan(&team, &from, &to, &body, &createdAt, &readAt)
 	if err != nil {
 		return nil, err
 	}
 
 	msg := &Message{
 		ID:   id,
+		Team: team,
 		From: from,
 		To:   to,
 		Body: body,
