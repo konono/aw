@@ -226,12 +226,30 @@ func replaceBinary(targetPath string, newBinary []byte) error {
 		return fmt.Errorf("closing temp file: %w", err)
 	}
 
-	// Atomic rename
+	// On Windows the running binary holds a file lock, so os.Rename
+	// over it fails. Move the old binary aside first, then put the
+	// new one in place.
+	if runtime.GOOS == "windows" {
+		oldPath := targetPath + ".old"
+		_ = os.Remove(oldPath)
+		if err := os.Rename(targetPath, oldPath); err != nil {
+			return fmt.Errorf("moving old binary aside: %w", err)
+		}
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			// Roll back: restore the old binary.
+			_ = os.Rename(oldPath, targetPath)
+			return fmt.Errorf("placing new binary: %w", err)
+		}
+		_ = os.Remove(oldPath)
+		tmpPath = ""
+		return nil
+	}
+
+	// Unix: atomic rename (overwrites in place).
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		return fmt.Errorf("renaming: %w", err)
 	}
 
-	// Prevent deferred cleanup from removing the new binary
 	tmpPath = ""
 	return nil
 }
