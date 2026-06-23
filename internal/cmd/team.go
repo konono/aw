@@ -377,6 +377,9 @@ func launchTeamMember(
 	}
 	if roleText, rerr := roles.Render(m.Role, roleData); rerr == nil {
 		appendRoleContext(toolStageDir, tool, roleText)
+		if ec.WorkDir != "" && ec.WorkDir != toolStageDir {
+			appendRoleContext(ec.WorkDir, tool, roleText)
+		}
 	}
 
 	// Mount aw binary

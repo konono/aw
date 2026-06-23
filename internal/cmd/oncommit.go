@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/konono/aw/internal/messaging"
@@ -55,6 +56,13 @@ func runInternalOnCommit(args []string) int {
 	if commitHash == "" {
 		return 0
 	}
+
+	// Dedup: skip if we already notified about this commit
+	markerPath := filepath.Join(filepath.Dir(dbPath), ".lastcommit-"+agentName)
+	if prev, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(prev)) == commitHash {
+		return 0
+	}
+	_ = os.WriteFile(markerPath, []byte(commitHash), 0644)
 
 	store, err := messaging.OpenStore(dbPath)
 	if err != nil {
