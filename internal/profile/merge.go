@@ -16,6 +16,9 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Launch != "" {
 		merged.Launch = override.Launch
 	}
+	if override.Delivery != "" {
+		merged.Delivery = override.Delivery
+	}
 	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
 	merged.Auth = mergeAuth(merged.Auth, override.Auth)
 	if override.Env != nil {
@@ -156,6 +159,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	}
 	if effective.Launch != defaults.Launch {
 		relative.Launch = effective.Launch
+	}
+	if effective.Delivery != defaults.Delivery {
+		relative.Delivery = effective.Delivery
 	}
 	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
 	relative.Env = relativeEnv(defaults.Env, effective.Env)

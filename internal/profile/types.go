@@ -72,6 +72,7 @@ type Profile struct {
 	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
 	Environment      Environment       `yaml:"environment"`
 	Launch           LaunchMode        `yaml:"launch"`
+	Delivery         string            `yaml:"delivery,omitempty"`
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
@@ -369,5 +370,20 @@ func (p *Profile) EffectiveTool() string {
 		return "cursor"
 	default:
 		return ""
+	}
+}
+
+// EffectiveDelivery returns the message delivery mode. If the profile has an
+// explicit Delivery value, it is returned. Otherwise a tool-based default is
+// used: cursor and opencode default to "off"; everything else defaults to "turn".
+func (p *Profile) EffectiveDelivery(tool string) string {
+	if p.Delivery != "" {
+		return p.Delivery
+	}
+	switch tool {
+	case "cursor", "opencode":
+		return "off"
+	default:
+		return "turn"
 	}
 }

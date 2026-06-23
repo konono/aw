@@ -133,6 +133,36 @@ func TestProfileOverride_FieldsTakeEffect(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "OverrideDelivery",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "turn",
+			},
+			override: Profile{
+				Delivery: "monitor",
+			},
+			check: func(t *testing.T, m Profile) {
+				if m.Delivery != "monitor" {
+					t.Errorf("Delivery = %q, want %q", m.Delivery, "monitor")
+				}
+			},
+		},
+		{
+			name: "EmptyDeliveryOverridePreservesBase",
+			base: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "off",
+			},
+			override: Profile{},
+			check: func(t *testing.T, m Profile) {
+				if m.Delivery != "off" {
+					t.Errorf("Delivery = %q, want %q (should be preserved from base)", m.Delivery, "off")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

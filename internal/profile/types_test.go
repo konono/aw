@@ -156,3 +156,30 @@ func TestProfile_EffectiveMountSSH(t *testing.T) {
 		})
 	}
 }
+
+func TestEffectiveDelivery(t *testing.T) {
+	tests := []struct {
+		name     string
+		delivery string
+		tool     string
+		want     string
+	}{
+		{"explicit turn", "turn", "claude", "turn"},
+		{"explicit monitor", "monitor", "claude", "monitor"},
+		{"explicit off", "off", "claude", "off"},
+		{"default claude", "", "claude", "turn"},
+		{"default codex", "", "codex", "turn"},
+		{"default cursor", "", "cursor", "off"},
+		{"default opencode", "", "opencode", "off"},
+		{"override cursor default", "turn", "cursor", "turn"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Profile{Delivery: tt.delivery}
+			if got := p.EffectiveDelivery(tt.tool); got != tt.want {
+				t.Errorf("EffectiveDelivery(%q) = %q, want %q", tt.tool, got, tt.want)
+			}
+		})
+	}
+}

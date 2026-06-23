@@ -87,6 +87,14 @@ func Validate(p Profile) error {
 		return fmt.Errorf("package_manager is only valid with environment: container")
 	}
 
+	// Validate delivery mode
+	switch p.Delivery {
+	case "", "turn", "monitor", "off":
+		// ok
+	default:
+		return fmt.Errorf("unknown delivery: %q (must be \"turn\", \"monitor\", or \"off\")", p.Delivery)
+	}
+
 	// Validate container_runtime
 	switch p.ContainerRuntime {
 	case "", ContainerRuntimeDocker, ContainerRuntimePodman:

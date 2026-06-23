@@ -306,11 +306,7 @@ func launchTeamMember(
 
 	tool := p.EffectiveTool()
 
-	// Determine delivery mode based on tool hook support
-	deliveryMode := inject.DeliveryTurn
-	if tool == "cursor" || tool == "opencode" {
-		deliveryMode = inject.DeliveryOff
-	}
+	deliveryMode := inject.DeliveryMode(p.EffectiveDelivery(tool))
 
 	toolStageDir := filepath.Join(ec.HomeDir, ".agent-workspace", tool)
 	injector, err := inject.ForTool(tool)
