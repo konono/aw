@@ -27,9 +27,10 @@ func runInternalAgentLoop(args []string) int {
 		return 1
 	}
 
-	fmt.Fprintf(os.Stderr, "[agent-loop] %s waiting for messages...\n", agentName)
+	// Skip all existing messages — only process messages that arrive after startup
+	lastID := latestMessageID(dbPath, teamName, agentName)
+	fmt.Fprintf(os.Stderr, "[agent-loop] %s waiting for messages (skipping existing, last_id=%d)...\n", agentName, lastID)
 
-	var lastID int64
 	for {
 		msgs := pollNewMessages(dbPath, teamName, agentName, lastID)
 		for _, m := range msgs {
@@ -55,6 +56,21 @@ func runInternalAgentLoop(args []string) int {
 		}
 		time.Sleep(2 * time.Second)
 	}
+}
+
+func latestMessageID(dbPath, team, agent string) int64 {
+	store, err := messaging.OpenStore(dbPath)
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = store.Close() }()
+
+	var maxID int64
+	_ = store.DB().QueryRow(
+		`SELECT COALESCE(MAX(id), 0) FROM messages WHERE team = ? AND to_agent = ?`,
+		team, agent,
+	).Scan(&maxID)
+	return maxID
 }
 
 func pollNewMessages(dbPath, team, agent string, afterID int64) []messaging.Message {
