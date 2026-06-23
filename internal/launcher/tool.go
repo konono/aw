@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
@@ -19,8 +20,30 @@ import (
 var toolContainerCommands = map[string][]string{
 	"claude":   {"claude", "--permission-mode", "bypassPermissions"},
 	"codex":    {"codex", "-a", "never"},
-	"opencode": {"opencode", "--dangerously-skip-permissions"},
+	"opencode": {"opencode"},
 	"cursor":   {"agent", "--force"},
+}
+
+// ToolContainerCommand returns a copy of the container command for the given tool.
+// Returns nil if the tool has no container command registered.
+func ToolContainerCommand(tool string) []string {
+	cmd, ok := toolContainerCommands[tool]
+	if !ok {
+		return nil
+	}
+	cp := make([]string, len(cmd))
+	copy(cp, cmd)
+	return cp
+}
+
+// ToolContainerCommandNames returns all tool names that have container commands registered.
+func ToolContainerCommandNames() []string {
+	names := make([]string, 0, len(toolContainerCommands))
+	for name := range toolContainerCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ToolLauncher is a data-driven launcher for any registered tool.
