@@ -1,7 +1,6 @@
 package inject
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 )
@@ -46,8 +45,9 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 
 // InjectHook patches settings.json in StagingDir to include a Stop hook
 // that runs "aw --internal-check-inbox" to notify the agent of unread
-// messages. If settings.json already exists, the hooks.Stop array is
-// merged (appended if not already present) rather than overwritten.
+// messages. Claude Code hooks use a matcher+hooks structure:
+//
+//	{"hooks": {"Stop": [{"hooks": [{"type":"command","command":"..."}]}]}}
 func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 	settingsPath := filepath.Join(cfg.StagingDir, "settings.json")
 
@@ -64,57 +64,47 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		hooks = make(map[string]interface{})
 	}
 
-	hookEntry := map[string]interface{}{
-		"type":    "command",
-		"command": cfg.MCPBinary + " --internal-check-inbox",
+	command := cfg.MCPBinary + " --internal-check-inbox"
+
+	// Check if our hook is already present in any Stop matcher group.
+	stopGroups, _ := hooks["Stop"].([]interface{})
+	if claudeStopHookExists(stopGroups, command) {
+		return nil
 	}
 
-	// Merge into the existing Stop array.
-	var stopHooks []interface{}
-	switch existing := hooks["Stop"].(type) {
-	case []interface{}:
-		stopHooks = existing
-	case nil:
-		// no existing Stop hooks
-	default:
-		// Unexpected type; wrap in a slice to preserve it.
-		stopHooks = []interface{}{existing}
-	}
+	// Append a new matcher group with our hook.
+	stopGroups = append(stopGroups, map[string]interface{}{
+		"hooks": []interface{}{
+			map[string]interface{}{
+				"type":    "command",
+				"command": command,
+			},
+		},
+	})
 
-	// Avoid duplicating the hook if it is already present.
-	if !claudeStopHookExists(stopHooks, hookEntry) {
-		stopHooks = append(stopHooks, hookEntry)
-	}
-
-	hooks["Stop"] = stopHooks
+	hooks["Stop"] = stopGroups
 	root["hooks"] = hooks
 
 	return writeJSONFile(settingsPath, root)
 }
 
-// claudeStopHookExists checks whether an equivalent hook entry already
-// exists in the Stop array. It compares by the "command" field.
-func claudeStopHookExists(hooks []interface{}, entry map[string]interface{}) bool {
-	cmd, _ := entry["command"].(string)
-	if cmd == "" {
-		return false
-	}
-	for _, h := range hooks {
-		m, ok := h.(map[string]interface{})
+// claudeStopHookExists checks whether the command already exists in any
+// Stop matcher group's hooks array.
+func claudeStopHookExists(groups []interface{}, command string) bool {
+	for _, g := range groups {
+		group, ok := g.(map[string]interface{})
 		if !ok {
-			// After round-tripping through JSON unmarshal the type might
-			// be map[string]json.RawMessage or similar; try re-marshal.
-			data, err := json.Marshal(h)
-			if err != nil {
-				continue
-			}
-			m = make(map[string]interface{})
-			if json.Unmarshal(data, &m) != nil {
-				continue
-			}
+			continue
 		}
-		if c, _ := m["command"].(string); c == cmd {
-			return true
+		innerHooks, _ := group["hooks"].([]interface{})
+		for _, h := range innerHooks {
+			m, ok := h.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if c, _ := m["command"].(string); c == command {
+				return true
+			}
 		}
 	}
 	return false
