@@ -6,6 +6,15 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.4.0](https://github.com/konono/aw/compare/v3.3.2...v3.4.0) (2026-06-23)
+
+
+### Features
+
+* **linuxbin:** add Linux binary resolver for cross-platform team support ([#97](https://github.com/konono/aw/issues/97)) ([d8948ca](https://github.com/konono/aw/commit/d8948caf0997fefa4ac5bae0f8ff5782de4a273b))
+* **messaging:** add aw msg clear command for message cleanup ([#100](https://github.com/konono/aw/issues/100)) ([891c6d4](https://github.com/konono/aw/commit/891c6d4dfa3cd8bf3135322aba61d1f4b98386e5))
+* **team:** add inter-agent messaging with automated code review ([#99](https://github.com/konono/aw/issues/99)) ([640edd9](https://github.com/konono/aw/commit/640edd914a09d853c6b5b677e53bac939c5f638b))
+
 ## [3.3.2](https://github.com/konono/aw/compare/v3.3.1...v3.3.2) (2026-06-23)
 
 
