@@ -11,9 +11,9 @@ import (
 //
 //	host maps to the project root inside the container).
 //
-// Hook: patches settings.json in the staging directory to add a Stop
+// Hook: patches settings.json in the staging directory to add delivery
 //
-//	hook entry that runs "aw --internal-check-inbox".
+//	hooks based on the configured DeliveryMode.
 type ClaudeInjector struct{}
 
 // InjectMCP writes .mcp.json to cfg.WorkDir with the aw-msg MCP server.
@@ -43,7 +43,7 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 	return writeJSONFile(mcpPath, root)
 }
 
-// InjectHook patches settings.json in StagingDir to include a Stop hook.
+// InjectHook patches settings.json in StagingDir to include delivery hooks.
 // Skipped when DeliveryMode is "off".
 func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 	if cfg.DeliveryMode == DeliveryOff {
@@ -64,33 +64,45 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		hooks = make(map[string]interface{})
 	}
 
-	command := cfg.MCPBinary + " --internal-check-inbox"
+	switch cfg.DeliveryMode {
+	case DeliveryTurn:
+		command := cfg.MCPBinary + " --internal-check-inbox"
+		stopGroups, _ := hooks["Stop"].([]interface{})
+		if !claudeHookExists(stopGroups, command) {
+			stopGroups = append(stopGroups, map[string]interface{}{
+				"hooks": []interface{}{
+					map[string]interface{}{
+						"type":    "command",
+						"command": command,
+					},
+				},
+			})
+			hooks["Stop"] = stopGroups
+		}
 
-	// Check if our hook is already present in any Stop matcher group.
-	stopGroups, _ := hooks["Stop"].([]interface{})
-	if claudeStopHookExists(stopGroups, command) {
-		return nil
+	case DeliveryMonitor:
+		command := cfg.MCPBinary + " --internal-watch &"
+		startGroups, _ := hooks["SessionStart"].([]interface{})
+		if !claudeHookExists(startGroups, command) {
+			startGroups = append(startGroups, map[string]interface{}{
+				"hooks": []interface{}{
+					map[string]interface{}{
+						"type":    "command",
+						"command": command,
+					},
+				},
+			})
+			hooks["SessionStart"] = startGroups
+		}
 	}
 
-	// Append a new matcher group with our hook.
-	stopGroups = append(stopGroups, map[string]interface{}{
-		"hooks": []interface{}{
-			map[string]interface{}{
-				"type":    "command",
-				"command": command,
-			},
-		},
-	})
-
-	hooks["Stop"] = stopGroups
 	root["hooks"] = hooks
-
 	return writeJSONFile(settingsPath, root)
 }
 
-// claudeStopHookExists checks whether the command already exists in any
-// Stop matcher group's hooks array.
-func claudeStopHookExists(groups []interface{}, command string) bool {
+// claudeHookExists checks whether the command already exists in any
+// matcher group's hooks array.
+func claudeHookExists(groups []interface{}, command string) bool {
 	for _, g := range groups {
 		group, ok := g.(map[string]interface{})
 		if !ok {

@@ -17,8 +17,9 @@ type MemberInfo struct {
 type DeliveryMode string
 
 const (
-	DeliveryTurn DeliveryMode = "turn" // Stop hook notifies of unread messages
-	DeliveryOff  DeliveryMode = "off"  // MCP pull only, no automatic notification
+	DeliveryTurn    DeliveryMode = "turn"    // Stop hook notifies of unread messages
+	DeliveryMonitor DeliveryMode = "monitor" // SessionStart watcher streams messages in background
+	DeliveryOff     DeliveryMode = "off"     // MCP pull only, no automatic notification
 )
 
 // InjectorConfig carries all parameters needed to inject MCP and hook

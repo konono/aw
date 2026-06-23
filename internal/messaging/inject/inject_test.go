@@ -180,6 +180,46 @@ func TestOpenCodeInjectMCP(t *testing.T) {
 	}
 }
 
+func TestClaudeInjectHookMonitorMode(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.DeliveryMode = DeliveryMonitor
+	injector := &ClaudeInjector{}
+
+	if err := injector.InjectHook(cfg); err != nil {
+		t.Fatalf("InjectHook: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("reading settings.json: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "--internal-watch") {
+		t.Error("settings.json should contain --internal-watch hook")
+	}
+	if !strings.Contains(content, "SessionStart") {
+		t.Error("settings.json should contain SessionStart hook key")
+	}
+	if strings.Contains(content, "Stop") {
+		t.Error("settings.json should NOT contain Stop hook in monitor mode")
+	}
+}
+
+func TestClaudeInjectHookMonitorIdempotent(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.DeliveryMode = DeliveryMonitor
+	injector := &ClaudeInjector{}
+
+	_ = injector.InjectHook(cfg)
+	_ = injector.InjectHook(cfg)
+
+	data, _ := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
+	count := strings.Count(string(data), "--internal-watch")
+	if count != 1 {
+		t.Errorf("watch hook should appear exactly once, found %d times", count)
+	}
+}
+
 func TestForTool(t *testing.T) {
 	tools := []string{"claude", "codex", "opencode", "cursor"}
 	for _, tool := range tools {
