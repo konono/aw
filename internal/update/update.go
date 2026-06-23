@@ -128,10 +128,10 @@ func extractBinary(archiveData []byte, goos, targetBinary string) ([]byte, error
 	if goos == "windows" {
 		return extractBinaryFromZip(archiveData, targetBinary)
 	}
-	return extractBinaryFromTarGz(archiveData, targetBinary)
+	return ExtractBinaryFromTarGz(archiveData, targetBinary)
 }
 
-func extractBinaryFromTarGz(archiveData []byte, targetBinary string) ([]byte, error) {
+func ExtractBinaryFromTarGz(archiveData []byte, targetBinary string) ([]byte, error) {
 	gr, err := gzip.NewReader(bytes.NewReader(archiveData))
 	if err != nil {
 		return nil, fmt.Errorf("opening gzip: %w", err)
