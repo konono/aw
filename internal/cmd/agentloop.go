@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/konono/aw/internal/launcher"
@@ -27,19 +28,20 @@ func runInternalAgentLoop(args []string) int {
 		return 1
 	}
 
-	// Skip all existing messages — only process messages that arrive after startup
-	lastID := latestMessageID(dbPath, teamName, agentName)
-	fmt.Fprintf(os.Stderr, "[agent-loop] %s waiting for messages (skipping existing, last_id=%d)...\n", agentName, lastID)
+	contextFile := "CLAUDE.md"
+	if tool == "codex" || tool == "opencode" {
+		contextFile = "AGENTS.md"
+	}
+
+	// Process any unread messages from previous sessions as a single summary
+	lastID := processUnreadSummary(dbPath, teamName, agentName, tool, printCmd, contextFile)
+	fmt.Fprintf(os.Stderr, "[agent-loop] %s waiting for messages (last_id=%d)...\n", agentName, lastID)
 
 	for {
 		msgs := pollNewMessages(dbPath, teamName, agentName, lastID)
 		for _, m := range msgs {
 			fmt.Fprintf(os.Stderr, "[agent-loop] received message #%d from %s\n", m.ID, m.From)
 
-			contextFile := "CLAUDE.md"
-			if tool == "codex" || tool == "opencode" {
-				contextFile = "AGENTS.md"
-			}
 			prompt := fmt.Sprintf(
 				"You received a message from %s:\n\n%s\n\n"+
 					"Read %s in the workspace for your role and team context. "+
@@ -61,6 +63,64 @@ func runInternalAgentLoop(args []string) int {
 		}
 		time.Sleep(2 * time.Second)
 	}
+}
+
+func processUnreadSummary(dbPath, team, agent, tool string, printCmd []string, contextFile string) int64 {
+	store, err := messaging.OpenStore(dbPath)
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = store.Close() }()
+
+	unread, err := store.ReadInbox(team, agent)
+	if err != nil || len(unread) == 0 {
+		return latestMessageID(dbPath, team, agent)
+	}
+
+	fmt.Fprintf(os.Stderr, "[agent-loop] found %d unread message(s) from previous session, processing summary...\n", len(unread))
+
+	// Build summary of senders and latest preview
+	senders := map[string]int{}
+	var latestPreview string
+	var maxID int64
+	for _, p := range unread {
+		senders[p.From]++
+		latestPreview = p.Preview
+		if p.ID > maxID {
+			maxID = p.ID
+		}
+	}
+
+	var senderList []string
+	for name, count := range senders {
+		senderList = append(senderList, fmt.Sprintf("%s (%d件)", name, count))
+	}
+
+	prompt := fmt.Sprintf(
+		"You have %d unread message(s) from a previous session.\n"+
+			"Senders: %s\n"+
+			"Latest message preview: %s\n\n"+
+			"Read %s in the workspace for your role and team context. "+
+			"Use read_inbox and read_message MCP tools to review important messages, "+
+			"then take appropriate action and respond via send_message if needed.",
+		len(unread), strings.Join(senderList, ", "), latestPreview, contextFile)
+
+	cmdArgs := append(printCmd, prompt)
+	c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	if runErr := c.Run(); runErr != nil {
+		fmt.Fprintf(os.Stderr, "[agent-loop] summary processing failed: %v\n", runErr)
+		return maxID
+	}
+
+	// Mark all unread as read
+	for _, p := range unread {
+		markRead(dbPath, p.ID)
+	}
+	fmt.Fprintf(os.Stderr, "[agent-loop] %d unread message(s) marked as read\n", len(unread))
+
+	return maxID
 }
 
 func latestMessageID(dbPath, team, agent string) int64 {
