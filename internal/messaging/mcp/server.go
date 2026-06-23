@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/konono/aw/internal/messaging"
@@ -12,13 +11,14 @@ import (
 
 // Server implements a minimal MCP server over stdin/stdout.
 type Server struct {
-	store     *messaging.Store
+	dbPath    string
 	agentName string
+	teamName  string
 }
 
 // NewServer creates a new MCP server.
-func NewServer(store *messaging.Store, agentName string) *Server {
-	return &Server{store: store, agentName: agentName}
+func NewServer(dbPath, agentName, teamName string) *Server {
+	return &Server{dbPath: dbPath, agentName: agentName, teamName: teamName}
 }
 
 type jsonrpcRequest struct {
@@ -77,7 +77,6 @@ func writeResponse(w *bufio.Writer, resp jsonrpcResponse) {
 }
 
 func (s *Server) handle(req jsonrpcRequest) jsonrpcResponse {
-	s.store.Refresh()
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
@@ -130,7 +129,22 @@ func (s *Server) handleToolsCall(req jsonrpcRequest) jsonrpcResponse {
 		return errorResponse(req.ID, -32602, "invalid params")
 	}
 
-	result, err := s.callTool(params.Name, params.Arguments)
+	store, err := messaging.OpenStore(s.dbPath)
+	if err != nil {
+		return jsonrpcResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result: map[string]interface{}{
+				"content": []map[string]interface{}{
+					{"type": "text", "text": fmt.Sprintf("Error: %v", err)},
+				},
+				"isError": true,
+			},
+		}
+	}
+	defer func() { _ = store.Close() }()
+
+	result, err := s.callTool(store, params.Name, params.Arguments)
 	if err != nil {
 		return jsonrpcResponse{
 			JSONRPC: "2.0",
@@ -165,18 +179,10 @@ func errorResponse(id json.RawMessage, code int, msg string) jsonrpcResponse {
 }
 
 // RunStdio is the entry point for `aw --internal-mcp-msg`.
-func RunStdio(dbPath, agentName string) error {
-	store, err := messaging.OpenStore(dbPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
+func RunStdio(dbPath, agentName, teamName string) error {
+	srv := NewServer(dbPath, agentName, teamName)
 
-	srv := NewServer(store, agentName)
-
-	// Write nothing to stderr to avoid polluting the MCP channel
 	os.Stderr = os.NewFile(0, os.DevNull)
-	_ = io.Discard
 
 	return srv.Run()
 }

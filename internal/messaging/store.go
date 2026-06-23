@@ -64,24 +64,16 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// Refresh ensures the connection sees the latest writes from other processes.
-// In WAL mode, a long-lived connection may hold a stale read snapshot.
-func (s *Store) Refresh() {
-	_, _ = s.db.Exec("BEGIN IMMEDIATE; COMMIT")
-}
-
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(schema)
 	return err
 }
 
-// Send inserts a new message and returns its ID.
-func (s *Store) Send(from, to, body string) (int64, time.Time, error) {
-	now := time.Now().UTC()
-	ts := now.Format(time.RFC3339Nano)
+// Send inserts a new message and returns its ID and timestamp.
+func (s *Store) Send(team, from, to, body string) (int64, time.Time, error) {
 	res, err := s.db.Exec(
-		`INSERT INTO messages (from_agent, to_agent, body, created_at) VALUES (?, ?, ?, ?)`,
-		from, to, body, ts,
+		`INSERT INTO messages (team, from_agent, to_agent, body) VALUES (?, ?, ?, ?)`,
+		team, from, to, body,
 	)
 	if err != nil {
 		return 0, time.Time{}, err
@@ -90,18 +82,21 @@ func (s *Store) Send(from, to, body string) (int64, time.Time, error) {
 	if err != nil {
 		return 0, time.Time{}, err
 	}
-	return id, now, nil
+	var ts string
+	_ = s.db.QueryRow(`SELECT created_at FROM messages WHERE id = ?`, id).Scan(&ts)
+	t, _ := time.Parse("2006-01-02T15:04:05Z", ts)
+	return id, t, nil
 }
 
 const previewLen = 200
 
-// ReadInbox returns unread message previews for the given agent.
-func (s *Store) ReadInbox(agent string) ([]MessagePreview, error) {
+// ReadInbox returns unread message previews for the given agent in a team.
+func (s *Store) ReadInbox(team, agent string) ([]MessagePreview, error) {
 	rows, err := s.db.Query(
 		`SELECT id, from_agent, body, created_at FROM messages
-		 WHERE to_agent = ? AND read_at IS NULL
+		 WHERE team = ? AND to_agent = ? AND read_at IS NULL
 		 ORDER BY created_at`,
-		agent,
+		team, agent,
 	)
 	if err != nil {
 		return nil, err
@@ -119,7 +114,7 @@ func (s *Store) ReadInbox(agent string) ([]MessagePreview, error) {
 		if len(preview) > previewLen {
 			preview = preview[:previewLen] + "..."
 		}
-		t, _ := time.Parse(time.RFC3339Nano, ts)
+		t, _ := time.Parse("2006-01-02T15:04:05Z", ts)
 		previews = append(previews, MessagePreview{
 			ID:        id,
 			From:      from,
@@ -130,20 +125,11 @@ func (s *Store) ReadInbox(agent string) ([]MessagePreview, error) {
 	return previews, rows.Err()
 }
 
-// ReadMessage returns a full message by ID and marks it as read.
+// ReadMessage returns a full message by ID without marking it as read.
 func (s *Store) ReadMessage(id int64) (*Message, error) {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.db.Exec(
-		`UPDATE messages SET read_at = ? WHERE id = ? AND read_at IS NULL`,
-		now, id,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	var from, to, body, createdAt string
 	var readAt sql.NullString
-	err = s.db.QueryRow(
+	err := s.db.QueryRow(
 		`SELECT from_agent, to_agent, body, created_at, read_at FROM messages WHERE id = ?`,
 		id,
 	).Scan(&from, &to, &body, &createdAt, &readAt)
@@ -157,9 +143,9 @@ func (s *Store) ReadMessage(id int64) (*Message, error) {
 		To:   to,
 		Body: body,
 	}
-	msg.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
+	msg.CreatedAt, _ = time.Parse("2006-01-02T15:04:05Z", createdAt)
 	if readAt.Valid {
-		t, _ := time.Parse(time.RFC3339Nano, readAt.String)
+		t, _ := time.Parse("2006-01-02T15:04:05Z", readAt.String)
 		msg.ReadAt = &t
 	}
 	return msg, nil
@@ -167,7 +153,7 @@ func (s *Store) ReadMessage(id int64) (*Message, error) {
 
 // MarkRead marks a message as read.
 func (s *Store) MarkRead(id int64) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
+	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	_, err := s.db.Exec(
 		`UPDATE messages SET read_at = ? WHERE id = ? AND read_at IS NULL`,
 		now, id,
@@ -175,24 +161,24 @@ func (s *Store) MarkRead(id int64) error {
 	return err
 }
 
-// UnreadCount returns the number of unread messages for the given agent.
-func (s *Store) UnreadCount(agent string) (int, error) {
+// UnreadCount returns the number of unread messages for the given agent in a team.
+func (s *Store) UnreadCount(team, agent string) (int, error) {
 	var count int
 	err := s.db.QueryRow(
-		`SELECT COUNT(*) FROM messages WHERE to_agent = ? AND read_at IS NULL`,
-		agent,
+		`SELECT COUNT(*) FROM messages WHERE team = ? AND to_agent = ? AND read_at IS NULL`,
+		team, agent,
 	).Scan(&count)
 	return count, err
 }
 
-// ListAgents returns all known agents from message history.
-func (s *Store) ListAgents() ([]AgentInfo, error) {
+// ListAgents returns all known agents in a team from message history.
+func (s *Store) ListAgents(team string) ([]AgentInfo, error) {
 	rows, err := s.db.Query(`
 		SELECT agent, MAX(ts) AS last_seen FROM (
-			SELECT from_agent AS agent, created_at AS ts FROM messages
+			SELECT from_agent AS agent, created_at AS ts FROM messages WHERE team = ?
 			UNION ALL
-			SELECT to_agent AS agent, created_at AS ts FROM messages
-		) GROUP BY agent ORDER BY agent`)
+			SELECT to_agent AS agent, created_at AS ts FROM messages WHERE team = ?
+		) GROUP BY agent ORDER BY agent`, team, team)
 	if err != nil {
 		return nil, err
 	}
@@ -204,25 +190,26 @@ func (s *Store) ListAgents() ([]AgentInfo, error) {
 		if err := rows.Scan(&name, &ts); err != nil {
 			return nil, err
 		}
-		t, _ := time.Parse(time.RFC3339Nano, ts)
+		t, _ := time.Parse("2006-01-02T15:04:05Z", ts)
 		agents = append(agents, AgentInfo{Name: name, LastSeen: t})
 	}
 	return agents, rows.Err()
 }
 
-// History returns messages, optionally filtered by agent, newest first.
-func (s *Store) History(agent string, limit int) ([]Message, error) {
+// History returns messages for a team, optionally filtered by agent, newest first.
+func (s *Store) History(team, agent string, limit int) ([]Message, error) {
 	var query string
 	var args []interface{}
 	if agent != "" {
 		query = `SELECT id, from_agent, to_agent, body, created_at, read_at
-				 FROM messages WHERE from_agent = ? OR to_agent = ?
+				 FROM messages WHERE team = ? AND (from_agent = ? OR to_agent = ?)
 				 ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{agent, agent, limit}
+		args = []interface{}{team, agent, agent, limit}
 	} else {
 		query = `SELECT id, from_agent, to_agent, body, created_at, read_at
-				 FROM messages ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{limit}
+				 FROM messages WHERE team = ?
+				 ORDER BY created_at DESC LIMIT ?`
+		args = []interface{}{team, limit}
 	}
 
 	rows, err := s.db.Query(query, args...)
@@ -240,9 +227,9 @@ func (s *Store) History(agent string, limit int) ([]Message, error) {
 			return nil, err
 		}
 		msg := Message{ID: id, From: from, To: to, Body: body}
-		msg.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
+		msg.CreatedAt, _ = time.Parse("2006-01-02T15:04:05Z", createdAt)
 		if readAt.Valid {
-			t, _ := time.Parse(time.RFC3339Nano, readAt.String)
+			t, _ := time.Parse("2006-01-02T15:04:05Z", readAt.String)
 			msg.ReadAt = &t
 		}
 		msgs = append(msgs, msg)
@@ -250,15 +237,14 @@ func (s *Store) History(agent string, limit int) ([]Message, error) {
 	return msgs, rows.Err()
 }
 
-// Watch polls for new unread messages for the given agent.
-// It calls fn for each new message. Blocks until ctx is cancelled.
-func (s *Store) Watch(agent string, interval time.Duration, fn func(Message)) error {
+// Watch polls for new unread messages for the given agent in a team.
+func (s *Store) Watch(team, agent string, interval time.Duration, fn func(Message)) error {
 	var lastID int64
 	for {
 		rows, err := s.db.Query(
 			`SELECT id, from_agent, to_agent, body, created_at FROM messages
-			 WHERE to_agent = ? AND id > ? ORDER BY id`,
-			agent, lastID,
+			 WHERE team = ? AND to_agent = ? AND id > ? ORDER BY id`,
+			team, agent, lastID,
 		)
 		if err != nil {
 			return err
@@ -271,7 +257,7 @@ func (s *Store) Watch(agent string, interval time.Duration, fn func(Message)) er
 				return err
 			}
 			msg := Message{ID: id, From: from, To: to, Body: body}
-			msg.CreatedAt, _ = time.Parse(time.RFC3339Nano, ts)
+			msg.CreatedAt, _ = time.Parse("2006-01-02T15:04:05Z", ts)
 			fn(msg)
 			lastID = id
 		}
@@ -281,14 +267,14 @@ func (s *Store) Watch(agent string, interval time.Duration, fn func(Message)) er
 	}
 }
 
-// WatchAll polls for all new messages (not filtered by agent).
-func (s *Store) WatchAll(interval time.Duration, fn func(Message)) error {
+// WatchAll polls for all new messages in a team.
+func (s *Store) WatchAll(team string, interval time.Duration, fn func(Message)) error {
 	var lastID int64
 	for {
 		rows, err := s.db.Query(
 			`SELECT id, from_agent, to_agent, body, created_at FROM messages
-			 WHERE id > ? ORDER BY id`,
-			lastID,
+			 WHERE team = ? AND id > ? ORDER BY id`,
+			team, lastID,
 		)
 		if err != nil {
 			return err
@@ -301,7 +287,7 @@ func (s *Store) WatchAll(interval time.Duration, fn func(Message)) error {
 				return err
 			}
 			msg := Message{ID: id, From: from, To: to, Body: body}
-			msg.CreatedAt, _ = time.Parse(time.RFC3339Nano, ts)
+			msg.CreatedAt, _ = time.Parse("2006-01-02T15:04:05Z", ts)
 			fn(msg)
 			lastID = id
 		}

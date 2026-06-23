@@ -3,6 +3,8 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/konono/aw/internal/messaging"
 )
 
 func toolDefinitions() []map[string]interface{} {
@@ -29,7 +31,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "read_message",
-			"description": "Read the full content of a specific message by ID. Automatically marks it as read.",
+			"description": "Read the full content of a specific message by ID. Does NOT mark it as read — use mark_read for that.",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -40,7 +42,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "mark_read",
-			"description": "Mark a message as read without reading its full content.",
+			"description": "Mark a message as read.",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -51,7 +53,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "list_agents",
-			"description": "List all known agents from message history with their last activity time.",
+			"description": "List all known agents in your team from message history with their last activity time.",
 			"inputSchema": map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -60,24 +62,24 @@ func toolDefinitions() []map[string]interface{} {
 	}
 }
 
-func (s *Server) callTool(name string, args json.RawMessage) (interface{}, error) {
+func (s *Server) callTool(store *messaging.Store, name string, args json.RawMessage) (interface{}, error) {
 	switch name {
 	case "send_message":
-		return s.toolSendMessage(args)
+		return s.toolSendMessage(store, args)
 	case "read_inbox":
-		return s.toolReadInbox()
+		return s.toolReadInbox(store)
 	case "read_message":
-		return s.toolReadMessage(args)
+		return s.toolReadMessage(store, args)
 	case "mark_read":
-		return s.toolMarkRead(args)
+		return s.toolMarkRead(store, args)
 	case "list_agents":
-		return s.toolListAgents()
+		return s.toolListAgents(store)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
 }
 
-func (s *Server) toolSendMessage(args json.RawMessage) (interface{}, error) {
+func (s *Server) toolSendMessage(store *messaging.Store, args json.RawMessage) (interface{}, error) {
 	var params struct {
 		To   string `json:"to"`
 		Body string `json:"body"`
@@ -92,7 +94,7 @@ func (s *Server) toolSendMessage(args json.RawMessage) (interface{}, error) {
 		return nil, fmt.Errorf("'body' is required")
 	}
 
-	id, createdAt, err := s.store.Send(s.agentName, params.To, params.Body)
+	id, createdAt, err := store.Send(s.teamName, s.agentName, params.To, params.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +104,8 @@ func (s *Server) toolSendMessage(args json.RawMessage) (interface{}, error) {
 	}, nil
 }
 
-func (s *Server) toolReadInbox() (interface{}, error) {
-	previews, err := s.store.ReadInbox(s.agentName)
+func (s *Server) toolReadInbox(store *messaging.Store) (interface{}, error) {
+	previews, err := store.ReadInbox(s.teamName, s.agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +121,7 @@ func (s *Server) toolReadInbox() (interface{}, error) {
 	return result, nil
 }
 
-func (s *Server) toolReadMessage(args json.RawMessage) (interface{}, error) {
+func (s *Server) toolReadMessage(store *messaging.Store, args json.RawMessage) (interface{}, error) {
 	var params struct {
 		ID float64 `json:"id"`
 	}
@@ -127,7 +129,7 @@ func (s *Server) toolReadMessage(args json.RawMessage) (interface{}, error) {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
 
-	msg, err := s.store.ReadMessage(int64(params.ID))
+	msg, err := store.ReadMessage(int64(params.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +142,7 @@ func (s *Server) toolReadMessage(args json.RawMessage) (interface{}, error) {
 	}, nil
 }
 
-func (s *Server) toolMarkRead(args json.RawMessage) (interface{}, error) {
+func (s *Server) toolMarkRead(store *messaging.Store, args json.RawMessage) (interface{}, error) {
 	var params struct {
 		ID float64 `json:"id"`
 	}
@@ -148,14 +150,14 @@ func (s *Server) toolMarkRead(args json.RawMessage) (interface{}, error) {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
 
-	if err := s.store.MarkRead(int64(params.ID)); err != nil {
+	if err := store.MarkRead(int64(params.ID)); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"ok": true}, nil
 }
 
-func (s *Server) toolListAgents() (interface{}, error) {
-	agents, err := s.store.ListAgents()
+func (s *Server) toolListAgents(store *messaging.Store) (interface{}, error) {
+	agents, err := store.ListAgents(s.teamName)
 	if err != nil {
 		return nil, err
 	}

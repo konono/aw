@@ -39,6 +39,9 @@ func (c *CodexInjector) InjectMCP(cfg InjectorConfig) error {
 // InjectHook appends a hook section to config.toml in the staging
 // directory.
 func (c *CodexInjector) InjectHook(cfg InjectorConfig) error {
+	if cfg.DeliveryMode == DeliveryOff {
+		return nil
+	}
 	configPath := filepath.Join(cfg.StagingDir, "config.toml")
 
 	existing, err := os.ReadFile(configPath)
@@ -61,8 +64,8 @@ func (c *CodexInjector) InjectHook(cfg InjectorConfig) error {
 func codexMCPSection(cfg InjectorConfig) string {
 	return fmt.Sprintf(`[[tools.aw-msg.mcp]]
 command = "%s"
-args = ["--internal-mcp-msg", "--db", "%s", "--agent", "%s"]
-`, cfg.MCPBinary, cfg.DBPath, cfg.AgentName)
+args = ["--internal-mcp-msg", "--db", "%s", "--agent", "%s", "--team", "%s"]
+`, cfg.MCPBinary, cfg.DBPath, cfg.AgentName, cfg.TeamName)
 }
 
 func codexHookSection(cfg InjectorConfig) string {

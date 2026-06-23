@@ -34,10 +34,10 @@ func runMsg(args []string) int {
 
 func printMsgHelp() {
 	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  aw msg send <from> <to> <body>   Send a message")
-	fmt.Fprintln(os.Stderr, "  aw msg inbox <agent>             Show unread messages")
-	fmt.Fprintln(os.Stderr, "  aw msg history [--agent <name>]  Show message history")
-	fmt.Fprintln(os.Stderr, "  aw msg watch                     Watch all messages in real-time")
+	fmt.Fprintln(os.Stderr, "  aw msg send --team <team> <from> <to> <body>   Send a message")
+	fmt.Fprintln(os.Stderr, "  aw msg inbox --team <team> <agent>             Show unread messages")
+	fmt.Fprintln(os.Stderr, "  aw msg history --team <team> [--agent <name>]  Show message history")
+	fmt.Fprintln(os.Stderr, "  aw msg watch --team <team>                     Watch all messages in real-time")
 }
 
 func openMsgStore() (*messaging.Store, error) {
@@ -49,9 +49,26 @@ func openMsgStore() (*messaging.Store, error) {
 	return messaging.OpenStore(dbPath)
 }
 
+// extractTeamFlag extracts --team value from args, returning the team name
+// and remaining args.
+func extractTeamFlag(args []string) (string, []string) {
+	var team string
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--team" && i+1 < len(args) {
+			team = args[i+1]
+			i++
+		} else {
+			rest = append(rest, args[i])
+		}
+	}
+	return team, rest
+}
+
 func runMsgSend(args []string) int {
-	if len(args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg send <from> <to> <body>")
+	team, args := extractTeamFlag(args)
+	if team == "" || len(args) < 3 {
+		fmt.Fprintln(os.Stderr, "Usage: aw msg send --team <team> <from> <to> <body>")
 		return 1
 	}
 	from, to, body := args[0], args[1], args[2]
@@ -63,7 +80,7 @@ func runMsgSend(args []string) int {
 	}
 	defer func() { _ = store.Close() }()
 
-	id, ts, err := store.Send(from, to, body)
+	id, ts, err := store.Send(team, from, to, body)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
 		return 1
@@ -73,8 +90,9 @@ func runMsgSend(args []string) int {
 }
 
 func runMsgInbox(args []string) int {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg inbox <agent>")
+	team, args := extractTeamFlag(args)
+	if team == "" || len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: aw msg inbox --team <team> <agent>")
 		return 1
 	}
 	agent := args[0]
@@ -86,7 +104,7 @@ func runMsgInbox(args []string) int {
 	}
 	defer func() { _ = store.Close() }()
 
-	previews, err := store.ReadInbox(agent)
+	previews, err := store.ReadInbox(team, agent)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
@@ -105,6 +123,12 @@ func runMsgInbox(args []string) int {
 }
 
 func runMsgHistory(args []string) int {
+	team, args := extractTeamFlag(args)
+	if team == "" {
+		fmt.Fprintln(os.Stderr, "Usage: aw msg history --team <team> [--agent <name>] [--limit N]")
+		return 1
+	}
+
 	var agent string
 	limit := 50
 	for i := 0; i < len(args); i++ {
@@ -132,7 +156,7 @@ func runMsgHistory(args []string) int {
 	}
 	defer func() { _ = store.Close() }()
 
-	msgs, err := store.History(agent, limit)
+	msgs, err := store.History(team, agent, limit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
@@ -151,6 +175,12 @@ func runMsgHistory(args []string) int {
 }
 
 func runMsgWatch(args []string) int {
+	team, _ := extractTeamFlag(args)
+	if team == "" {
+		fmt.Fprintln(os.Stderr, "Usage: aw msg watch --team <team>")
+		return 1
+	}
+
 	store, err := openMsgStore()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -159,7 +189,7 @@ func runMsgWatch(args []string) int {
 	defer func() { _ = store.Close() }()
 
 	fmt.Println("Watching messages... (Ctrl+C to stop)")
-	if err := store.WatchAll(2*time.Second, func(m messaging.Message) {
+	if err := store.WatchAll(team, 2*time.Second, func(m messaging.Message) {
 		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To,
 			messaging.FormatPreview(m.Body))
 	}); err != nil {

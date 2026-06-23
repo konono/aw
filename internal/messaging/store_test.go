@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+const testTeam = "test-team"
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
@@ -20,7 +22,7 @@ func testStore(t *testing.T) *Store {
 func TestSendAndReadInbox(t *testing.T) {
 	s := testStore(t)
 
-	id, _, err := s.Send("alice", "bob", "hello bob")
+	id, _, err := s.Send(testTeam, "alice", "bob", "hello bob")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +30,7 @@ func TestSendAndReadInbox(t *testing.T) {
 		t.Fatalf("expected id 1, got %d", id)
 	}
 
-	previews, err := s.ReadInbox("bob")
+	previews, err := s.ReadInbox(testTeam, "bob")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestSendAndReadInbox(t *testing.T) {
 	}
 
 	// alice should have empty inbox
-	previews, err = s.ReadInbox("alice")
+	previews, err = s.ReadInbox(testTeam, "alice")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,20 +51,12 @@ func TestSendAndReadInbox(t *testing.T) {
 	}
 }
 
-func TestReadMessageMarksRead(t *testing.T) {
+func TestReadMessageDoesNotAutoMark(t *testing.T) {
 	s := testStore(t)
 
-	id, _, err := s.Send("alice", "bob", "test message")
+	id, _, err := s.Send(testTeam, "alice", "bob", "test message")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	count, err := s.UnreadCount("bob")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("expected 1 unread, got %d", count)
 	}
 
 	msg, err := s.ReadMessage(id)
@@ -72,26 +66,38 @@ func TestReadMessageMarksRead(t *testing.T) {
 	if msg.Body != "test message" {
 		t.Fatalf("unexpected body: %q", msg.Body)
 	}
-	if msg.ReadAt == nil {
-		t.Fatal("expected ReadAt to be set after ReadMessage")
+	if msg.ReadAt != nil {
+		t.Fatal("ReadMessage should not auto-mark as read")
 	}
 
-	count, err = s.UnreadCount("bob")
+	count, err := s.UnreadCount(testTeam, "bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 unread after ReadMessage, got %d", count)
+	}
+
+	// Explicitly mark read
+	if err := s.MarkRead(id); err != nil {
+		t.Fatal(err)
+	}
+	count, err = s.UnreadCount(testTeam, "bob")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
-		t.Fatalf("expected 0 unread after read, got %d", count)
+		t.Fatalf("expected 0 unread after MarkRead, got %d", count)
 	}
 }
 
 func TestListAgents(t *testing.T) {
 	s := testStore(t)
 
-	_, _, _ = s.Send("alice", "bob", "msg1")
-	_, _, _ = s.Send("bob", "charlie", "msg2")
+	_, _, _ = s.Send(testTeam, "alice", "bob", "msg1")
+	_, _, _ = s.Send(testTeam, "bob", "charlie", "msg2")
 
-	agents, err := s.ListAgents()
+	agents, err := s.ListAgents(testTeam)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,15 +115,35 @@ func TestListAgents(t *testing.T) {
 	}
 }
 
+func TestListAgentsTeamIsolation(t *testing.T) {
+	s := testStore(t)
+
+	_, _, _ = s.Send("team-a", "alice", "bob", "msg1")
+	_, _, _ = s.Send("team-b", "charlie", "dave", "msg2")
+
+	agents, err := s.ListAgents("team-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 2 {
+		t.Fatalf("expected 2 agents in team-a, got %d", len(agents))
+	}
+	for _, a := range agents {
+		if a.Name != "alice" && a.Name != "bob" {
+			t.Fatalf("unexpected agent %q in team-a", a.Name)
+		}
+	}
+}
+
 func TestHistory(t *testing.T) {
 	s := testStore(t)
 
-	_, _, _ = s.Send("alice", "bob", "first")
-	_, _, _ = s.Send("bob", "alice", "second")
-	_, _, _ = s.Send("charlie", "bob", "third")
+	_, _, _ = s.Send(testTeam, "alice", "bob", "first")
+	_, _, _ = s.Send(testTeam, "bob", "alice", "second")
+	_, _, _ = s.Send(testTeam, "charlie", "bob", "third")
 
-	// All history
-	msgs, err := s.History("", 10)
+	// All history for team
+	msgs, err := s.History(testTeam, "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +152,7 @@ func TestHistory(t *testing.T) {
 	}
 
 	// Filtered by alice
-	msgs, err = s.History("alice", 10)
+	msgs, err = s.History(testTeam, "alice", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,16 +168,16 @@ func TestPreviewTruncation(t *testing.T) {
 	for i := range longBody {
 		longBody[i] = 'x'
 	}
-	_, _, _ = s.Send("alice", "bob", string(longBody))
+	_, _, _ = s.Send(testTeam, "alice", "bob", string(longBody))
 
-	previews, err := s.ReadInbox("bob")
+	previews, err := s.ReadInbox(testTeam, "bob")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(previews) != 1 {
 		t.Fatal("expected 1 preview")
 	}
-	if len(previews[0].Preview) != previewLen+3 { // 200 + "..."
+	if len(previews[0].Preview) != previewLen+3 {
 		t.Fatalf("expected preview length %d, got %d", previewLen+3, len(previews[0].Preview))
 	}
 }

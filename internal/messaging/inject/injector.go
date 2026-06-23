@@ -13,17 +13,26 @@ type MemberInfo struct {
 	Role      string
 }
 
+// DeliveryMode controls how an agent receives message notifications.
+type DeliveryMode string
+
+const (
+	DeliveryTurn DeliveryMode = "turn" // Stop hook notifies of unread messages
+	DeliveryOff  DeliveryMode = "off"  // MCP pull only, no automatic notification
+)
+
 // InjectorConfig carries all parameters needed to inject MCP and hook
 // configuration for inter-agent messaging.
 type InjectorConfig struct {
-	AgentName string       // this agent's name (e.g. "lead-1")
-	TeamName  string       // team identifier
-	Role      string       // role of this agent (e.g. "lead", "developer")
-	Members   []MemberInfo // all team members (including self)
-	StagingDir string      // host staging dir (e.g. ~/.agent-workspace/claude/)
-	WorkDir    string      // workspace dir mounted into container
-	MCPBinary  string      // path to aw-msg-mcp binary inside container
-	DBPath     string      // path to messages.db inside container
+	AgentName    string       // this agent's name (e.g. "lead-1")
+	TeamName     string       // team scope key (e.g. "review-team-a1b2c3-uuid")
+	Role         string       // role of this agent (e.g. "lead", "developer")
+	Members      []MemberInfo // all team members (including self)
+	StagingDir   string       // host staging dir (e.g. ~/.agent-workspace/claude/)
+	WorkDir      string       // workspace dir mounted into container
+	MCPBinary    string       // path to aw binary inside container
+	DBPath       string       // path to messages.db inside container
+	DeliveryMode DeliveryMode // how to notify the agent of new messages
 }
 
 // Injector writes tool-specific MCP server registration and hook

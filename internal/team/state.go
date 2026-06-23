@@ -9,9 +9,12 @@ import (
 
 // TeamState represents the persisted state of a running team.
 type TeamState struct {
-	Name      string        `json:"name"`
-	StartedAt string        `json:"started_at"`
-	Members   []MemberState `json:"members"`
+	Name        string        `json:"name"`
+	SessionID   string        `json:"session_id"`
+	ProjectHash string        `json:"project_hash"`
+	TeamScope   string        `json:"team_scope"`
+	StartedAt   string        `json:"started_at"`
+	Members     []MemberState `json:"members"`
 }
 
 // MemberState represents the persisted state of a single team member.
@@ -20,9 +23,10 @@ type MemberState struct {
 	Profile       string `json:"profile"`
 	Role          string `json:"role"`
 	ContainerName string `json:"container_name"`
-	Runtime       string `json:"runtime,omitempty"` // "docker" or "podman"
+	Runtime       string `json:"runtime,omitempty"`
+	ToolSessionID string `json:"tool_session_id,omitempty"`
 	Foreground    bool   `json:"foreground"`
-	Status        string `json:"status"` // "running", "stopped"
+	Status        string `json:"status"`
 }
 
 // StateDir returns the directory used for team state files (~/.config/aw/teams/).

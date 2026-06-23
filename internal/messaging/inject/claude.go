@@ -36,19 +36,19 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 
 	servers["aw-msg"] = map[string]interface{}{
 		"command": cfg.MCPBinary,
-		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName},
+		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
 	}
 	root["mcpServers"] = servers
 
 	return writeJSONFile(mcpPath, root)
 }
 
-// InjectHook patches settings.json in StagingDir to include a Stop hook
-// that runs "aw --internal-check-inbox" to notify the agent of unread
-// messages. Claude Code hooks use a matcher+hooks structure:
-//
-//	{"hooks": {"Stop": [{"hooks": [{"type":"command","command":"..."}]}]}}
+// InjectHook patches settings.json in StagingDir to include a Stop hook.
+// Skipped when DeliveryMode is "off".
 func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
+	if cfg.DeliveryMode == DeliveryOff {
+		return nil
+	}
 	settingsPath := filepath.Join(cfg.StagingDir, "settings.json")
 
 	var root map[string]interface{}
