@@ -19,7 +19,14 @@ const (
 var reservedProfileNames = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "init": true, "auth": true, "login": true,
-	"doctor": true, "reaper": true,
+	"doctor": true, "reaper": true, "team": true, "msg": true,
+}
+
+var validRoles = map[Role]bool{
+	RoleDeveloper: true,
+	RoleReviewer:  true,
+	RoleLead:      true,
+	RolePartner:   true,
 }
 
 // Validate checks that a profile configuration is semantically valid.
@@ -304,8 +311,50 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
+	// Validate teams
+	for name, team := range cfg.Teams {
+		if err := validateTeam(name, team, cfg.Profiles); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation errors:\n  %s", strings.Join(errs, "\n  "))
+	}
+
+	return nil
+}
+
+func validateTeam(name string, team Team, profiles map[string]Profile) error {
+	if len(team.Members) == 0 {
+		return fmt.Errorf("team %q: must have at least one member", name)
+	}
+
+	fgCount := 0
+	for i, m := range team.Members {
+		if m.Profile == "" {
+			return fmt.Errorf("team %q: member[%d]: profile is required", name, i)
+		}
+		p, ok := profiles[m.Profile]
+		if !ok {
+			return fmt.Errorf("team %q: member[%d]: profile %q not found", name, i, m.Profile)
+		}
+		if p.Environment != EnvironmentContainer {
+			return fmt.Errorf("team %q: member[%d]: profile %q must use environment: container", name, i, m.Profile)
+		}
+		if m.Role == "" {
+			return fmt.Errorf("team %q: member[%d]: role is required", name, i)
+		}
+		if !validRoles[m.Role] {
+			return fmt.Errorf("team %q: member[%d]: unknown role %q (must be developer, reviewer, lead, or partner)", name, i, m.Role)
+		}
+		if m.Foreground {
+			fgCount++
+		}
+	}
+
+	if fgCount > 1 {
+		return fmt.Errorf("team %q: at most one member can have foreground: true", name)
 	}
 
 	return nil

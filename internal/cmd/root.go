@@ -77,6 +77,18 @@ func Run(args []string) int {
 		return runAuth(append([]string{"login"}, args[1:]...))
 	}
 
+	if len(args) > 0 && args[0] == "team" {
+		return runTeam(args[1:])
+	}
+
+	if len(args) > 0 && args[0] == "msg" {
+		return runMsg(args[1:])
+	}
+
+	if len(args) > 0 && args[0] == "--internal-mcp-msg" {
+		return runInternalMCPMsg()
+	}
+
 	// Parse profile name and run options
 	opts, err := parseRunArgs(args)
 	if err != nil {
@@ -335,6 +347,7 @@ func runDefaultInitScript() int {
 var subcommands = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "init": true, "auth": true, "login": true, "doctor": true, "reaper": true,
+	"team": true, "msg": true,
 }
 
 // hasVersionFlag checks if the args contain --version or -v before any subcommand or -c flag.
@@ -376,6 +389,8 @@ func printHelp() {
 	fmt.Println("                          Use --snapshot to bake runtime setup into the image")
 	fmt.Println("  aw doctor               Check system environment and configuration")
 	fmt.Println("  aw reaper [command]     View/recover post-container cleanup reports")
+	fmt.Println("  aw team <command>       Manage agent teams (start, stop, status)")
+	fmt.Println("  aw msg <command>        Inter-agent messaging (send, inbox, history, watch)")
 	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
 	fmt.Println("  aw default-init-script   Print aw-init.sh (shared entrypoint init script)")
 	fmt.Println("  aw update               Update aw to the latest version")

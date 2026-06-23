@@ -1,0 +1,172 @@
+package messaging
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func testStore(t *testing.T) *Store {
+	t.Helper()
+	dir := t.TempDir()
+	s, err := OpenStore(filepath.Join(dir, "messages.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
+}
+
+func TestSendAndReadInbox(t *testing.T) {
+	s := testStore(t)
+
+	id, _, err := s.Send("alice", "bob", "hello bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != 1 {
+		t.Fatalf("expected id 1, got %d", id)
+	}
+
+	previews, err := s.ReadInbox("bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 1 {
+		t.Fatalf("expected 1 preview, got %d", len(previews))
+	}
+	if previews[0].From != "alice" || previews[0].Preview != "hello bob" {
+		t.Fatalf("unexpected preview: %+v", previews[0])
+	}
+
+	// alice should have empty inbox
+	previews, err = s.ReadInbox("alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 0 {
+		t.Fatalf("expected 0 previews for alice, got %d", len(previews))
+	}
+}
+
+func TestReadMessageMarksRead(t *testing.T) {
+	s := testStore(t)
+
+	id, _, err := s.Send("alice", "bob", "test message")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := s.UnreadCount("bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 unread, got %d", count)
+	}
+
+	msg, err := s.ReadMessage(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Body != "test message" {
+		t.Fatalf("unexpected body: %q", msg.Body)
+	}
+	if msg.ReadAt == nil {
+		t.Fatal("expected ReadAt to be set after ReadMessage")
+	}
+
+	count, err = s.UnreadCount("bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 unread after read, got %d", count)
+	}
+}
+
+func TestListAgents(t *testing.T) {
+	s := testStore(t)
+
+	_, _, _ = s.Send("alice", "bob", "msg1")
+	_, _, _ = s.Send("bob", "charlie", "msg2")
+
+	agents, err := s.ListAgents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 3 {
+		t.Fatalf("expected 3 agents, got %d", len(agents))
+	}
+	names := make(map[string]bool)
+	for _, a := range agents {
+		names[a.Name] = true
+	}
+	for _, name := range []string{"alice", "bob", "charlie"} {
+		if !names[name] {
+			t.Fatalf("expected agent %q in list", name)
+		}
+	}
+}
+
+func TestHistory(t *testing.T) {
+	s := testStore(t)
+
+	_, _, _ = s.Send("alice", "bob", "first")
+	_, _, _ = s.Send("bob", "alice", "second")
+	_, _, _ = s.Send("charlie", "bob", "third")
+
+	// All history
+	msgs, err := s.History("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+
+	// Filtered by alice
+	msgs, err = s.History("alice", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages for alice, got %d", len(msgs))
+	}
+}
+
+func TestPreviewTruncation(t *testing.T) {
+	s := testStore(t)
+
+	longBody := make([]byte, 500)
+	for i := range longBody {
+		longBody[i] = 'x'
+	}
+	_, _, _ = s.Send("alice", "bob", string(longBody))
+
+	previews, err := s.ReadInbox("bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 1 {
+		t.Fatal("expected 1 preview")
+	}
+	if len(previews[0].Preview) != previewLen+3 { // 200 + "..."
+		t.Fatalf("expected preview length %d, got %d", previewLen+3, len(previews[0].Preview))
+	}
+}
+
+func TestOpenStoreCreatesDir(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "sub", "dir", "messages.db")
+
+	s, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	if _, err := os.Stat(filepath.Join(dir, "sub", "dir")); err != nil {
+		t.Fatalf("directory not created: %v", err)
+	}
+}

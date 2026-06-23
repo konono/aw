@@ -269,6 +269,17 @@ func MergeConfig(builtin, user Config) Config {
 		merged.Default = user.Default
 	}
 
+	// Merge teams: user teams override builtin teams by name
+	if len(builtin.Teams) > 0 || len(user.Teams) > 0 {
+		merged.Teams = make(map[string]Team, len(builtin.Teams)+len(user.Teams))
+		for name, t := range builtin.Teams {
+			merged.Teams[name] = t
+		}
+		for name, t := range user.Teams {
+			merged.Teams[name] = t
+		}
+	}
+
 	return merged
 }
 
@@ -281,6 +292,7 @@ func ApplyDefaults(cfg Config) Config {
 		Default:  cfg.Default,
 		Defaults: cfg.Defaults,
 		Profiles: make(map[string]Profile, len(cfg.Profiles)),
+		Teams:    cfg.Teams,
 		Source:   cfg.Source,
 	}
 	defaults := cfg.Defaults.AsProfile()

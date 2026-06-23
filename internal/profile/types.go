@@ -15,7 +15,30 @@ type Config struct {
 	Default  string             `yaml:"default"`
 	Defaults ProfileDefaults    `yaml:",inline"` // top-level defaults shared by all profiles
 	Profiles map[string]Profile `yaml:"profiles"`
+	Teams    map[string]Team    `yaml:"teams,omitempty"`
 	Source   ConfigSource       `yaml:"-"`
+}
+
+// Role is a predefined agent role within a team.
+type Role string
+
+const (
+	RoleDeveloper Role = "developer"
+	RoleReviewer  Role = "reviewer"
+	RoleLead      Role = "lead"
+	RolePartner   Role = "partner"
+)
+
+// Team defines a group of agents that can communicate via messaging.
+type Team struct {
+	Members []TeamMember `yaml:"members"`
+}
+
+// TeamMember defines a single agent within a team.
+type TeamMember struct {
+	Profile    string `yaml:"profile"`
+	Role       Role   `yaml:"role"`
+	Foreground bool   `yaml:"foreground,omitempty"`
 }
 
 // ContainerRuntime specifies the container CLI to use.
