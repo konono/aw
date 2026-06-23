@@ -108,6 +108,7 @@ sudo loginctl enable-linger $(whoami)
 - **自動リソースクリーンアップ** — コンテナ終了後に reaper が SSH トンネル・ソケット・コンテナを自動削除。失敗時は `aw reaper recover` で再試行可能
 - **環境診断** — `aw doctor` でランタイム・認証・プロファイル・reaper の状態を一括チェック
 - **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
+- **マルチエージェントチーム** — developer + reviewer を別コンテナで起動し、メッセージングで自動コードレビュー。詳細は [チームガイド](docs/teams.md)
 
 ## 利便性とリスクのバランス
 
@@ -363,6 +364,10 @@ aw profiles     # 一覧を表示
 ```bash
 aw [profile-name]              # プロファイルを実行
 aw profiles                    # 利用可能なプロファイル一覧
+aw team start [--task <desc>] <team>  # チームを起動（developer + reviewer 等）
+aw team stop <team>            # チームを停止
+aw team status [team]          # チームの稼働状況
+aw msg send/inbox/history      # エージェント間メッセージング
 aw auth login claude|codex|opencode|cursor   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
@@ -457,6 +462,36 @@ profiles:
     launch: claude
 ```
 
+### マルチエージェントでコードレビュー
+
+developer と reviewer を別コンテナで起動し、自動レビューフローを実現します:
+
+```yaml
+# .aw.yml
+profiles:
+  claude-dev:
+    launch: claude
+  claude-review:
+    launch: claude
+
+teams:
+  review-team:
+    members:
+      - profile: claude-dev
+        role: developer
+        foreground: true
+      - profile: claude-review
+        role: reviewer
+```
+
+```bash
+aw team start --task "FizzBuzz を実装してテストを書いてください" review-team
+```
+
+developer がコードを書いてレビュー依頼を送ると、reviewer が自動でレビューしてフィードバックを返します。各メンバーは独立した git worktree で作業するため、互いの変更が干渉しません。
+
+詳細は [チーム & メッセージング](docs/teams.md) を参照してください。
+
 ### Vertex AI で Claude を使う
 
 ```yaml
@@ -537,6 +572,7 @@ profiles:
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
 | [Export & Snapshot](docs/export-snapshot.md) | `aw export` のビルド・焼き込み・起動時の動作詳細 |
+| [チーム & メッセージング](docs/teams.md) | マルチエージェント起動、自動レビュー、ブランチ分離 |
 
 ## 企業プロキシ・CA 証明書
 

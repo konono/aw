@@ -16,9 +16,9 @@ import (
 )
 
 // Resolve returns the path to a Linux aw binary for the given architecture.
-// On Linux hosts, it returns the current executable (goarch is ignored; the
-// caller is expected to use the same arch as the container). On other hosts,
-// it downloads from GitHub Releases (cached) or falls back to cross-compilation.
+// On Linux hosts, it returns the current executable. On other hosts, it
+// checks AW_LINUX_BIN env (for development), then downloads from GitHub
+// Releases (cached), then falls back to cross-compilation from source.
 func Resolve(goarch string) (string, error) {
 	if runtime.GOOS == "linux" {
 		exe, err := os.Executable()
@@ -26,6 +26,14 @@ func Resolve(goarch string) (string, error) {
 			return "", fmt.Errorf("resolving executable: %w", err)
 		}
 		return filepath.EvalSymlinks(exe)
+	}
+
+	// Development override: pre-built Linux binary path.
+	if p := os.Getenv("AW_LINUX_BIN"); p != "" {
+		if _, err := os.Stat(p); err != nil {
+			return "", fmt.Errorf("AW_LINUX_BIN=%s: %w", p, err)
+		}
+		return p, nil
 	}
 
 	ver := version.Version

@@ -16,6 +16,9 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Launch != "" {
 		merged.Launch = override.Launch
 	}
+	if override.Delivery != "" {
+		merged.Delivery = override.Delivery
+	}
 	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
 	merged.Auth = mergeAuth(merged.Auth, override.Auth)
 	if override.Env != nil {
@@ -157,6 +160,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if effective.Launch != defaults.Launch {
 		relative.Launch = effective.Launch
 	}
+	if effective.Delivery != defaults.Delivery {
+		relative.Delivery = effective.Delivery
+	}
 	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
 	relative.Env = relativeEnv(defaults.Env, effective.Env)
 	if effective.OS != defaults.OS {
@@ -269,6 +275,17 @@ func MergeConfig(builtin, user Config) Config {
 		merged.Default = user.Default
 	}
 
+	// Merge teams: user teams override builtin teams by name
+	if len(builtin.Teams) > 0 || len(user.Teams) > 0 {
+		merged.Teams = make(map[string]Team, len(builtin.Teams)+len(user.Teams))
+		for name, t := range builtin.Teams {
+			merged.Teams[name] = t
+		}
+		for name, t := range user.Teams {
+			merged.Teams[name] = t
+		}
+	}
+
 	return merged
 }
 
@@ -281,6 +298,7 @@ func ApplyDefaults(cfg Config) Config {
 		Default:  cfg.Default,
 		Defaults: cfg.Defaults,
 		Profiles: make(map[string]Profile, len(cfg.Profiles)),
+		Teams:    cfg.Teams,
 		Source:   cfg.Source,
 	}
 	defaults := cfg.Defaults.AsProfile()

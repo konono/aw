@@ -64,3 +64,20 @@ profiles:
     mount_container_sock: true
     mount_gh: true
 
+  claude-dev:
+    os: debian12
+    launch: claude
+
+  cursor-review:
+    os: debian12
+    launch: cursor
+
+teams:
+  review-team:
+    members:
+      - profile: claude-dev
+        role: developer
+        foreground: true
+      - profile: cursor-review
+        role: reviewer
+

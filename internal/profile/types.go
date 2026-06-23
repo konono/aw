@@ -15,7 +15,30 @@ type Config struct {
 	Default  string             `yaml:"default"`
 	Defaults ProfileDefaults    `yaml:",inline"` // top-level defaults shared by all profiles
 	Profiles map[string]Profile `yaml:"profiles"`
+	Teams    map[string]Team    `yaml:"teams,omitempty"`
 	Source   ConfigSource       `yaml:"-"`
+}
+
+// Role is a predefined agent role within a team.
+type Role string
+
+const (
+	RoleDeveloper Role = "developer"
+	RoleReviewer  Role = "reviewer"
+	RoleLead      Role = "lead"
+	RolePartner   Role = "partner"
+)
+
+// Team defines a group of agents that can communicate via messaging.
+type Team struct {
+	Members []TeamMember `yaml:"members"`
+}
+
+// TeamMember defines a single agent within a team.
+type TeamMember struct {
+	Profile    string `yaml:"profile"`
+	Role       Role   `yaml:"role"`
+	Foreground bool   `yaml:"foreground,omitempty"`
 }
 
 // ContainerRuntime specifies the container CLI to use.
@@ -49,6 +72,7 @@ type Profile struct {
 	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
 	Environment      Environment       `yaml:"environment"`
 	Launch           LaunchMode        `yaml:"launch"`
+	Delivery         string            `yaml:"delivery,omitempty"`
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
@@ -346,5 +370,20 @@ func (p *Profile) EffectiveTool() string {
 		return "cursor"
 	default:
 		return ""
+	}
+}
+
+// EffectiveDelivery returns the message delivery mode. If the profile has an
+// explicit Delivery value, it is returned. Otherwise a tool-based default is
+// used: cursor and opencode default to "off"; everything else defaults to "turn".
+func (p *Profile) EffectiveDelivery(tool string) string {
+	if p.Delivery != "" {
+		return p.Delivery
+	}
+	switch tool {
+	case "cursor", "opencode":
+		return "off"
+	default:
+		return "turn"
 	}
 }

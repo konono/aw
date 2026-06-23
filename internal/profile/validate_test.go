@@ -566,6 +566,39 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "ca_cert is only valid with environment: container",
 		},
+		{
+			name: "valid delivery turn",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "turn",
+			},
+		},
+		{
+			name: "valid delivery monitor",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "monitor",
+			},
+		},
+		{
+			name: "valid delivery off",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "off",
+			},
+		},
+		{
+			name: "invalid delivery",
+			profile: Profile{
+				Environment: EnvironmentContainer,
+				Launch:      LaunchClaude,
+				Delivery:    "push",
+			},
+			wantErr: `unknown delivery: "push"`,
+		},
 	}
 
 	for _, tt := range tests {

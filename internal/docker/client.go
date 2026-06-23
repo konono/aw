@@ -75,6 +75,11 @@ func (c *ShellClient) dockerCmd() string {
 	return "docker"
 }
 
+// DockerCmd returns the container runtime command name (e.g. "docker" or "podman").
+func (c *ShellClient) DockerCmd() string {
+	return c.dockerCmd()
+}
+
 // CheckAvailable verifies that the container runtime is installed and running.
 func (c *ShellClient) CheckAvailable() error {
 	if _, err := exec.LookPath(c.dockerCmd()); err != nil {
@@ -451,5 +456,20 @@ func (c *ShellClient) RemoveContainer(ctx context.Context, containerID string) e
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), "rm", containerID)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	return cmd.Run()
+}
+
+// StartDetached starts a container in detached mode without attaching.
+func (c *ShellClient) StartDetached(containerName string, config RunConfig) error {
+	args := BuildDetachedRunArgs(containerName, config)
+	cmd := exec.Command(c.dockerCmd(), args...)
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// StopContainer stops a running container.
+func (c *ShellClient) StopContainer(containerName string) error {
+	cmd := exec.Command(c.dockerCmd(), "stop", containerName)
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
