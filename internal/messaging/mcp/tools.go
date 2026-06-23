@@ -133,6 +133,9 @@ func (s *Server) toolReadMessage(store *messaging.Store, args json.RawMessage) (
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeMessage(msg); err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{
 		"id":         msg.ID,
 		"from":       msg.From,
@@ -150,10 +153,25 @@ func (s *Server) toolMarkRead(store *messaging.Store, args json.RawMessage) (int
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
 
+	msg, err := store.ReadMessage(int64(params.ID))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeMessage(msg); err != nil {
+		return nil, err
+	}
+
 	if err := store.MarkRead(int64(params.ID)); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"ok": true}, nil
+}
+
+func (s *Server) authorizeMessage(msg *messaging.Message) error {
+	if msg.To != s.agentName && msg.From != s.agentName {
+		return fmt.Errorf("access denied: message #%d does not belong to %s", msg.ID, s.agentName)
+	}
+	return nil
 }
 
 func (s *Server) toolListAgents(store *messaging.Store) (interface{}, error) {

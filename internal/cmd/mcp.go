@@ -120,6 +120,7 @@ func runInternalCheckInbox(args []string) int {
 
 	store, err := messaging.OpenStore(dbPath)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "check-inbox: %v\n", err)
 		return 0
 	}
 	defer func() { _ = store.Close() }()

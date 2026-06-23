@@ -131,6 +131,14 @@ func runTeamStart(args []string) int {
 		}
 		sessionID = prevState.SessionID
 		fmt.Fprintf(os.Stderr, "[team:%s] Resuming session %s\n", teamName, sessionID[:12])
+		// Stop any still-running containers from the previous session
+		for _, m := range prevState.Members {
+			rt := m.Runtime
+			if rt == "" {
+				rt = "docker"
+			}
+			_ = stopContainerQuiet(docker.NewShellClient(rt).DockerCmd(), m.ContainerName)
+		}
 	} else {
 		sessionID = uuid.New().String()
 	}
@@ -526,8 +534,7 @@ func stopTeamContainers(state team.TeamState) {
 		if runtime == "" {
 			runtime = "docker"
 		}
-		client := docker.NewShellClient(runtime)
-		_ = client.StopContainer(m.ContainerName)
+		_ = stopContainerQuiet(docker.NewShellClient(runtime).DockerCmd(), m.ContainerName)
 	}
 	_ = team.RemoveState(state.Name)
 }

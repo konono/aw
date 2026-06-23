@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
+#!/bin/bash
+# Example helper for development testing. Adjust paths for your environment.
 TEAM_NAME="${1:-review-team}"
 TASK="${2:-README.md に Hello World と書いてください}"
-SRC_DIR="$HOME/ghq/github.com/konono/aw/.claude/worktrees/agent-messaging"
-PROJECT_DIR="/tmp/aw-manual-test"
+SRC_DIR="${AW_SRC_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+PROJECT_DIR="${AW_PROJECT_DIR:-/tmp/aw-manual-test}"
 
 echo "=== リビルド ==="
 cd "$SRC_DIR"

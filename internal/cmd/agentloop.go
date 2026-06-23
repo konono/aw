@@ -36,18 +36,23 @@ func runInternalAgentLoop(args []string) int {
 		for _, m := range msgs {
 			fmt.Fprintf(os.Stderr, "[agent-loop] received message #%d from %s\n", m.ID, m.From)
 
+			contextFile := "CLAUDE.md"
+			if tool == "codex" || tool == "opencode" {
+				contextFile = "AGENTS.md"
+			}
 			prompt := fmt.Sprintf(
 				"You received a message from %s:\n\n%s\n\n"+
-					"Read CLAUDE.md in the workspace for your role and team context. "+
+					"Read %s in the workspace for your role and team context. "+
 					"Take the appropriate action and use the send_message MCP tool to respond.",
-				m.From, m.Body)
+				m.From, m.Body, contextFile)
 
 			cmdArgs := append(printCmd, prompt)
 			c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			if runErr := c.Run(); runErr != nil {
-				fmt.Fprintf(os.Stderr, "[agent-loop] tool exited with error: %v\n", runErr)
+				fmt.Fprintf(os.Stderr, "[agent-loop] tool exited with error: %v (message #%d will be retried)\n", runErr, m.ID)
+				continue
 			}
 
 			markRead(dbPath, m.ID)
