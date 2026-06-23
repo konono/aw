@@ -16,9 +16,9 @@ import (
 )
 
 // Resolve returns the path to a Linux aw binary for the given architecture.
-// On Linux hosts, it returns the current executable (goarch is ignored; the
-// caller is expected to use the same arch as the container). On other hosts,
-// it downloads from GitHub Releases (cached) or falls back to cross-compilation.
+// On Linux hosts, it returns the current executable. On other hosts, it
+// checks AW_LINUX_BIN env (for development), then downloads from GitHub
+// Releases (cached), then falls back to cross-compilation from source.
 func Resolve(goarch string) (string, error) {
 	if runtime.GOOS == "linux" {
 		exe, err := os.Executable()
@@ -28,53 +28,37 @@ func Resolve(goarch string) (string, error) {
 		return filepath.EvalSymlinks(exe)
 	}
 
-	ver := version.Version
-	binDir := filepath.Join(platform.CacheDir(), "bin")
-
-	// Prefer crossbuild when source is available (development builds may
-	// contain unreleased features not in the GitHub release).
-	hasSource := findModuleRootQuiet() != ""
-
-	if hasSource {
-		devCachePath := filepath.Join(binDir, fmt.Sprintf("aw-linux-%s-%s-dev", goarch, ver))
-		if info, err := os.Stat(devCachePath); err == nil && !info.IsDir() {
-			return devCachePath, nil
+	// Development override: pre-built Linux binary path.
+	if p := os.Getenv("AW_LINUX_BIN"); p != "" {
+		if _, err := os.Stat(p); err != nil {
+			return "", fmt.Errorf("AW_LINUX_BIN=%s: %w", p, err)
 		}
-		binData, buildErr := crossbuild(goarch)
-		if buildErr == nil {
-			if err := atomicWrite(devCachePath, binData); err != nil {
-				return "", fmt.Errorf("caching crossbuilt binary: %w", err)
-			}
-			return devCachePath, nil
-		}
-		// Fall through to download if crossbuild fails.
+		return p, nil
 	}
 
-	releaseCachePath := filepath.Join(binDir, fmt.Sprintf("aw-linux-%s-%s", goarch, ver))
-	if info, err := os.Stat(releaseCachePath); err == nil && !info.IsDir() {
-		return releaseCachePath, nil
+	ver := version.Version
+	cachePath := filepath.Join(platform.CacheDir(), "bin", fmt.Sprintf("aw-linux-%s-%s", goarch, ver))
+
+	if info, err := os.Stat(cachePath); err == nil && !info.IsDir() {
+		return cachePath, nil
 	}
 
 	binData, dlErr := downloadLinuxBinary(goarch, ver)
 	if dlErr == nil {
-		if err := atomicWrite(releaseCachePath, binData); err != nil {
+		if err := atomicWrite(cachePath, binData); err != nil {
 			return "", fmt.Errorf("caching downloaded binary: %w", err)
 		}
-		return releaseCachePath, nil
+		return cachePath, nil
 	}
 
-	if !hasSource {
-		binData, buildErr := crossbuild(goarch)
-		if buildErr != nil {
-			return "", fmt.Errorf("cannot obtain Linux binary (download: %v, crossbuild: %v)", dlErr, buildErr)
-		}
-		if err := atomicWrite(releaseCachePath, binData); err != nil {
-			return "", fmt.Errorf("caching crossbuilt binary: %w", err)
-		}
-		return releaseCachePath, nil
+	binData, buildErr := crossbuild(goarch)
+	if buildErr != nil {
+		return "", fmt.Errorf("cannot obtain Linux binary (download: %v, crossbuild: %v)", dlErr, buildErr)
 	}
-
-	return "", fmt.Errorf("cannot obtain Linux binary (download: %v)", dlErr)
+	if err := atomicWrite(cachePath, binData); err != nil {
+		return "", fmt.Errorf("caching crossbuilt binary: %w", err)
+	}
+	return cachePath, nil
 }
 
 func downloadLinuxBinary(goarch, ver string) ([]byte, error) {
@@ -143,11 +127,6 @@ func crossbuild(goarch string) ([]byte, error) {
 	}
 
 	return os.ReadFile(tmpPath)
-}
-
-func findModuleRootQuiet() string {
-	root, _ := findModuleRoot()
-	return root
 }
 
 func findModuleRoot() (string, error) {

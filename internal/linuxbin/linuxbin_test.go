@@ -81,8 +81,7 @@ func TestResolve_CacheHit(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
-	// Tests run from source, so the dev-suffixed cache path is used.
-	cacheName := fmt.Sprintf("aw-linux-arm64-%s-dev", version.Version)
+	cacheName := fmt.Sprintf("aw-linux-arm64-%s", version.Version)
 	var cachePath string
 	if runtime.GOOS == "windows" {
 		t.Setenv("LOCALAPPDATA", tmp)
