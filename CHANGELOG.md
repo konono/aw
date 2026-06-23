@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.3.1](https://github.com/konono/aw/compare/v3.3.0...v3.3.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **opencode:** remove non-existent --dangerously-skip-permissions flag ([#92](https://github.com/konono/aw/issues/92)) ([3de5168](https://github.com/konono/aw/commit/3de51684f2e7eae607b0153353abe02d4d6bfbf0))
+
 ## [3.3.0](https://github.com/konono/aw/compare/v3.2.1...v3.3.0) (2026-06-22)
 
 
