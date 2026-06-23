@@ -431,15 +431,14 @@ func TestIntegration_ContainerLaunchFlags(t *testing.T) {
 			containerID := strings.TrimSpace(startOut.String())
 			t.Cleanup(func() { removeContainer(runtime, containerID) })
 
-			// The entrypoint does setup (SSH, git, mise …) before exec-ing
-			// the tool, so the container is "running" during setup even if the
-			// tool would reject its flags. We poll until a minimum stability
-			// time has elapsed: invalid flags cause an immediate non-zero exit
-			// (caught early), while valid flags keep the tool alive past the
-			// deadline.
+			// The entrypoint does lightweight init (SSH, git, shell env) in
+			// under 1 second, then exec's the tool. Invalid flags cause an
+			// immediate non-zero exit; valid flags keep the TUI alive. We
+			// poll until the stability window elapses to confirm the tool
+			// didn't crash after starting.
 			const (
-				pollInterval     = 3 * time.Second
-				minStabilityTime = 15 * time.Second
+				pollInterval     = 1 * time.Second
+				minStabilityTime = 5 * time.Second
 			)
 			deadline := time.Now().Add(minStabilityTime)
 			for time.Now().Before(deadline) {
@@ -474,7 +473,7 @@ func TestIntegration_ContainerLaunchFlags(t *testing.T) {
 					cmd, minStabilityTime, logsOut)
 			}
 
-			t.Logf("%s: container still running after %v with %v — flags accepted", tool, minStabilityTime, cmd)
+			t.Logf("%s: container running after %v with %v — flags accepted", tool, minStabilityTime, cmd)
 		})
 	}
 }
