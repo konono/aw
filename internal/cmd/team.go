@@ -433,16 +433,6 @@ func launchTeamMember(
 	runConfig.EnvVars["AW_SESSION_ID"] = toolSessionID
 	runConfig.EnvVars["AW_TOOL"] = tool
 
-	var reviewers []string
-	for _, mi := range opts.injectMembers {
-		if mi.Role == "reviewer" && mi.AgentName != m.AgentName {
-			reviewers = append(reviewers, mi.AgentName)
-		}
-	}
-	if len(reviewers) > 0 {
-		runConfig.EnvVars["AW_REVIEWERS"] = strings.Join(reviewers, ",")
-	}
-
 	if foreground {
 		client := docker.NewShellClient(runtime)
 		spec := reaper.BuildSpec(ec)

@@ -330,12 +330,6 @@ func TestE2E_MonitorMode_SettingsJSON(t *testing.T) {
 		t.Fatal("missing SessionStart hook")
 	}
 
-	// Should have PostToolUse for on-commit (developer role)
-	postGroups, ok := hooks["PostToolUse"].([]interface{})
-	if !ok || len(postGroups) == 0 {
-		t.Fatal("missing PostToolUse hook for developer")
-	}
-
 	// Verify .mcp.json
 	mcpData, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
 	if err != nil {
@@ -384,10 +378,6 @@ func TestE2E_TurnMode_SettingsJSON(t *testing.T) {
 		t.Fatal("missing Stop hook")
 	}
 
-	// Should also have PostToolUse for on-commit (developer role)
-	if _, ok := hooks["PostToolUse"]; !ok {
-		t.Error("developer should have PostToolUse hook for on-commit")
-	}
 }
 
 func TestE2E_OffMode_NoSettingsJSON(t *testing.T) {
@@ -410,187 +400,6 @@ func TestE2E_OffMode_NoSettingsJSON(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "settings.json")); err == nil {
 		t.Error("off mode should not create settings.json")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Phase 2b: on-commit — full flow with real git repo and DB
-// ---------------------------------------------------------------------------
-
-func TestE2E_OnCommit_FullFlow(t *testing.T) {
-	// Set up git repo
-	gitDir := t.TempDir()
-	gitRun := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = gitDir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	gitRun("init")
-	gitRun("checkout", "-b", "main")
-
-	for _, name := range []string{"a.go", "b.go"} {
-		_ = os.WriteFile(filepath.Join(gitDir, name), []byte("package main"), 0644)
-	}
-	gitRun("add", ".")
-	gitRun("commit", "-m", "feat: add initial files")
-
-	// Set up DB
-	dbDir := t.TempDir()
-	dbPath := filepath.Join(dbDir, "messages.db")
-	store, err := messaging.OpenStore(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = store.Close()
-
-	// Set up env
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "test-team")
-	t.Setenv("AW_REVIEWERS", "reviewer-1,reviewer-2")
-
-	origDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(origDir) }()
-	_ = os.Chdir(gitDir)
-
-	code := runInternalOnCommit(nil)
-	if code != 0 {
-		t.Fatalf("exit code = %d", code)
-	}
-
-	// Verify messages
-	store, err = messaging.OpenStore(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
-
-	for _, reviewer := range []string{"reviewer-1", "reviewer-2"} {
-		inbox, err := store.ReadInbox("test-team", reviewer)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(inbox) != 1 {
-			t.Errorf("%s: expected 1 message, got %d", reviewer, len(inbox))
-			continue
-		}
-
-		msg, err := store.ReadMessage(inbox[0].ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(msg.Body, "developer-1") {
-			t.Errorf("message body should contain sender name: %q", msg.Body)
-		}
-		if !strings.Contains(msg.Body, "feat: add initial files") {
-			t.Errorf("message body should contain commit message: %q", msg.Body)
-		}
-		if msg.From != "developer-1" {
-			t.Errorf("from = %q, want developer-1", msg.From)
-		}
-	}
-}
-
-func TestE2E_OnCommit_MultipleCommitsOnlyLastNotified(t *testing.T) {
-	gitDir := t.TempDir()
-	gitRun := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = gitDir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	gitRun("init")
-	gitRun("checkout", "-b", "main")
-
-	_ = os.WriteFile(filepath.Join(gitDir, "first.txt"), []byte("1"), 0644)
-	gitRun("add", "first.txt")
-	gitRun("commit", "-m", "first commit")
-
-	_ = os.WriteFile(filepath.Join(gitDir, "second.txt"), []byte("2"), 0644)
-	gitRun("add", "second.txt")
-	gitRun("commit", "-m", "second commit")
-
-	dbDir := t.TempDir()
-	dbPath := filepath.Join(dbDir, "messages.db")
-	store, _ := messaging.OpenStore(dbPath)
-	_ = store.Close()
-
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "test-team")
-	t.Setenv("AW_REVIEWERS", "reviewer-1")
-
-	origDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(origDir) }()
-	_ = os.Chdir(gitDir)
-
-	_ = runInternalOnCommit(nil)
-
-	store, _ = messaging.OpenStore(dbPath)
-	defer func() { _ = store.Close() }()
-
-	inbox, _ := store.ReadInbox("test-team", "reviewer-1")
-	if len(inbox) != 1 {
-		t.Fatalf("expected 1 message (latest commit only), got %d", len(inbox))
-	}
-	msg, _ := store.ReadMessage(inbox[0].ID)
-	if !strings.Contains(msg.Body, "second commit") {
-		t.Errorf("should notify about latest commit, got %q", msg.Body)
-	}
-}
-
-func TestE2E_OnCommit_NoGitRepo(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "messages.db")
-	store, _ := messaging.OpenStore(dbPath)
-	_ = store.Close()
-
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "test-team")
-	t.Setenv("AW_REVIEWERS", "reviewer-1")
-
-	origDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(origDir) }()
-	_ = os.Chdir(dir)
-
-	code := runInternalOnCommit(nil)
-	if code != 0 {
-		t.Errorf("should exit 0 even without git repo, got %d", code)
-	}
-
-	store, _ = messaging.OpenStore(dbPath)
-	defer func() { _ = store.Close() }()
-	inbox, _ := store.ReadInbox("test-team", "reviewer-1")
-	if len(inbox) != 0 {
-		t.Errorf("should not send messages when no git repo, got %d", len(inbox))
-	}
-}
-
-func TestE2E_OnCommit_MissingEnvVars(t *testing.T) {
-	t.Setenv("AW_MSG_DB", "")
-	t.Setenv("AW_AGENT_NAME", "")
-	t.Setenv("AW_TEAM_NAME", "")
-	t.Setenv("AW_REVIEWERS", "")
-
-	code := runInternalOnCommit(nil)
-	if code != 0 {
-		t.Errorf("should exit 0 with missing env vars, got %d", code)
 	}
 }
 
@@ -682,17 +491,16 @@ func TestE2E_Worktree_Lifecycle(t *testing.T) {
 func TestIntegration_ClaudeInjector_AllModes(t *testing.T) {
 	tests := []struct {
 		deliveryMode inject.DeliveryMode
-		role         string
-		wantStop     bool
-		wantStart    bool
-		wantCommit   bool
+		role      string
+		wantStop  bool
+		wantStart bool
 	}{
-		{inject.DeliveryTurn, "developer", true, false, true},
-		{inject.DeliveryTurn, "reviewer", true, false, false},
-		{inject.DeliveryMonitor, "developer", false, true, true},
-		{inject.DeliveryMonitor, "reviewer", false, true, false},
-		{inject.DeliveryOff, "developer", false, false, false},
-		{inject.DeliveryOff, "reviewer", false, false, false},
+		{inject.DeliveryTurn, "developer", true, false},
+		{inject.DeliveryTurn, "reviewer", true, false},
+		{inject.DeliveryMonitor, "developer", false, true},
+		{inject.DeliveryMonitor, "reviewer", false, true},
+		{inject.DeliveryOff, "developer", false, false},
+		{inject.DeliveryOff, "reviewer", false, false},
 	}
 
 	for _, tt := range tests {
@@ -750,16 +558,12 @@ func TestIntegration_ClaudeInjector_AllModes(t *testing.T) {
 
 			_, hasStop := hooks["Stop"]
 			_, hasStart := hooks["SessionStart"]
-			_, hasCommit := hooks["PostToolUse"]
 
 			if hasStop != tt.wantStop {
 				t.Errorf("Stop hook: got %v, want %v", hasStop, tt.wantStop)
 			}
 			if hasStart != tt.wantStart {
 				t.Errorf("SessionStart hook: got %v, want %v", hasStart, tt.wantStart)
-			}
-			if hasCommit != tt.wantCommit {
-				t.Errorf("PostToolUse hook: got %v, want %v", hasCommit, tt.wantCommit)
 			}
 		})
 	}
@@ -992,74 +796,6 @@ func TestIntegration_FullMessagePipeline(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Integration: Worktree + on-commit — commit in isolated worktree triggers review notification
-// ---------------------------------------------------------------------------
-
-func TestIntegration_Worktree_OnCommit(t *testing.T) {
-	repoDir := t.TempDir()
-	gitRun := func(dir string, args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
-		}
-	}
-
-	gitRun(repoDir, "init")
-	gitRun(repoDir, "checkout", "-b", "main")
-	_ = os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Project"), 0644)
-	gitRun(repoDir, "add", ".")
-	gitRun(repoDir, "commit", "-m", "initial")
-
-	// Create worktree for developer
-	wtPath := filepath.Join(repoDir, "worktrees", "aw-test-developer-1")
-	if err := ensureWorktree(repoDir, "aw/test/developer-1", wtPath, "HEAD", false); err != nil {
-		t.Fatal(err)
-	}
-
-	// Developer makes a commit in their worktree
-	_ = os.WriteFile(filepath.Join(wtPath, "feature.go"), []byte("package main\n\nfunc Feature() {}"), 0644)
-	gitRun(wtPath, "add", "feature.go")
-	gitRun(wtPath, "commit", "-m", "feat: add Feature function")
-
-	// Set up DB and env
-	dbDir := t.TempDir()
-	dbPath := filepath.Join(dbDir, "messages.db")
-	store, _ := messaging.OpenStore(dbPath)
-	_ = store.Close()
-
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "test-team")
-	t.Setenv("AW_REVIEWERS", "reviewer-1")
-
-	origDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(origDir) }()
-	_ = os.Chdir(wtPath)
-
-	_ = runInternalOnCommit(nil)
-
-	// Verify notification
-	store, _ = messaging.OpenStore(dbPath)
-	defer func() { _ = store.Close() }()
-
-	inbox, _ := store.ReadInbox("test-team", "reviewer-1")
-	if len(inbox) != 1 {
-		t.Fatalf("expected 1 message to reviewer, got %d", len(inbox))
-	}
-	msg, _ := store.ReadMessage(inbox[0].ID)
-	if !strings.Contains(msg.Body, "feat: add Feature function") {
-		t.Errorf("message should contain commit message, got %q", msg.Body)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Edge case: CLI args parsing
 // ---------------------------------------------------------------------------
 
@@ -1107,55 +843,3 @@ func TestE2E_CheckInbox_CLIArgs(t *testing.T) {
 	}
 }
 
-func TestE2E_OnCommit_CLIArgs(t *testing.T) {
-	gitDir := t.TempDir()
-	gitRun := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = gitDir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	gitRun("init")
-	gitRun("checkout", "-b", "main")
-	_ = os.WriteFile(filepath.Join(gitDir, "f.go"), []byte("package x"), 0644)
-	gitRun("add", ".")
-	gitRun("commit", "-m", "cli args commit")
-
-	dbDir := t.TempDir()
-	dbPath := filepath.Join(dbDir, "messages.db")
-	store, _ := messaging.OpenStore(dbPath)
-	_ = store.Close()
-
-	t.Setenv("AW_REVIEWERS", "reviewer-1")
-	// Clear env to force CLI args
-	t.Setenv("AW_MSG_DB", "")
-	t.Setenv("AW_AGENT_NAME", "")
-	t.Setenv("AW_TEAM_NAME", "")
-
-	origDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(origDir) }()
-	_ = os.Chdir(gitDir)
-
-	code := runInternalOnCommit([]string{
-		"--db", dbPath,
-		"--agent", "dev-1",
-		"--team", "cli-team",
-	})
-	if code != 0 {
-		t.Fatalf("exit code = %d", code)
-	}
-
-	store, _ = messaging.OpenStore(dbPath)
-	defer func() { _ = store.Close() }()
-	inbox, _ := store.ReadInbox("cli-team", "reviewer-1")
-	if len(inbox) != 1 {
-		t.Fatalf("expected 1 message via CLI args, got %d", len(inbox))
-	}
-}
