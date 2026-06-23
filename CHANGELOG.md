@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.3.2](https://github.com/konono/aw/compare/v3.3.1...v3.3.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* **update:** handle Windows file lock during self-update ([#95](https://github.com/konono/aw/issues/95)) ([14efa90](https://github.com/konono/aw/commit/14efa9026b9158a4f56f4eb8be4d3733f29242b0))
+
 ## [3.3.1](https://github.com/konono/aw/compare/v3.3.0...v3.3.1) (2026-06-23)
 
 
