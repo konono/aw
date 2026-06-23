@@ -212,7 +212,7 @@ func runMsgClear(args []string) int {
 		fmt.Fprintln(os.Stderr, "  --before <dur>     Delete messages older than duration (e.g. 7d, 24h, 30m)")
 		fmt.Fprintln(os.Stderr, "  --list             Show available team scopes")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Flags --all, --team, and --before can be combined:")
+		fmt.Fprintln(os.Stderr, "  --team and --before can be combined (but not with --all):")
 		fmt.Fprintln(os.Stderr, "  aw msg clear --team <scope> --before 7d   Delete old messages for a team")
 		return 1
 	}

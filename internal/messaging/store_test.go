@@ -240,14 +240,12 @@ func TestClearBefore(t *testing.T) {
 	s := testStore(t)
 	defer func() { _ = s.Close() }()
 
-	// Insert a message and backdate it to 2 days ago
-	_, _, _ = s.Send(testTeam, "dev", "rev", "old msg")
-	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = 1`,
-		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"))
+	oldID, _, _ := s.Send(testTeam, "dev", "rev", "old msg")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldID)
 
 	_, _, _ = s.Send(testTeam, "dev", "rev", "recent msg")
 
-	// ClearBefore 1 day should delete only the old message
 	n, err := s.ClearBefore(24 * time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -256,10 +254,43 @@ func TestClearBefore(t *testing.T) {
 		t.Errorf("ClearBefore(24h) deleted %d, want 1", n)
 	}
 
-	// Recent message should remain
 	msgs, _ := s.History(testTeam, "", 10)
 	if len(msgs) != 1 {
 		t.Errorf("expected 1 remaining message, got %d", len(msgs))
+	}
+}
+
+func TestClearTeamBefore(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	oldA, _, _ := s.Send("team-a", "dev", "rev", "old a")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldA)
+	_, _, _ = s.Send("team-a", "dev", "rev", "recent a")
+
+	oldB, _, _ := s.Send("team-b", "dev", "rev", "old b")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldB)
+
+	n, err := s.ClearTeamBefore("team-a", 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("ClearTeamBefore deleted %d, want 1", n)
+	}
+
+	// team-a recent should remain
+	msgsA, _ := s.History("team-a", "", 10)
+	if len(msgsA) != 1 {
+		t.Errorf("team-a should have 1 remaining, got %d", len(msgsA))
+	}
+
+	// team-b old should be untouched
+	msgsB, _ := s.History("team-b", "", 10)
+	if len(msgsB) != 1 {
+		t.Errorf("team-b should still have 1, got %d", len(msgsB))
 	}
 }
 
