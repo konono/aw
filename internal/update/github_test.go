@@ -78,6 +78,50 @@ func TestFetchLatestRelease_BadJSON(t *testing.T) {
 	}
 }
 
+func TestFetchReleaseByTag(t *testing.T) {
+	body := `{
+		"tag_name": "v3.3.1",
+		"assets": [
+			{
+				"name": "aw_linux_arm64.tar.gz",
+				"browser_download_url": "https://example.com/linux_arm64.tar.gz"
+			}
+		]
+	}`
+
+	client := &mockHTTPClient{
+		response: &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewBufferString(body)),
+		},
+	}
+
+	release, err := FetchReleaseByTag(client, "v3.3.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if release.TagName != "v3.3.1" {
+		t.Errorf("tag_name = %q, want %q", release.TagName, "v3.3.1")
+	}
+	if len(release.Assets) != 1 {
+		t.Errorf("got %d assets, want 1", len(release.Assets))
+	}
+}
+
+func TestFetchReleaseByTag_NotFound(t *testing.T) {
+	client := &mockHTTPClient{
+		response: &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(bytes.NewBufferString(`{"message":"Not Found"}`)),
+		},
+	}
+
+	_, err := FetchReleaseByTag(client, "v99.99.99")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestFindAssetURL(t *testing.T) {
 	release := &ReleaseInfo{
 		Assets: []Asset{
