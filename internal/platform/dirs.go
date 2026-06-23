@@ -42,6 +42,25 @@ func StateDir() string {
 	return filepath.Join(home, ".local", "state", "aw")
 }
 
+// CacheDir returns the aw cache directory.
+// Unix: $XDG_CACHE_HOME/aw or ~/.cache/aw
+// Windows: %LOCALAPPDATA%\aw\cache
+func CacheDir() string {
+	if runtime.GOOS == "windows" {
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			return filepath.Join(localAppData, "aw", "cache")
+		}
+	}
+	if dir := os.Getenv("XDG_CACHE_HOME"); dir != "" {
+		return filepath.Join(dir, "aw")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+	return filepath.Join(home, ".cache", "aw")
+}
+
 // TempSocketPath returns a temporary socket path for SSH agent forwarding.
 // On Unix, /tmp is used to keep paths short (Unix sockets have a ~104 char limit;
 // macOS os.TempDir() returns /var/folders/... which is too long).

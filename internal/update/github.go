@@ -58,6 +58,35 @@ func FetchLatestRelease(client HTTPClient) (*ReleaseInfo, error) {
 	return &release, nil
 }
 
+// FetchReleaseByTag queries the GitHub API for a release with the given tag.
+func FetchReleaseByTag(client HTTPClient, tag string) (*ReleaseInfo, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/%s", repoOwner, repoName, tag)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching release %s: %w", tag, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var release ReleaseInfo
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("parsing release info: %w", err)
+	}
+
+	return &release, nil
+}
+
 // FindAssetURL finds the download URL for the given OS/arch from the release assets.
 func FindAssetURL(release *ReleaseInfo, goos, goarch string) (string, error) {
 	ext := "tar.gz"
