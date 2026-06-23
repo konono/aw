@@ -27,6 +27,8 @@ type MemberState struct {
 	ToolSessionID string `json:"tool_session_id,omitempty"`
 	Foreground    bool   `json:"foreground"`
 	Status        string `json:"status"`
+	WorktreePath  string `json:"worktree_path,omitempty"`
+	BranchName    string `json:"branch_name,omitempty"`
 }
 
 // StateDir returns the directory used for team state files (~/.config/aw/teams/).

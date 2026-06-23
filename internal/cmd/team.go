@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
@@ -196,15 +197,24 @@ func runTeamStart(args []string) int {
 	ctx := context.Background()
 	var bgReaperFds []*os.File
 
+	// Detect git root for branch isolation
+	var repoRoot string
+	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		repoRoot = strings.TrimSpace(string(out))
+	}
+
 	launchOpts := teamLaunchOpts{
-		cfg:           cfg,
-		scope:         scope,
-		msgDBDir:      msgDBDir,
-		memberInfos:   memberInfos,
-		injectMembers: injectMembers,
-		resume:        resume,
-		prevSessions:  prevToolSessions,
-		task:          task,
+		cfg:             cfg,
+		scope:           scope,
+		msgDBDir:        msgDBDir,
+		memberInfos:     memberInfos,
+		injectMembers:   injectMembers,
+		resume:          resume,
+		prevSessions:    prevToolSessions,
+		task:            task,
+		teamName:        teamName,
+		branchIsolation: repoRoot != "",
+		repoRoot:        repoRoot,
 	}
 
 	// Launch background members first
@@ -234,7 +244,7 @@ func runTeamStart(args []string) int {
 	if prev, ok := prevToolSessions[fgMember.AgentName]; ok && prev != "" {
 		fgToolSessionID = prev
 	}
-	teamState.Members = append(teamState.Members, team.MemberState{
+	fgState := team.MemberState{
 		AgentName:     fgMember.AgentName,
 		Profile:       fgMember.Profile,
 		Role:          fgMember.Role,
@@ -243,7 +253,12 @@ func runTeamStart(args []string) int {
 		ToolSessionID: fgToolSessionID,
 		Foreground:    true,
 		Status:        "running",
-	})
+	}
+	if launchOpts.branchIsolation {
+		fgState.BranchName = fmt.Sprintf("aw/%s/%s", teamName, fgMember.AgentName)
+		fgState.WorktreePath = filepath.Join(launchOpts.repoRoot, "worktrees", fmt.Sprintf("aw-%s-%s", teamName, fgMember.AgentName))
+	}
+	teamState.Members = append(teamState.Members, fgState)
 	if err := team.SaveState(teamState); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not save team state: %v\n", err)
 	}
@@ -261,14 +276,17 @@ func runTeamStart(args []string) int {
 }
 
 type teamLaunchOpts struct {
-	cfg           *profile.Config
-	scope         string
-	msgDBDir      string
-	memberInfos   []roles.MemberData
-	injectMembers []inject.MemberInfo
-	resume        bool
-	prevSessions  map[string]string
-	task          string
+	cfg             *profile.Config
+	scope           string
+	msgDBDir        string
+	memberInfos     []roles.MemberData
+	injectMembers   []inject.MemberInfo
+	resume          bool
+	prevSessions    map[string]string
+	task            string
+	teamName        string
+	branchIsolation bool
+	repoRoot        string
 }
 
 func closeReaperFds(fds []*os.File) {
@@ -294,6 +312,17 @@ func launchTeamMember(
 		return team.MemberState{}, nil, fmt.Errorf("building execution context: %w", err)
 	}
 	ec.ContainerName = containerName
+
+	// Branch isolation: create per-member worktree
+	var worktreePath, branchName string
+	if opts.branchIsolation {
+		branchName = fmt.Sprintf("aw/%s/%s", opts.teamName, m.AgentName)
+		worktreePath = filepath.Join(opts.repoRoot, "worktrees", fmt.Sprintf("aw-%s-%s", opts.teamName, m.AgentName))
+		if err := ensureWorktree(opts.repoRoot, branchName, worktreePath, "HEAD", opts.resume); err != nil {
+			return team.MemberState{}, nil, fmt.Errorf("creating worktree for %s: %w", m.AgentName, err)
+		}
+		ec.WorkDir = worktreePath
+	}
 
 	dockerStage := stage.NewDockerStage()
 	if err := dockerStage.Run(ctx, ec); err != nil {
@@ -444,6 +473,8 @@ func launchTeamMember(
 		ToolSessionID: toolSessionID,
 		Foreground:    false,
 		Status:        "running",
+		WorktreePath:  worktreePath,
+		BranchName:    branchName,
 	}, reaperFd, nil
 }
 
@@ -464,6 +495,21 @@ func appendResumeFlags(tool string, command []string) []string {
 	default:
 		return command
 	}
+}
+
+func ensureWorktree(repoRoot, branchName, worktreePath, base string, resume bool) error {
+	if _, err := os.Stat(worktreePath); err == nil {
+		if resume {
+			return nil
+		}
+		return fmt.Errorf("worktree already exists at %s (use --resume to reuse)", worktreePath)
+	}
+	if err := os.MkdirAll(filepath.Dir(worktreePath), 0o755); err != nil {
+		return fmt.Errorf("creating worktree parent dir: %w", err)
+	}
+	cmd := exec.Command("git", "-C", repoRoot, "worktree", "add", "-b", branchName, worktreePath, base)
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func appendRoleContext(toolStageDir, tool, roleText string) {
@@ -519,6 +565,18 @@ func runTeamStop(args []string) int {
 		fmt.Printf("  Stopping %s (%s)...\n", m.AgentName, m.ContainerName)
 		if err := client.StopContainer(m.ContainerName); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: %v\n", err)
+		}
+	}
+
+	// Print worktree info if any members had branch isolation
+	var hasWorktrees bool
+	for _, m := range state.Members {
+		if m.WorktreePath != "" {
+			if !hasWorktrees {
+				fmt.Printf("\nWorktrees preserved:\n")
+				hasWorktrees = true
+			}
+			fmt.Printf("  %s: %s (branch: %s)\n", m.AgentName, m.WorktreePath, m.BranchName)
 		}
 	}
 
