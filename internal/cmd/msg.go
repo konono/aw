@@ -25,6 +25,8 @@ func runMsg(args []string) int {
 		return runMsgHistory(args[1:])
 	case "watch":
 		return runMsgWatch(args[1:])
+	case "clear":
+		return runMsgClear(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown msg command: %s\n", args[0])
 		printMsgHelp()
@@ -38,6 +40,7 @@ func printMsgHelp() {
 	fmt.Fprintln(os.Stderr, "  aw msg inbox --team <team> <agent>             Show unread messages")
 	fmt.Fprintln(os.Stderr, "  aw msg history --team <team> [--agent <name>]  Show message history")
 	fmt.Fprintln(os.Stderr, "  aw msg watch --team <team>                     Watch all messages in real-time")
+	fmt.Fprintln(os.Stderr, "  aw msg clear [--team <t>] [--all] [--before <dur>] [--list]  Delete messages")
 }
 
 func openMsgStore() (*messaging.Store, error) {
@@ -172,6 +175,141 @@ func runMsgHistory(args []string) int {
 		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To, messaging.FormatPreview(m.Body))
 	}
 	return 0
+}
+
+func runMsgClear(args []string) int {
+	team, args := extractTeamFlag(args)
+
+	var all, list bool
+	var before string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--all":
+			all = true
+		case "--list":
+			list = true
+		case "--before":
+			if i+1 < len(args) {
+				before = args[i+1]
+				i++
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --before requires a duration value (e.g. 7d, 24h, 30m)")
+				return 1
+			}
+		}
+	}
+
+	if list {
+		return runMsgClearList()
+	}
+
+	if !all && team == "" && before == "" {
+		fmt.Fprintln(os.Stderr, "Usage: aw msg clear [--team <team>] [--all] [--before <duration>] [--list]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  --team <scope>     Delete messages for a specific team scope")
+		fmt.Fprintln(os.Stderr, "  --all              Delete all messages")
+		fmt.Fprintln(os.Stderr, "  --before <dur>     Delete messages older than duration (e.g. 7d, 24h, 30m)")
+		fmt.Fprintln(os.Stderr, "  --list             Show available team scopes")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  --team and --before can be combined (but not with --all):")
+		fmt.Fprintln(os.Stderr, "  aw msg clear --team <scope> --before 7d   Delete old messages for a team")
+		return 1
+	}
+
+	if all && (team != "" || before != "") {
+		fmt.Fprintln(os.Stderr, "Error: --all cannot be combined with --team or --before")
+		return 1
+	}
+
+	var d time.Duration
+	if before != "" {
+		var parseErr error
+		d, parseErr = parseDuration(before)
+		if parseErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid duration %q: %v\n", before, parseErr)
+			return 1
+		}
+	}
+
+	store, err := openMsgStore()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	defer func() { _ = store.Close() }()
+
+	var count int64
+
+	switch {
+	case all:
+		count, err = store.ClearAll()
+	case team != "" && before != "":
+		count, err = store.ClearTeamBefore(team, d)
+	case team != "":
+		count, err = store.ClearTeam(team)
+	case before != "":
+		count, err = store.ClearBefore(d)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	fmt.Printf("Deleted %d message(s)\n", count)
+	return 0
+}
+
+func runMsgClearList() int {
+	store, err := openMsgStore()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	defer func() { _ = store.Close() }()
+
+	teams, err := store.ListTeams()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	if len(teams) == 0 {
+		fmt.Println("No messages in database")
+		return 0
+	}
+
+	fmt.Println("Team scopes:")
+	for _, t := range teams {
+		fmt.Printf("  %s\n", t)
+	}
+	return 0
+}
+
+func parseDuration(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("too short (use e.g. 7d, 24h, 30m)")
+	}
+	unit := s[len(s)-1]
+	numStr := s[:len(s)-1]
+	n, err := strconv.Atoi(numStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number %q", numStr)
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("duration must be positive, got %d", n)
+	}
+	switch unit {
+	case 'd':
+		return time.Duration(n) * 24 * time.Hour, nil
+	case 'h':
+		return time.Duration(n) * time.Hour, nil
+	case 'm':
+		return time.Duration(n) * time.Minute, nil
+	default:
+		return 0, fmt.Errorf("unknown unit %q (use d, h, m)", string(unit))
+	}
 }
 
 func runMsgWatch(args []string) int {

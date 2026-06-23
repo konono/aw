@@ -304,6 +304,63 @@ func (s *Store) WatchAll(team string, interval time.Duration, fn func(Message)) 
 	}
 }
 
+// ClearTeam deletes all messages for the given team scope.
+func (s *Store) ClearTeam(team string) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM messages WHERE team = ?`, team)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ClearAll deletes all messages.
+func (s *Store) ClearAll() (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM messages`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ClearTeamBefore deletes messages for the given team older than the given duration.
+func (s *Store) ClearTeamBefore(team string, d time.Duration) (int64, error) {
+	cutoff := time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05Z")
+	res, err := s.db.Exec(`DELETE FROM messages WHERE team = ? AND created_at < ?`, team, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ClearBefore deletes messages older than the given duration.
+func (s *Store) ClearBefore(d time.Duration) (int64, error) {
+	cutoff := time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05Z")
+	res, err := s.db.Exec(`DELETE FROM messages WHERE created_at < ?`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ListTeams returns all distinct team scopes in the database.
+func (s *Store) ListTeams() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT team FROM messages ORDER BY team`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var teams []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		teams = append(teams, t)
+	}
+	return teams, rows.Err()
+}
+
 // truncate returns s truncated to maxLen with "..." appended if needed.
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {

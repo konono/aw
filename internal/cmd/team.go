@@ -39,6 +39,8 @@ func runTeam(args []string) int {
 		return runTeamStop(args[1:])
 	case "status":
 		return runTeamStatus(args[1:])
+	case "scope":
+		return runTeamScope(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown team command: %s\n", args[0])
 		printTeamHelp()
@@ -51,6 +53,7 @@ func printTeamHelp() {
 	fmt.Fprintln(os.Stderr, "  aw team start [--resume] [--task <desc>] <team-name>  Start all team members")
 	fmt.Fprintln(os.Stderr, "  aw team stop <team-name>               Stop all team members")
 	fmt.Fprintln(os.Stderr, "  aw team status [team-name]             Show team status")
+	fmt.Fprintln(os.Stderr, "  aw team scope <team-name>              Print team scope (for use with aw msg --team)")
 }
 
 func projectHash(dir string) string {
@@ -613,6 +616,20 @@ func runTeamStatus(args []string) int {
 		}
 		fmt.Println()
 	}
+	return 0
+}
+
+func runTeamScope(args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: aw team scope <team-name>")
+		return 1
+	}
+	state, err := team.LoadState(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: team %q has no saved state\n", args[0])
+		return 1
+	}
+	fmt.Println(state.TeamScope)
 	return 0
 }
 

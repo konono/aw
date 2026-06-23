@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 const testTeam = "test-team"
@@ -194,5 +195,121 @@ func TestOpenStoreCreatesDir(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "sub", "dir")); err != nil {
 		t.Fatalf("directory not created: %v", err)
+	}
+}
+
+func TestClearTeam(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg2")
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg3")
+
+	n, err := s.ClearTeam("team-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("ClearTeam deleted %d, want 2", n)
+	}
+
+	msgs, _ := s.History("team-b", "", 10)
+	if len(msgs) != 1 {
+		t.Errorf("team-b should still have 1 message, got %d", len(msgs))
+	}
+}
+
+func TestClearAll(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg2")
+
+	n, err := s.ClearAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("ClearAll deleted %d, want 2", n)
+	}
+}
+
+func TestClearBefore(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	oldID, _, _ := s.Send(testTeam, "dev", "rev", "old msg")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldID)
+
+	_, _, _ = s.Send(testTeam, "dev", "rev", "recent msg")
+
+	n, err := s.ClearBefore(24 * time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("ClearBefore(24h) deleted %d, want 1", n)
+	}
+
+	msgs, _ := s.History(testTeam, "", 10)
+	if len(msgs) != 1 {
+		t.Errorf("expected 1 remaining message, got %d", len(msgs))
+	}
+}
+
+func TestClearTeamBefore(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	oldA, _, _ := s.Send("team-a", "dev", "rev", "old a")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldA)
+	_, _, _ = s.Send("team-a", "dev", "rev", "recent a")
+
+	oldB, _, _ := s.Send("team-b", "dev", "rev", "old b")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"), oldB)
+
+	n, err := s.ClearTeamBefore("team-a", 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("ClearTeamBefore deleted %d, want 1", n)
+	}
+
+	// team-a recent should remain
+	msgsA, _ := s.History("team-a", "", 10)
+	if len(msgsA) != 1 {
+		t.Errorf("team-a should have 1 remaining, got %d", len(msgsA))
+	}
+
+	// team-b old should be untouched
+	msgsB, _ := s.History("team-b", "", 10)
+	if len(msgsB) != 1 {
+		t.Errorf("team-b should still have 1, got %d", len(msgsB))
+	}
+}
+
+func TestListTeams(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg2")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg3")
+
+	teams, err := s.ListTeams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(teams) != 2 {
+		t.Fatalf("expected 2 teams, got %d", len(teams))
+	}
+	if teams[0] != "team-a" || teams[1] != "team-b" {
+		t.Errorf("teams = %v, want [team-a, team-b]", teams)
 	}
 }
