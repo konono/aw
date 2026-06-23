@@ -196,7 +196,9 @@ func (u *Updater) executablePath() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
-// replaceBinary atomically replaces the binary at targetPath with newBinary.
+// replaceBinary replaces the binary at targetPath with newBinary.
+// On Unix this is an atomic rename; on Windows a two-step move is used
+// because the OS locks the running executable.
 func replaceBinary(targetPath string, newBinary []byte) error {
 	dir := filepath.Dir(targetPath)
 	tmpFile, err := os.CreateTemp(dir, binaryName+".update.*")
@@ -226,12 +228,34 @@ func replaceBinary(targetPath string, newBinary []byte) error {
 		return fmt.Errorf("closing temp file: %w", err)
 	}
 
-	// Atomic rename
+	// On Windows the running binary holds a file lock, so os.Rename
+	// over it fails. Move the old binary aside first, then put the
+	// new one in place.
+	if runtime.GOOS == "windows" {
+		oldPath := targetPath + ".old"
+		_ = os.Remove(oldPath)
+		if err := os.Rename(targetPath, oldPath); err != nil {
+			return fmt.Errorf("moving old binary aside: %w", err)
+		}
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			if rbErr := os.Rename(oldPath, targetPath); rbErr != nil {
+				return fmt.Errorf("placing new binary: %w (rollback also failed: %v)", err, rbErr)
+			}
+			return fmt.Errorf("placing new binary: %w", err)
+		}
+		// The old binary is still held by this process, so Remove will
+		// likely fail on Windows. The leftover .old is cleaned up at the
+		// start of the next update run.
+		_ = os.Remove(oldPath)
+		tmpPath = ""
+		return nil
+	}
+
+	// Unix: atomic rename (overwrites in place).
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		return fmt.Errorf("renaming: %w", err)
 	}
 
-	// Prevent deferred cleanup from removing the new binary
 	tmpPath = ""
 	return nil
 }
