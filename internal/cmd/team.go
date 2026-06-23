@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/launcher"
+	"github.com/konono/aw/internal/linuxbin"
 	"github.com/konono/aw/internal/messaging"
 	"github.com/konono/aw/internal/messaging/inject"
 	"github.com/konono/aw/internal/messaging/roles"
@@ -265,13 +267,9 @@ func launchTeamMember(
 	}
 
 	// Mount aw binary into container for MCP server and check-inbox
-	awBin, err := os.Executable()
+	awBin, err := linuxbin.Resolve(runtime.GOARCH)
 	if err != nil {
-		return team.MemberState{}, nil, fmt.Errorf("resolving aw binary path: %w", err)
-	}
-	awBin, err = filepath.EvalSymlinks(awBin)
-	if err != nil {
-		return team.MemberState{}, nil, fmt.Errorf("resolving aw binary symlink: %w", err)
+		return team.MemberState{}, nil, fmt.Errorf("resolving linux binary: %w", err)
 	}
 
 	ec.DockerMounts = append(ec.DockerMounts,
@@ -279,11 +277,13 @@ func launchTeamMember(
 			Source:   msgDBDir,
 			Target:   "/home/agent/.aw-msg",
 			ReadOnly: false,
+			Options:  "z",
 		},
 		docker.Mount{
 			Source:   awBin,
 			Target:   "/home/agent/.aw-msg/bin/aw",
 			ReadOnly: true,
+			Options:  "z",
 		},
 	)
 

@@ -32,7 +32,7 @@ func setupPodmanDarwin(hostAuthSock, containerName string) (*ForwardedAgent, err
 			_ = p.Signal(syscall.SIGTERM)
 			_, _ = p.Wait()
 		}
-		podmanMachineExec(sshCfg, "rm", "-f", socketPath)
+		_, _ = podmanMachineExec(sshCfg, "rm", "-f", socketPath)
 	}
 
 	return &ForwardedAgent{
@@ -72,7 +72,7 @@ func podmanMachineSSHConfig() (*podmanSSHConfig, error) {
 }
 
 func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock, socketPath string) (int, error) {
-	podmanMachineExec(cfg, "rm", "-f", socketPath)
+	_, _ = podmanMachineExec(cfg, "rm", "-f", socketPath)
 
 	remoteForward := fmt.Sprintf("%s:%s", socketPath, hostAuthSock)
 	cmd := exec.Command("ssh",
@@ -93,7 +93,7 @@ func startSSHTunnel(cfg *podmanSSHConfig, hostAuthSock, socketPath string) (int,
 		return 0, fmt.Errorf("ssh -R: %w", err)
 	}
 
-	podmanMachineExec(cfg, "chmod", "666", socketPath)
+	_, _ = podmanMachineExec(cfg, "chmod", "666", socketPath)
 
 	pid, err := findSSHTunnelPID(socketPath)
 	if err != nil {
