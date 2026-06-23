@@ -16,8 +16,9 @@ import (
 )
 
 // Resolve returns the path to a Linux aw binary for the given architecture.
-// On Linux hosts, it returns the current executable. On other hosts, it
-// downloads from GitHub Releases (cached) or falls back to cross-compilation.
+// On Linux hosts, it returns the current executable (goarch is ignored; the
+// caller is expected to use the same arch as the container). On other hosts,
+// it downloads from GitHub Releases (cached) or falls back to cross-compilation.
 func Resolve(goarch string) (string, error) {
 	if runtime.GOOS == "linux" {
 		exe, err := os.Executable()
@@ -36,9 +37,10 @@ func Resolve(goarch string) (string, error) {
 
 	binData, dlErr := downloadLinuxBinary(goarch, ver)
 	if dlErr == nil {
-		if err := atomicWrite(cachePath, binData); err == nil {
-			return cachePath, nil
+		if err := atomicWrite(cachePath, binData); err != nil {
+			return "", fmt.Errorf("caching downloaded binary: %w", err)
 		}
+		return cachePath, nil
 	}
 
 	binData, buildErr := crossbuild(goarch)
@@ -176,9 +178,11 @@ func atomicWrite(path string, data []byte) error {
 		_ = tmp.Close()
 		return err
 	}
-	if err := tmp.Chmod(0755); err != nil {
-		_ = tmp.Close()
-		return err
+	if runtime.GOOS != "windows" {
+		if err := tmp.Chmod(0755); err != nil {
+			_ = tmp.Close()
+			return err
+		}
 	}
 	if err := tmp.Close(); err != nil {
 		return err

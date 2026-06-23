@@ -3,6 +3,7 @@ package linuxbin
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -60,22 +61,32 @@ func TestAtomicWrite(t *testing.T) {
 		t.Errorf("content = %q, want %q", got, data)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat: %v", err)
-	}
-	if info.Mode().Perm() != 0755 {
-		t.Errorf("permissions = %o, want 0755", info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("Stat: %v", err)
+		}
+		if info.Mode().Perm() != 0755 {
+			t.Errorf("permissions = %o, want 0755", info.Mode().Perm())
+		}
 	}
 }
 
 func TestResolve_CacheHit(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", tmp)
+	if runtime.GOOS == "linux" {
+		t.Skip("cache hit test only runs on non-Linux hosts")
+	}
 
-	ver := "3.3.1" // matches version.Version
-	goarch := "arm64"
-	cachePath := filepath.Join(tmp, "aw", "bin", "aw-linux-"+goarch+"-"+ver)
+	tmp := t.TempDir()
+	var cachePath string
+	if runtime.GOOS == "windows" {
+		t.Setenv("LOCALAPPDATA", tmp)
+		cachePath = filepath.Join(tmp, "aw", "cache", "bin", "aw-linux-arm64-3.3.1")
+	} else {
+		t.Setenv("XDG_CACHE_HOME", tmp)
+		cachePath = filepath.Join(tmp, "aw", "bin", "aw-linux-arm64-3.3.1")
+	}
+
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -83,9 +94,11 @@ func TestResolve_CacheHit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Resolve should return the cached path without attempting download.
-	// This test only validates cache hit on non-Linux hosts.
-	if os.Getenv("GOOS") == "linux" {
-		t.Skip("cache hit test only runs on non-Linux hosts")
+	got, err := Resolve("arm64")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != cachePath {
+		t.Errorf("Resolve() = %q, want %q", got, cachePath)
 	}
 }
