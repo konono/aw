@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -133,6 +134,23 @@ func runInternalCheckInbox(args []string) int {
 	// Update marker
 	_ = os.WriteFile(markerPath, nil, 0644)
 
-	fmt.Printf("%d unread message(s). Use read_inbox tool to check.\n", count)
+	fmt.Println(checkInboxResponse(count))
 	return 0
+}
+
+type hookResponse struct {
+	Decision string `json:"decision"`
+	Reason   string `json:"reason"`
+}
+
+func checkInboxResponse(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	resp := hookResponse{
+		Decision: "block",
+		Reason:   fmt.Sprintf("%d unread message(s). Use read_inbox tool to check.", count),
+	}
+	data, _ := json.Marshal(resp)
+	return string(data)
 }
