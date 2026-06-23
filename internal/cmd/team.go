@@ -46,7 +46,7 @@ func runTeam(args []string) int {
 
 func printTeamHelp() {
 	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  aw team start [--resume] <team-name>   Start all team members")
+	fmt.Fprintln(os.Stderr, "  aw team start [--resume] [--task <desc>] <team-name>  Start all team members")
 	fmt.Fprintln(os.Stderr, "  aw team stop <team-name>               Stop all team members")
 	fmt.Fprintln(os.Stderr, "  aw team status [team-name]             Show team status")
 }
@@ -63,15 +63,24 @@ func teamScope(teamName, projHash, sessionID string) string {
 func runTeamStart(args []string) int {
 	var resume bool
 	var teamName string
-	for _, a := range args {
-		if a == "--resume" {
+	var task string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--resume":
 			resume = true
-		} else if teamName == "" {
-			teamName = a
+		case "--task":
+			if i+1 < len(args) {
+				task = args[i+1]
+				i++
+			}
+		default:
+			if teamName == "" {
+				teamName = args[i]
+			}
 		}
 	}
 	if teamName == "" {
-		fmt.Fprintln(os.Stderr, "Usage: aw team start [--resume] <team-name>")
+		fmt.Fprintln(os.Stderr, "Usage: aw team start [--resume] [--task <description>] <team-name>")
 		return 1
 	}
 
@@ -194,6 +203,7 @@ func runTeamStart(args []string) int {
 		injectMembers: injectMembers,
 		resume:        resume,
 		prevSessions:  prevToolSessions,
+		task:          task,
 	}
 
 	// Launch background members first
@@ -257,6 +267,7 @@ type teamLaunchOpts struct {
 	injectMembers []inject.MemberInfo
 	resume        bool
 	prevSessions  map[string]string
+	task          string
 }
 
 func closeReaperFds(fds []*os.File) {
@@ -329,6 +340,7 @@ func launchTeamMember(
 	roleData := roles.TemplateData{
 		TeamName:  opts.scope,
 		AgentName: m.AgentName,
+		Task:      opts.task,
 	}
 	for _, mi := range opts.memberInfos {
 		roleData.Members = append(roleData.Members, roles.MemberData{
@@ -377,6 +389,9 @@ func launchTeamMember(
 		}
 	}
 
+	if opts.task != "" && !opts.resume {
+		command = appendTaskFlags(tool, command, opts.task)
+	}
 	if opts.resume {
 		command = appendResumeFlags(tool, command)
 	}
@@ -423,6 +438,15 @@ func launchTeamMember(
 		Foreground:    false,
 		Status:        "running",
 	}, reaperFd, nil
+}
+
+func appendTaskFlags(tool string, command []string, task string) []string {
+	switch tool {
+	case "claude":
+		return append(command, "--prompt", task)
+	default:
+		return command
+	}
 }
 
 // appendResumeFlags adds --continue to resume the most recent session.

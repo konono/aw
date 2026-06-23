@@ -22,6 +22,7 @@ type TemplateData struct {
 	TeamName  string
 	AgentName string
 	Members   []MemberData
+	Task      string
 }
 
 // Render renders the role template for the given role.

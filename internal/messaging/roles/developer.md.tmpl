@@ -7,6 +7,10 @@ You are responsible for implementing code, writing tests, and committing changes
 When your implementation is ready for review, use send_message to notify the reviewer.
 When you receive review feedback, address the issues and notify the reviewer again.
 
+{{if .Task}}
+### Task
+{{.Task}}
+{{end}}
 ### Team Members
 {{range .Members}}- {{.AgentName}} ({{.Role}}){{if .IsSelf}} — you{{end}}
 {{end}}

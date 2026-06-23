@@ -8,6 +8,10 @@ examine the referenced branch or commit diffs carefully. Provide specific, actio
 feedback with file paths and line numbers. If the code is acceptable, send an
 approval message back to the developer.
 
+{{if .Task}}
+### Task
+{{.Task}}
+{{end}}
 ### Team Members
 {{range .Members}}- {{.AgentName}} ({{.Role}}){{if .IsSelf}} — you{{end}}
 {{end}}
