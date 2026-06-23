@@ -101,6 +101,10 @@ func Run(args []string) int {
 		return runInternalOnCommit(args[1:])
 	}
 
+	if len(args) > 0 && args[0] == "--internal-agent-loop" {
+		return runInternalAgentLoop(args[1:])
+	}
+
 	// Parse profile name and run options
 	opts, err := parseRunArgs(args)
 	if err != nil {

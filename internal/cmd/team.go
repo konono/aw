@@ -419,11 +419,16 @@ func launchTeamMember(
 		command = launcher.AppendResumeFlags(tool, command)
 	}
 
+	if !foreground && launcher.SupportsAgentLoop(tool) {
+		command = []string{"/home/agent/.aw-msg/bin/aw", "--internal-agent-loop"}
+	}
+
 	runConfig := pipeline.ToolRunConfig(ec, runtime, tool, command)
 	runConfig.EnvVars["AW_AGENT_NAME"] = m.AgentName
 	runConfig.EnvVars["AW_MSG_DB"] = "/home/agent/.aw-msg/messages.db"
 	runConfig.EnvVars["AW_TEAM_NAME"] = opts.scope
 	runConfig.EnvVars["AW_SESSION_ID"] = toolSessionID
+	runConfig.EnvVars["AW_TOOL"] = tool
 
 	var reviewers []string
 	for _, mi := range opts.injectMembers {

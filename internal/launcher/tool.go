@@ -46,6 +46,33 @@ func ToolContainerCommandNames() []string {
 	return names
 }
 
+// toolPrintCommands maps tool names to the non-interactive (print mode) command
+// used for background agent loops. Only tools with verified print mode + MCP
+// support are listed here.
+var toolPrintCommands = map[string][]string{
+	"claude": {"claude", "-p", "--permission-mode", "bypassPermissions"},
+	"cursor": {"agent", "-p", "--force", "--approve-mcps"},
+}
+
+// ToolPrintCommand returns a copy of the print mode command for the given tool.
+// Returns nil if the tool does not support print mode.
+func ToolPrintCommand(tool string) []string {
+	cmd, ok := toolPrintCommands[tool]
+	if !ok {
+		return nil
+	}
+	cp := make([]string, len(cmd))
+	copy(cp, cmd)
+	return cp
+}
+
+// SupportsAgentLoop returns true if the tool supports non-interactive
+// message-driven execution via print mode with MCP tools.
+func SupportsAgentLoop(tool string) bool {
+	_, ok := toolPrintCommands[tool]
+	return ok
+}
+
 // AppendResumeFlags adds tool-specific flags to resume the most recent session.
 func AppendResumeFlags(tool string, command []string) []string {
 	switch tool {
