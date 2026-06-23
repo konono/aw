@@ -453,3 +453,18 @@ func (c *ShellClient) RemoveContainer(ctx context.Context, containerID string) e
 	cmd.Stderr = nil
 	return cmd.Run()
 }
+
+// StartDetached starts a container in detached mode without attaching.
+func (c *ShellClient) StartDetached(containerName string, config RunConfig) error {
+	args := BuildDetachedRunArgs(containerName, config)
+	cmd := exec.Command(c.dockerCmd(), args...)
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// StopContainer stops a running container.
+func (c *ShellClient) StopContainer(containerName string) error {
+	cmd := exec.Command(c.dockerCmd(), "stop", containerName)
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
