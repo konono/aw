@@ -19,7 +19,7 @@ import (
 var toolContainerCommands = map[string][]string{
 	"claude":   {"claude", "--permission-mode", "bypassPermissions"},
 	"codex":    {"codex", "-a", "never"},
-	"opencode": {"opencode", "--dangerously-skip-permissions"},
+	"opencode": {"opencode"},
 	"cursor":   {"agent", "--force"},
 }
 
