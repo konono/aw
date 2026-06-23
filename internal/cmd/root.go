@@ -97,6 +97,10 @@ func Run(args []string) int {
 		return runInternalWatch(args[1:])
 	}
 
+	if len(args) > 0 && args[0] == "--internal-on-commit" {
+		return runInternalOnCommit(args[1:])
+	}
+
 	// Parse profile name and run options
 	opts, err := parseRunArgs(args)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	goruntime "runtime"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -397,6 +398,16 @@ func launchTeamMember(
 	runConfig.EnvVars["AW_MSG_DB"] = "/home/agent/.aw-msg/messages.db"
 	runConfig.EnvVars["AW_TEAM_NAME"] = opts.scope
 	runConfig.EnvVars["AW_SESSION_ID"] = toolSessionID
+
+	var reviewers []string
+	for _, mi := range opts.injectMembers {
+		if mi.Role == "reviewer" && mi.AgentName != m.AgentName {
+			reviewers = append(reviewers, mi.AgentName)
+		}
+	}
+	if len(reviewers) > 0 {
+		runConfig.EnvVars["AW_REVIEWERS"] = strings.Join(reviewers, ",")
+	}
 
 	if foreground {
 		client := docker.NewShellClient(runtime)

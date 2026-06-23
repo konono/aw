@@ -220,6 +220,50 @@ func TestClaudeInjectHookMonitorIdempotent(t *testing.T) {
 	}
 }
 
+func TestClaudeInjectHookOnCommitForDeveloper(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Role = "developer"
+	injector := &ClaudeInjector{}
+
+	if err := injector.InjectHook(cfg); err != nil {
+		t.Fatalf("InjectHook: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("reading settings.json: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "--internal-on-commit") {
+		t.Error("settings.json should contain on-commit hook for developer")
+	}
+	if !strings.Contains(content, "PostToolUse") {
+		t.Error("settings.json should contain PostToolUse hook key")
+	}
+	if !strings.Contains(content, "git commit") {
+		t.Error("settings.json should contain git commit matcher")
+	}
+}
+
+func TestClaudeInjectHookNoOnCommitForReviewer(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Role = "reviewer"
+	injector := &ClaudeInjector{}
+
+	if err := injector.InjectHook(cfg); err != nil {
+		t.Fatalf("InjectHook: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("reading settings.json: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "--internal-on-commit") {
+		t.Error("settings.json should NOT contain on-commit hook for reviewer")
+	}
+}
+
 func TestForTool(t *testing.T) {
 	tools := []string{"claude", "codex", "opencode", "cursor"}
 	for _, tool := range tools {

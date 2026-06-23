@@ -96,6 +96,27 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		}
 	}
 
+	// on-commit hook for developer-role agents
+	if cfg.Role == "developer" {
+		commitCmd := cfg.MCPBinary + " --internal-on-commit"
+		postGroups, _ := hooks["PostToolUse"].([]interface{})
+		if !claudeHookExists(postGroups, commitCmd) {
+			postGroups = append(postGroups, map[string]interface{}{
+				"matcher": map[string]interface{}{
+					"tool_name": "Bash",
+					"command":   "git commit",
+				},
+				"hooks": []interface{}{
+					map[string]interface{}{
+						"type":    "command",
+						"command": commitCmd,
+					},
+				},
+			})
+			hooks["PostToolUse"] = postGroups
+		}
+	}
+
 	root["hooks"] = hooks
 	return writeJSONFile(settingsPath, root)
 }
