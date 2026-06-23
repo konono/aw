@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 const testTeam = "test-team"
@@ -194,5 +195,88 @@ func TestOpenStoreCreatesDir(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "sub", "dir")); err != nil {
 		t.Fatalf("directory not created: %v", err)
+	}
+}
+
+func TestClearTeam(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg2")
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg3")
+
+	n, err := s.ClearTeam("team-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("ClearTeam deleted %d, want 2", n)
+	}
+
+	msgs, _ := s.History("team-b", "", 10)
+	if len(msgs) != 1 {
+		t.Errorf("team-b should still have 1 message, got %d", len(msgs))
+	}
+}
+
+func TestClearAll(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg2")
+
+	n, err := s.ClearAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("ClearAll deleted %d, want 2", n)
+	}
+}
+
+func TestClearBefore(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send(testTeam, "dev", "rev", "recent msg")
+
+	// ClearBefore with 0 duration should delete nothing (all messages are "now")
+	n, err := s.ClearBefore(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("ClearBefore(0) deleted %d, want 0", n)
+	}
+
+	// ClearBefore with future cutoff should delete everything
+	n, err = s.ClearBefore(-24 * time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("ClearBefore(-24h) deleted %d, want 1", n)
+	}
+}
+
+func TestListTeams(t *testing.T) {
+	s := testStore(t)
+	defer func() { _ = s.Close() }()
+
+	_, _, _ = s.Send("team-b", "dev", "rev", "msg1")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg2")
+	_, _, _ = s.Send("team-a", "dev", "rev", "msg3")
+
+	teams, err := s.ListTeams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(teams) != 2 {
+		t.Fatalf("expected 2 teams, got %d", len(teams))
+	}
+	if teams[0] != "team-a" || teams[1] != "team-b" {
+		t.Errorf("teams = %v, want [team-a, team-b]", teams)
 	}
 }
