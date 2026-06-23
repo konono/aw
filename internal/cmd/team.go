@@ -550,7 +550,12 @@ func runTeamStop(args []string) int {
 		client := docker.NewShellClient(runtime)
 		fmt.Printf("  Stopping %s (%s)...\n", m.AgentName, m.ContainerName)
 		if err := client.StopContainer(m.ContainerName); err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: %v\n", err)
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "no such container") || strings.Contains(errMsg, "no container with name") {
+				fmt.Printf("  Already stopped.\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "  Warning: %v\n", err)
+			}
 		}
 	}
 
