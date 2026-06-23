@@ -64,6 +64,12 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// Refresh ensures the connection sees the latest writes from other processes.
+// In WAL mode, a long-lived connection may hold a stale read snapshot.
+func (s *Store) Refresh() {
+	_, _ = s.db.Exec("BEGIN IMMEDIATE; COMMIT")
+}
+
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(schema)
 	return err

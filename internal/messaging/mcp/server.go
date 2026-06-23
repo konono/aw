@@ -77,6 +77,7 @@ func writeResponse(w *bufio.Writer, resp jsonrpcResponse) {
 }
 
 func (s *Server) handle(req jsonrpcRequest) jsonrpcResponse {
+	s.store.Refresh()
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
