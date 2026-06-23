@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/konono/aw/internal/containerenv"
+	"github.com/konono/aw/internal/launcher"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/toolinfo"
 )
@@ -375,6 +376,105 @@ func TestIntegration_E2E(t *testing.T) {
 					t.Errorf("fd --version after runtime mise install failed:\n%s", out)
 				}
 			})
+		})
+	}
+}
+
+// TestIntegration_ContainerLaunchFlags verifies that the CLI flags in
+// toolContainerCommands are accepted by each tool. It runs the actual
+// container launch command in detached mode and checks that the tool stays
+// running (valid flags) rather than exiting immediately (invalid flags).
+//
+//	go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_ContainerLaunchFlags
+func TestIntegration_ContainerLaunchFlags(t *testing.T) {
+	runtime := detectRuntime()
+	t.Logf("container runtime: %s", runtime)
+
+	const startupWait = 5 * time.Second
+
+	for _, tool := range integrationTools {
+		cmd := launcher.ToolContainerCommand(tool)
+		if len(cmd) <= 1 {
+			t.Logf("skipping %s: no extra flags in container command", tool)
+			continue
+		}
+
+		t.Run(tool, func(t *testing.T) {
+			imageName := fmt.Sprintf("aw-inttest-flags-%s", tool)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
+
+			buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+			if err != nil {
+				t.Fatalf("PrepareBuildContext: %v", err)
+			}
+			defer cleanup()
+
+			buildArgs := toolBuildArgs(tool, profile.PackageManagerApt)
+			buildImage(t, runtime, imageName, buildDir, buildArgs)
+
+			// Sanity check: tool is installed
+			versionOut := runContainerCommand(t, runtime, imageName, cmd[0], "--version")
+			t.Logf("%s --version: %.100s", cmd[0], versionOut)
+
+			// Run the actual container launch command in detached mode.
+			// A tool that rejects its flags exits immediately; one that
+			// accepts them stays running (waiting for user input / TUI).
+			runArgs := []string{"run", "-d", "-t", imageName}
+			runArgs = append(runArgs, cmd...)
+			startCmd := exec.Command(runtime, runArgs...)
+			var startOut bytes.Buffer
+			startCmd.Stdout = &startOut
+			startCmd.Stderr = &startOut
+			if err := startCmd.Run(); err != nil {
+				t.Fatalf("docker run -d failed: %v\n%s", err, startOut.String())
+			}
+			containerID := strings.TrimSpace(startOut.String())
+			t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+			// The entrypoint does setup (SSH, git, mise …) before exec-ing
+			// the tool, so the container is "running" during setup even if the
+			// tool would reject its flags. We poll until a minimum stability
+			// time has elapsed: invalid flags cause an immediate non-zero exit
+			// (caught early), while valid flags keep the tool alive past the
+			// deadline.
+			const (
+				pollInterval     = 3 * time.Second
+				minStabilityTime = 15 * time.Second
+			)
+			deadline := time.Now().Add(minStabilityTime)
+			for time.Now().Before(deadline) {
+				time.Sleep(pollInterval)
+				inspectOut, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", containerID).Output()
+				if err != nil {
+					t.Fatalf("inspect container: %v", err)
+				}
+				if strings.TrimSpace(string(inspectOut)) == "true" {
+					continue
+				}
+				// Container stopped — non-zero exit means the tool rejected
+				// its flags; fail immediately without waiting further.
+				exitOut, _ := exec.Command(runtime, "inspect", "--format", "{{.State.ExitCode}}", containerID).Output()
+				exitCode := strings.TrimSpace(string(exitOut))
+				if exitCode != "0" {
+					logsOut, _ := exec.Command(runtime, "logs", containerID).CombinedOutput()
+					t.Fatalf("container command %v exited (code %s), flags may be invalid:\n%s",
+						cmd, exitCode, logsOut)
+				}
+				t.Logf("container exited with code 0, continuing to poll...")
+			}
+
+			// Final check after the stability window.
+			inspectOut, err := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", containerID).Output()
+			if err != nil {
+				t.Fatalf("inspect container: %v", err)
+			}
+			if strings.TrimSpace(string(inspectOut)) != "true" {
+				logsOut, _ := exec.Command(runtime, "logs", containerID).CombinedOutput()
+				t.Fatalf("container command %v did not survive %v stability window:\n%s",
+					cmd, minStabilityTime, logsOut)
+			}
+
+			t.Logf("%s: container still running after %v with %v — flags accepted", tool, minStabilityTime, cmd)
 		})
 	}
 }

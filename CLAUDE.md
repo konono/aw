@@ -62,6 +62,15 @@ go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegratio
 go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegration_Devbox"
 ```
 
+### Container launch command changes (`internal/launcher/tool.go`)
+
+Unit tests + flag validation integration:
+
+```bash
+go test ./...
+go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_ContainerLaunchFlags
+```
+
 ### Mount, SSH, container socket, Podman rootless changes
 
 These are NOT covered by go test. Manual `aw -c` testing required:
