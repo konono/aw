@@ -415,11 +415,8 @@ func launchTeamMember(
 		}
 	}
 
-	if opts.task != "" && !opts.resume {
-		command = appendTaskFlags(tool, command, opts.task)
-	}
 	if opts.resume {
-		command = appendResumeFlags(tool, command)
+		command = launcher.AppendResumeFlags(tool, command)
 	}
 
 	runConfig := pipeline.ToolRunConfig(ec, runtime, tool, command)
@@ -476,25 +473,6 @@ func launchTeamMember(
 		WorktreePath:  worktreePath,
 		BranchName:    branchName,
 	}, reaperFd, nil
-}
-
-func appendTaskFlags(tool string, command []string, task string) []string {
-	switch tool {
-	case "claude":
-		return append(command, "--prompt", task)
-	default:
-		return command
-	}
-}
-
-// appendResumeFlags adds --continue to resume the most recent session.
-func appendResumeFlags(tool string, command []string) []string {
-	switch tool {
-	case "claude", "cursor", "opencode":
-		return append(command, "--continue")
-	default:
-		return command
-	}
 }
 
 func ensureWorktree(repoRoot, branchName, worktreePath, base string, resume bool) error {

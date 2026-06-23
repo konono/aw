@@ -46,6 +46,16 @@ func ToolContainerCommandNames() []string {
 	return names
 }
 
+// AppendResumeFlags adds tool-specific flags to resume the most recent session.
+func AppendResumeFlags(tool string, command []string) []string {
+	switch tool {
+	case "claude", "cursor", "opencode":
+		return append(command, "--continue")
+	default:
+		return command
+	}
+}
+
 // ToolLauncher is a data-driven launcher for any registered tool.
 type ToolLauncher struct {
 	Tool string

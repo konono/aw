@@ -239,23 +239,6 @@ func TestE2E_TaskInAllRoleTemplates(t *testing.T) {
 	}
 }
 
-func TestE2E_TaskFlag_AppendTaskAndResumeMutualExclusion(t *testing.T) {
-	// --task + --resume → only resume flags, no task flags
-	base := []string{"claude", "--permission-mode", "bypassPermissions"}
-
-	// With task only
-	cmd := appendTaskFlags("claude", append([]string{}, base...), "do stuff")
-	if len(cmd) != 5 || cmd[3] != "--prompt" || cmd[4] != "do stuff" {
-		t.Errorf("appendTaskFlags should add --prompt, got %v", cmd)
-	}
-
-	// appendResumeFlags doesn't know about task, it just appends --continue
-	cmd2 := appendResumeFlags("claude", append([]string{}, base...))
-	if len(cmd2) != 4 || cmd2[3] != "--continue" {
-		t.Errorf("appendResumeFlags should add --continue, got %v", cmd2)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Phase 1.5c: Delivery mode — profile round-trip
 // ---------------------------------------------------------------------------
