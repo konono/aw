@@ -530,7 +530,11 @@ func runTeamStatus(args []string) int {
 	}
 
 	for _, s := range states {
-		fmt.Printf("Team: %s (session: %s, started: %s)\n", s.Name, s.SessionID[:12], s.StartedAt)
+		sid := s.SessionID
+		if len(sid) > 12 {
+			sid = sid[:12]
+		}
+		fmt.Printf("Team: %s (session: %s, started: %s)\n", s.Name, sid, s.StartedAt)
 		for _, m := range s.Members {
 			fg := ""
 			if m.Foreground {
@@ -550,7 +554,11 @@ func runTeamStatusOne(teamName string) int {
 		return 1
 	}
 
-	fmt.Printf("Team: %s (session: %s, started: %s)\n", state.Name, state.SessionID[:12], state.StartedAt)
+	sid := state.SessionID
+	if len(sid) > 12 {
+		sid = sid[:12]
+	}
+	fmt.Printf("Team: %s (session: %s, started: %s)\n", state.Name, sid, state.StartedAt)
 	for _, m := range state.Members {
 		fg := ""
 		if m.Foreground {
