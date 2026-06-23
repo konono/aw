@@ -42,7 +42,7 @@ func (c *CursorInjector) InjectMCP(cfg InjectorConfig) error {
 
 	servers["aw-msg"] = map[string]interface{}{
 		"command": cfg.MCPBinary,
-		"args":    []string{"--db", cfg.DBPath, "--agent", cfg.AgentName},
+		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName},
 	}
 	root["mcpServers"] = servers
 

@@ -10,7 +10,6 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/launcher"
 	"github.com/konono/aw/internal/messaging"
-	msgembed "github.com/konono/aw/internal/messaging/embed"
 	"github.com/konono/aw/internal/messaging/inject"
 	"github.com/konono/aw/internal/messaging/roles"
 	"github.com/konono/aw/internal/pipeline"
@@ -130,14 +129,20 @@ func runTeamStart(args []string) int {
 
 	ctx := context.Background()
 
+	var bgReaperFds []*os.File
+
 	// Launch background members first
 	for _, m := range bgMembers {
 		containerName := fmt.Sprintf("aw-%s-%s-%d", teamName, m.AgentName, time.Now().UnixNano())
-		ms, err := launchTeamMember(ctx, cfg, teamName, m, containerName, msgDBDir, memberInfos, injectMembers, false)
+		ms, reaperFd, err := launchTeamMember(ctx, cfg, teamName, m, containerName, msgDBDir, memberInfos, injectMembers, false)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", m.AgentName, err)
-			stopTeamContainers(teamState, cfg)
+			closeReaperFds(bgReaperFds)
+			stopTeamContainers(teamState)
 			return 1
+		}
+		if reaperFd != nil {
+			bgReaperFds = append(bgReaperFds, reaperFd)
 		}
 		teamState.Members = append(teamState.Members, ms)
 		fmt.Fprintf(os.Stderr, "[team:%s] Started %s (%s) in background\n", teamName, m.AgentName, m.Profile)
@@ -145,11 +150,16 @@ func runTeamStart(args []string) int {
 
 	// Save state before launching foreground (which won't return)
 	fgContainerName := fmt.Sprintf("aw-%s-%s-%d", teamName, fgMember.AgentName, time.Now().UnixNano())
+	fgRuntime := "docker"
+	if fgProfile, ok := cfg.Profiles[fgMember.Profile]; ok {
+		fgRuntime = fgProfile.EffectiveContainerRuntime()
+	}
 	teamState.Members = append(teamState.Members, team.MemberState{
 		AgentName:     fgMember.AgentName,
 		Profile:       fgMember.Profile,
 		Role:          fgMember.Role,
 		ContainerName: fgContainerName,
+		Runtime:       fgRuntime,
 		Foreground:    true,
 		Status:        "running",
 	})
@@ -159,14 +169,23 @@ func runTeamStart(args []string) int {
 
 	fmt.Fprintf(os.Stderr, "[team:%s] Starting %s (%s) in foreground...\n", teamName, fgMember.AgentName, fgMember.Profile)
 
-	// Launch foreground member (this calls os.Exit and does not return)
-	if _, err := launchTeamMember(ctx, cfg, teamName, *fgMember, fgContainerName, msgDBDir, memberInfos, injectMembers, true); err != nil {
+	// Launch foreground member (this calls os.Exit and does not return).
+	// Background reaper fds are inherited by the exec'd process and closed
+	// when it exits, which correctly signals the reapers.
+	if _, _, err := launchTeamMember(ctx, cfg, teamName, *fgMember, fgContainerName, msgDBDir, memberInfos, injectMembers, true); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", fgMember.AgentName, err)
-		stopTeamContainers(teamState, cfg)
+		closeReaperFds(bgReaperFds)
+		stopTeamContainers(teamState)
 		return 1
 	}
 
 	return 0
+}
+
+func closeReaperFds(fds []*os.File) {
+	for _, f := range fds {
+		_ = f.Close()
+	}
 }
 
 func launchTeamMember(
@@ -179,28 +198,28 @@ func launchTeamMember(
 	memberInfos []roles.MemberData,
 	injectMembers []inject.MemberInfo,
 	foreground bool,
-) (team.MemberState, error) {
+) (team.MemberState, *os.File, error) {
 	p, ok := cfg.Profiles[m.Profile]
 	if !ok {
-		return team.MemberState{}, fmt.Errorf("profile %q not found", m.Profile)
+		return team.MemberState{}, nil, fmt.Errorf("profile %q not found", m.Profile)
 	}
 
 	ec, err := buildExecutionContext(m.Profile, p)
 	if err != nil {
-		return team.MemberState{}, fmt.Errorf("building execution context: %w", err)
+		return team.MemberState{}, nil, fmt.Errorf("building execution context: %w", err)
 	}
 	ec.ContainerName = containerName
 
 	// Run DockerStage to build image, sync config, setup mounts
 	dockerStage := stage.NewDockerStage()
 	if err := dockerStage.Run(ctx, ec); err != nil {
-		return team.MemberState{}, fmt.Errorf("docker stage: %w", err)
+		return team.MemberState{}, nil, fmt.Errorf("docker stage: %w", err)
 	}
 
 	// Run EnvStage to load custom env vars
 	envStage := &stage.EnvStage{}
 	if err := envStage.Run(ctx, ec); err != nil {
-		return team.MemberState{}, fmt.Errorf("env stage: %w", err)
+		return team.MemberState{}, nil, fmt.Errorf("env stage: %w", err)
 	}
 
 	tool := p.EffectiveTool()
@@ -245,13 +264,16 @@ func launchTeamMember(
 		appendRoleContext(toolStageDir, tool, roleText)
 	}
 
-	// Write check-inbox.sh to staging
-	checkInboxDir := filepath.Join(ec.HomeDir, ".agent-workspace", "aw-msg")
-	if err := os.MkdirAll(checkInboxDir, 0755); err == nil {
-		_ = os.WriteFile(filepath.Join(checkInboxDir, "check-inbox.sh"), msgembed.CheckInboxScript, 0755)
+	// Mount aw binary into container for MCP server and check-inbox
+	awBin, err := os.Executable()
+	if err != nil {
+		return team.MemberState{}, nil, fmt.Errorf("resolving aw binary path: %w", err)
+	}
+	awBin, err = filepath.EvalSymlinks(awBin)
+	if err != nil {
+		return team.MemberState{}, nil, fmt.Errorf("resolving aw binary symlink: %w", err)
 	}
 
-	// Add messaging mounts
 	ec.DockerMounts = append(ec.DockerMounts,
 		docker.Mount{
 			Source:   msgDBDir,
@@ -259,8 +281,8 @@ func launchTeamMember(
 			ReadOnly: false,
 		},
 		docker.Mount{
-			Source:   checkInboxDir,
-			Target:   "/home/agent/.aw-msg/bin",
+			Source:   awBin,
+			Target:   "/home/agent/.aw-msg/bin/aw",
 			ReadOnly: true,
 		},
 	)
@@ -281,10 +303,9 @@ func launchTeamMember(
 	runConfig.EnvVars["AW_TEAM_NAME"] = teamName
 
 	if foreground {
-		// Foreground: use ExecRun (attach + os.Exit)
 		client := docker.NewShellClient(runtime)
 		spec := reaper.BuildSpec(ec)
-		return team.MemberState{}, client.ExecRun(containerName, runConfig, func() (*os.File, func(), error) {
+		return team.MemberState{}, nil, client.ExecRun(containerName, runConfig, func() (*os.File, func(), error) {
 			handle, err := reaper.Spawn(spec)
 			if err != nil {
 				return nil, nil, err
@@ -293,21 +314,18 @@ func launchTeamMember(
 		})
 	}
 
-	// Background: start detached + spawn reaper
 	client := docker.NewShellClient(runtime)
 	if err := client.StartDetached(containerName, runConfig); err != nil {
-		return team.MemberState{}, fmt.Errorf("starting container: %w", err)
+		return team.MemberState{}, nil, fmt.Errorf("starting container: %w", err)
 	}
 
+	var reaperFd *os.File
 	spec := reaper.BuildSpec(ec)
 	handle, err := reaper.Spawn(spec)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: reaper spawn for %s: %v\n", m.AgentName, err)
 	} else {
-		// Keep the write fd open — closing it signals the reaper.
-		// For background members, the fd is intentionally leaked to the process
-		// table; the reaper will detect EOF when this aw process exits.
-		_ = handle
+		reaperFd = handle.Write
 	}
 
 	return team.MemberState{
@@ -315,9 +333,10 @@ func launchTeamMember(
 		Profile:       m.Profile,
 		Role:          m.Role,
 		ContainerName: containerName,
+		Runtime:       runtime,
 		Foreground:    false,
 		Status:        "running",
-	}, nil
+	}, reaperFd, nil
 }
 
 func appendRoleContext(toolStageDir, tool, roleText string) {
@@ -338,13 +357,12 @@ func appendRoleContext(toolStageDir, tool, roleText string) {
 	_ = os.WriteFile(path, []byte(content), 0644)
 }
 
-func stopTeamContainers(state team.TeamState, cfg *profile.Config) {
+func stopTeamContainers(state team.TeamState) {
 	for _, m := range state.Members {
-		p, ok := cfg.Profiles[m.Profile]
-		if !ok {
-			continue
+		runtime := m.Runtime
+		if runtime == "" {
+			runtime = "docker"
 		}
-		runtime := p.EffectiveContainerRuntime()
 		client := docker.NewShellClient(runtime)
 		_ = client.StopContainer(m.ContainerName)
 	}
@@ -364,20 +382,12 @@ func runTeamStop(args []string) int {
 		return 1
 	}
 
-	cfg, err := profile.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		return 1
-	}
-
 	fmt.Printf("[team:%s] Stopping %d members...\n", teamName, len(state.Members))
 	for _, m := range state.Members {
-		p, ok := cfg.Profiles[m.Profile]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "  Warning: profile %q not found, skipping %s\n", m.Profile, m.AgentName)
-			continue
+		runtime := m.Runtime
+		if runtime == "" {
+			runtime = "docker"
 		}
-		runtime := p.EffectiveContainerRuntime()
 		client := docker.NewShellClient(runtime)
 		fmt.Printf("  Stopping %s (%s)...\n", m.AgentName, m.ContainerName)
 		if err := client.StopContainer(m.ContainerName); err != nil {

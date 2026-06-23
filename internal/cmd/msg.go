@@ -145,7 +145,7 @@ func runMsgHistory(args []string) int {
 
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
-		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To, messaging.FormatPreview(m.From, m.Body))
+		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To, messaging.FormatPreview(m.Body))
 	}
 	return 0
 }
@@ -161,7 +161,7 @@ func runMsgWatch(args []string) int {
 	fmt.Println("Watching messages... (Ctrl+C to stop)")
 	if err := store.WatchAll(2*time.Second, func(m messaging.Message) {
 		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To,
-			messaging.FormatPreview(m.From, m.Body))
+			messaging.FormatPreview(m.Body))
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Error watching messages: %v\n", err)
 		return 1

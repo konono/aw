@@ -48,7 +48,7 @@ func (c *CodexInjector) InjectHook(cfg InjectorConfig) error {
 
 	content := string(existing)
 
-	section := codexHookSection()
+	section := codexHookSection(cfg)
 	if strings.Contains(content, "[hooks.aw-msg]") {
 		return nil // already present
 	}
@@ -61,15 +61,15 @@ func (c *CodexInjector) InjectHook(cfg InjectorConfig) error {
 func codexMCPSection(cfg InjectorConfig) string {
 	return fmt.Sprintf(`[[tools.aw-msg.mcp]]
 command = "%s"
-args = ["--db", "%s", "--agent", "%s"]
+args = ["--internal-mcp-msg", "--db", "%s", "--agent", "%s"]
 `, cfg.MCPBinary, cfg.DBPath, cfg.AgentName)
 }
 
-func codexHookSection() string {
-	return `[hooks.aw-msg]
+func codexHookSection(cfg InjectorConfig) string {
+	return fmt.Sprintf(`[hooks.aw-msg]
 event = "stop"
-command = "bash /home/agent/.aw-msg/check-inbox.sh"
-`
+command = "%s --internal-check-inbox"
+`, cfg.MCPBinary)
 }
 
 // ensureTrailingNewline returns s with exactly one trailing newline.

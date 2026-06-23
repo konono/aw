@@ -20,6 +20,7 @@ type MemberState struct {
 	Profile       string `json:"profile"`
 	Role          string `json:"role"`
 	ContainerName string `json:"container_name"`
+	Runtime       string `json:"runtime,omitempty"` // "docker" or "podman"
 	Foreground    bool   `json:"foreground"`
 	Status        string `json:"status"` // "running", "stopped"
 }

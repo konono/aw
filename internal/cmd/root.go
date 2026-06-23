@@ -86,7 +86,11 @@ func Run(args []string) int {
 	}
 
 	if len(args) > 0 && args[0] == "--internal-mcp-msg" {
-		return runInternalMCPMsg()
+		return runInternalMCPMsg(args[1:])
+	}
+
+	if len(args) > 0 && args[0] == "--internal-check-inbox" {
+		return runInternalCheckInbox(args[1:])
 	}
 
 	// Parse profile name and run options

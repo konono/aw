@@ -313,11 +313,11 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-// FormatPreview formats a message for brief display.
-func FormatPreview(from, body string) string {
+// FormatPreview returns a short single-line preview of a message body.
+func FormatPreview(body string) string {
 	firstLine := body
 	if idx := strings.IndexByte(firstLine, '\n'); idx >= 0 {
 		firstLine = firstLine[:idx]
 	}
-	return fmt.Sprintf("%s: %s", from, truncate(firstLine, 80))
+	return truncate(firstLine, 80)
 }

@@ -14,7 +14,7 @@ import (
 //
 // Hook: patches settings.json in the staging directory to add a Stop
 //
-//	hook entry that runs check-inbox.sh.
+//	hook entry that runs "aw --internal-check-inbox".
 type ClaudeInjector struct{}
 
 // InjectMCP writes .mcp.json to cfg.WorkDir with the aw-msg MCP server.
@@ -37,7 +37,7 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 
 	servers["aw-msg"] = map[string]interface{}{
 		"command": cfg.MCPBinary,
-		"args":    []string{"--db", cfg.DBPath, "--agent", cfg.AgentName},
+		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName},
 	}
 	root["mcpServers"] = servers
 
@@ -45,9 +45,9 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 }
 
 // InjectHook patches settings.json in StagingDir to include a Stop hook
-// that runs check-inbox.sh.  If settings.json already exists, the
-// hooks.Stop array is merged (the new entry is appended if not already
-// present) rather than overwritten.
+// that runs "aw --internal-check-inbox" to notify the agent of unread
+// messages. If settings.json already exists, the hooks.Stop array is
+// merged (appended if not already present) rather than overwritten.
 func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 	settingsPath := filepath.Join(cfg.StagingDir, "settings.json")
 
@@ -64,10 +64,9 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		hooks = make(map[string]interface{})
 	}
 
-	// Build the new hook entry.
 	hookEntry := map[string]interface{}{
 		"type":    "command",
-		"command": "bash /home/agent/.aw-msg/check-inbox.sh",
+		"command": cfg.MCPBinary + " --internal-check-inbox",
 	}
 
 	// Merge into the existing Stop array.

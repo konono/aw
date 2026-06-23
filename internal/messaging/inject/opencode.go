@@ -43,7 +43,7 @@ func (o *OpenCodeInjector) InjectMCP(cfg InjectorConfig) error {
 
 	mcpServers["aw-msg"] = map[string]interface{}{
 		"command": cfg.MCPBinary,
-		"args":    []string{"--db", cfg.DBPath, "--agent", cfg.AgentName},
+		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName},
 	}
 	root["mcp"] = mcpServers
 
