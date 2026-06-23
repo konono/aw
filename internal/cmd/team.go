@@ -377,11 +377,8 @@ func launchTeamMember(
 		}
 	}
 
-	// Add tool-specific session flags for resume
 	if opts.resume {
-		command = appendResumeFlags(tool, toolSessionID, command)
-	} else {
-		command = appendSessionFlags(tool, toolSessionID, command)
+		command = appendResumeFlags(tool, command)
 	}
 
 	runConfig := pipeline.ToolRunConfig(ec, runtime, tool, command)
@@ -428,25 +425,11 @@ func launchTeamMember(
 	}, reaperFd, nil
 }
 
-// appendSessionFlags adds --session-id flags for first-time launch.
-func appendSessionFlags(tool, sessionID string, command []string) []string {
+// appendResumeFlags adds --continue to resume the most recent session.
+func appendResumeFlags(tool string, command []string) []string {
 	switch tool {
-	case "claude":
-		return append(command, "--session-id", sessionID)
-	default:
-		return command
-	}
-}
-
-// appendResumeFlags adds --resume flags for session continuation.
-func appendResumeFlags(tool, sessionID string, command []string) []string {
-	switch tool {
-	case "claude":
-		return append(command, "--resume", sessionID)
-	case "cursor":
-		return append(command, "--resume", sessionID)
-	case "opencode":
-		return append(command, "--session", sessionID)
+	case "claude", "cursor", "opencode":
+		return append(command, "--continue")
 	default:
 		return command
 	}
