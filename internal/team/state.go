@@ -31,15 +31,23 @@ type MemberState struct {
 	BranchName    string `json:"branch_name,omitempty"`
 }
 
-// StateDir returns the directory used for team state files (~/.config/aw/teams/).
-func StateDir() string {
+// stateDir is a function variable so tests can override it without touching
+// production code. The default resolves to ~/.config/aw/teams/ (macOS:
+// ~/Library/Application Support/aw/teams/).
+var stateDir = defaultStateDir
+
+func defaultStateDir() string {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		// Fallback to $HOME/.config if UserConfigDir fails.
 		home, _ := os.UserHomeDir()
 		configDir = filepath.Join(home, ".config")
 	}
 	return filepath.Join(configDir, "aw", "teams")
+}
+
+// StateDir returns the directory used for team state files.
+func StateDir() string {
+	return stateDir()
 }
 
 func stateFilePath(teamName string) string {

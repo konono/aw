@@ -2,22 +2,19 @@ package team
 
 import (
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
-func setConfigHome(t *testing.T, dir string) {
+func overrideStateDir(t *testing.T) {
 	t.Helper()
-	if runtime.GOOS == "darwin" {
-		t.Setenv("HOME", dir)
-	} else {
-		t.Setenv("XDG_CONFIG_HOME", dir)
-	}
+	dir := filepath.Join(t.TempDir(), "aw", "teams")
+	old := stateDir
+	stateDir = func() string { return dir }
+	t.Cleanup(func() { stateDir = old })
 }
 
 func TestSaveLoadState(t *testing.T) {
-	dir := t.TempDir()
-	setConfigHome(t, dir)
+	overrideStateDir(t)
 
 	state := TeamState{
 		Name:        "test-team",
@@ -79,8 +76,7 @@ func TestSaveLoadState(t *testing.T) {
 }
 
 func TestListStates(t *testing.T) {
-	dir := t.TempDir()
-	setConfigHome(t, dir)
+	overrideStateDir(t)
 
 	s1 := TeamState{Name: "team-a", SessionID: "id-a", StartedAt: "2026-01-01T00:00:00Z"}
 	s2 := TeamState{Name: "team-b", SessionID: "id-b", StartedAt: "2026-01-02T00:00:00Z"}
@@ -97,8 +93,7 @@ func TestListStates(t *testing.T) {
 }
 
 func TestRemoveState(t *testing.T) {
-	dir := t.TempDir()
-	setConfigHome(t, dir)
+	overrideStateDir(t)
 
 	state := TeamState{Name: "rm-test", SessionID: "id-rm", StartedAt: "2026-01-01T00:00:00Z"}
 	_ = SaveState(state)

@@ -817,13 +817,13 @@ func TestIntegration_TeamState_WorktreeFields(t *testing.T) {
 		},
 	}
 
-	if err := team.SaveState(state); err != nil {
+	data, err := json.Marshal(state)
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = team.RemoveState(state.Name) }()
 
-	loaded, err := team.LoadState(state.Name)
-	if err != nil {
+	var loaded team.TeamState
+	if err := json.Unmarshal(data, &loaded); err != nil {
 		t.Fatal(err)
 	}
 
