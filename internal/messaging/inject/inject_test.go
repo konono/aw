@@ -240,8 +240,8 @@ func TestClaudeInjectHookOnCommitForDeveloper(t *testing.T) {
 	if !strings.Contains(content, "PostToolUse") {
 		t.Error("settings.json should contain PostToolUse hook key")
 	}
-	if !strings.Contains(content, "git commit") {
-		t.Error("settings.json should contain git commit matcher")
+	if !strings.Contains(content, `"matcher": "Bash"`) {
+		t.Errorf("matcher should be the string \"Bash\", got: %s", content)
 	}
 }
 

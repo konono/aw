@@ -102,10 +102,7 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		postGroups, _ := hooks["PostToolUse"].([]interface{})
 		if !claudeHookExists(postGroups, commitCmd) {
 			postGroups = append(postGroups, map[string]interface{}{
-				"matcher": map[string]interface{}{
-					"tool_name": "Bash",
-					"command":   "git commit",
-				},
+				"matcher": "Bash",
 				"hooks": []interface{}{
 					map[string]interface{}{
 						"type":    "command",
