@@ -59,6 +59,11 @@ func OpenStore(dbPath string) (*Store, error) {
 	return s, nil
 }
 
+// DB returns the underlying database connection for direct queries.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 // Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
