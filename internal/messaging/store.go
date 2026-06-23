@@ -322,6 +322,16 @@ func (s *Store) ClearAll() (int64, error) {
 	return res.RowsAffected()
 }
 
+// ClearTeamBefore deletes messages for the given team older than the given duration.
+func (s *Store) ClearTeamBefore(team string, d time.Duration) (int64, error) {
+	cutoff := time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05Z")
+	res, err := s.db.Exec(`DELETE FROM messages WHERE team = ? AND created_at < ?`, team, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // ClearBefore deletes messages older than the given duration.
 func (s *Store) ClearBefore(d time.Duration) (int64, error) {
 	cutoff := time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05Z")

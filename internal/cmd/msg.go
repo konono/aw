@@ -40,7 +40,7 @@ func printMsgHelp() {
 	fmt.Fprintln(os.Stderr, "  aw msg inbox --team <team> <agent>             Show unread messages")
 	fmt.Fprintln(os.Stderr, "  aw msg history --team <team> [--agent <name>]  Show message history")
 	fmt.Fprintln(os.Stderr, "  aw msg watch --team <team>                     Watch all messages in real-time")
-	fmt.Fprintln(os.Stderr, "  aw msg clear [--team <team>] [--all] [--before <duration>]  Delete messages")
+	fmt.Fprintln(os.Stderr, "  aw msg clear [--team <t>] [--all] [--before <dur>] [--list]  Delete messages")
 }
 
 func openMsgStore() (*messaging.Store, error) {
@@ -192,6 +192,9 @@ func runMsgClear(args []string) int {
 			if i+1 < len(args) {
 				before = args[i+1]
 				i++
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --before requires a duration value (e.g. 7d, 24h, 30m)")
+				return 1
 			}
 		}
 	}
@@ -201,15 +204,32 @@ func runMsgClear(args []string) int {
 	}
 
 	if !all && team == "" && before == "" {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg clear [--team <team>] [--all] [--before <duration>]")
+		fmt.Fprintln(os.Stderr, "Usage: aw msg clear [--team <team>] [--all] [--before <duration>] [--list]")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "Options:")
 		fmt.Fprintln(os.Stderr, "  --team <scope>     Delete messages for a specific team scope")
 		fmt.Fprintln(os.Stderr, "  --all              Delete all messages")
 		fmt.Fprintln(os.Stderr, "  --before <dur>     Delete messages older than duration (e.g. 7d, 24h, 30m)")
+		fmt.Fprintln(os.Stderr, "  --list             Show available team scopes")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Use 'aw msg clear --list' to see available team scopes.")
+		fmt.Fprintln(os.Stderr, "Flags --all, --team, and --before can be combined:")
+		fmt.Fprintln(os.Stderr, "  aw msg clear --team <scope> --before 7d   Delete old messages for a team")
 		return 1
+	}
+
+	if all && (team != "" || before != "") {
+		fmt.Fprintln(os.Stderr, "Error: --all cannot be combined with --team or --before")
+		return 1
+	}
+
+	var d time.Duration
+	if before != "" {
+		var parseErr error
+		d, parseErr = parseDuration(before)
+		if parseErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid duration %q: %v\n", before, parseErr)
+			return 1
+		}
 	}
 
 	store, err := openMsgStore()
@@ -224,14 +244,11 @@ func runMsgClear(args []string) int {
 	switch {
 	case all:
 		count, err = store.ClearAll()
+	case team != "" && before != "":
+		count, err = store.ClearTeamBefore(team, d)
 	case team != "":
 		count, err = store.ClearTeam(team)
 	case before != "":
-		d, parseErr := parseDuration(before)
-		if parseErr != nil {
-			fmt.Fprintf(os.Stderr, "Error: invalid duration %q (use e.g. 7d, 24h, 30m)\n", before)
-			return 1
-		}
 		count, err = store.ClearBefore(d)
 	}
 
@@ -272,13 +289,16 @@ func runMsgClearList() int {
 
 func parseDuration(s string) (time.Duration, error) {
 	if len(s) < 2 {
-		return 0, fmt.Errorf("too short")
+		return 0, fmt.Errorf("too short (use e.g. 7d, 24h, 30m)")
 	}
 	unit := s[len(s)-1]
 	numStr := s[:len(s)-1]
 	n, err := strconv.Atoi(numStr)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid number %q", numStr)
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("duration must be positive, got %d", n)
 	}
 	switch unit {
 	case 'd':

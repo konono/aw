@@ -240,24 +240,26 @@ func TestClearBefore(t *testing.T) {
 	s := testStore(t)
 	defer func() { _ = s.Close() }()
 
+	// Insert a message and backdate it to 2 days ago
+	_, _, _ = s.Send(testTeam, "dev", "rev", "old msg")
+	_, _ = s.db.Exec(`UPDATE messages SET created_at = ? WHERE id = 1`,
+		time.Now().UTC().Add(-48*time.Hour).Format("2006-01-02T15:04:05Z"))
+
 	_, _, _ = s.Send(testTeam, "dev", "rev", "recent msg")
 
-	// ClearBefore with 0 duration should delete nothing (all messages are "now")
-	n, err := s.ClearBefore(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Errorf("ClearBefore(0) deleted %d, want 0", n)
-	}
-
-	// ClearBefore with future cutoff should delete everything
-	n, err = s.ClearBefore(-24 * time.Hour)
+	// ClearBefore 1 day should delete only the old message
+	n, err := s.ClearBefore(24 * time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 1 {
-		t.Errorf("ClearBefore(-24h) deleted %d, want 1", n)
+		t.Errorf("ClearBefore(24h) deleted %d, want 1", n)
+	}
+
+	// Recent message should remain
+	msgs, _ := s.History(testTeam, "", 10)
+	if len(msgs) != 1 {
+		t.Errorf("expected 1 remaining message, got %d", len(msgs))
 	}
 }
 
