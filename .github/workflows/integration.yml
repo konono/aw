@@ -8,6 +8,7 @@ on:
       - 'internal/containerenv/**'
       - 'internal/stage/**'
       - 'internal/toolinfo/**'
+      - 'internal/launcher/**'
       - 'internal/profile/**'
       - '.goreleaser.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - 'internal/containerenv/**'
       - 'internal/stage/**'
       - 'internal/toolinfo/**'
+      - 'internal/launcher/**'
       - 'internal/profile/**'
       - '.goreleaser.yml'
   workflow_dispatch:
@@ -53,7 +55,7 @@ jobs:
         with:
           go-version: '1.23'
       - name: Run smoke tests
-        run: go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration_Smoke
+        run: go test -v -tags integration -timeout 10m ./internal/image/ -run "TestIntegration_Smoke|TestIntegration_ContainerLaunchFlags"
         env:
           CONTAINER_RUNTIME: ${{ matrix.runtime }}
 
@@ -112,6 +114,6 @@ jobs:
       - name: Run full integration tests
         run: |
           go test -v -tags integration -timeout 60m ./internal/image/ \
-            -run "TestIntegration_ToolPerOS|TestIntegration_ShellPerOS|TestIntegration_E2E"
+            -run "TestIntegration_ToolPerOS|TestIntegration_ShellPerOS|TestIntegration_E2E|TestIntegration_ContainerLaunchFlags"
         env:
           CONTAINER_RUNTIME: docker
