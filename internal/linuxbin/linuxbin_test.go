@@ -1,10 +1,13 @@
 package linuxbin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/konono/aw/internal/version"
 )
 
 func TestWalkUpForGoMod(t *testing.T) {
@@ -78,13 +81,14 @@ func TestResolve_CacheHit(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
+	cacheName := fmt.Sprintf("aw-linux-arm64-%s", version.Version)
 	var cachePath string
 	if runtime.GOOS == "windows" {
 		t.Setenv("LOCALAPPDATA", tmp)
-		cachePath = filepath.Join(tmp, "aw", "cache", "bin", "aw-linux-arm64-3.3.1")
+		cachePath = filepath.Join(tmp, "aw", "cache", "bin", cacheName)
 	} else {
 		t.Setenv("XDG_CACHE_HOME", tmp)
-		cachePath = filepath.Join(tmp, "aw", "bin", "aw-linux-arm64-3.3.1")
+		cachePath = filepath.Join(tmp, "aw", "bin", cacheName)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0755); err != nil {
