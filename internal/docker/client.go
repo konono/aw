@@ -75,6 +75,11 @@ func (c *ShellClient) dockerCmd() string {
 	return "docker"
 }
 
+// DockerCmd returns the container runtime command name (e.g. "docker" or "podman").
+func (c *ShellClient) DockerCmd() string {
+	return c.dockerCmd()
+}
+
 // CheckAvailable verifies that the container runtime is installed and running.
 func (c *ShellClient) CheckAvailable() error {
 	if _, err := exec.LookPath(c.dockerCmd()); err != nil {

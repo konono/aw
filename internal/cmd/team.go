@@ -473,6 +473,20 @@ func launchTeamMember(
 	}, reaperFd, nil
 }
 
+func stopContainerQuiet(dockerCmd, containerName string) error {
+	cmd := exec.Command(dockerCmd, "stop", containerName)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	outStr := string(output)
+	if strings.Contains(outStr, "no such container") || strings.Contains(outStr, "no container with name") {
+		fmt.Printf("  Already stopped.\n")
+		return nil
+	}
+	return fmt.Errorf("%s: %s", err, strings.TrimSpace(outStr))
+}
+
 func ensureWorktree(repoRoot, branchName, worktreePath, base string, resume bool) error {
 	if _, err := os.Stat(worktreePath); err == nil {
 		if resume {
@@ -537,15 +551,10 @@ func runTeamStop(args []string) int {
 		if runtime == "" {
 			runtime = "docker"
 		}
-		client := docker.NewShellClient(runtime)
+		rt := docker.NewShellClient(runtime)
 		fmt.Printf("  Stopping %s (%s)...\n", m.AgentName, m.ContainerName)
-		if err := client.StopContainer(m.ContainerName); err != nil {
-			errMsg := err.Error()
-			if strings.Contains(errMsg, "no such container") || strings.Contains(errMsg, "no container with name") {
-				fmt.Printf("  Already stopped.\n")
-			} else {
-				fmt.Fprintf(os.Stderr, "  Warning: %v\n", err)
-			}
+		if err := stopContainerQuiet(rt.DockerCmd(), m.ContainerName); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: %v\n", err)
 		}
 	}
 
