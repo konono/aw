@@ -175,3 +175,38 @@ profiles:
   #   #   - source: ~/.config/gcloud
   #   #     target: /home/agent/.config/gcloud
   #   #     options: "z"
+
+# ── チーム（エージェント間連携）────────────────────────────────────
+# 複数のエージェントをチームとして起動し、メッセージングで協調させます。
+# 詳細は docs/teams.md を参照してください。
+#
+# delivery: メッセージ通知の受信方法を制御
+#   turn    — ターン終了時に Stop hook で未読チェック（claude/codex のデフォルト）
+#   monitor — SessionStart でバックグラウンド常時監視
+#   off     — MCP pull のみ、自動通知なし（cursor/opencode のデフォルト）
+#
+# バックグラウンドメンバーはメッセージ駆動ループ (agent-loop) で動作し、
+# print mode (claude -p / agent -p) でメッセージを処理します。
+# 対応ツール: Claude Code, Cursor Agent
+#
+# teams:
+#   review-team:
+#     members:
+#       - profile: claude
+#         role: developer           # developer, reviewer, lead, partner
+#         foreground: true          # 対話ターミナル（チームに 1 つだけ）
+#       - profile: claude
+#         role: reviewer            # バックグラウンドで agent-loop 実行
+#
+# delivery モードをプロファイルで上書きする例:
+#
+# profiles:
+#   claude-monitor:
+#     launch: claude
+#     delivery: monitor             # Stop hook の代わりに SessionStart で常時監視
+#
+# チームの起動:
+#   aw team start --task "FizzBuzz を実装して" review-team
+#
+# チームの停止:
+#   aw team stop review-team

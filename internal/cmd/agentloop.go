@@ -93,7 +93,7 @@ func processUnreadSummary(dbPath, team, agent, tool string, printCmd []string, c
 
 	var senderList []string
 	for name, count := range senders {
-		senderList = append(senderList, fmt.Sprintf("%s (%d件)", name, count))
+		senderList = append(senderList, fmt.Sprintf("%s (%d)", name, count))
 	}
 
 	prompt := fmt.Sprintf(
@@ -110,8 +110,11 @@ func processUnreadSummary(dbPath, team, agent, tool string, printCmd []string, c
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	if runErr := c.Run(); runErr != nil {
-		fmt.Fprintf(os.Stderr, "[agent-loop] summary processing failed: %v\n", runErr)
-		return maxID
+		fmt.Fprintf(os.Stderr, "[agent-loop] summary processing failed: %v, falling back to individual processing\n", runErr)
+		if unread[0].ID > 0 {
+			return unread[0].ID - 1
+		}
+		return 0
 	}
 
 	// Mark all unread as read
