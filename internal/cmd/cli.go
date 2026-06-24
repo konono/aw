@@ -23,10 +23,9 @@ func exitCode(code int) error {
 // PassthroughCmd holds the -c passthrough args split before kong sees them.
 type PassthroughCmd struct{ Args []string }
 
-// SplitAtDashC splits args at -c, but only when -c appears in a position that
-// looks like a profile-launch context (not inside a recognized subcommand).
-// Returns the args for kong, the passthrough command args, and an error if -c
-// has no following arguments.
+// SplitAtDashC splits args at the first -c. Everything before -c goes to kong,
+// everything after becomes the passthrough command for container launch.
+// Returns an error if -c has no following arguments.
 func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string, err error) {
 	for i, a := range args {
 		if a == "-c" {
@@ -42,7 +41,7 @@ func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string, err error
 // CLI is the top-level kong grammar.
 type CLI struct {
 	// Global flags
-	Version kong.VersionFlag `short:"v" name:"version" help:"Show version."`
+	Version kong.VersionFlag `name:"version" help:"Show version."`
 
 	// Subcommands
 	Run              RunCmd              `cmd:"" default:"withargs" help:"Run a profile (default command)."`
@@ -140,7 +139,7 @@ type ExportCmd struct {
 
 // DoctorCmd checks system environment.
 type DoctorCmd struct {
-	Args []string `arg:"" optional:"" help:"Additional doctor arguments."`
+	Verbose bool `short:"v" name:"verbose" help:"Show detailed diagnostic information."`
 }
 
 // ReaperCmd handles reaper subcommands.

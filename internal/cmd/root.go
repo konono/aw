@@ -257,5 +257,5 @@ func (d *DefaultInitScriptCmd) Run() error {
 
 // DoctorCmd.Run runs doctor checks.
 func (d *DoctorCmd) Run() error {
-	return exitCode(doctor.Run(d.Args))
+	return exitCode(doctor.RunDiagnostics(d.Verbose))
 }

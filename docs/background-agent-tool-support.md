@@ -62,7 +62,7 @@ opencode run "prompt" --dangerously-skip-permissions
 
 ## 実装方針
 
-Claude Code と Cursor Agent のみ `--internal-agent-loop` を使用。
+Claude Code と Cursor Agent のみ `internal-agent-loop` を使用。
 Codex と OpenCode のバックグラウンドメンバーはツール直接起動のまま (従来通り)。
 
 print mode コマンドは `internal/launcher/tool.go` の `toolPrintCommands` で管理:

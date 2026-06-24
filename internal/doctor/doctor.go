@@ -34,23 +34,8 @@ func (r *result) detail(msg string) {
 	fmt.Printf("    %s\n", msg)
 }
 
-// Run executes environment diagnostics and returns an exit code.
-func Run(args []string) int {
-	verbose := false
-	for _, a := range args {
-		switch a {
-		case "-v", "--verbose":
-			verbose = true
-		case "-h", "--help":
-			printHelp()
-			return 0
-		default:
-			fmt.Fprintf(os.Stderr, "Error: unknown flag %q\n", a)
-			printHelp()
-			return 1
-		}
-	}
-
+// RunDiagnostics executes environment diagnostics and returns an exit code.
+func RunDiagnostics(verbose bool) int {
 	res := &result{}
 
 	cfg := checkConfig(res, verbose)
@@ -561,12 +546,3 @@ func printSystemInfo() {
 	}
 }
 
-func printHelp() {
-	fmt.Println("Usage: aw doctor [options]")
-	fmt.Println()
-	fmt.Println("Check system environment and profile configuration.")
-	fmt.Println()
-	fmt.Println("Options:")
-	fmt.Println("  -v, --verbose   Show detailed diagnostic information")
-	fmt.Println("  -h, --help      Show this help")
-}
