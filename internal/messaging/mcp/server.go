@@ -178,7 +178,7 @@ func errorResponse(id json.RawMessage, code int, msg string) jsonrpcResponse {
 	}
 }
 
-// RunStdio is the entry point for `aw --internal-mcp-msg`.
+// RunStdio is the entry point for `aw internal-mcp-msg`.
 func RunStdio(dbPath, agentName, teamName string) error {
 	srv := NewServer(dbPath, agentName, teamName)
 

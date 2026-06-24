@@ -46,15 +46,15 @@ aw team start --task "README.md に Hello World と書いてください" review
 ```
 aw team start review-team
   ├─ reviewer-1 (バックグラウンドコンテナ)
-  │   ├─ .mcp.json → aw --internal-mcp-msg (MCP サーバー)
+  │   ├─ .mcp.json → aw internal-mcp-msg (MCP サーバー)
   │   ├─ CLAUDE.md にロール情報 + タスク注入
-  │   ├─ aw --internal-agent-loop (メッセージ駆動ループ)
+  │   ├─ aw internal-agent-loop (メッセージ駆動ループ)
   │   │     → メッセージ受信 → claude -p でレビュー → send_message で返信
   │   └─ 環境変数: AW_AGENT_NAME, AW_MSG_DB, AW_TEAM_NAME, AW_TOOL
   │
   └─ developer-1 (フォアグラウンドコンテナ)
-      ├─ .mcp.json → aw --internal-mcp-msg (MCP サーバー)
-      ├─ settings.json Stop hook → aw --internal-check-inbox
+      ├─ .mcp.json → aw internal-mcp-msg (MCP サーバー)
+      ├─ settings.json Stop hook → aw internal-check-inbox
       ├─ CLAUDE.md にロール情報 + タスク注入
       └─ 環境変数: AW_AGENT_NAME, AW_MSG_DB, AW_TEAM_NAME
 
@@ -65,7 +65,7 @@ aw team start review-team
 ### メッセージング
 
 - SQLite WAL モードで複数コンテナ間を安全に共有
-- MCP サーバー (`--internal-mcp-msg`) が 5 つのツールを提供:
+- MCP サーバー (`internal-mcp-msg`) が 5 つのツールを提供:
   - `send_message(to, body)` — メッセージ送信
   - `read_inbox()` — 未読メッセージ一覧
   - `read_message(id)` — メッセージ全文取得
@@ -139,7 +139,7 @@ profiles:
 
 ## Agent Loop（バックグラウンドエージェント）
 
-バックグラウンドメンバーは AI ツールを直接起動する代わりに `--internal-agent-loop` を実行します:
+バックグラウンドメンバーは AI ツールを直接起動する代わりに `internal-agent-loop` を実行します:
 
 1. 起動時に未読メッセージがあれば、サマリーを 1 回のプロンプトで処理し既読にする
 2. 以降は 2 秒間隔でポーリングし、新規メッセージを個別に処理

@@ -123,20 +123,6 @@ func TestRunOnEndIfConfigured_SkipsWhenWorktreePathEmpty(t *testing.T) {
 	runOnEndIfConfigured(ec)
 }
 
-func TestRunDefaultDockerfile_ReturnsZero(t *testing.T) {
-	code := runDefaultDockerfile()
-	if code != 0 {
-		t.Errorf("runDefaultDockerfile() = %d, want 0", code)
-	}
-}
-
-func TestRunDefaultInitScript_ReturnsZero(t *testing.T) {
-	code := runDefaultInitScript()
-	if code != 0 {
-		t.Errorf("runDefaultInitScript() = %d, want 0", code)
-	}
-}
-
 func TestDescribeProfile(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -177,18 +163,5 @@ func TestDescribeProfile(t *testing.T) {
 				t.Errorf("profile.Describe() = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestParseRunArgs_CFlagParsed(t *testing.T) {
-	opts, err := parseRunArgs([]string{"host-shell", "-c", "echo", "hello"})
-	if err != nil {
-		t.Fatalf("parseRunArgs() error: %v", err)
-	}
-	if opts.ProfileName != "host-shell" {
-		t.Errorf("ProfileName = %q, want %q", opts.ProfileName, "host-shell")
-	}
-	if len(opts.Command) != 2 || opts.Command[0] != "echo" || opts.Command[1] != "hello" {
-		t.Errorf("Command = %v, want [echo hello]", opts.Command)
 	}
 }

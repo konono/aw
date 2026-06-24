@@ -165,7 +165,7 @@ ls ~/.agent-workspace/claude/
 cat /tmp/aw-manual-test/.mcp.json 2>/dev/null | python3 -m json.tool
 ```
 
-**期待:** `.mcp.json` に `aw-msg` サーバーが登録されている。`--internal-mcp-msg`, `--db`, `--agent`, `--team` 引数を持つ。
+**期待:** `.mcp.json` に `aw-msg` サーバーが登録されている。`internal-mcp-msg`, `--db`, `--agent`, `--team` 引数を持つ。
 
 ### 4-2. settings.json (hook 確認)
 
@@ -174,8 +174,8 @@ cat ~/.agent-workspace/claude/settings.json 2>/dev/null | python3 -m json.tool
 ```
 
 **期待 (delivery: turn の場合):**
-- `hooks.Stop` に `--internal-check-inbox` コマンドが含まれる
-- `hooks.PostToolUse` に `--internal-on-commit` コマンドが含まれる (developer ロール)
+- `hooks.Stop` に `internal-check-inbox` コマンドが含まれる
+- `hooks.PostToolUse` に `internal-on-commit` コマンドが含まれる (developer ロール)
 - `hooks.SessionStart` は存在しない
 
 ### 4-3. CLAUDE.md (ロールコンテキスト)
@@ -281,7 +281,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=developer-1 \
   AW_TEAM_NAME=$TEAM_SCOPE \
   AW_MSG_CHECK_INTERVAL=0 \
-  /tmp/aw-test --internal-check-inbox
+  /tmp/aw-test internal-check-inbox
 ```
 
 **期待:**
@@ -297,7 +297,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=developer-1 \
   AW_TEAM_NAME=$TEAM_SCOPE \
   AW_MSG_CHECK_INTERVAL=9999 \
-  /tmp/aw-test --internal-check-inbox
+  /tmp/aw-test internal-check-inbox
 ```
 
 **期待:** 出力なし（cooldown 中）。
@@ -310,7 +310,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=reviewer-1 \
   AW_TEAM_NAME=$TEAM_SCOPE \
   AW_MSG_CHECK_INTERVAL=0 \
-  /tmp/aw-test --internal-check-inbox
+  /tmp/aw-test internal-check-inbox
 ```
 
 **期待:** 出力なし（reviewer の未読は 0、Step 5-3 で表示済み ≠ 既読だが send 側がこのスコープなら未読のまま）。
@@ -325,7 +325,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
 
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent developer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
@@ -337,7 +337,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | \
 
 ```bash
 echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_message","arguments":{"to":"reviewer-1","body":"MCP 経由テスト"}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent developer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
@@ -350,7 +350,7 @@ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_messa
 ```bash
 # read_inbox (reviewer として)
 echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_inbox","arguments":{}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent reviewer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
@@ -361,21 +361,21 @@ echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_inbox
 ```bash
 # read_message
 echo '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_message","arguments":{"id":ID}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent reviewer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
 
 # mark_read
 echo '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"mark_read","arguments":{"id":ID}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent reviewer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
 
 # 再度 read_inbox → 空であること
 echo '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"read_inbox","arguments":{}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent reviewer-1 \
     --team $TEAM_SCOPE | python3 -m json.tool
@@ -387,7 +387,7 @@ echo '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"read_inbox
 
 ```bash
 echo '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"list_agents","arguments":{}}}' | \
-  /tmp/aw-test --internal-mcp-msg \
+  /tmp/aw-test internal-mcp-msg \
     --db ~/.config/aw/messaging/messages.db \
     --agent anyone \
     --team $TEAM_SCOPE | python3 -m json.tool
@@ -424,7 +424,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=developer-1 \
   AW_TEAM_NAME=$TEAM_SCOPE \
   AW_REVIEWERS=reviewer-1 \
-  /tmp/aw-test --internal-on-commit
+  /tmp/aw-test internal-on-commit
 ```
 
 **期待:** exit 0、出力なし。
@@ -444,7 +444,7 @@ echo "// another fix" >> /tmp/aw-manual-test/fizzbuzz.go 2>/dev/null || echo "//
 git add -A
 git commit -m "fix: edge case"
 
-/tmp/aw-test --internal-on-commit \
+/tmp/aw-test internal-on-commit \
   --db ~/.config/aw/messaging/messages.db \
   --agent developer-1 \
   --team $TEAM_SCOPE
@@ -454,7 +454,7 @@ git commit -m "fix: edge case"
 
 ---
 
-## Step 9: --internal-watch テスト（リアルタイム受信）
+## Step 9: internal-watch テスト（リアルタイム受信）
 
 **ターミナル 1:**
 
@@ -462,7 +462,7 @@ git commit -m "fix: edge case"
 AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=reviewer-1 \
   AW_TEAM_NAME=$TEAM_SCOPE \
-  /tmp/aw-test --internal-watch
+  /tmp/aw-test internal-watch
 ```
 
 **ターミナル 2:**
@@ -500,9 +500,9 @@ cat ~/.agent-workspace/claude/settings.json | python3 -m json.tool
 ```
 
 **期待:**
-- `hooks.SessionStart` に `--internal-watch &` コマンドが含まれる
+- `hooks.SessionStart` に `internal-watch &` コマンドが含まれる
 - `hooks.Stop` が存在しない
-- `hooks.PostToolUse` に `--internal-on-commit` が含まれる (developer)
+- `hooks.PostToolUse` に `internal-on-commit` が含まれる (developer)
 
 ### 10-3. CLAUDE.md にタスクが含まれること
 
@@ -594,7 +594,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=developer-1 \
   AW_TEAM_NAME=$E2E_SCOPE \
   AW_REVIEWERS=reviewer-1 \
-  /tmp/aw-test --internal-on-commit
+  /tmp/aw-test internal-on-commit
 
 # 3. reviewer の check-inbox → JSON block
 rm -f ~/.config/aw/messaging/.lastcheck-reviewer-1
@@ -602,7 +602,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=reviewer-1 \
   AW_TEAM_NAME=$E2E_SCOPE \
   AW_MSG_CHECK_INTERVAL=0 \
-  /tmp/aw-test --internal-check-inbox
+  /tmp/aw-test internal-check-inbox
 
 # 4. reviewer が inbox を確認
 /tmp/aw-test msg inbox --team $E2E_SCOPE reviewer-1
@@ -616,7 +616,7 @@ AW_MSG_DB=~/.config/aw/messaging/messages.db \
   AW_AGENT_NAME=developer-1 \
   AW_TEAM_NAME=$E2E_SCOPE \
   AW_MSG_CHECK_INTERVAL=0 \
-  /tmp/aw-test --internal-check-inbox
+  /tmp/aw-test internal-check-inbox
 
 # 7. 全履歴
 /tmp/aw-test msg history --team $E2E_SCOPE

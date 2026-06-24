@@ -75,7 +75,7 @@ func TestClaudeInjectHookTurnMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading settings.json: %v", err)
 	}
-	if !strings.Contains(string(data), "--internal-check-inbox") {
+	if !strings.Contains(string(data), "internal-check-inbox") {
 		t.Error("settings.json should contain check-inbox hook")
 	}
 }
@@ -102,7 +102,7 @@ func TestClaudeInjectHookIdempotent(t *testing.T) {
 	_ = injector.InjectHook(cfg)
 
 	data, _ := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
-	count := strings.Count(string(data), "--internal-check-inbox")
+	count := strings.Count(string(data), "internal-check-inbox")
 	if count != 1 {
 		t.Errorf("hook should appear exactly once, found %d times", count)
 	}
@@ -194,8 +194,8 @@ func TestClaudeInjectHookMonitorMode(t *testing.T) {
 		t.Fatalf("reading settings.json: %v", err)
 	}
 	content := string(data)
-	if !strings.Contains(content, "--internal-watch") {
-		t.Error("settings.json should contain --internal-watch hook")
+	if !strings.Contains(content, "internal-watch") {
+		t.Error("settings.json should contain internal-watch hook")
 	}
 	if !strings.Contains(content, "SessionStart") {
 		t.Error("settings.json should contain SessionStart hook key")
@@ -214,7 +214,7 @@ func TestClaudeInjectHookMonitorIdempotent(t *testing.T) {
 	_ = injector.InjectHook(cfg)
 
 	data, _ := os.ReadFile(filepath.Join(cfg.StagingDir, "settings.json"))
-	count := strings.Count(string(data), "--internal-watch")
+	count := strings.Count(string(data), "internal-watch")
 	if count != 1 {
 		t.Errorf("watch hook should appear exactly once, found %d times", count)
 	}

@@ -67,9 +67,10 @@ func TestRunInit_CreatesConfig(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)
 
+	cmd := &InitCmd{Force: false}
 	stdout, stderr := captureOutput(t, func() {
-		if code := Run([]string{"init"}); code != 0 {
-			t.Fatalf("Run(init) = %d, want 0", code)
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("InitCmd.Run() error: %v", err)
 		}
 	})
 
@@ -102,9 +103,11 @@ func TestRunInit_DoesNotOverwriteExistingConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cmd := &InitCmd{Force: false}
 	stdout, stderr := captureOutput(t, func() {
-		if code := Run([]string{"init"}); code != 1 {
-			t.Fatalf("Run(init) = %d, want 1", code)
+		err := cmd.Run()
+		if err == nil {
+			t.Fatalf("InitCmd.Run() should return error for existing config")
 		}
 	})
 
@@ -136,9 +139,10 @@ func TestRunInit_ForceOverwritesExistingConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cmd := &InitCmd{Force: true}
 	stdout, stderr := captureOutput(t, func() {
-		if code := Run([]string{"init", "--force"}); code != 0 {
-			t.Fatalf("Run(init --force) = %d, want 0", code)
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("InitCmd.Run() error: %v", err)
 		}
 	})
 
@@ -155,41 +159,5 @@ func TestRunInit_ForceOverwritesExistingConfig(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "Overwrote "+configPath) {
 		t.Errorf("stdout missing overwrite message, got: %q", stdout)
-	}
-}
-
-func TestRunInit_RejectsUpdateFlag(t *testing.T) {
-	home := t.TempDir()
-	setTestHome(t, home)
-
-	stdout, stderr := captureOutput(t, func() {
-		if code := Run([]string{"init", "--update"}); code != 1 {
-			t.Fatalf("Run(init --update) = %d, want 1", code)
-		}
-	})
-
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if !strings.Contains(stderr, "unknown init flag") {
-		t.Fatalf("stderr = %q, want unknown init flag message", stderr)
-	}
-}
-
-func TestHelpIncludesInit(t *testing.T) {
-	stdout, stderr := captureOutput(t, func() {
-		if code := Run([]string{"--help"}); code != 0 {
-			t.Fatalf("Run(--help) = %d, want 0", code)
-		}
-	})
-
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	if !strings.Contains(stdout, "aw init") {
-		t.Fatalf("stdout missing init help, got: %q", stdout)
-	}
-	if strings.Contains(stdout, "aw init --update") {
-		t.Fatalf("stdout should not mention init --update, got: %q", stdout)
 	}
 }

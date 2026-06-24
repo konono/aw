@@ -7,29 +7,6 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-func TestParseAuthArgs(t *testing.T) {
-	action, target, err := parseAuthArgs([]string{"login", "codex"})
-	if err != nil {
-		t.Fatalf("parseAuthArgs() error: %v", err)
-	}
-	if action != awauth.ActionLogin {
-		t.Errorf("action = %q, want %q", action, awauth.ActionLogin)
-	}
-	if target.Name != "codex" {
-		t.Errorf("target.Name = %q, want %q", target.Name, "codex")
-	}
-	if target.ExplicitProfile {
-		t.Error("target.ExplicitProfile = true, want false")
-	}
-}
-
-func TestParseAuthArgs_RequiresProfileName(t *testing.T) {
-	_, _, err := parseAuthArgs([]string{"status"})
-	if err == nil {
-		t.Fatal("expected error when profile name is missing")
-	}
-}
-
 func TestBuildAuthStages_ContainerProfile(t *testing.T) {
 	stages := buildAuthStages(profile.Profile{
 		Environment: profile.EnvironmentContainer,
@@ -41,19 +18,6 @@ func TestBuildAuthStages_ContainerProfile(t *testing.T) {
 	}
 	if stages[0].Name() != "container" || stages[1].Name() != "env" || stages[2].Name() != "auth" {
 		t.Fatalf("unexpected stage order: %q, %q, %q", stages[0].Name(), stages[1].Name(), stages[2].Name())
-	}
-}
-
-func TestParseAuthArgs_ProfileFlag(t *testing.T) {
-	_, target, err := parseAuthArgs([]string{"status", "--profile", "claude-vertex"})
-	if err != nil {
-		t.Fatalf("parseAuthArgs() error: %v", err)
-	}
-	if target.Name != "claude-vertex" {
-		t.Errorf("target.Name = %q, want %q", target.Name, "claude-vertex")
-	}
-	if !target.ExplicitProfile {
-		t.Error("target.ExplicitProfile = false, want true")
 	}
 }
 
@@ -107,5 +71,22 @@ func TestResolveAuthTarget_CursorUsesToolProfile(t *testing.T) {
 	}
 	if p.Launch != profile.LaunchCursor {
 		t.Errorf("Launch = %q, want %q", p.Launch, profile.LaunchCursor)
+	}
+}
+
+func TestResolveAuthTarget_ExplicitProfile(t *testing.T) {
+	target := authTarget{Name: "claude-vertex", ExplicitProfile: true}
+	// This will fail since there's no config loaded, but verifies the code path.
+	_, _, err := resolveAuthTarget(&profile.Config{
+		Profiles: map[string]profile.Profile{
+			"claude-vertex": {
+				Environment: profile.EnvironmentContainer,
+				Launch:      profile.LaunchClaude,
+				OS:          profile.OSDebian12,
+			},
+		},
+	}, target)
+	if err != nil {
+		t.Fatalf("resolveAuthTarget() error: %v", err)
 	}
 }

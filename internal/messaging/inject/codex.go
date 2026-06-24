@@ -64,14 +64,14 @@ func (c *CodexInjector) InjectHook(cfg InjectorConfig) error {
 func codexMCPSection(cfg InjectorConfig) string {
 	return fmt.Sprintf(`[[tools.aw-msg.mcp]]
 command = "%s"
-args = ["--internal-mcp-msg", "--db", "%s", "--agent", "%s", "--team", "%s"]
+args = ["internal-mcp-msg", "--db", "%s", "--agent", "%s", "--team", "%s"]
 `, cfg.MCPBinary, cfg.DBPath, cfg.AgentName, cfg.TeamName)
 }
 
 func codexHookSection(cfg InjectorConfig) string {
 	return fmt.Sprintf(`[hooks.aw-msg]
 event = "stop"
-command = "%s --internal-check-inbox"
+command = "%s internal-check-inbox"
 `, cfg.MCPBinary)
 }
 

@@ -36,7 +36,7 @@ func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
 
 	servers["aw-msg"] = map[string]interface{}{
 		"command": cfg.MCPBinary,
-		"args":    []string{"--internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
+		"args":    []string{"internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
 	}
 	root["mcpServers"] = servers
 
@@ -66,7 +66,7 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 
 	switch cfg.DeliveryMode {
 	case DeliveryTurn:
-		command := cfg.MCPBinary + " --internal-check-inbox"
+		command := cfg.MCPBinary + " internal-check-inbox"
 		stopGroups, _ := hooks["Stop"].([]interface{})
 		if !claudeHookExists(stopGroups, command) {
 			stopGroups = append(stopGroups, map[string]interface{}{
@@ -81,7 +81,7 @@ func (c *ClaudeInjector) InjectHook(cfg InjectorConfig) error {
 		}
 
 	case DeliveryMonitor:
-		command := cfg.MCPBinary + " --internal-watch &"
+		command := cfg.MCPBinary + " internal-watch &"
 		startGroups, _ := hooks["SessionStart"].([]interface{})
 		if !claudeHookExists(startGroups, command) {
 			startGroups = append(startGroups, map[string]interface{}{

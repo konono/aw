@@ -11,48 +11,41 @@ import (
 	"github.com/konono/aw/internal/reaper"
 )
 
-func runReaperCommand(args []string) int {
-	if len(args) == 0 {
-		return reaperShow(nil)
-	}
-
-	switch args[0] {
-	case "show":
-		return reaperShow(args[1:])
-	case "list":
-		return reaperList()
-	case "clear":
-		return reaperClear()
-	case "dump":
-		return reaperDump(args[1:])
-	case "recover":
-		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Usage: aw reaper recover <container-name>\n")
-			return 1
-		}
-		return reaperRecover(args[1])
-	case "discard":
-		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Usage: aw reaper discard <container-name>\n")
-			return 1
-		}
-		return reaperDiscard(args[1])
-	case "-h", "--help":
-		reaperHelp()
-		return 0
-	default:
-		fmt.Fprintf(os.Stderr, "Unknown reaper command: %s\n", args[0])
-		reaperHelp()
-		return 1
-	}
+// Run handles reaper show (default subcommand).
+func (r *ReaperShowCmd) Run() error {
+	return exitCode(reaperShow(r.File))
 }
 
-func reaperShow(args []string) int {
+// Run handles reaper list.
+func (r *ReaperListCmd) Run() error {
+	return exitCode(reaperList())
+}
+
+// Run handles reaper clear.
+func (r *ReaperClearCmd) Run() error {
+	return exitCode(reaperClear())
+}
+
+// Run handles reaper dump.
+func (r *ReaperDumpCmd) Run() error {
+	return exitCode(reaperDump(r.File))
+}
+
+// Run handles reaper recover.
+func (r *ReaperRecoverCmd) Run() error {
+	return exitCode(reaperRecover(r.ContainerName))
+}
+
+// Run handles reaper discard.
+func (r *ReaperDiscardCmd) Run() error {
+	return exitCode(reaperDiscard(r.ContainerName))
+}
+
+func reaperShow(arg string) int {
 	dir := reaper.ReaperDir()
 	var reportPath string
 
-	if len(args) > 0 {
-		arg := args[0]
+	if arg != "" {
 		if filepath.IsAbs(arg) {
 			reportPath = arg
 		} else if strings.HasSuffix(arg, ".json") {
@@ -199,12 +192,11 @@ func reaperDiscard(containerName string) int {
 	return 0
 }
 
-func reaperDump(args []string) int {
+func reaperDump(arg string) int {
 	dir := reaper.ReaperDir()
 	var reportPath string
 
-	if len(args) > 0 {
-		arg := args[0]
+	if arg != "" {
 		if filepath.IsAbs(arg) {
 			return reaper.ShowDump(arg)
 		} else if strings.HasSuffix(arg, ".json") {
@@ -249,16 +241,4 @@ func reaperDump(args []string) int {
 	}
 
 	return reaper.ShowDump(report.DumpPath)
-}
-
-func reaperHelp() {
-	fmt.Println("Usage: aw reaper <command>")
-	fmt.Println()
-	fmt.Println("Commands:")
-	fmt.Println("  show [file]      Show report details (default: latest)")
-	fmt.Println("  list             List recent reports")
-	fmt.Println("  dump [file]      Show diagnostic dump (logs, inspect, dmesg)")
-	fmt.Println("  clear            Delete all reports and dumps")
-	fmt.Println("  recover <name>   Re-run pending tasks (skips already-succeeded)")
-	fmt.Println("  discard <name>   Discard spec and abandon recovery")
 }

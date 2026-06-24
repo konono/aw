@@ -10,39 +10,6 @@ import (
 	"github.com/konono/aw/internal/messaging"
 )
 
-func runMsg(args []string) int {
-	if len(args) == 0 {
-		printMsgHelp()
-		return 1
-	}
-
-	switch args[0] {
-	case "send":
-		return runMsgSend(args[1:])
-	case "inbox":
-		return runMsgInbox(args[1:])
-	case "history":
-		return runMsgHistory(args[1:])
-	case "watch":
-		return runMsgWatch(args[1:])
-	case "clear":
-		return runMsgClear(args[1:])
-	default:
-		fmt.Fprintf(os.Stderr, "Unknown msg command: %s\n", args[0])
-		printMsgHelp()
-		return 1
-	}
-}
-
-func printMsgHelp() {
-	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  aw msg send --team <team> <from> <to> <body>   Send a message")
-	fmt.Fprintln(os.Stderr, "  aw msg inbox --team <team> <agent>             Show unread messages")
-	fmt.Fprintln(os.Stderr, "  aw msg history --team <team> [--agent <name>]  Show message history")
-	fmt.Fprintln(os.Stderr, "  aw msg watch --team <team>                     Watch all messages in real-time")
-	fmt.Fprintln(os.Stderr, "  aw msg clear [--team <t>] [--all] [--before <dur>] [--list]  Delete messages")
-}
-
 func openMsgStore() (*messaging.Store, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -52,158 +19,94 @@ func openMsgStore() (*messaging.Store, error) {
 	return messaging.OpenStore(dbPath)
 }
 
-// extractTeamFlag extracts --team value from args, returning the team name
-// and remaining args.
-func extractTeamFlag(args []string) (string, []string) {
-	var team string
-	var rest []string
-	for i := 0; i < len(args); i++ {
-		if args[i] == "--team" && i+1 < len(args) {
-			team = args[i+1]
-			i++
-		} else {
-			rest = append(rest, args[i])
-		}
-	}
-	return team, rest
-}
-
-func runMsgSend(args []string) int {
-	team, args := extractTeamFlag(args)
-	if team == "" || len(args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg send --team <team> <from> <to> <body>")
-		return 1
-	}
-	from, to, body := args[0], args[1], args[2]
-
+// Run handles msg send.
+func (m *MsgSendCmd) Run() error {
 	store, err := openMsgStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 	defer func() { _ = store.Close() }()
 
-	id, ts, err := store.Send(team, from, to, body)
+	id, ts, err := store.Send(m.Team, m.From, m.To, m.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
-		return 1
+		return fmt.Errorf("sending message: %w", err)
 	}
-	fmt.Printf("Message #%d sent to %s at %s\n", id, to, ts.Format("15:04:05"))
-	return 0
+	fmt.Printf("Message #%d sent to %s at %s\n", id, m.To, ts.Format("15:04:05"))
+	return nil
 }
 
-func runMsgInbox(args []string) int {
-	team, args := extractTeamFlag(args)
-	if team == "" || len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg inbox --team <team> <agent>")
-		return 1
-	}
-	agent := args[0]
-
+// Run handles msg inbox.
+func (m *MsgInboxCmd) Run() error {
 	store, err := openMsgStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 	defer func() { _ = store.Close() }()
 
-	previews, err := store.ReadInbox(team, agent)
+	previews, err := store.ReadInbox(m.Team, m.Agent)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	if len(previews) == 0 {
-		fmt.Printf("No unread messages for %s\n", agent)
-		return 0
+		fmt.Printf("No unread messages for %s\n", m.Agent)
+		return nil
 	}
 
-	fmt.Printf("Unread messages for %s:\n", agent)
+	fmt.Printf("Unread messages for %s:\n", m.Agent)
 	for _, p := range previews {
 		fmt.Printf("  #%d [%s] %s: %s\n", p.ID, p.CreatedAt.Format("15:04:05"), p.From, p.Preview)
 	}
-	return 0
+	return nil
 }
 
-func runMsgHistory(args []string) int {
-	team, args := extractTeamFlag(args)
-	if team == "" {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg history --team <team> [--agent <name>] [--limit N]")
-		return 1
-	}
-
-	var agent string
-	limit := 50
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--agent":
-			if i+1 < len(args) {
-				agent = args[i+1]
-				i++
-			}
-		case "--limit":
-			if i+1 < len(args) {
-				n, err := strconv.Atoi(args[i+1])
-				if err == nil {
-					limit = n
-				}
-				i++
-			}
-		}
-	}
-
+// Run handles msg history.
+func (m *MsgHistoryCmd) Run() error {
 	store, err := openMsgStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 	defer func() { _ = store.Close() }()
 
-	msgs, err := store.History(team, agent, limit)
+	msgs, err := store.History(m.Team, m.Agent, m.Limit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	if len(msgs) == 0 {
 		fmt.Println("No messages")
-		return 0
+		return nil
 	}
 
 	for i := len(msgs) - 1; i >= 0; i-- {
-		m := msgs[i]
-		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To, messaging.FormatPreview(m.Body))
+		msg := msgs[i]
+		fmt.Printf("%s %s → %s: %s\n", msg.CreatedAt.Format("15:04:05"), msg.From, msg.To, messaging.FormatPreview(msg.Body))
 	}
-	return 0
+	return nil
 }
 
-func runMsgClear(args []string) int {
-	team, args := extractTeamFlag(args)
-
-	var all, list bool
-	var before string
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--all":
-			all = true
-		case "--list":
-			list = true
-		case "--before":
-			if i+1 < len(args) {
-				before = args[i+1]
-				i++
-			} else {
-				fmt.Fprintln(os.Stderr, "Error: --before requires a duration value (e.g. 7d, 24h, 30m)")
-				return 1
-			}
-		}
+// Run handles msg watch.
+func (m *MsgWatchCmd) Run() error {
+	store, err := openMsgStore()
+	if err != nil {
+		return err
 	}
+	defer func() { _ = store.Close() }()
 
-	if list {
+	fmt.Println("Watching messages... (Ctrl+C to stop)")
+	return store.WatchAll(m.Team, 2*time.Second, func(msg messaging.Message) {
+		fmt.Printf("%s %s → %s: %s\n", msg.CreatedAt.Format("15:04:05"), msg.From, msg.To,
+			messaging.FormatPreview(msg.Body))
+	})
+}
+
+// Run handles msg clear.
+func (m *MsgClearCmd) Run() error {
+	if m.List {
 		return runMsgClearList()
 	}
 
-	if !all && team == "" && before == "" {
+	if !m.All && m.Team == "" && m.Before == "" {
 		fmt.Fprintln(os.Stderr, "Usage: aw msg clear [--team <team>] [--all] [--before <duration>] [--list]")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "Options:")
@@ -214,77 +117,67 @@ func runMsgClear(args []string) int {
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "  --team and --before can be combined (but not with --all):")
 		fmt.Fprintln(os.Stderr, "  aw msg clear --team <scope> --before 7d   Delete old messages for a team")
-		return 1
-	}
-
-	if all && (team != "" || before != "") {
-		fmt.Fprintln(os.Stderr, "Error: --all cannot be combined with --team or --before")
-		return 1
+		return ExitError{Code: 1}
 	}
 
 	var d time.Duration
-	if before != "" {
+	if m.Before != "" {
 		var parseErr error
-		d, parseErr = parseDuration(before)
+		d, parseErr = parseDuration(m.Before)
 		if parseErr != nil {
-			fmt.Fprintf(os.Stderr, "Error: invalid duration %q: %v\n", before, parseErr)
-			return 1
+			return fmt.Errorf("invalid duration %q: %w", m.Before, parseErr)
 		}
 	}
 
 	store, err := openMsgStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 	defer func() { _ = store.Close() }()
 
 	var count int64
 
 	switch {
-	case all:
+	case m.All:
 		count, err = store.ClearAll()
-	case team != "" && before != "":
-		count, err = store.ClearTeamBefore(team, d)
-	case team != "":
-		count, err = store.ClearTeam(team)
-	case before != "":
+	case m.Team != "" && m.Before != "":
+		count, err = store.ClearTeamBefore(m.Team, d)
+	case m.Team != "":
+		count, err = store.ClearTeam(m.Team)
+	case m.Before != "":
 		count, err = store.ClearBefore(d)
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	fmt.Printf("Deleted %d message(s)\n", count)
-	return 0
+	return nil
 }
 
-func runMsgClearList() int {
+func runMsgClearList() error {
 	store, err := openMsgStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 	defer func() { _ = store.Close() }()
 
 	teams, err := store.ListTeams()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	if len(teams) == 0 {
 		fmt.Println("No messages in database")
-		return 0
+		return nil
 	}
 
 	fmt.Println("Team scopes:")
 	for _, t := range teams {
 		fmt.Printf("  %s\n", t)
 	}
-	return 0
+	return nil
 }
 
 func parseDuration(s string) (time.Duration, error) {
@@ -310,29 +203,4 @@ func parseDuration(s string) (time.Duration, error) {
 	default:
 		return 0, fmt.Errorf("unknown unit %q (use d, h, m)", string(unit))
 	}
-}
-
-func runMsgWatch(args []string) int {
-	team, _ := extractTeamFlag(args)
-	if team == "" {
-		fmt.Fprintln(os.Stderr, "Usage: aw msg watch --team <team>")
-		return 1
-	}
-
-	store, err := openMsgStore()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-	defer func() { _ = store.Close() }()
-
-	fmt.Println("Watching messages... (Ctrl+C to stop)")
-	if err := store.WatchAll(team, 2*time.Second, func(m messaging.Message) {
-		fmt.Printf("%s %s → %s: %s\n", m.CreatedAt.Format("15:04:05"), m.From, m.To,
-			messaging.FormatPreview(m.Body))
-	}); err != nil {
-		fmt.Fprintf(os.Stderr, "Error watching messages: %v\n", err)
-		return 1
-	}
-	return 0
 }

@@ -61,120 +61,25 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	cenv := containerenv.FromUser(ec.Profile.EffectiveContainerUser())
 	ec.ContainerEnv = cenv
 
-	var imageName string
-	var err error
-
-	if ec.Profile.Image != "" {
-		imageName = ec.Profile.Image
-		exists, eerr := s.DockerClient.ImageExists(ctx, imageName)
-		if eerr != nil {
-			return fmt.Errorf("checking image %q: %w", imageName, eerr)
-		}
-		if !exists {
-			return fmt.Errorf("image %q not found; load it via '%s load'",
-				imageName, ec.Profile.EffectiveContainerRuntime())
-		}
-		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
-	} else {
-		imageName, err = s.buildImage(ctx, ec, cenv)
-		if err != nil {
-			return err
-		}
+	imageName, err := s.resolveImage(ctx, ec, cenv)
+	if err != nil {
+		return err
 	}
 
 	tool := ec.Profile.EffectiveTool()
-	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
-
-	initScriptPath := filepath.Join(stageDir, "aw-init.sh")
-	if err := os.MkdirAll(stageDir, 0755); err != nil {
-		return fmt.Errorf("creating stage dir: %w", err)
-	}
-	if err := os.WriteFile(initScriptPath, image.InitScript(), 0755); err != nil {
-		return fmt.Errorf("writing aw-init.sh: %w", err)
+	toolStageDir, toolContainerDir, err := s.syncToolConfig(ec, tool, cenv)
+	if err != nil {
+		return err
 	}
 
-	toolStageDir := ""
-	toolContainerDir := ""
-
-	spec := toolSyncSpec(tool, ec.Profile)
-	if spec != nil {
-		srcDir := toolinfo.HomePath(tool, ec.HomeDir)
-		toolStageDir = filepath.Join(stageDir, tool)
-		toolContainerDir = toolinfo.ContainerDirFor(tool, cenv)
-		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
-			return fmt.Errorf("syncing %s settings: %w", tool, err)
-		}
-	}
-
-	if tool == "cursor" && toolStageDir != "" {
-		if err := seedCursorAuth(toolStageDir, ec.HomeDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: cursor auth seed: %v\n", err)
-		}
-	}
-
-	if tool == "claude" && toolStageDir != "" {
-		onboardingPath := filepath.Join(toolStageDir, ".claude.json")
-		if err := s.ConfigSyncer.EnsureOnboardingState(onboardingPath); err != nil {
-			return fmt.Errorf("ensuring onboarding state: %w", err)
-		}
-	}
-
-	extraMounts := []docker.Mount{
-		{
-			Source:   initScriptPath,
-			Target:   initScriptContainerPath,
-			ReadOnly: true,
-		},
-	}
-	for _, m := range ec.Profile.Mounts {
-		source := pathutil.ExpandTilde(m.Source, ec.HomeDir)
-		extraMounts = append(extraMounts, docker.Mount{
-			Source:   source,
-			Target:   m.Target,
-			ReadOnly: m.IsReadOnly(),
-			Options:  m.Options,
-		})
-	}
-
-	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
-	sshAuthSock := ""
-	if sshAgentFwd && !ec.Profile.EffectiveMountSSH() {
-		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: ssh_agent_forwarding: %v\n", err)
-		} else {
-			sshAuthSock = agent.SocketPath
-			ec.SSHAgentReady = true
-			ec.SSHAgentCleanup = agent.Cleanup
-			ec.SSHReaperInfo = agent
-		}
-	}
-
-	containerSockPath := ""
-	if ec.Profile.EffectiveMountContainerSock() {
-		sockPath, err := mount.DetectContainerSock(ec.Profile.EffectiveContainerRuntime())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock: %v\n", err)
-		} else {
-			containerSockPath = sockPath
-			ec.ContainerSockReady = true
-			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock is enabled — the AI agent has full access to the container runtime\n")
-		}
-	}
-
-	if ec.Profile.EffectiveGhToken() {
-		token, err := DetectGhToken()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: gh_token: %v\n", err)
-		} else {
-			ec.GhTokenValue = token
-		}
-	}
+	extraMounts := s.buildExtraMounts(ec)
+	sshAuthSock, containerSockPath := s.setupContainerFeatures(ec)
 
 	if err := appendContainerContext(toolStageDir, ec); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: appending container context: %v\n", err)
 	}
 
+	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
 	mounts, err := s.MountBuilder.BuildMounts(mount.MountOptions{
 		HomeDir:            ec.HomeDir,
 		WorkDir:            ec.WorkDir,
@@ -209,6 +114,225 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	return nil
 }
 
+func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
+	if ec.Profile.Image != "" {
+		imageName := ec.Profile.Image
+		exists, err := s.DockerClient.ImageExists(ctx, imageName)
+		if err != nil {
+			return "", fmt.Errorf("checking image %q: %w", imageName, err)
+		}
+		if !exists {
+			return "", fmt.Errorf("image %q not found; load it via '%s load'",
+				imageName, ec.Profile.EffectiveContainerRuntime())
+		}
+		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
+		return imageName, nil
+	}
+	return s.buildImage(ctx, ec, cenv)
+}
+
+func (s *DockerStage) syncToolConfig(ec *pipeline.ExecutionContext, tool string, cenv containerenv.Config) (toolStageDir, toolContainerDir string, err error) {
+	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
+
+	initScriptPath := filepath.Join(stageDir, "aw-init.sh")
+	if err := os.MkdirAll(stageDir, 0755); err != nil {
+		return "", "", fmt.Errorf("creating stage dir: %w", err)
+	}
+	if err := os.WriteFile(initScriptPath, image.InitScript(), 0755); err != nil {
+		return "", "", fmt.Errorf("writing aw-init.sh: %w", err)
+	}
+
+	spec := toolSyncSpec(tool, ec.Profile)
+	if spec != nil {
+		srcDir := toolinfo.HomePath(tool, ec.HomeDir)
+		toolStageDir = filepath.Join(stageDir, tool)
+		toolContainerDir = toolinfo.ContainerDirFor(tool, cenv)
+		if err := s.ConfigSyncer.SyncToolSettings(srcDir, toolStageDir, *spec); err != nil {
+			return "", "", fmt.Errorf("syncing %s settings: %w", tool, err)
+		}
+	}
+
+	if tool == "cursor" && toolStageDir != "" {
+		if err := seedCursorAuth(toolStageDir, ec.HomeDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cursor auth seed: %v\n", err)
+		}
+	}
+
+	if tool == "claude" && toolStageDir != "" {
+		onboardingPath := filepath.Join(toolStageDir, ".claude.json")
+		if err := s.ConfigSyncer.EnsureOnboardingState(onboardingPath); err != nil {
+			return "", "", fmt.Errorf("ensuring onboarding state: %w", err)
+		}
+	}
+
+	return toolStageDir, toolContainerDir, nil
+}
+
+func (s *DockerStage) buildExtraMounts(ec *pipeline.ExecutionContext) []docker.Mount {
+	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
+	initScriptPath := filepath.Join(stageDir, "aw-init.sh")
+
+	extraMounts := []docker.Mount{
+		{
+			Source:   initScriptPath,
+			Target:   initScriptContainerPath,
+			ReadOnly: true,
+		},
+	}
+	for _, m := range ec.Profile.Mounts {
+		source := pathutil.ExpandTilde(m.Source, ec.HomeDir)
+		extraMounts = append(extraMounts, docker.Mount{
+			Source:   source,
+			Target:   m.Target,
+			ReadOnly: m.IsReadOnly(),
+			Options:  m.Options,
+		})
+	}
+	return extraMounts
+}
+
+func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (sshAuthSock, containerSockPath string) {
+	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
+	if sshAgentFwd && !ec.Profile.EffectiveMountSSH() {
+		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: ssh_agent_forwarding: %v\n", err)
+		} else {
+			sshAuthSock = agent.SocketPath
+			ec.SSHAgentReady = true
+			ec.SSHAgentCleanup = agent.Cleanup
+			ec.SSHReaperInfo = agent
+		}
+	}
+
+	if ec.Profile.EffectiveMountContainerSock() {
+		sockPath, err := mount.DetectContainerSock(ec.Profile.EffectiveContainerRuntime())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock: %v\n", err)
+		} else {
+			containerSockPath = sockPath
+			ec.ContainerSockReady = true
+			fmt.Fprintf(os.Stderr, "Warning: mount_container_sock is enabled — the AI agent has full access to the container runtime\n")
+		}
+	}
+
+	if ec.Profile.EffectiveGhToken() {
+		token, err := DetectGhToken()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: gh_token: %v\n", err)
+		} else {
+			ec.GhTokenValue = token
+		}
+	}
+
+	return sshAuthSock, containerSockPath
+}
+
+type buildInputs struct {
+	toolPkg           string
+	toolInstallScript string
+	ghInstallScript   string
+	extraPackages     string
+}
+
+func resolveBuildInputs(customDockerfile string, tool string, pkgMgr profile.PackageManager, ec *pipeline.ExecutionContext) buildInputs {
+	var bi buildInputs
+	if customDockerfile != "" {
+		return bi
+	}
+	if pkgMgr == profile.PackageManagerDevbox {
+		bi.toolPkg = toolinfo.DevboxPkg(tool)
+	} else {
+		bi.toolInstallScript = toolinfo.InstallScript(tool)
+	}
+	if ec.Profile.EffectiveGhToken() {
+		bi.ghInstallScript = ghCLIInstallScript()
+	}
+	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages)
+	if len(packages) > 0 {
+		bi.extraPackages = strings.Join(packages, " ")
+	}
+	return bi
+}
+
+func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipeline.ExecutionContext, cenv containerenv.Config, pkgMgr profile.PackageManager, bi buildInputs) string {
+	hashSource := filepath.Join(buildDir, "Dockerfile")
+	if dockerfilePath != "" {
+		hashSource = dockerfilePath
+	}
+
+	hashInput := ""
+	if dfBytes, err := os.ReadFile(hashSource); err == nil {
+		hashInput = string(dfBytes)
+	}
+	if epBytes, err := os.ReadFile(filepath.Join(buildDir, "entrypoint.sh")); err == nil {
+		hashInput += "\n" + string(epBytes)
+	}
+	if initBytes, err := os.ReadFile(filepath.Join(buildDir, "aw-init.sh")); err == nil {
+		hashInput += "\n" + string(initBytes)
+	}
+	hashInput += "\n" + string(ec.Profile.EffectiveOS())
+	hashInput += "\n" + cenv.User
+
+	if customDockerfile == "" {
+		userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
+		hashInput += "\n" + bi.toolPkg
+		hashInput += "\n" + bi.toolInstallScript
+		hashInput += "\n" + string(pkgMgr)
+		if miseData, err := os.ReadFile(userMiseToml); err == nil {
+			hashInput += "\n" + string(miseData)
+		}
+		if pkgMgr == profile.PackageManagerDevbox {
+			if devboxData, err := os.ReadFile(filepath.Join(platform.ConfigDir(), "devbox.json")); err == nil {
+				hashInput += "\n" + string(devboxData)
+			}
+		}
+	}
+
+	if bi.ghInstallScript != "" {
+		hashInput += "\n" + bi.ghInstallScript
+	}
+	if bi.extraPackages != "" {
+		hashInput += "\n" + bi.extraPackages
+	}
+
+	if ec.Profile.CACert != "" {
+		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+		if certData, err := os.ReadFile(certPath); err == nil {
+			hashInput += "\n" + string(certData)
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(ec.Profile.BuildEnv)) {
+		hashInput += "\n" + k + "=" + ec.Profile.BuildEnv[k]
+	}
+
+	if hashInput != "" {
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
+		return fmt.Sprintf("%s:%s", defaultImageName, hash)
+	}
+	return defaultImageName
+}
+
+func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi buildInputs) map[string]string {
+	buildArgs := map[string]string{}
+	if bi.toolPkg != "" {
+		buildArgs["AW_TOOL_PKG"] = bi.toolPkg
+	}
+	if bi.toolInstallScript != "" {
+		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = bi.toolInstallScript
+	}
+	if bi.ghInstallScript != "" {
+		buildArgs["AW_GH_INSTALL_SCRIPT"] = bi.ghInstallScript
+	}
+	if bi.extraPackages != "" && customDockerfile == "" {
+		buildArgs["AW_EXTRA_PACKAGES"] = bi.extraPackages
+	}
+	for k, v := range ec.Profile.BuildEnv {
+		buildArgs[k] = v
+	}
+	return buildArgs
+}
+
 func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
 	customDockerfile := ""
 	if ec.Profile.Dockerfile != "" {
@@ -229,130 +353,23 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
-
-	if customDockerfile == "" {
-		if pkgMgr == profile.PackageManagerDevbox {
-			userDevboxJSON := filepath.Join(platform.ConfigDir(), "devbox.json")
-			if data, err := os.ReadFile(userDevboxJSON); err == nil {
-				if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
-					return "", fmt.Errorf("copying user devbox.json to build context: %w", err)
-				}
-			}
-		}
-		if data, err := os.ReadFile(userMiseToml); err == nil {
-			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
-				return "", fmt.Errorf("copying user mise.toml to build context: %w", err)
-			}
-		}
+	if err := copyUserConfigs(buildDir, customDockerfile, pkgMgr); err != nil {
+		return "", err
 	}
 
-	caCertInBuildDir := ""
-	if ec.Profile.CACert != "" {
-		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
-		data, err := os.ReadFile(certPath)
-		if err != nil {
-			return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
-		}
-		dst := filepath.Join(buildDir, "ca-cert.pem")
-		if err := os.WriteFile(dst, data, 0644); err != nil {
-			return "", fmt.Errorf("copying ca_cert to build context: %w", err)
-		}
-		if customDockerfile != "" {
-			caCertInBuildDir = dst
-		}
+	caCertInBuildDir, err := copyCACert(buildDir, customDockerfile, ec)
+	if err != nil {
+		return "", err
 	}
 	if caCertInBuildDir != "" {
 		defer func() { _ = os.Remove(caCertInBuildDir) }()
 	}
 
 	dockerfilePath := customDockerfile
-	hashSource := filepath.Join(buildDir, "Dockerfile")
-	if dockerfilePath != "" {
-		hashSource = dockerfilePath
-	}
+	bi := resolveBuildInputs(customDockerfile, tool, pkgMgr, ec)
+	imageName := computeImageTag(buildDir, dockerfilePath, customDockerfile, ec, cenv, pkgMgr, bi)
+	buildArgs := collectBuildArgs(customDockerfile, ec, bi)
 
-	hashInput := ""
-	if dfBytes, err := os.ReadFile(hashSource); err == nil {
-		hashInput = string(dfBytes)
-	}
-	if epBytes, err := os.ReadFile(filepath.Join(buildDir, "entrypoint.sh")); err == nil {
-		hashInput += "\n" + string(epBytes)
-	}
-	if initBytes, err := os.ReadFile(filepath.Join(buildDir, "aw-init.sh")); err == nil {
-		hashInput += "\n" + string(initBytes)
-	}
-	hashInput += "\n" + string(osTemplate)
-	hashInput += "\n" + cenv.User
-
-	toolPkg := ""
-	toolInstallScript := ""
-	if customDockerfile == "" {
-		if pkgMgr == profile.PackageManagerDevbox {
-			toolPkg = toolinfo.DevboxPkg(tool)
-		} else {
-			toolInstallScript = toolinfo.InstallScript(tool)
-		}
-		hashInput += "\n" + toolPkg
-		hashInput += "\n" + toolInstallScript
-		hashInput += "\n" + string(pkgMgr)
-		if miseData, err := os.ReadFile(userMiseToml); err == nil {
-			hashInput += "\n" + string(miseData)
-		}
-		if pkgMgr == profile.PackageManagerDevbox {
-			if devboxData, err := os.ReadFile(filepath.Join(platform.ConfigDir(), "devbox.json")); err == nil {
-				hashInput += "\n" + string(devboxData)
-			}
-		}
-	}
-
-	ghInstallScript := ""
-	if ec.Profile.EffectiveGhToken() && customDockerfile == "" {
-		ghInstallScript = ghCLIInstallScript()
-		hashInput += "\n" + ghInstallScript
-	}
-
-	// Build-time: space-delimited for shell word splitting in Dockerfile RUN.
-	// Runtime (AW_PACKAGES in env.go): comma-delimited, parsed by IFS=',' in aw-init.sh.
-	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages)
-	extraPackages := ""
-	if len(packages) > 0 {
-		extraPackages = strings.Join(packages, " ")
-		hashInput += "\n" + extraPackages
-	}
-
-	if ec.Profile.CACert != "" {
-		certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
-		if certData, err := os.ReadFile(certPath); err == nil {
-			hashInput += "\n" + string(certData)
-		}
-	}
-	for _, k := range slices.Sorted(maps.Keys(ec.Profile.BuildEnv)) {
-		hashInput += "\n" + k + "=" + ec.Profile.BuildEnv[k]
-	}
-
-	imageName := defaultImageName
-	if hashInput != "" {
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashInput)))[:12]
-		imageName = fmt.Sprintf("%s:%s", defaultImageName, hash)
-	}
-
-	buildArgs := map[string]string{}
-	if toolPkg != "" {
-		buildArgs["AW_TOOL_PKG"] = toolPkg
-	}
-	if toolInstallScript != "" {
-		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = toolInstallScript
-	}
-	if ghInstallScript != "" {
-		buildArgs["AW_GH_INSTALL_SCRIPT"] = ghInstallScript
-	}
-	if extraPackages != "" && customDockerfile == "" {
-		buildArgs["AW_EXTRA_PACKAGES"] = extraPackages
-	}
-	for k, v := range ec.Profile.BuildEnv {
-		buildArgs[k] = v
-	}
 	if customDockerfile != "" {
 		fmt.Fprintf(os.Stderr, "Building Docker image '%s' (custom Dockerfile: %s)...\n", imageName, ec.Profile.Dockerfile)
 	} else {
@@ -363,6 +380,46 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 
 	return imageName, nil
+}
+
+func copyUserConfigs(buildDir, customDockerfile string, pkgMgr profile.PackageManager) error {
+	if customDockerfile != "" {
+		return nil
+	}
+	userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
+	if pkgMgr == profile.PackageManagerDevbox {
+		userDevboxJSON := filepath.Join(platform.ConfigDir(), "devbox.json")
+		if data, err := os.ReadFile(userDevboxJSON); err == nil {
+			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
+				return fmt.Errorf("copying user devbox.json to build context: %w", err)
+			}
+		}
+	}
+	if data, err := os.ReadFile(userMiseToml); err == nil {
+		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
+			return fmt.Errorf("copying user mise.toml to build context: %w", err)
+		}
+	}
+	return nil
+}
+
+func copyCACert(buildDir, customDockerfile string, ec *pipeline.ExecutionContext) (caCertInBuildDir string, err error) {
+	if ec.Profile.CACert == "" {
+		return "", nil
+	}
+	certPath := pathutil.ExpandTilde(ec.Profile.CACert, ec.HomeDir)
+	data, err := os.ReadFile(certPath)
+	if err != nil {
+		return "", fmt.Errorf("reading ca_cert %q: %w", ec.Profile.CACert, err)
+	}
+	dst := filepath.Join(buildDir, "ca-cert.pem")
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return "", fmt.Errorf("copying ca_cert to build context: %w", err)
+	}
+	if customDockerfile != "" {
+		return dst, nil
+	}
+	return "", nil
 }
 
 func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
