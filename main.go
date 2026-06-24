@@ -20,7 +20,11 @@ func main() {
 	}
 
 	// Split -c passthrough before kong sees it.
-	kongArgs, passthroughArgs := cmd.SplitAtDashC(args)
+	kongArgs, passthroughArgs, splitErr := cmd.SplitAtDashC(args)
+	if splitErr != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", splitErr)
+		os.Exit(1)
+	}
 	pt := &cmd.PassthroughCmd{Args: passthroughArgs}
 
 	var cli cmd.CLI

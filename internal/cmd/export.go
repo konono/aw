@@ -21,16 +21,6 @@ import (
 //go:embed embed/snapshot.sh.tmpl
 var snapshotScriptTmpl string
 
-type exportOptions struct {
-	ProfileName string
-	OutputPath  string
-	Snapshot    bool
-	Apply       bool
-	NoCache     bool
-	Include     []profile.ExportInclude
-	Env         map[string]string
-}
-
 // Run handles the export command.
 func (e *ExportCmd) Run() error {
 	includes, err := parseExportIncludes(e.Include)
@@ -38,44 +28,34 @@ func (e *ExportCmd) Run() error {
 		return err
 	}
 
-	opts := exportOptions{
-		ProfileName: e.ProfileName,
-		OutputPath:  e.Output,
-		Snapshot:    e.Snapshot,
-		Apply:       e.Apply,
-		NoCache:     e.NoCache,
-		Include:     includes,
-		Env:         e.Env,
-	}
-
 	cfg, err := profile.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	p, ok := cfg.Profiles[opts.ProfileName]
+	p, ok := cfg.Profiles[e.ProfileName]
 	if !ok {
-		return fmt.Errorf("profile %q not found", opts.ProfileName)
+		return fmt.Errorf("profile %q not found", e.ProfileName)
 	}
 
 	if p.Environment != profile.EnvironmentContainer {
-		return fmt.Errorf("profile %q uses environment: %s (export requires environment: container)", opts.ProfileName, p.Environment)
+		return fmt.Errorf("profile %q uses environment: %s (export requires environment: container)", e.ProfileName, p.Environment)
 	}
 
 	p.Image = ""
 
-	ec, err := buildExecutionContext(opts.ProfileName, p)
+	ec, err := buildExecutionContext(e.ProfileName, p)
 	if err != nil {
 		return err
 	}
-	ec.NoCache = opts.NoCache
+	ec.NoCache = e.NoCache
 
 	dockerStage := stage.NewDockerStage()
 	if err := dockerStage.Run(context.Background(), ec); err != nil {
 		return err
 	}
 
-	snapshot, incl, envVars := mergeExportOptions(opts, p.Export)
+	snapshot, incl, envVars := mergeExportFields(e.Snapshot, includes, e.Env, p.Export)
 
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
@@ -88,9 +68,9 @@ func (e *ExportCmd) Run() error {
 		}
 	}
 
-	saveTar := !opts.Apply || opts.OutputPath != ""
+	saveTar := !e.Apply || e.Output != ""
 
-	outputPath := opts.OutputPath
+	outputPath := e.Output
 	if saveTar && outputPath == "" {
 		safe := strings.NewReplacer(":", "-", "/", "-").Replace(ec.DockerImage)
 		outputPath = safe + ".tar"
@@ -105,18 +85,18 @@ func (e *ExportCmd) Run() error {
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
 
-	if opts.Apply {
-		targetFile := profile.FindProfileSource(opts.ProfileName)
+	if e.Apply {
+		targetFile := profile.FindProfileSource(e.ProfileName)
 		if targetFile == "" {
 			targetFile = cfg.Source.FilePath
 		}
 		if targetFile == "" {
 			return fmt.Errorf("--apply requires a config file. Run `aw init` first")
 		}
-		if err := applyExportResult(targetFile, opts.ProfileName, ec.DockerImage, snapshot); err != nil {
+		if err := applyExportResult(targetFile, e.ProfileName, ec.DockerImage, snapshot); err != nil {
 			return fmt.Errorf("applying export result: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", ec.DockerImage, opts.ProfileName, targetFile)
+		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", ec.DockerImage, e.ProfileName, targetFile)
 		if saveTar {
 			fmt.Fprintf(os.Stderr, "# Load on target machine:\n")
 			fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, outputPath)
@@ -197,7 +177,7 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 	return nil
 }
 
-func mergeExportOptions(opts exportOptions, profileExport *profile.ExportConfig) (snapshot bool, includes []profile.ExportInclude, envVars map[string]string) {
+func mergeExportFields(flagSnapshot bool, flagIncludes []profile.ExportInclude, flagEnv map[string]string, profileExport *profile.ExportConfig) (snapshot bool, includes []profile.ExportInclude, envVars map[string]string) {
 	if profileExport != nil {
 		snapshot = profileExport.Snapshot
 		includes = append(includes, profileExport.Include...)
@@ -209,11 +189,11 @@ func mergeExportOptions(opts exportOptions, profileExport *profile.ExportConfig)
 		}
 	}
 
-	if opts.Snapshot {
+	if flagSnapshot {
 		snapshot = true
 	}
-	includes = append(includes, opts.Include...)
-	for k, v := range opts.Env {
+	includes = append(includes, flagIncludes...)
+	for k, v := range flagEnv {
 		if envVars == nil {
 			envVars = make(map[string]string)
 		}

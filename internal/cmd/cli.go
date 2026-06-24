@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alecthomas/kong"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -22,25 +23,26 @@ func exitCode(code int) error {
 // PassthroughCmd holds the -c passthrough args split before kong sees them.
 type PassthroughCmd struct{ Args []string }
 
-// SplitAtDashC splits os.Args[1:] at -c. Everything before -c goes to kong,
-// everything after (including the first real arg) becomes the passthrough command.
-func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string) {
+// SplitAtDashC splits args at -c, but only when -c appears in a position that
+// looks like a profile-launch context (not inside a recognized subcommand).
+// Returns the args for kong, the passthrough command args, and an error if -c
+// has no following arguments.
+func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string, err error) {
 	for i, a := range args {
 		if a == "-c" {
 			if i+1 < len(args) {
-				return args[:i], args[i+1:]
+				return args[:i], args[i+1:], nil
 			}
-			// -c with no args: let kong handle it (will show help)
-			return args[:i], nil
+			return nil, nil, fmt.Errorf("-c requires a command")
 		}
 	}
-	return args, nil
+	return args, nil, nil
 }
 
 // CLI is the top-level kong grammar.
 type CLI struct {
 	// Global flags
-	Version VersionCmd `cmd:"" name:"version" hidden:"" help:"Show version." aliases:"--version,-v"`
+	Version kong.VersionFlag `short:"v" name:"version" help:"Show version."`
 
 	// Subcommands
 	Run              RunCmd              `cmd:"" default:"withargs" help:"Run a profile (default command)."`
@@ -63,9 +65,6 @@ type CLI struct {
 	InternalWatch     InternalWatchCmd     `cmd:"" name:"internal-watch" hidden:"" help:"Watch for messages."`
 	InternalAgentLoop InternalAgentLoopCmd `cmd:"" name:"internal-agent-loop" hidden:"" help:"Run agent loop."`
 }
-
-// VersionCmd prints version info.
-type VersionCmd struct{}
 
 // ProfilesCmd lists available profiles.
 type ProfilesCmd struct{}
@@ -111,29 +110,22 @@ type AuthCmd struct {
 	Status AuthStatusCmd `cmd:"" help:"Show auth status for a tool."`
 }
 
-// AuthLoginCmd logs in.
-type AuthLoginCmd struct {
+type authFlags struct {
 	Tool    string `arg:"" help:"Tool name (claude, codex, opencode, cursor) or profile name."`
 	Profile string `short:"p" name:"profile" help:"Explicit profile name."`
 }
+
+// AuthLoginCmd logs in.
+type AuthLoginCmd struct{ authFlags }
 
 // AuthLogoutCmd logs out.
-type AuthLogoutCmd struct {
-	Tool    string `arg:"" help:"Tool name or profile name."`
-	Profile string `short:"p" name:"profile" help:"Explicit profile name."`
-}
+type AuthLogoutCmd struct{ authFlags }
 
 // AuthStatusCmd shows status.
-type AuthStatusCmd struct {
-	Tool    string `arg:"" help:"Tool name or profile name."`
-	Profile string `short:"p" name:"profile" help:"Explicit profile name."`
-}
+type AuthStatusCmd struct{ authFlags }
 
 // LoginCmd is an alias for auth login.
-type LoginCmd struct {
-	Tool    string `arg:"" help:"Tool name (claude, codex, opencode, cursor) or profile name."`
-	Profile string `short:"p" name:"profile" help:"Explicit profile name."`
-}
+type LoginCmd struct{ authFlags }
 
 // ExportCmd builds and exports a profile's container image.
 type ExportCmd struct {
@@ -289,7 +281,12 @@ type InternalWatchCmd struct {
 }
 
 // InternalAgentLoopCmd runs agent loop.
-type InternalAgentLoopCmd struct{}
+type InternalAgentLoopCmd struct {
+	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
+	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
+	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
+	Tool  string `name:"tool" env:"AW_TOOL" help:"Tool name."`
+}
 
 // parseExportIncludes parses --include src:dst strings into profile.ExportInclude.
 func parseExportIncludes(includes []string) ([]profile.ExportInclude, error) {

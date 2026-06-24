@@ -65,10 +65,9 @@ func TestParseExportIncludes(t *testing.T) {
 	})
 }
 
-func TestMergeExportOptions(t *testing.T) {
+func TestMergeExportFields(t *testing.T) {
 	t.Run("cli only snapshot", func(t *testing.T) {
-		opts := exportOptions{Snapshot: true}
-		snap, inc, env := mergeExportOptions(opts, nil)
+		snap, inc, env := mergeExportFields(true, nil, nil, nil)
 		if !snap {
 			t.Error("snapshot should be true")
 		}
@@ -86,7 +85,7 @@ func TestMergeExportOptions(t *testing.T) {
 			Include:  []profile.ExportInclude{{Src: "./a", Dst: "/a"}},
 			Env:      map[string]string{"X": "1"},
 		}
-		snap, inc, env := mergeExportOptions(exportOptions{}, cfg)
+		snap, inc, env := mergeExportFields(false, nil, nil, cfg)
 		if !snap {
 			t.Error("snapshot should be true from config")
 		}
@@ -102,10 +101,7 @@ func TestMergeExportOptions(t *testing.T) {
 		cfg := &profile.ExportConfig{
 			Env: map[string]string{"A": "from-config", "B": "keep"},
 		}
-		opts := exportOptions{
-			Env: map[string]string{"A": "from-cli"},
-		}
-		_, _, env := mergeExportOptions(opts, cfg)
+		_, _, env := mergeExportFields(false, nil, map[string]string{"A": "from-cli"}, cfg)
 		if env["A"] != "from-cli" {
 			t.Errorf("env[A] = %q, want %q (cli should override)", env["A"], "from-cli")
 		}
@@ -115,20 +111,14 @@ func TestMergeExportOptions(t *testing.T) {
 	})
 
 	t.Run("include implies snapshot", func(t *testing.T) {
-		opts := exportOptions{
-			Include: []profile.ExportInclude{{Src: "./x", Dst: "/x"}},
-		}
-		snap, _, _ := mergeExportOptions(opts, nil)
+		snap, _, _ := mergeExportFields(false, []profile.ExportInclude{{Src: "./x", Dst: "/x"}}, nil, nil)
 		if !snap {
 			t.Error("snapshot should be implicitly true when includes are present")
 		}
 	})
 
 	t.Run("env implies snapshot", func(t *testing.T) {
-		opts := exportOptions{
-			Env: map[string]string{"K": "V"},
-		}
-		snap, _, _ := mergeExportOptions(opts, nil)
+		snap, _, _ := mergeExportFields(false, nil, map[string]string{"K": "V"}, nil)
 		if !snap {
 			t.Error("snapshot should be implicitly true when env vars are present")
 		}
@@ -138,10 +128,7 @@ func TestMergeExportOptions(t *testing.T) {
 		cfg := &profile.ExportConfig{
 			Include: []profile.ExportInclude{{Src: "./from-config", Dst: "/config"}},
 		}
-		opts := exportOptions{
-			Include: []profile.ExportInclude{{Src: "./from-cli", Dst: "/cli"}},
-		}
-		_, inc, _ := mergeExportOptions(opts, cfg)
+		_, inc, _ := mergeExportFields(false, []profile.ExportInclude{{Src: "./from-cli", Dst: "/cli"}}, nil, cfg)
 		if len(inc) != 2 {
 			t.Errorf("includes len = %d, want 2 (config + cli)", len(inc))
 		}

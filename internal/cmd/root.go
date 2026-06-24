@@ -201,12 +201,6 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 	return stages
 }
 
-// VersionCmd.Run prints the version.
-func (v *VersionCmd) Run() error {
-	fmt.Printf("aw %s\n", version.Version)
-	return nil
-}
-
 // ProfilesCmd.Run lists profiles.
 func (p *ProfilesCmd) Run() error {
 	cfg, err := profile.Load()

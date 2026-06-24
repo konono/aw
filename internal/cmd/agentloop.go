@@ -13,10 +13,10 @@ import (
 
 // Run handles internal agent loop.
 func (a *InternalAgentLoopCmd) Run() error {
-	dbPath := os.Getenv("AW_MSG_DB")
-	agentName := os.Getenv("AW_AGENT_NAME")
-	teamName := os.Getenv("AW_TEAM_NAME")
-	tool := os.Getenv("AW_TOOL")
+	dbPath := a.DB
+	agentName := a.Agent
+	teamName := a.Team
+	tool := a.Tool
 
 	if dbPath == "" || agentName == "" || teamName == "" {
 		return fmt.Errorf("AW_MSG_DB, AW_AGENT_NAME, AW_TEAM_NAME required")
