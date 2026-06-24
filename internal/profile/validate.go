@@ -31,55 +31,57 @@ var validRoles = map[Role]bool{
 
 // Validate checks that a profile configuration is semantically valid.
 func Validate(p Profile) error {
-	// Validate environment
+	validators := []func(Profile) error{
+		validateBasicFields,
+		validateContainerFlags,
+		func(p Profile) error { return validateAuth(p.Auth) },
+		func(p Profile) error { return validateExport(p.Export, p.Environment) },
+		func(p Profile) error { return validateReaper(p.Reaper, p.Environment) },
+	}
+	for _, v := range validators {
+		if err := v(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateBasicFields(p Profile) error {
 	switch p.Environment {
 	case EnvironmentHost, EnvironmentContainer:
-		// ok
 	case "":
 		return fmt.Errorf("environment is required (\"host\" or \"container\")")
 	default:
 		return fmt.Errorf("unknown environment: %q (must be \"host\" or \"container\")", p.Environment)
 	}
 
-	// Validate launch mode
 	switch p.Launch {
 	case LaunchShell, LaunchClaude, LaunchCodex, LaunchOpenCode, LaunchCursor:
-		// ok
 	case "":
 		return fmt.Errorf("launch is required (\"shell\", \"claude\", \"codex\", \"opencode\", or \"cursor\")")
 	default:
 		return fmt.Errorf("unknown launch mode: %q (must be \"shell\", \"claude\", \"codex\", \"opencode\", or \"cursor\")", p.Launch)
 	}
 
-	// Validate os
 	switch p.OS {
 	case "", OSDebian12, OSUBI9, OSUBI10, OSUbuntu2604:
-		// ok
 	default:
 		return fmt.Errorf("unknown os: %q (must be \"debian12\", \"ubi9\", \"ubi10\", or \"ubuntu2604\")", p.OS)
 	}
 
-	// Validate os is only used with environment: container
 	if p.OS != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("os is only valid with environment: container")
 	}
-
-	// Validate os and dockerfile are mutually exclusive
 	if p.OS != "" && p.Dockerfile != "" {
 		return fmt.Errorf("os and dockerfile are mutually exclusive; use os for built-in templates or dockerfile for a custom Dockerfile")
 	}
-
-	// Validate image is only used with environment: container
 	if p.Image != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("image is only valid with environment: container")
 	}
-
-	// Validate dockerfile is only used with environment: container
 	if p.Dockerfile != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("dockerfile is only valid with environment: container")
 	}
 
-	// Validate package_manager
 	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
 		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)
 	}
@@ -87,57 +89,44 @@ func Validate(p Profile) error {
 		return fmt.Errorf("package_manager is only valid with environment: container")
 	}
 
-	// Validate delivery mode
 	switch p.Delivery {
 	case "", "turn", "monitor", "off":
-		// ok
 	default:
 		return fmt.Errorf("unknown delivery: %q (must be \"turn\", \"monitor\", or \"off\")", p.Delivery)
 	}
 
-	// Validate container_runtime
 	switch p.ContainerRuntime {
 	case "", ContainerRuntimeDocker, ContainerRuntimePodman:
-		// ok
 	default:
 		return fmt.Errorf("unknown container_runtime: %q (must be \"docker\" or \"podman\")", p.ContainerRuntime)
 	}
 
-	// Validate skip_devbox_install is only used with environment: container
+	return nil
+}
+
+func validateContainerFlags(p Profile) error {
 	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("skip_devbox_install is only valid with environment: container")
 	}
-
-	// Validate skip_mise_install is only used with environment: container
 	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("skip_mise_install is only valid with environment: container")
 	}
-
 	if p.ContainerUser != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("container_user is only valid with environment: container")
 	}
-
-	// Validate ssh_agent_forwarding is only used with environment: container
 	if p.EffectiveSSHAgentForwarding() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("ssh_agent_forwarding is only valid with environment: container")
 	}
-
-	// Validate gh_token is only used with environment: container
 	if p.EffectiveGhToken() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("gh_token is only valid with environment: container")
 	}
-
-	// Validate mount_gh and gh_token are mutually exclusive
 	if p.EffectiveMountGH() && p.EffectiveGhToken() {
 		return fmt.Errorf("mount_gh and gh_token are mutually exclusive; use gh_token instead")
 	}
-
-	// Validate mount_container_sock is only used with environment: container
 	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")
 	}
 
-	// Validate packages is only used with environment: container
 	if len(p.Packages) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("packages is only valid with environment: container")
 	}
@@ -147,7 +136,6 @@ func Validate(p Profile) error {
 		}
 	}
 
-	// Validate mounts are only used with environment: container
 	if len(p.Mounts) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mounts are only valid with environment: container")
 	}
@@ -160,7 +148,6 @@ func Validate(p Profile) error {
 		}
 		switch m.Mode {
 		case "", MountModeRO, MountModeRW:
-			// ok
 		default:
 			return fmt.Errorf("mount[%d]: unknown mode %q (must be \"ro\" or \"rw\")", i, m.Mode)
 		}
@@ -177,18 +164,6 @@ func Validate(p Profile) error {
 
 	if p.CACert != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("ca_cert is only valid with environment: container")
-	}
-
-	if err := validateAuth(p.Auth); err != nil {
-		return err
-	}
-
-	if err := validateExport(p.Export, p.Environment); err != nil {
-		return err
-	}
-
-	if err := validateReaper(p.Reaper, p.Environment); err != nil {
-		return err
 	}
 
 	return nil
