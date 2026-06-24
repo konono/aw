@@ -9,7 +9,18 @@ import (
 // Sub-structs (Worktree) are merged field-by-field rather than replaced wholesale.
 func MergeProfile(base, override Profile) Profile {
 	merged := base
+	mergeStringFields(&merged, override)
+	mergeImageFields(&merged, override)
+	mergeBoolPtrFields(&merged, override)
+	mergeCollectionFields(&merged, base, override)
+	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
+	merged.Auth = mergeAuth(merged.Auth, override.Auth)
+	merged.Export = mergeExport(merged.Export, override.Export)
+	merged.Reaper = mergeReaper(merged.Reaper, override.Reaper)
+	return merged
+}
 
+func mergeStringFields(merged *Profile, override Profile) {
 	if override.Environment != "" {
 		merged.Environment = override.Environment
 	}
@@ -19,18 +30,21 @@ func MergeProfile(base, override Profile) Profile {
 	if override.Delivery != "" {
 		merged.Delivery = override.Delivery
 	}
-	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
-	merged.Auth = mergeAuth(merged.Auth, override.Auth)
-	if override.Env != nil {
-		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
-		for k, v := range merged.Env {
-			envCopy[k] = v
-		}
-		for k, v := range override.Env {
-			envCopy[k] = v
-		}
-		merged.Env = envCopy
+	if override.ContainerRuntime != "" {
+		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.ContainerUser != "" {
+		merged.ContainerUser = override.ContainerUser
+	}
+	if override.PackageManager != "" {
+		merged.PackageManager = override.PackageManager
+	}
+	if override.CACert != "" {
+		merged.CACert = override.CACert
+	}
+}
+
+func mergeImageFields(merged *Profile, override Profile) {
 	if override.Image != "" {
 		merged.Image = override.Image
 		if override.OS == "" {
@@ -58,18 +72,12 @@ func MergeProfile(base, override Profile) Profile {
 			merged.Image = ""
 		}
 	}
-	if override.ContainerRuntime != "" {
-		merged.ContainerRuntime = override.ContainerRuntime
-	}
-	if override.ContainerUser != "" {
-		merged.ContainerUser = override.ContainerUser
-	}
+}
+
+func mergeBoolPtrFields(merged *Profile, override Profile) {
 	if override.SkipDevboxInstall != nil {
 		v := *override.SkipDevboxInstall
 		merged.SkipDevboxInstall = &v
-	}
-	if override.PackageManager != "" {
-		merged.PackageManager = override.PackageManager
 	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
@@ -95,6 +103,19 @@ func MergeProfile(base, override Profile) Profile {
 		v := *override.MountContainerSock
 		merged.MountContainerSock = &v
 	}
+}
+
+func mergeCollectionFields(merged *Profile, base, override Profile) {
+	if override.Env != nil {
+		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
+		for k, v := range merged.Env {
+			envCopy[k] = v
+		}
+		for k, v := range override.Env {
+			envCopy[k] = v
+		}
+		merged.Env = envCopy
+	}
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
@@ -111,13 +132,6 @@ func MergeProfile(base, override Profile) Profile {
 		}
 		merged.BuildEnv = envCopy
 	}
-	if override.CACert != "" {
-		merged.CACert = override.CACert
-	}
-	merged.Export = mergeExport(merged.Export, override.Export)
-	merged.Reaper = mergeReaper(merged.Reaper, override.Reaper)
-
-	return merged
 }
 
 // MergeProfileDefaults merges top-level defaults using the same field rules as
@@ -154,6 +168,23 @@ func mergeWorktree(base, override *WorktreeConfig) *WorktreeConfig {
 // effective when merged on top of defaults.
 func RelativeProfile(defaults, effective Profile) Profile {
 	relative := Profile{}
+	relativeStringFields(&relative, defaults, effective)
+	relativeImageFields(&relative, defaults, effective)
+	relativeBoolPtrFields(&relative, defaults, effective)
+	relativeCollectionFields(&relative, defaults, effective)
+	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
+	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
+	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
+		relative.Export = cloneExport(effective.Export)
+	}
+	if !equalReaper(effective.Reaper, defaults.Reaper) && effective.Reaper != nil {
+		c := *effective.Reaper
+		relative.Reaper = &c
+	}
+	return relative
+}
+
+func relativeStringFields(relative *Profile, defaults, effective Profile) {
 	if effective.Environment != defaults.Environment {
 		relative.Environment = effective.Environment
 	}
@@ -163,8 +194,21 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if effective.Delivery != defaults.Delivery {
 		relative.Delivery = effective.Delivery
 	}
-	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
-	relative.Env = relativeEnv(defaults.Env, effective.Env)
+	if effective.ContainerRuntime != defaults.ContainerRuntime {
+		relative.ContainerRuntime = effective.ContainerRuntime
+	}
+	if effective.ContainerUser != defaults.ContainerUser {
+		relative.ContainerUser = effective.ContainerUser
+	}
+	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
+		relative.PackageManager = effective.PackageManager
+	}
+	if effective.CACert != defaults.CACert {
+		relative.CACert = effective.CACert
+	}
+}
+
+func relativeImageFields(relative *Profile, defaults, effective Profile) {
 	if effective.OS != defaults.OS {
 		relative.OS = effective.OS
 	}
@@ -174,19 +218,12 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if effective.Dockerfile != defaults.Dockerfile {
 		relative.Dockerfile = effective.Dockerfile
 	}
-	if effective.ContainerRuntime != defaults.ContainerRuntime {
-		relative.ContainerRuntime = effective.ContainerRuntime
-	}
-	if effective.ContainerUser != defaults.ContainerUser {
-		relative.ContainerUser = effective.ContainerUser
-	}
-	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
+}
+
+func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
 	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
 		v := *effective.SkipDevboxInstall
 		relative.SkipDevboxInstall = &v
-	}
-	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
-		relative.PackageManager = effective.PackageManager
 	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall
@@ -212,24 +249,17 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		v := *effective.MountContainerSock
 		relative.MountContainerSock = &v
 	}
+}
+
+func relativeCollectionFields(relative *Profile, defaults, effective Profile) {
+	relative.Env = relativeEnv(defaults.Env, effective.Env)
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
 	}
 	if !equalStrings(effective.Packages, defaults.Packages) && effective.Packages != nil {
 		relative.Packages = append([]string{}, effective.Packages...)
 	}
-	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
-		relative.Export = cloneExport(effective.Export)
-	}
-	if !equalReaper(effective.Reaper, defaults.Reaper) && effective.Reaper != nil {
-		c := *effective.Reaper
-		relative.Reaper = &c
-	}
 	relative.BuildEnv = relativeEnv(defaults.BuildEnv, effective.BuildEnv)
-	if effective.CACert != defaults.CACert {
-		relative.CACert = effective.CACert
-	}
-	return relative
 }
 
 func equalReaper(a, b *ReaperProfileConfig) bool {
