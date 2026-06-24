@@ -197,10 +197,10 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 	t.Logf("container runtime: %s", runtime)
 
 	for _, osTemplate := range allOSTemplates {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-shell-%s", osTemplate)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
+		imageName := fmt.Sprintf("aw-inttest-shell-%s", osTemplate)
+		t.Cleanup(func() { removeImage(runtime, imageName) })
 
+		t.Run(string(osTemplate), func(t *testing.T) {
 			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
@@ -253,10 +253,10 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 	for _, osTemplate := range allOSTemplates {
 		for _, tool := range integrationTools {
 			testName := fmt.Sprintf("%s/%s", osTemplate, tool)
-			t.Run(testName, func(t *testing.T) {
-				imageName := fmt.Sprintf("aw-inttest-%s-%s", tool, osTemplate)
-				t.Cleanup(func() { removeImage(runtime, imageName) })
+			imageName := fmt.Sprintf("aw-inttest-%s-%s", tool, osTemplate)
+			t.Cleanup(func() { removeImage(runtime, imageName) })
 
+			t.Run(testName, func(t *testing.T) {
 				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
 				if err != nil {
 					t.Fatalf("PrepareBuildContext: %v", err)
@@ -329,10 +329,10 @@ func TestIntegration_E2E(t *testing.T) {
 	t.Logf("container runtime: %s", runtime)
 
 	for _, osTemplate := range allOSTemplates {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-e2e-%s", osTemplate)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
+		imageName := fmt.Sprintf("aw-inttest-e2e-%s", osTemplate)
+		t.Cleanup(func() { removeImage(runtime, imageName) })
 
+		t.Run(string(osTemplate), func(t *testing.T) {
 			cenv := containerenv.Default()
 			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, cenv)
 			if err != nil {
@@ -399,10 +399,10 @@ func TestIntegration_ContainerLaunchFlags(t *testing.T) {
 			continue
 		}
 
-		t.Run(tool, func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-flags-%s", tool)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
+		imageName := fmt.Sprintf("aw-inttest-flags-%s", tool)
+		t.Cleanup(func() { removeImage(runtime, imageName) })
 
+		t.Run(tool, func(t *testing.T) {
 			buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
@@ -491,10 +491,10 @@ func TestIntegration_Devbox_ShellPerOS(t *testing.T) {
 	t.Logf("container runtime: %s", runtime)
 
 	for _, osTemplate := range allOSTemplates {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-devbox-shell-%s", osTemplate)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
+		imageName := fmt.Sprintf("aw-inttest-devbox-shell-%s", osTemplate)
+		t.Cleanup(func() { removeImage(runtime, imageName) })
 
+		t.Run(string(osTemplate), func(t *testing.T) {
 			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerDevbox, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
@@ -528,10 +528,10 @@ func TestIntegration_Devbox_E2E(t *testing.T) {
 	t.Logf("container runtime: %s", runtime)
 
 	for _, osTemplate := range allOSTemplates {
-		t.Run(string(osTemplate), func(t *testing.T) {
-			imageName := fmt.Sprintf("aw-inttest-devbox-e2e-%s", osTemplate)
-			t.Cleanup(func() { removeImage(runtime, imageName) })
+		imageName := fmt.Sprintf("aw-inttest-devbox-e2e-%s", osTemplate)
+		t.Cleanup(func() { removeImage(runtime, imageName) })
 
+		t.Run(string(osTemplate), func(t *testing.T) {
 			cenv := containerenv.Default()
 			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerDevbox, cenv)
 			if err != nil {
