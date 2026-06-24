@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,197 +9,58 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-func TestParseExportArgs(t *testing.T) {
-	t.Run("profile only", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude"})
+func TestParseExportIncludes(t *testing.T) {
+	t.Run("valid single", func(t *testing.T) {
+		inc, err := parseExportIncludes([]string{"./certs:/usr/local/share/ca-certificates"})
 		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
+			t.Fatalf("error: %v", err)
 		}
-		if opts.ProfileName != "claude" {
-			t.Fatalf("ProfileName = %q, want %q", opts.ProfileName, "claude")
+		if len(inc) != 1 {
+			t.Fatalf("len = %d, want 1", len(inc))
 		}
-		if opts.OutputPath != "" {
-			t.Fatalf("OutputPath = %q, want empty", opts.OutputPath)
+		if inc[0].Src != "./certs" || inc[0].Dst != "/usr/local/share/ca-certificates" {
+			t.Fatalf("got %+v", inc[0])
 		}
 	})
 
-	t.Run("profile and output", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "-o", "image.tar"})
+	t.Run("valid multiple", func(t *testing.T) {
+		inc, err := parseExportIncludes([]string{"./a:/a", "./b:/b"})
 		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
+			t.Fatalf("error: %v", err)
 		}
-		if opts.ProfileName != "claude" {
-			t.Fatalf("ProfileName = %q, want %q", opts.ProfileName, "claude")
-		}
-		if opts.OutputPath != "image.tar" {
-			t.Fatalf("OutputPath = %q, want %q", opts.OutputPath, "image.tar")
+		if len(inc) != 2 {
+			t.Fatalf("len = %d, want 2", len(inc))
 		}
 	})
 
-	t.Run("help", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"--help"})
-		if !errors.Is(err, errExportHelp) {
-			t.Fatalf("parseExportArgs(--help) error = %v, want errExportHelp", err)
+	t.Run("bad format no colon", func(t *testing.T) {
+		_, err := parseExportIncludes([]string{"nodelimiter"})
+		if err == nil {
+			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("missing profile", func(t *testing.T) {
-		_, err := parseExportArgs([]string{})
-		if err == nil || err.Error() != "profile name is required" {
-			t.Fatalf("parseExportArgs() error = %v, want profile name is required", err)
+	t.Run("bad format empty src", func(t *testing.T) {
+		_, err := parseExportIncludes([]string{":/dst"})
+		if err == nil {
+			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("missing output path", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "-o"})
-		if err == nil || err.Error() != "-o requires an output path" {
-			t.Fatalf("parseExportArgs() error = %v, want missing output path", err)
+	t.Run("bad format empty dst", func(t *testing.T) {
+		_, err := parseExportIncludes([]string{"src:"})
+		if err == nil {
+			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("unknown flag", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "--output"})
-		if err == nil || err.Error() != "unknown flag \"--output\"" {
-			t.Fatalf("parseExportArgs() error = %v, want unknown flag", err)
-		}
-	})
-
-	t.Run("too many targets", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "codex"})
-		if err == nil || err.Error() != "too many export targets" {
-			t.Fatalf("parseExportArgs() error = %v, want too many export targets", err)
-		}
-	})
-
-	t.Run("snapshot flag", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--snapshot"})
+	t.Run("empty list", func(t *testing.T) {
+		inc, err := parseExportIncludes(nil)
 		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
+			t.Fatalf("error: %v", err)
 		}
-		if !opts.Snapshot {
-			t.Fatal("Snapshot should be true")
-		}
-	})
-
-	t.Run("no-cache flag", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--no-cache"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if !opts.NoCache {
-			t.Fatal("NoCache should be true")
-		}
-	})
-
-	t.Run("include single", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--include", "./certs:/usr/local/share/ca-certificates"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if len(opts.Include) != 1 {
-			t.Fatalf("Include len = %d, want 1", len(opts.Include))
-		}
-		if opts.Include[0].Src != "./certs" || opts.Include[0].Dst != "/usr/local/share/ca-certificates" {
-			t.Fatalf("Include[0] = %+v, want {./certs /usr/local/share/ca-certificates}", opts.Include[0])
-		}
-	})
-
-	t.Run("include multiple", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--include", "./a:/a", "--include", "./b:/b"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if len(opts.Include) != 2 {
-			t.Fatalf("Include len = %d, want 2", len(opts.Include))
-		}
-	})
-
-	t.Run("include missing value", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "--include"})
-		if err == nil || err.Error() != "--include requires src:dst argument" {
-			t.Fatalf("parseExportArgs() error = %v, want missing arg error", err)
-		}
-	})
-
-	t.Run("include bad format", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "--include", "nodelimiter"})
-		if err == nil || err.Error() != "--include requires format src:dst" {
-			t.Fatalf("parseExportArgs() error = %v, want format error", err)
-		}
-	})
-
-	t.Run("env single", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--env", "FOO=bar"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if opts.Env["FOO"] != "bar" {
-			t.Fatalf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar")
-		}
-	})
-
-	t.Run("env with equals in value", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--env", "FOO=bar=baz"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if opts.Env["FOO"] != "bar=baz" {
-			t.Fatalf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar=baz")
-		}
-	})
-
-	t.Run("env missing value", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "--env"})
-		if err == nil || err.Error() != "--env requires KEY=VAL argument" {
-			t.Fatalf("parseExportArgs() error = %v, want missing arg error", err)
-		}
-	})
-
-	t.Run("env bad format", func(t *testing.T) {
-		_, err := parseExportArgs([]string{"claude", "--env", "NOEQUALS"})
-		if err == nil || err.Error() != "--env requires format KEY=VAL" {
-			t.Fatalf("parseExportArgs() error = %v, want format error", err)
-		}
-	})
-
-	t.Run("apply flag", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{"claude", "--apply"})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if !opts.Apply {
-			t.Fatal("Apply should be true")
-		}
-	})
-
-	t.Run("all flags combined", func(t *testing.T) {
-		opts, err := parseExportArgs([]string{
-			"claude", "--snapshot",
-			"--include", "./certs:/certs",
-			"--env", "FOO=bar",
-			"--apply",
-			"-o", "out.tar",
-		})
-		if err != nil {
-			t.Fatalf("parseExportArgs() error = %v", err)
-		}
-		if opts.ProfileName != "claude" {
-			t.Errorf("ProfileName = %q, want %q", opts.ProfileName, "claude")
-		}
-		if !opts.Snapshot {
-			t.Error("Snapshot should be true")
-		}
-		if !opts.Apply {
-			t.Error("Apply should be true")
-		}
-		if len(opts.Include) != 1 {
-			t.Errorf("Include len = %d, want 1", len(opts.Include))
-		}
-		if opts.Env["FOO"] != "bar" {
-			t.Errorf("Env[FOO] = %q, want %q", opts.Env["FOO"], "bar")
-		}
-		if opts.OutputPath != "out.tar" {
-			t.Errorf("OutputPath = %q, want %q", opts.OutputPath, "out.tar")
+		if len(inc) != 0 {
+			t.Fatalf("len = %d, want 0", len(inc))
 		}
 	})
 }

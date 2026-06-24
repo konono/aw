@@ -14,6 +14,17 @@ import (
 	"github.com/konono/aw/internal/team"
 )
 
+// runCheckInbox is a test helper that runs InternalCheckInboxCmd.Run()
+// with the given db/agent/team values (falls back to env vars).
+func runCheckInbox(db, agent, teamName string) error {
+	cmd := &InternalCheckInboxCmd{
+		DB:    db,
+		Agent: agent,
+		Team:  teamName,
+	}
+	return cmd.Run()
+}
+
 // ---------------------------------------------------------------------------
 // Phase 1.5a: check-inbox JSON output — full flow with DB
 // ---------------------------------------------------------------------------
@@ -34,10 +45,7 @@ func TestE2E_CheckInbox_JSONOutput(t *testing.T) {
 	}
 	_ = store.Close()
 
-	// Set env and run check-inbox
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "team-scope")
+	// Set env for cooldown check
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "0")
 
 	// Remove any stale marker
@@ -48,13 +56,13 @@ func TestE2E_CheckInbox_JSONOutput(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	code := runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "developer-1", "team-scope")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("exit code = %d, want 0", code)
+	if err != nil {
+		t.Fatalf("error: %v", err)
 	}
 
 	buf := make([]byte, 4096)
@@ -84,22 +92,19 @@ func TestE2E_CheckInbox_NoMessages(t *testing.T) {
 	}
 	_ = store.Close()
 
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "team-scope")
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "0")
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	code := runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "developer-1", "team-scope")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("exit code = %d, want 0", code)
+	if err != nil {
+		t.Fatalf("error: %v", err)
 	}
 
 	buf := make([]byte, 4096)
@@ -123,21 +128,18 @@ func TestE2E_CheckInbox_Cooldown(t *testing.T) {
 	}
 	_ = store.Close()
 
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "team-scope")
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "9999")
 
 	// First call should output
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	code := runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "developer-1", "team-scope")
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("first call exit code = %d", code)
+	if err != nil {
+		t.Fatalf("first call error: %v", err)
 	}
 	buf := make([]byte, 4096)
 	n, _ := r.Read(buf)
@@ -149,12 +151,12 @@ func TestE2E_CheckInbox_Cooldown(t *testing.T) {
 	// Second call within cooldown should produce no output
 	r, w, _ = os.Pipe()
 	os.Stdout = w
-	code = runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "developer-1", "team-scope")
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("second call exit code = %d", code)
+	if err != nil {
+		t.Fatalf("second call error: %v", err)
 	}
 	buf = make([]byte, 4096)
 	n, _ = r.Read(buf)
@@ -177,15 +179,12 @@ func TestE2E_CheckInbox_TeamIsolation(t *testing.T) {
 	}
 	_ = store.Close()
 
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "developer-1")
-	t.Setenv("AW_TEAM_NAME", "team-B")
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "0")
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	_ = runInternalCheckInbox(nil)
+	_ = runCheckInbox(dbPath, "developer-1", "team-B")
 	_ = w.Close()
 	os.Stdout = oldStdout
 
@@ -485,15 +484,15 @@ func TestE2E_Worktree_Lifecycle(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Integration: Claude injector — all delivery modes × roles
+// Integration: Claude injector — all delivery modes x roles
 // ---------------------------------------------------------------------------
 
 func TestIntegration_ClaudeInjector_AllModes(t *testing.T) {
 	tests := []struct {
 		deliveryMode inject.DeliveryMode
-		role      string
-		wantStop  bool
-		wantStart bool
+		role         string
+		wantStop     bool
+		wantStart    bool
 	}{
 		{inject.DeliveryTurn, "developer", true, false},
 		{inject.DeliveryTurn, "reviewer", true, false},
@@ -731,20 +730,17 @@ func TestIntegration_FullMessagePipeline(t *testing.T) {
 	_ = store.Close()
 
 	// 2. Reviewer's check-inbox fires (simulating Stop hook)
-	t.Setenv("AW_MSG_DB", dbPath)
-	t.Setenv("AW_AGENT_NAME", "reviewer-1")
-	t.Setenv("AW_TEAM_NAME", "team")
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "0")
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	code := runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "reviewer-1", "team")
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("check-inbox exit = %d", code)
+	if err != nil {
+		t.Fatalf("check-inbox error: %v", err)
 	}
 
 	buf := make([]byte, 4096)
@@ -770,17 +766,16 @@ func TestIntegration_FullMessagePipeline(t *testing.T) {
 	_ = store.Close()
 
 	// 4. Developer's check-inbox fires
-	t.Setenv("AW_AGENT_NAME", "developer-1")
 	_ = os.Remove(filepath.Join(dir, ".lastcheck-developer-1"))
 
 	r, w, _ = os.Pipe()
 	os.Stdout = w
-	code2 := runInternalCheckInbox(nil)
+	err = runCheckInbox(dbPath, "developer-1", "team")
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code2 != 0 {
-		t.Fatalf("developer check-inbox exit = %d", code2)
+	if err != nil {
+		t.Fatalf("developer check-inbox error: %v", err)
 	}
 
 	buf = make([]byte, 4096)
@@ -796,10 +791,10 @@ func TestIntegration_FullMessagePipeline(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Edge case: CLI args parsing
+// Edge case: CLI args via struct fields
 // ---------------------------------------------------------------------------
 
-func TestE2E_CheckInbox_CLIArgs(t *testing.T) {
+func TestE2E_CheckInbox_StructFields(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "messages.db")
 
@@ -812,34 +807,25 @@ func TestE2E_CheckInbox_CLIArgs(t *testing.T) {
 	}
 	_ = store.Close()
 
-	// Use CLI args instead of env vars
-	t.Setenv("AW_MSG_DB", "")
-	t.Setenv("AW_AGENT_NAME", "")
-	t.Setenv("AW_TEAM_NAME", "")
 	t.Setenv("AW_MSG_CHECK_INTERVAL", "0")
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	code := runInternalCheckInbox([]string{
-		"--db", dbPath,
-		"--agent", "cli-agent",
-		"--team", "cli-team",
-	})
+	err = runCheckInbox(dbPath, "cli-agent", "cli-team")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if code != 0 {
-		t.Fatalf("exit code = %d", code)
+	if err != nil {
+		t.Fatalf("error: %v", err)
 	}
 
 	buf := make([]byte, 4096)
 	n, _ := r.Read(buf)
 	output := strings.TrimSpace(string(buf[:n]))
 	if !strings.Contains(output, "block") {
-		t.Errorf("expected block response via CLI args, got %q", output)
+		t.Errorf("expected block response, got %q", output)
 	}
 }
-

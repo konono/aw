@@ -11,21 +11,20 @@ import (
 	"github.com/konono/aw/internal/messaging"
 )
 
-func runInternalAgentLoop(args []string) int {
+// Run handles internal agent loop.
+func (a *InternalAgentLoopCmd) Run() error {
 	dbPath := os.Getenv("AW_MSG_DB")
 	agentName := os.Getenv("AW_AGENT_NAME")
 	teamName := os.Getenv("AW_TEAM_NAME")
 	tool := os.Getenv("AW_TOOL")
 
 	if dbPath == "" || agentName == "" || teamName == "" {
-		fmt.Fprintln(os.Stderr, "AW_MSG_DB, AW_AGENT_NAME, AW_TEAM_NAME required")
-		return 1
+		return fmt.Errorf("AW_MSG_DB, AW_AGENT_NAME, AW_TEAM_NAME required")
 	}
 
 	printCmd := launcher.ToolPrintCommand(tool)
 	if printCmd == nil {
-		fmt.Fprintf(os.Stderr, "tool %q does not support agent loop (print mode)\n", tool)
-		return 1
+		return fmt.Errorf("tool %q does not support agent loop (print mode)", tool)
 	}
 
 	contextFile := "CLAUDE.md"

@@ -3,8 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	awauth "github.com/konono/aw/internal/auth"
 	"github.com/konono/aw/internal/pipeline"
@@ -17,87 +15,55 @@ type authTarget struct {
 	ExplicitProfile bool
 }
 
-func runAuth(args []string) int {
-	action, target, err := parseAuthArgs(args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		printAuthHelp()
-		return 1
+func runAuthAction(action awauth.Action, tool, profileFlag string) error {
+	target := authTarget{Name: tool}
+	if profileFlag != "" {
+		target.Name = profileFlag
+		target.ExplicitProfile = true
+	}
+
+	if target.Name == "" {
+		return fmt.Errorf("tool name is required")
 	}
 
 	cfg, err := loadConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	p, resolvedName, err := resolveAuthTarget(cfg, target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	ec, err := buildExecutionContext(resolvedName, p)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	stages := buildAuthStages(p, action)
 	pipe := pipeline.New(stages...)
-	if err := pipe.Execute(context.Background(), ec); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-
-	return 0
+	return pipe.Execute(context.Background(), ec)
 }
 
-func parseAuthArgs(args []string) (awauth.Action, authTarget, error) {
-	if len(args) == 0 {
-		return "", authTarget{}, fmt.Errorf("auth action is required")
-	}
+// Run handles auth login.
+func (a *AuthLoginCmd) Run() error {
+	return runAuthAction(awauth.ActionLogin, a.Tool, a.Profile)
+}
 
-	var action awauth.Action
-	switch args[0] {
-	case "login":
-		action = awauth.ActionLogin
-	case "logout":
-		action = awauth.ActionLogout
-	case "status":
-		action = awauth.ActionStatus
-	default:
-		return "", authTarget{}, fmt.Errorf("unknown auth action %q", args[0])
-	}
+// Run handles auth logout.
+func (a *AuthLogoutCmd) Run() error {
+	return runAuthAction(awauth.ActionLogout, a.Tool, a.Profile)
+}
 
-	target := authTarget{}
-	rest := args[1:]
-	for i := 0; i < len(rest); i++ {
-		arg := rest[i]
-		switch arg {
-		case "--profile", "-p":
-			if i+1 >= len(rest) {
-				return "", authTarget{}, fmt.Errorf("%s requires a profile name", arg)
-			}
-			target.Name = rest[i+1]
-			target.ExplicitProfile = true
-			i++
-		default:
-			if strings.HasPrefix(arg, "-") {
-				return "", authTarget{}, fmt.Errorf("unknown auth flag %q", arg)
-			}
-			if target.Name != "" {
-				return "", authTarget{}, fmt.Errorf("too many auth targets")
-			}
-			target.Name = arg
-		}
-	}
+// Run handles auth status.
+func (a *AuthStatusCmd) Run() error {
+	return runAuthAction(awauth.ActionStatus, a.Tool, a.Profile)
+}
 
-	if target.Name == "" {
-		return "", authTarget{}, fmt.Errorf("tool name is required")
-	}
-
-	return action, target, nil
+// Run handles the login alias (delegates to auth login).
+func (l *LoginCmd) Run() error {
+	return runAuthAction(awauth.ActionLogin, l.Tool, l.Profile)
 }
 
 func loadConfig() (*profile.Config, error) {
@@ -169,15 +135,4 @@ func buildAuthStages(p profile.Profile, action awauth.Action) []pipeline.Stage {
 	}
 	stages = append(stages, &stage.AuthStage{Action: action})
 	return stages
-}
-
-func printAuthHelp() {
-	fmt.Println("Usage:")
-	fmt.Println("  aw auth login <tool>")
-	fmt.Println("  aw auth logout <tool>")
-	fmt.Println("  aw auth status <tool>")
-	fmt.Println("  aw auth login --profile <name>")
-	fmt.Println("  aw auth logout --profile <name>")
-	fmt.Println("  aw auth status --profile <name>")
-	fmt.Println("  aw login <tool>          (alias for `aw auth login <tool>`)")
 }

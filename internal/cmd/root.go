@@ -17,81 +17,48 @@ import (
 	"github.com/konono/aw/internal/version"
 )
 
-// Run is the top-level entry point. Returns an exit code.
-func Run(args []string) int {
-	if len(args) > 0 && args[0] == "--internal-reaper" {
-		return reaper.Run()
-	}
-
-	if hasHelpFlag(args) {
-		printHelp()
-		return 0
-	}
-
-	if hasVersionFlag(args) {
-		fmt.Printf("aw %s\n", version.Version)
-		return 0
-	}
-
-	if len(args) > 0 {
-		if handler, ok := dispatchTable[args[0]]; ok {
-			return handler(args[1:])
-		}
-	}
-
-	// Parse profile name and run options
-	opts, err := parseRunArgs(args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-
+// Run method for RunCmd — the default command that launches a profile.
+func (r *RunCmd) Run(pt *PassthroughCmd) error {
 	// Save original working directory before any chdir
 	origCwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	// Handle -C / --cwd: chdir before profile.Load()
-	if opts.Cwd != "" {
-		target := expandTilde(opts.Cwd)
+	if r.Cwd != "" {
+		target := expandTilde(r.Cwd)
 		if err := os.Chdir(target); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot change to directory %q: %v\n", target, err)
-			return 1
+			return fmt.Errorf("cannot change to directory %q: %w", target, err)
 		}
 	}
 
 	// Handle --recent: pick a directory from history, then chdir
-	if opts.Recent {
-		dir, cancelled, err := selectRecentDir(opts.Query)
+	if r.Recent {
+		dir, cancelled, err := selectRecentDir(r.Query)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
+			return err
 		}
 		if cancelled {
-			return 0
+			return nil
 		}
 		if err := os.Chdir(dir); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot change to directory %q: %v\n", dir, err)
-			return 1
+			return fmt.Errorf("cannot change to directory %q: %w", dir, err)
 		}
 	}
 
 	// Load config (after chdir so .aw.yml is found in the selected directory)
 	cfg, err := profile.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		return 1
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	// Validate the whole config
 	if err := profile.ValidateConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
-	profileName := opts.ProfileName
+	profileName := r.Profile
 
 	// If no profile name given, use default or list profiles
 	if profileName == "" {
@@ -99,7 +66,7 @@ func Run(args []string) int {
 			profileName = cfg.Default
 		} else {
 			printAvailableProfiles(cfg)
-			return 0
+			return nil
 		}
 	}
 
@@ -107,33 +74,30 @@ func Run(args []string) int {
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Error: profile %q not found\n", profileName)
 		printAvailableProfiles(cfg)
-		return 1
+		return ExitError{Code: 1}
 	}
 
 	// Validate the selected profile
 	if err := profile.Validate(p); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: invalid profile %q: %v\n", profileName, err)
-		return 1
+		return fmt.Errorf("invalid profile %q: %w", profileName, err)
 	}
 
 	// Build execution context
 	ec, err := buildExecutionContext(profileName, p)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
-	ec.CommandOverride = opts.Command
-	ec.NoCache = opts.NoCache
+	ec.CommandOverride = pt.Args
+	ec.NoCache = r.NoCache
 
 	if len(ec.CommandOverride) > 0 && p.Environment == profile.EnvironmentHost {
-		fmt.Fprintf(os.Stderr, "Error: -c flag is only supported with environment: container\n")
-		return 1
+		return fmt.Errorf("-c flag is only supported with environment: container")
 	}
 
 	// Record directory history (use OrigWorkDir, not worktree path)
-	if !opts.NoRecord {
+	if !r.NoRecord {
 		recordDir := ec.OrigWorkDir
-		if opts.Cwd != "" || opts.Recent {
+		if r.Cwd != "" || r.Recent {
 			// When -C or --recent was used, the current dir is the target
 			if cwd, err := os.Getwd(); err == nil {
 				recordDir = cwd
@@ -154,7 +118,7 @@ func Run(args []string) int {
 	if p.Environment == profile.EnvironmentContainer && platform.IsRunningAsRoot() {
 		fmt.Fprintf(os.Stderr, "Error: aw must not be run as root — the container user cannot match uid 0.\n")
 		fmt.Fprintf(os.Stderr, "Run as a regular user, or create one: useradd -m dev && su - dev\n")
-		return 1
+		return ExitError{Code: 1}
 	}
 
 	// Container mode setup: recovery, stale check, name generation
@@ -167,8 +131,7 @@ func Run(args []string) int {
 		// Nanosecond suffix avoids collisions when the same profile starts twice in one second.
 		ec.ContainerName = fmt.Sprintf("aw-%s-%d", profileName, time.Now().UnixNano())
 		if err := reaper.CheckStaleContainer(runtime, ec.ContainerName); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
+			return err
 		}
 	}
 
@@ -178,14 +141,13 @@ func Run(args []string) int {
 
 	if err := pipe.Execute(context.Background(), ec); err != nil {
 		runCleanups(ec)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	// Container launch calls os.Exit on success; runCleanups is unreachable
 	// in that case. Post-container cleanup runs in the reaper subprocess.
 	runCleanups(ec)
-	return 0
+	return nil
 }
 
 func runCleanups(ec *pipeline.ExecutionContext) {
@@ -239,11 +201,17 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 	return stages
 }
 
-func runProfiles() int {
+// VersionCmd.Run prints the version.
+func (v *VersionCmd) Run() error {
+	fmt.Printf("aw %s\n", version.Version)
+	return nil
+}
+
+// ProfilesCmd.Run lists profiles.
+func (p *ProfilesCmd) Run() error {
 	cfg, err := profile.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		return 1
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	// Show config source
@@ -255,7 +223,7 @@ func runProfiles() int {
 	fmt.Println()
 
 	printAvailableProfiles(cfg)
-	return 0
+	return nil
 }
 
 func printAvailableProfiles(cfg *profile.Config) {
@@ -276,107 +244,24 @@ func printAvailableProfiles(cfg *profile.Config) {
 	}
 }
 
-func runDefaultDockerfile() int {
+// UpdateCmd.Run updates aw.
+func (u *UpdateCmd) Run() error {
+	return update.Run(version.Version)
+}
+
+// DefaultDockerfileCmd.Run prints the default Dockerfile.
+func (d *DefaultDockerfileCmd) Run() error {
 	_, err := os.Stdout.Write(image.DefaultDockerfile())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing Dockerfile: %v\n", err)
-		return 1
-	}
-	return 0
+	return err
 }
 
-func runDefaultInitScript() int {
+// DefaultInitScriptCmd.Run prints the init script.
+func (d *DefaultInitScriptCmd) Run() error {
 	_, err := os.Stdout.Write(image.InitScript())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing init script: %v\n", err)
-		return 1
-	}
-	return 0
+	return err
 }
 
-var dispatchTable = map[string]func([]string) int{
-	"update": func(_ []string) int {
-		if err := update.Run(version.Version); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
-		}
-		return 0
-	},
-	"profiles":            func(_ []string) int { return runProfiles() },
-	"default-dockerfile":  func(_ []string) int { return runDefaultDockerfile() },
-	"default-init-script": func(_ []string) int { return runDefaultInitScript() },
-	"export":              runExport,
-	"doctor":              func(args []string) int { return doctor.Run(args) },
-	"reaper":              runReaperCommand,
-	"init":                runInit,
-	"auth":                runAuth,
-	"login":               func(args []string) int { return runAuth(append([]string{"login"}, args...)) },
-	"team":                runTeam,
-	"msg":                 runMsg,
-	"--internal-mcp-msg":    runInternalMCPMsg,
-	"--internal-check-inbox": runInternalCheckInbox,
-	"--internal-watch":       runInternalWatch,
-	"--internal-agent-loop":  runInternalAgentLoop,
-}
-
-var subcommands = map[string]bool{
-	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
-	"export": true, "init": true, "auth": true, "login": true, "doctor": true, "reaper": true,
-	"team": true, "msg": true,
-}
-
-// hasVersionFlag checks if the args contain --version or -v before any subcommand or -c flag.
-func hasVersionFlag(args []string) bool {
-	for _, a := range args {
-		if a == "-c" || subcommands[a] {
-			return false
-		}
-		if a == "--version" || a == "-v" {
-			return true
-		}
-	}
-	return false
-}
-
-// hasHelpFlag checks if the args contain --help or -h before any subcommand or -c flag.
-func hasHelpFlag(args []string) bool {
-	for _, a := range args {
-		if a == "-c" || subcommands[a] {
-			return false
-		}
-		if a == "--help" || a == "-h" {
-			return true
-		}
-	}
-	return false
-}
-
-func printHelp() {
-	fmt.Printf("aw %s - agent-workspace\n\n", version.Version)
-	fmt.Println("Usage:")
-	fmt.Println("  aw                      Run default profile")
-	fmt.Println("  aw <profile>            Run a specific profile")
-	fmt.Println("  aw profiles             List available profiles")
-	fmt.Println("  aw init                 Write the built-in config to ~/.config/aw/config.yml")
-	fmt.Println("  aw auth <action> <tool> Run auth login/logout/status for a tool")
-	fmt.Println("  aw login <tool>         Alias for `aw auth login <tool>`")
-	fmt.Println("  aw export <profile>     Build and export a profile's image as a tar archive")
-	fmt.Println("                          Use --snapshot to bake runtime setup into the image")
-	fmt.Println("  aw doctor               Check system environment and configuration")
-	fmt.Println("  aw reaper [command]     View/recover post-container cleanup reports")
-	fmt.Println("  aw team <command>       Manage agent teams (start, stop, status)")
-	fmt.Println("  aw msg <command>        Inter-agent messaging (send, inbox, history, watch)")
-	fmt.Println("  aw default-dockerfile   Print the default Dockerfile")
-	fmt.Println("  aw default-init-script   Print aw-init.sh (shared entrypoint init script)")
-	fmt.Println("  aw update               Update aw to the latest version")
-	fmt.Println()
-	fmt.Println("Options:")
-	fmt.Println("  -c <cmd> [args...]      Override the launch command (container only; e.g. aw claude -c claude --version)")
-	fmt.Println("  -r, --recent            Pick a directory from launch history")
-	fmt.Println("  --query <text>          Initial query for --recent picker")
-	fmt.Println("  -C, --cwd <path>        Change to <path> before loading config")
-	fmt.Println("  --no-record             Don't record this launch in directory history")
-	fmt.Println("  --no-cache              Rebuild the container image without using cache")
-	fmt.Println("  -h, --help              Show this help")
-	fmt.Println("  -v, --version           Show version")
+// DoctorCmd.Run runs doctor checks.
+func (d *DoctorCmd) Run() error {
+	return exitCode(doctor.Run(d.Args))
 }

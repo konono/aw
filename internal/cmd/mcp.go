@@ -12,96 +12,27 @@ import (
 	"github.com/konono/aw/internal/messaging/mcp"
 )
 
-func runInternalMCPMsg(args []string) int {
-	var dbPath, agentName, teamName string
-
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--db":
-			if i+1 < len(args) {
-				dbPath = args[i+1]
-				i++
-			}
-		case "--agent":
-			if i+1 < len(args) {
-				agentName = args[i+1]
-				i++
-			}
-		case "--team":
-			if i+1 < len(args) {
-				teamName = args[i+1]
-				i++
-			}
-		}
+// Run handles the internal MCP message server.
+func (m *InternalMCPMsgCmd) Run() error {
+	if m.DB == "" {
+		return fmt.Errorf("AW_MSG_DB or --db is required")
+	}
+	if m.Agent == "" {
+		return fmt.Errorf("AW_AGENT_NAME or --agent is required")
+	}
+	if m.Team == "" {
+		return fmt.Errorf("AW_TEAM_NAME or --team is required")
 	}
 
-	if dbPath == "" {
-		dbPath = os.Getenv("AW_MSG_DB")
-	}
-	if agentName == "" {
-		agentName = os.Getenv("AW_AGENT_NAME")
-	}
-	if teamName == "" {
-		teamName = os.Getenv("AW_TEAM_NAME")
-	}
-
-	if dbPath == "" {
-		fmt.Fprintln(os.Stderr, "AW_MSG_DB or --db is required")
-		return 1
-	}
-	if agentName == "" {
-		fmt.Fprintln(os.Stderr, "AW_AGENT_NAME or --agent is required")
-		return 1
-	}
-	if teamName == "" {
-		fmt.Fprintln(os.Stderr, "AW_TEAM_NAME or --team is required")
-		return 1
-	}
-
-	if err := mcp.RunStdio(dbPath, agentName, teamName); err != nil {
-		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
-		return 1
-	}
-	return 0
+	return mcp.RunStdio(m.DB, m.Agent, m.Team)
 }
 
 const defaultCheckInterval = 60
 
-func runInternalCheckInbox(args []string) int {
-	var dbPath, agentName, teamName string
-
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--db":
-			if i+1 < len(args) {
-				dbPath = args[i+1]
-				i++
-			}
-		case "--agent":
-			if i+1 < len(args) {
-				agentName = args[i+1]
-				i++
-			}
-		case "--team":
-			if i+1 < len(args) {
-				teamName = args[i+1]
-				i++
-			}
-		}
-	}
-
-	if dbPath == "" {
-		dbPath = os.Getenv("AW_MSG_DB")
-	}
-	if agentName == "" {
-		agentName = os.Getenv("AW_AGENT_NAME")
-	}
-	if teamName == "" {
-		teamName = os.Getenv("AW_TEAM_NAME")
-	}
-
-	if agentName == "" || dbPath == "" || teamName == "" {
-		return 0
+// Run handles internal check-inbox.
+func (m *InternalCheckInboxCmd) Run() error {
+	if m.Agent == "" || m.DB == "" || m.Team == "" {
+		return nil
 	}
 
 	// Cooldown: skip if last check was within the interval
@@ -111,32 +42,32 @@ func runInternalCheckInbox(args []string) int {
 			interval = n
 		}
 	}
-	markerPath := filepath.Join(filepath.Dir(dbPath), ".lastcheck-"+agentName)
+	markerPath := filepath.Join(filepath.Dir(m.DB), ".lastcheck-"+m.Agent)
 	if info, err := os.Stat(markerPath); err == nil {
 		if time.Since(info.ModTime()) < time.Duration(interval)*time.Second {
-			return 0
+			return nil
 		}
 	}
 
-	store, err := messaging.OpenStore(dbPath)
+	store, err := messaging.OpenStore(m.DB)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "check-inbox: %v\n", err)
-		return 0
+		return nil
 	}
 	defer func() { _ = store.Close() }()
 
-	count, err := store.UnreadCount(teamName, agentName)
+	count, err := store.UnreadCount(m.Team, m.Agent)
 	if err != nil || count == 0 {
 		// Update marker even on zero so we don't re-check immediately
 		_ = os.WriteFile(markerPath, nil, 0644)
-		return 0
+		return nil
 	}
 
 	// Update marker
 	_ = os.WriteFile(markerPath, nil, 0644)
 
 	fmt.Println(checkInboxResponse(count))
-	return 0
+	return nil
 }
 
 type hookResponse struct {

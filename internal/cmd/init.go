@@ -9,27 +9,16 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-type initFlags struct {
-	force bool
-}
-
-func runInit(args []string) int {
-	flags, err := parseInitArgs(args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-
+// Run handles the init command.
+func (i *InitCmd) Run() error {
 	configPath, err := globalConfigPath()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating config directory: %v\n", err)
-		return 1
+		return fmt.Errorf("creating config directory: %w", err)
 	}
 
 	_, statErr := os.ReadFile(configPath)
@@ -37,25 +26,24 @@ func runInit(args []string) int {
 
 	action := "Created"
 	if configExists {
-		if !flags.force {
+		if !i.Force {
 			fmt.Fprintf(os.Stderr, "%s already exists. Use --force to overwrite.\n", configPath)
-			return 1
+			return ExitError{Code: 1}
 		}
 		action = "Overwrote"
 	}
 
 	if err := os.WriteFile(configPath, profile.DefaultConfigYAML(), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing config: %v\n", err)
-		return 1
+		return fmt.Errorf("writing config: %w", err)
 	}
 
 	fmt.Printf("%s %s\n", action, configPath)
 
-	writeTemplateFile(configDir, "mise.toml", miseTomlTemplate, flags.force)
-	writeTemplateFile(configDir, "devbox.json", devboxJSONTemplate, flags.force)
+	writeTemplateFile(configDir, "mise.toml", miseTomlTemplate, i.Force)
+	writeTemplateFile(configDir, "devbox.json", devboxJSONTemplate, i.Force)
 
 	fmt.Println("Run `aw` to start immediately, or edit these files to customize your setup.")
-	return 0
+	return nil
 }
 
 func writeTemplateFile(dir, name, content string, force bool) {
@@ -94,19 +82,6 @@ const devboxJSONTemplate = `{
   "packages": []
 }
 `
-
-func parseInitArgs(args []string) (initFlags, error) {
-	var flags initFlags
-	for _, arg := range args {
-		switch arg {
-		case "--force":
-			flags.force = true
-		default:
-			return flags, fmt.Errorf("unknown init flag %q", arg)
-		}
-	}
-	return flags, nil
-}
 
 func globalConfigPath() (string, error) {
 	return filepath.Join(platform.ConfigDir(), "config.yml"), nil

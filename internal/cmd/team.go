@@ -26,36 +26,6 @@ import (
 	"github.com/konono/aw/internal/team"
 )
 
-func runTeam(args []string) int {
-	if len(args) == 0 {
-		printTeamHelp()
-		return 1
-	}
-
-	switch args[0] {
-	case "start":
-		return runTeamStart(args[1:])
-	case "stop":
-		return runTeamStop(args[1:])
-	case "status":
-		return runTeamStatus(args[1:])
-	case "scope":
-		return runTeamScope(args[1:])
-	default:
-		fmt.Fprintf(os.Stderr, "Unknown team command: %s\n", args[0])
-		printTeamHelp()
-		return 1
-	}
-}
-
-func printTeamHelp() {
-	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  aw team start [--resume] [--task <desc>] <team-name>  Start all team members")
-	fmt.Fprintln(os.Stderr, "  aw team stop <team-name>               Stop all team members")
-	fmt.Fprintln(os.Stderr, "  aw team status [team-name]             Show team status")
-	fmt.Fprintln(os.Stderr, "  aw team scope <team-name>              Print team scope (for use with aw msg --team)")
-}
-
 func projectHash(dir string) string {
 	h := sha256.Sum256([]byte(dir))
 	return fmt.Sprintf("%x", h)[:12]
@@ -63,49 +33,6 @@ func projectHash(dir string) string {
 
 func teamScope(teamName, projHash, sessionID string) string {
 	return fmt.Sprintf("%s-%s-%s", teamName, projHash, sessionID[:12])
-}
-
-func parseTeamStartArgs(args []string) (teamName string, resume bool, task string, err error) {
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--resume":
-			resume = true
-		case "--task":
-			if i+1 < len(args) {
-				task = args[i+1]
-				i++
-			}
-		default:
-			if teamName == "" {
-				teamName = args[i]
-			}
-		}
-	}
-	if teamName == "" {
-		return "", false, "", fmt.Errorf("team name is required")
-	}
-	return teamName, resume, task, nil
-}
-
-func loadTeamConfig(teamName string) (*profile.Config, profile.Team, error) {
-	cfg, err := profile.Load()
-	if err != nil {
-		return nil, profile.Team{}, fmt.Errorf("loading config: %w", err)
-	}
-	if err := profile.ValidateConfig(cfg); err != nil {
-		return nil, profile.Team{}, err
-	}
-	t, ok := cfg.Teams[teamName]
-	if !ok {
-		if len(cfg.Teams) > 0 {
-			fmt.Fprintln(os.Stderr, "Available teams:")
-			for name := range cfg.Teams {
-				fmt.Fprintf(os.Stderr, "  %s\n", name)
-			}
-		}
-		return nil, profile.Team{}, fmt.Errorf("team %q not found", teamName)
-	}
-	return cfg, t, nil
 }
 
 type teamSession struct {
@@ -215,28 +142,22 @@ func initTeamSession(teamName string, t profile.Team, resume bool) (*teamSession
 	}, nil
 }
 
-func runTeamStart(args []string) int {
-	teamName, resume, task, err := parseTeamStartArgs(args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Usage: aw team start [--resume] [--task <description>] <team-name>\n")
-		return 1
-	}
+// Run handles team start.
+func (t *TeamStartCmd) Run() error {
+	teamName := t.TeamName
 
 	if platform.IsRunningAsRoot() {
-		fmt.Fprintln(os.Stderr, "Error: aw must not be run as root")
-		return 1
+		return fmt.Errorf("aw must not be run as root")
 	}
 
 	cfg, _, err := loadTeamConfig(teamName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
-	sess, err := initTeamSession(teamName, cfg.Teams[teamName], resume)
+	sess, err := initTeamSession(teamName, cfg.Teams[teamName], t.Resume)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	teamState := team.TeamState{
@@ -256,9 +177,9 @@ func runTeamStart(args []string) int {
 		msgDBDir:        sess.msgDBDir,
 		memberInfos:     sess.memberInfos,
 		injectMembers:   sess.injectMembers,
-		resume:          resume,
+		resume:          t.Resume,
 		prevSessions:    sess.prevSessions,
-		task:            task,
+		task:            t.Task,
 		teamName:        teamName,
 		branchIsolation: sess.branchIsolation,
 		repoRoot:        sess.repoRoot,
@@ -268,10 +189,9 @@ func runTeamStart(args []string) int {
 		containerName := fmt.Sprintf("aw-%s-%s-%d", teamName, m.AgentName, time.Now().UnixNano())
 		ms, reaperFd, err := launchTeamMember(ctx, launchOpts, m, containerName, false)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", m.AgentName, err)
 			closeReaperFds(bgReaperFds)
 			stopTeamContainers(teamState)
-			return 1
+			return fmt.Errorf("starting %s: %w", m.AgentName, err)
 		}
 		if reaperFd != nil {
 			bgReaperFds = append(bgReaperFds, reaperFd)
@@ -311,13 +231,33 @@ func runTeamStart(args []string) int {
 	fmt.Fprintf(os.Stderr, "[team:%s] Starting %s (%s) in foreground...\n", teamName, sess.fgMember.AgentName, sess.fgMember.Profile)
 
 	if _, _, err := launchTeamMember(ctx, launchOpts, *sess.fgMember, fgContainerName, true); err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", sess.fgMember.AgentName, err)
 		closeReaperFds(bgReaperFds)
 		stopTeamContainers(teamState)
-		return 1
+		return fmt.Errorf("starting %s: %w", sess.fgMember.AgentName, err)
 	}
 
-	return 0
+	return nil
+}
+
+func loadTeamConfig(teamName string) (*profile.Config, profile.Team, error) {
+	cfg, err := profile.Load()
+	if err != nil {
+		return nil, profile.Team{}, fmt.Errorf("loading config: %w", err)
+	}
+	if err := profile.ValidateConfig(cfg); err != nil {
+		return nil, profile.Team{}, err
+	}
+	t, ok := cfg.Teams[teamName]
+	if !ok {
+		if len(cfg.Teams) > 0 {
+			fmt.Fprintln(os.Stderr, "Available teams:")
+			for name := range cfg.Teams {
+				fmt.Fprintf(os.Stderr, "  %s\n", name)
+			}
+		}
+		return nil, profile.Team{}, fmt.Errorf("team %q not found", teamName)
+	}
+	return cfg, t, nil
 }
 
 type teamLaunchOpts struct {
@@ -471,7 +411,7 @@ func launchTeamMember(
 	}
 
 	if !foreground && launcher.SupportsAgentLoop(tool) {
-		command = []string{"/home/agent/.aw-msg/bin/aw", "--internal-agent-loop"}
+		command = []string{"/home/agent/.aw-msg/bin/aw", "internal-agent-loop"}
 	}
 
 	runConfig := pipeline.ToolRunConfig(ec, runtime, tool, command)
@@ -579,17 +519,13 @@ func stopTeamContainers(state team.TeamState) {
 	_ = team.RemoveState(state.Name)
 }
 
-func runTeamStop(args []string) int {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: aw team stop <team-name>")
-		return 1
-	}
-	teamName := args[0]
+// Run handles team stop.
+func (t *TeamStopCmd) Run() error {
+	teamName := t.TeamName
 
 	state, err := team.LoadState(teamName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: team %q is not running: %v\n", teamName, err)
-		return 1
+		return fmt.Errorf("team %q is not running: %w", teamName, err)
 	}
 
 	fmt.Printf("[team:%s] Stopping %d members...\n", teamName, len(state.Members))
@@ -619,23 +555,23 @@ func runTeamStop(args []string) int {
 
 	// Don't remove state on stop — preserve for --resume
 	fmt.Printf("[team:%s] Stopped. Use 'aw team start --resume %s' to resume.\n", teamName, teamName)
-	return 0
+	return nil
 }
 
-func runTeamStatus(args []string) int {
-	if len(args) > 0 {
-		return runTeamStatusOne(args[0])
+// Run handles team status.
+func (t *TeamStatusCmd) Run() error {
+	if t.TeamName != "" {
+		return teamStatusOne(t.TeamName)
 	}
 
 	states, err := team.ListStates()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	if len(states) == 0 {
 		fmt.Println("No running teams")
-		return 0
+		return nil
 	}
 
 	for _, s := range states {
@@ -653,28 +589,23 @@ func runTeamStatus(args []string) int {
 		}
 		fmt.Println()
 	}
-	return 0
+	return nil
 }
 
-func runTeamScope(args []string) int {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: aw team scope <team-name>")
-		return 1
-	}
-	state, err := team.LoadState(args[0])
+// Run handles team scope.
+func (t *TeamScopeCmd) Run() error {
+	state, err := team.LoadState(t.TeamName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: team %q has no saved state\n", args[0])
-		return 1
+		return fmt.Errorf("team %q has no saved state", t.TeamName)
 	}
 	fmt.Println(state.TeamScope)
-	return 0
+	return nil
 }
 
-func runTeamStatusOne(teamName string) int {
+func teamStatusOne(teamName string) error {
 	state, err := team.LoadState(teamName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Team %q is not running\n", teamName)
-		return 1
+		return fmt.Errorf("team %q is not running", teamName)
 	}
 
 	sid := state.SessionID
@@ -689,5 +620,5 @@ func runTeamStatusOne(teamName string) int {
 		}
 		fmt.Printf("  %-20s %-10s %-10s %s%s\n", m.AgentName, m.Profile, m.Role, m.Status, fg)
 	}
-	return 0
+	return nil
 }
