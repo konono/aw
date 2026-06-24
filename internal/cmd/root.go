@@ -33,72 +33,10 @@ func Run(args []string) int {
 		return 0
 	}
 
-	if len(args) > 0 && args[0] == "update" {
-		if err := update.Run(version.Version); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return 1
+	if len(args) > 0 {
+		if handler, ok := dispatchTable[args[0]]; ok {
+			return handler(args[1:])
 		}
-		return 0
-	}
-
-	if len(args) > 0 && args[0] == "profiles" {
-		return runProfiles()
-	}
-
-	if len(args) > 0 && args[0] == "default-dockerfile" {
-		return runDefaultDockerfile()
-	}
-
-	if len(args) > 0 && args[0] == "default-init-script" {
-		return runDefaultInitScript()
-	}
-
-	if len(args) > 0 && args[0] == "export" {
-		return runExport(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "doctor" {
-		return doctor.Run(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "reaper" {
-		return runReaperCommand(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "init" {
-		return runInit(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "auth" {
-		return runAuth(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "login" {
-		return runAuth(append([]string{"login"}, args[1:]...))
-	}
-
-	if len(args) > 0 && args[0] == "team" {
-		return runTeam(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "msg" {
-		return runMsg(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "--internal-mcp-msg" {
-		return runInternalMCPMsg(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "--internal-check-inbox" {
-		return runInternalCheckInbox(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "--internal-watch" {
-		return runInternalWatch(args[1:])
-	}
-
-	if len(args) > 0 && args[0] == "--internal-agent-loop" {
-		return runInternalAgentLoop(args[1:])
 	}
 
 	// Parse profile name and run options
@@ -354,6 +292,31 @@ func runDefaultInitScript() int {
 		return 1
 	}
 	return 0
+}
+
+var dispatchTable = map[string]func([]string) int{
+	"update": func(_ []string) int {
+		if err := update.Run(version.Version); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		return 0
+	},
+	"profiles":            func(_ []string) int { return runProfiles() },
+	"default-dockerfile":  func(_ []string) int { return runDefaultDockerfile() },
+	"default-init-script": func(_ []string) int { return runDefaultInitScript() },
+	"export":              runExport,
+	"doctor":              func(args []string) int { return doctor.Run(args) },
+	"reaper":              runReaperCommand,
+	"init":                runInit,
+	"auth":                runAuth,
+	"login":               func(args []string) int { return runAuth(append([]string{"login"}, args...)) },
+	"team":                runTeam,
+	"msg":                 runMsg,
+	"--internal-mcp-msg":    runInternalMCPMsg,
+	"--internal-check-inbox": runInternalCheckInbox,
+	"--internal-watch":       runInternalWatch,
+	"--internal-agent-loop":  runInternalAgentLoop,
 }
 
 var subcommands = map[string]bool{
