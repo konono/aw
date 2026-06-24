@@ -65,10 +65,7 @@ func teamScope(teamName, projHash, sessionID string) string {
 	return fmt.Sprintf("%s-%s-%s", teamName, projHash, sessionID[:12])
 }
 
-func runTeamStart(args []string) int {
-	var resume bool
-	var teamName string
-	var task string
+func parseTeamStartArgs(args []string) (teamName string, resume bool, task string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--resume":
@@ -85,56 +82,63 @@ func runTeamStart(args []string) int {
 		}
 	}
 	if teamName == "" {
-		fmt.Fprintln(os.Stderr, "Usage: aw team start [--resume] [--task <description>] <team-name>")
-		return 1
+		return "", false, "", fmt.Errorf("team name is required")
 	}
+	return teamName, resume, task, nil
+}
 
-	if platform.IsRunningAsRoot() {
-		fmt.Fprintln(os.Stderr, "Error: aw must not be run as root")
-		return 1
-	}
-
+func loadTeamConfig(teamName string) (*profile.Config, profile.Team, error) {
 	cfg, err := profile.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		return 1
+		return nil, profile.Team{}, fmt.Errorf("loading config: %w", err)
 	}
 	if err := profile.ValidateConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return nil, profile.Team{}, err
 	}
-
 	t, ok := cfg.Teams[teamName]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: team %q not found\n", teamName)
 		if len(cfg.Teams) > 0 {
 			fmt.Fprintln(os.Stderr, "Available teams:")
 			for name := range cfg.Teams {
 				fmt.Fprintf(os.Stderr, "  %s\n", name)
 			}
 		}
-		return 1
+		return nil, profile.Team{}, fmt.Errorf("team %q not found", teamName)
 	}
+	return cfg, t, nil
+}
 
+type teamSession struct {
+	sessionID       string
+	scope           string
+	projHash        string
+	members         []team.ResolvedMember
+	fgMember        *team.ResolvedMember
+	bgMembers       []team.ResolvedMember
+	memberInfos     []roles.MemberData
+	injectMembers   []inject.MemberInfo
+	msgDBDir        string
+	prevSessions    map[string]string
+	repoRoot        string
+	branchIsolation bool
+}
+
+func initTeamSession(teamName string, t profile.Team, resume bool) (*teamSession, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return nil, err
 	}
 	projHash := projectHash(cwd)
 
-	// Session ID: resume from previous state or generate new
 	var sessionID string
 	var prevState *team.TeamState
 	if resume {
 		prevState, err = team.LoadState(teamName)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: no previous session to resume: %v\n", err)
-			return 1
+			return nil, fmt.Errorf("no previous session to resume: %w", err)
 		}
 		sessionID = prevState.SessionID
 		fmt.Fprintf(os.Stderr, "[team:%s] Resuming session %s\n", teamName, sessionID[:12])
-		// Stop any still-running containers from the previous session
 		for _, m := range prevState.Members {
 			rt := m.Runtime
 			if rt == "" {
@@ -147,26 +151,21 @@ func runTeamStart(args []string) int {
 	}
 
 	scope := teamScope(teamName, projHash, sessionID)
-
 	mgr := team.NewManager()
 	members := mgr.ResolveMembers(teamName, t)
 
-	// Initialize messaging DB
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return nil, err
 	}
 	msgDBDir := filepath.Join(homeDir, ".config", "aw", "messaging")
 	msgDBPath := filepath.Join(msgDBDir, "messages.db")
 	store, err := messaging.OpenStore(msgDBPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing messaging DB: %v\n", err)
-		return 1
+		return nil, fmt.Errorf("initializing messaging DB: %w", err)
 	}
 	_ = store.Close()
 
-	// Build member info for role templates
 	memberInfos := make([]roles.MemberData, len(members))
 	injectMembers := make([]inject.MemberInfo, len(members))
 	for i, m := range members {
@@ -174,7 +173,6 @@ func runTeamStart(args []string) int {
 		injectMembers[i] = inject.MemberInfo{AgentName: m.AgentName, Role: m.Role}
 	}
 
-	// Separate foreground and background members
 	var fgMember *team.ResolvedMember
 	var bgMembers []team.ResolvedMember
 	for i := range members {
@@ -189,7 +187,6 @@ func runTeamStart(args []string) int {
 		bgMembers = members[1:]
 	}
 
-	// Build previous tool session ID lookup for --resume
 	prevToolSessions := map[string]string{}
 	if prevState != nil {
 		for _, m := range prevState.Members {
@@ -197,39 +194,77 @@ func runTeamStart(args []string) int {
 		}
 	}
 
+	var repoRoot string
+	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		repoRoot = strings.TrimSpace(string(out))
+	}
+
+	return &teamSession{
+		sessionID:       sessionID,
+		scope:           scope,
+		projHash:        projHash,
+		members:         members,
+		fgMember:        fgMember,
+		bgMembers:       bgMembers,
+		memberInfos:     memberInfos,
+		injectMembers:   injectMembers,
+		msgDBDir:        msgDBDir,
+		prevSessions:    prevToolSessions,
+		repoRoot:        repoRoot,
+		branchIsolation: repoRoot != "",
+	}, nil
+}
+
+func runTeamStart(args []string) int {
+	teamName, resume, task, err := parseTeamStartArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Usage: aw team start [--resume] [--task <description>] <team-name>\n")
+		return 1
+	}
+
+	if platform.IsRunningAsRoot() {
+		fmt.Fprintln(os.Stderr, "Error: aw must not be run as root")
+		return 1
+	}
+
+	cfg, _, err := loadTeamConfig(teamName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	sess, err := initTeamSession(teamName, cfg.Teams[teamName], resume)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
 	teamState := team.TeamState{
 		Name:        teamName,
-		SessionID:   sessionID,
-		ProjectHash: projHash,
-		TeamScope:   scope,
+		SessionID:   sess.sessionID,
+		ProjectHash: sess.projHash,
+		TeamScope:   sess.scope,
 		StartedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 
 	ctx := context.Background()
 	var bgReaperFds []*os.File
 
-	// Detect git root for branch isolation
-	var repoRoot string
-	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
-		repoRoot = strings.TrimSpace(string(out))
-	}
-
 	launchOpts := teamLaunchOpts{
 		cfg:             cfg,
-		scope:           scope,
-		msgDBDir:        msgDBDir,
-		memberInfos:     memberInfos,
-		injectMembers:   injectMembers,
+		scope:           sess.scope,
+		msgDBDir:        sess.msgDBDir,
+		memberInfos:     sess.memberInfos,
+		injectMembers:   sess.injectMembers,
 		resume:          resume,
-		prevSessions:    prevToolSessions,
+		prevSessions:    sess.prevSessions,
 		task:            task,
 		teamName:        teamName,
-		branchIsolation: repoRoot != "",
-		repoRoot:        repoRoot,
+		branchIsolation: sess.branchIsolation,
+		repoRoot:        sess.repoRoot,
 	}
 
-	// Launch background members first
-	for _, m := range bgMembers {
+	for _, m := range sess.bgMembers {
 		containerName := fmt.Sprintf("aw-%s-%s-%d", teamName, m.AgentName, time.Now().UnixNano())
 		ms, reaperFd, err := launchTeamMember(ctx, launchOpts, m, containerName, false)
 		if err != nil {
@@ -245,20 +280,19 @@ func runTeamStart(args []string) int {
 		fmt.Fprintf(os.Stderr, "[team:%s] Started %s (%s) in background\n", teamName, m.AgentName, m.Profile)
 	}
 
-	// Save state before launching foreground (which won't return)
-	fgContainerName := fmt.Sprintf("aw-%s-%s-%d", teamName, fgMember.AgentName, time.Now().UnixNano())
+	fgContainerName := fmt.Sprintf("aw-%s-%s-%d", teamName, sess.fgMember.AgentName, time.Now().UnixNano())
 	fgRuntime := "docker"
-	if fgProfile, ok := cfg.Profiles[fgMember.Profile]; ok {
+	if fgProfile, ok := cfg.Profiles[sess.fgMember.Profile]; ok {
 		fgRuntime = fgProfile.EffectiveContainerRuntime()
 	}
 	fgToolSessionID := uuid.New().String()
-	if prev, ok := prevToolSessions[fgMember.AgentName]; ok && prev != "" {
+	if prev, ok := sess.prevSessions[sess.fgMember.AgentName]; ok && prev != "" {
 		fgToolSessionID = prev
 	}
 	fgState := team.MemberState{
-		AgentName:     fgMember.AgentName,
-		Profile:       fgMember.Profile,
-		Role:          fgMember.Role,
+		AgentName:     sess.fgMember.AgentName,
+		Profile:       sess.fgMember.Profile,
+		Role:          sess.fgMember.Role,
 		ContainerName: fgContainerName,
 		Runtime:       fgRuntime,
 		ToolSessionID: fgToolSessionID,
@@ -266,18 +300,18 @@ func runTeamStart(args []string) int {
 		Status:        "running",
 	}
 	if launchOpts.branchIsolation {
-		fgState.BranchName = fmt.Sprintf("aw/%s/%s", teamName, fgMember.AgentName)
-		fgState.WorktreePath = filepath.Join(launchOpts.repoRoot, "worktrees", fmt.Sprintf("aw-%s-%s", teamName, fgMember.AgentName))
+		fgState.BranchName = fmt.Sprintf("aw/%s/%s", teamName, sess.fgMember.AgentName)
+		fgState.WorktreePath = filepath.Join(launchOpts.repoRoot, "worktrees", fmt.Sprintf("aw-%s-%s", teamName, sess.fgMember.AgentName))
 	}
 	teamState.Members = append(teamState.Members, fgState)
 	if err := team.SaveState(teamState); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not save team state: %v\n", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "[team:%s] Starting %s (%s) in foreground...\n", teamName, fgMember.AgentName, fgMember.Profile)
+	fmt.Fprintf(os.Stderr, "[team:%s] Starting %s (%s) in foreground...\n", teamName, sess.fgMember.AgentName, sess.fgMember.Profile)
 
-	if _, _, err := launchTeamMember(ctx, launchOpts, *fgMember, fgContainerName, true); err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", fgMember.AgentName, err)
+	if _, _, err := launchTeamMember(ctx, launchOpts, *sess.fgMember, fgContainerName, true); err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting %s: %v\n", sess.fgMember.AgentName, err)
 		closeReaperFds(bgReaperFds)
 		stopTeamContainers(teamState)
 		return 1
@@ -306,6 +340,56 @@ func closeReaperFds(fds []*os.File) {
 	}
 }
 
+func setupTeamMemberMCP(tool string, ec *pipeline.ExecutionContext, m team.ResolvedMember, opts teamLaunchOpts) {
+	toolStageDir := filepath.Join(ec.HomeDir, ".agent-workspace", tool)
+	deliveryMode := inject.DeliveryMode(ec.Profile.EffectiveDelivery(tool))
+
+	injector, err := inject.ForTool(tool)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: messaging injection not supported for %s: %v\n", tool, err)
+		return
+	}
+	injectCfg := inject.InjectorConfig{
+		AgentName:    m.AgentName,
+		TeamName:     opts.scope,
+		Role:         m.Role,
+		Members:      opts.injectMembers,
+		StagingDir:   toolStageDir,
+		WorkDir:      ec.WorkDir,
+		MCPBinary:    "/home/agent/.aw-msg/bin/aw",
+		DBPath:       "/home/agent/.aw-msg/messages.db",
+		DeliveryMode: deliveryMode,
+	}
+	if ierr := injector.InjectMCP(injectCfg); ierr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: MCP injection: %v\n", ierr)
+	}
+	if ierr := injector.InjectHook(injectCfg); ierr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: hook injection: %v\n", ierr)
+	}
+}
+
+func injectTeamRoleContext(tool string, ec *pipeline.ExecutionContext, m team.ResolvedMember, opts teamLaunchOpts) {
+	toolStageDir := filepath.Join(ec.HomeDir, ".agent-workspace", tool)
+	roleData := roles.TemplateData{
+		TeamName:  opts.scope,
+		AgentName: m.AgentName,
+		Task:      opts.task,
+	}
+	for _, mi := range opts.memberInfos {
+		roleData.Members = append(roleData.Members, roles.MemberData{
+			AgentName: mi.AgentName,
+			Role:      mi.Role,
+			IsSelf:    mi.AgentName == m.AgentName,
+		})
+	}
+	if roleText, rerr := roles.Render(m.Role, roleData); rerr == nil {
+		appendRoleContext(toolStageDir, tool, roleText)
+		if ec.WorkDir != "" && ec.WorkDir != toolStageDir {
+			appendRoleContext(ec.WorkDir, tool, roleText)
+		}
+	}
+}
+
 func launchTeamMember(
 	ctx context.Context,
 	opts teamLaunchOpts,
@@ -324,7 +408,6 @@ func launchTeamMember(
 	}
 	ec.ContainerName = containerName
 
-	// Branch isolation: create per-member worktree
 	var worktreePath, branchName string
 	if opts.branchIsolation {
 		branchName = fmt.Sprintf("aw/%s/%s", opts.teamName, m.AgentName)
@@ -346,54 +429,9 @@ func launchTeamMember(
 	}
 
 	tool := p.EffectiveTool()
+	setupTeamMemberMCP(tool, ec, m, opts)
+	injectTeamRoleContext(tool, ec, m, opts)
 
-	deliveryMode := inject.DeliveryMode(p.EffectiveDelivery(tool))
-
-	toolStageDir := filepath.Join(ec.HomeDir, ".agent-workspace", tool)
-	injector, err := inject.ForTool(tool)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: messaging injection not supported for %s: %v\n", tool, err)
-	} else {
-		injectCfg := inject.InjectorConfig{
-			AgentName:    m.AgentName,
-			TeamName:     opts.scope,
-			Role:         m.Role,
-			Members:      opts.injectMembers,
-			StagingDir:   toolStageDir,
-			WorkDir:      ec.WorkDir,
-			MCPBinary:    "/home/agent/.aw-msg/bin/aw",
-			DBPath:       "/home/agent/.aw-msg/messages.db",
-			DeliveryMode: deliveryMode,
-		}
-		if ierr := injector.InjectMCP(injectCfg); ierr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: MCP injection: %v\n", ierr)
-		}
-		if ierr := injector.InjectHook(injectCfg); ierr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: hook injection: %v\n", ierr)
-		}
-	}
-
-	// Inject role context
-	roleData := roles.TemplateData{
-		TeamName:  opts.scope,
-		AgentName: m.AgentName,
-		Task:      opts.task,
-	}
-	for _, mi := range opts.memberInfos {
-		roleData.Members = append(roleData.Members, roles.MemberData{
-			AgentName: mi.AgentName,
-			Role:      mi.Role,
-			IsSelf:    mi.AgentName == m.AgentName,
-		})
-	}
-	if roleText, rerr := roles.Render(m.Role, roleData); rerr == nil {
-		appendRoleContext(toolStageDir, tool, roleText)
-		if ec.WorkDir != "" && ec.WorkDir != toolStageDir {
-			appendRoleContext(ec.WorkDir, tool, roleText)
-		}
-	}
-
-	// Mount aw binary
 	awBin, err := linuxbin.Resolve(goruntime.GOARCH)
 	if err != nil {
 		return team.MemberState{}, nil, fmt.Errorf("resolving linux binary: %w", err)
@@ -414,7 +452,6 @@ func launchTeamMember(
 		},
 	)
 
-	// Tool session ID for resume support
 	toolSessionID := uuid.New().String()
 	if prev, ok := opts.prevSessions[m.AgentName]; ok && prev != "" {
 		toolSessionID = prev
