@@ -22,7 +22,7 @@ var tools = map[string]ToolSpec{
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
-		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash || true; if [ ! -f $HOME/.local/bin/claude ] && ! command -v claude >/dev/null 2>&1; then echo 'ERROR: claude binary not found after install' >&2; exit 1; fi; { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(which claude) $HOME/.local/bin/claude; }; }; sudo ln -sf $HOME/.local/bin/claude /claude 2>/dev/null || true",
+		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash; _rc=$?; if [ $_rc -ne 0 ]; then if [ ! -f $HOME/.local/bin/claude ] && ! command -v claude >/dev/null 2>&1; then exit $_rc; fi; fi; { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(which claude) $HOME/.local/bin/claude; }; }; sudo ln -sf $HOME/.local/bin/claude /claude 2>/dev/null || true",
 		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
@@ -49,7 +49,7 @@ var tools = map[string]ToolSpec{
 	"cursor": {
 		Binary:            "agent",
 		DisplayName:       "Cursor",
-		InstallScript:     "curl -fsSL https://cursor.com/install | bash || true; if [ ! -f $HOME/.local/bin/agent ] && ! command -v agent >/dev/null 2>&1; then echo 'ERROR: cursor agent binary not found after install' >&2; exit 1; fi; { [ -f $HOME/.local/bin/agent ] || { mkdir -p $HOME/.local/bin && ln -sf $(which agent) $HOME/.local/bin/agent; }; }",
+		InstallScript:     "curl -fsSL https://cursor.com/install | bash; _rc=$?; if [ $_rc -ne 0 ]; then if [ ! -f $HOME/.local/bin/agent ]; then exit $_rc; fi; fi; { [ -f $HOME/.local/bin/agent ] || { mkdir -p $HOME/.local/bin && ln -sf $(which agent) $HOME/.local/bin/agent; }; }",
 		HomeEnvVar:        "CURSOR_CONFIG_DIR",
 		DefaultHomeSubdir: ".cursor",
 		InstallHint:       "Install Cursor CLI: curl https://cursor.com/install -fsS | bash",
