@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.4.1](https://github.com/konono/aw/compare/v3.4.0...v3.4.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **toolinfo:** tolerate root-level symlink failure in tool install scripts ([#103](https://github.com/konono/aw/issues/103)) ([25dcf40](https://github.com/konono/aw/commit/25dcf40ad32029f5ef4fc7b50e24daec36d80f0d))
+
 ## [3.4.0](https://github.com/konono/aw/compare/v3.3.2...v3.4.0) (2026-06-23)
 
 
