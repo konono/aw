@@ -131,7 +131,11 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	}
 
 	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec) {
-		if imageName, err := s.resolveOfficialImage(ctx, ec); err == nil && imageName != "" {
+		imageName, err := s.resolveOfficialImage(ctx, ec)
+		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
+			return "", err
+		}
+		if err == nil && imageName != "" {
 			return imageName, nil
 		}
 	}
@@ -142,7 +146,8 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 func hasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
-		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() {
+		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
+		(p.ContainerUser != "" && p.ContainerUser != "agent") {
 		return true
 	}
 	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
@@ -154,7 +159,7 @@ func hasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 const officialImageRegistry = "ghcr.io/konono"
 
 func officialImageName(tool string, os profile.OSTemplate) string {
-	return fmt.Sprintf("%s/aw-%s:v%s-%s", officialImageRegistry, tool, version.Version, os)
+	return fmt.Sprintf("%s/aw-%s:%s-%s", officialImageRegistry, tool, version.Version, os)
 }
 
 func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
@@ -198,6 +203,7 @@ func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.Exe
 		}
 		fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
 		if err := s.DockerClient.Pull(ctx, imageName); err != nil {
+			fmt.Fprintf(os.Stderr, "Official image not available; building from template\n")
 			return "", nil
 		}
 		return imageName, nil

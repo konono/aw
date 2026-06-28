@@ -1,6 +1,6 @@
-// VERSION must include the "v" prefix (e.g. "v3.4.1") to match
-// the tag format used by officialImageName() in the aw binary.
-// CI passes VERSION from the git tag: VERSION=${{ github.ref_name }}
+// VERSION is the semver without "v" prefix (e.g. "3.4.1") to match
+// version.Version in the aw binary. CI strips the prefix from the
+// git tag: VERSION=${GITHUB_REF_NAME#v}
 variable "VERSION" {
   default = "dev"
 }
