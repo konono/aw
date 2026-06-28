@@ -26,13 +26,14 @@ BASH_PROFILE_FILE="$AW_HOME/.bash_profile"
 # Dynamic /etc/passwd injection (OpenShift GID 0 pattern)
 # ---------------------------------------------------------------------------
 # The image is built with a fixed UID (1001) but runs with the host user's
-# UID via --user UID:0.  Container runtimes (e.g. Podman --userns=keep-id)
-# may inject a passwd entry with the host's home path, which breaks tools
-# that use getpwuid() instead of $HOME (ssh, git).
+# UID:GID via --user UID:GID --group-add 0.  Container runtimes (e.g.
+# Podman --userns=keep-id) may inject a passwd entry with the host's home
+# path, which breaks tools that use getpwuid() instead of $HOME (ssh, git).
 _aw_uid=$(id -u)
+_aw_gid=$(id -g)
 _aw_tmp=$(grep -v -e "^[^:]*:[^:]*:${_aw_uid}:" -e "^${AW_USER}:" /etc/passwd) && printf '%s\n' "$_aw_tmp" > /etc/passwd || true
-echo "${AW_USER}:x:${_aw_uid}:0:${AW_USER}:${AW_HOME}:/bin/bash" >> /etc/passwd
-unset _aw_uid _aw_tmp
+echo "${AW_USER}:x:${_aw_uid}:${_aw_gid}:${AW_USER}:${AW_HOME}:/bin/bash" >> /etc/passwd
+unset _aw_uid _aw_gid _aw_tmp
 export HOME="$AW_HOME"
 
 # ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ export HOME="$AW_HOME"
 # ---------------------------------------------------------------------------
 if [ "$(stat -c '%u' "$AW_HOME")" != "$(id -u)" ]; then
   aw_log "Fixing file ownership for UID $(id -u)..."
-  sudo chown -R "$(id -u):0" "$AW_HOME" 2>/dev/null || true
+  sudo chown -R "$(id -u):$(id -g)" "$AW_HOME" 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------

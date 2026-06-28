@@ -126,6 +126,8 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		Entrypoint: "/bin/bash",
 		Command:    []string{"-c", script},
 		EnvVars:    make(map[string]string),
+		GroupAdd:   docker.RootGroupAdd(),
+		User:       docker.HostUserID(),
 		Userns:     userns,
 	}
 

@@ -51,9 +51,9 @@ func TestHostUserID_HasExpectedFormat(t *testing.T) {
 	if uid == "" {
 		t.Fatal("HostUserID() returned empty string on Unix")
 	}
-	matched, _ := regexp.MatchString(`^\d+:0$`, uid)
+	matched, _ := regexp.MatchString(`^\d+:\d+$`, uid)
 	if !matched {
-		t.Errorf("HostUserID() = %q, want format '<number>:0'", uid)
+		t.Errorf("HostUserID() = %q, want format '<uid>:<gid>'", uid)
 	}
 }
 

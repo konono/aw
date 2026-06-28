@@ -53,8 +53,8 @@ func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []
 		WorkDir:   platform.ToContainerPath(ec.WorkDir),
 		Command:   command,
 		GroupAdd:  docker.RootGroupAdd(),
-		User:     docker.HostUserID(),
-		Userns:   docker.PodmanUserns(runtime),
+		User:      docker.HostUserID(),
+		Userns:    docker.PodmanUserns(runtime),
 	}
 }
 
