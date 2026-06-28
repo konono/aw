@@ -87,6 +87,9 @@ func validateBasicFields(p Profile) error {
 	default:
 		return fmt.Errorf("unknown image_pull_policy: %q (must be \"auto\", \"always\", \"never\", or \"build\")", p.ImagePullPolicy)
 	}
+	if p.ImagePullPolicy != "" && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("image_pull_policy is only valid with environment: container")
+	}
 
 	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
 		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)

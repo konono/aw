@@ -130,7 +130,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec) {
+	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec, platform.ConfigDir()) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -143,14 +143,14 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	return s.buildImage(ctx, ec, cenv)
 }
 
-func hasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
+func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
 		(p.ContainerUser != "" && p.ContainerUser != "agent") {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
+	if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
 		return true
 	}
 	return false
