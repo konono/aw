@@ -485,6 +485,147 @@ func TestIsInspectNotRecoverable(t *testing.T) {
 	}
 }
 
+func TestBuildRunArgs_GroupAdd(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+		GroupAdd:  []string{"0"},
+	}
+
+	args := BuildRunArgs(config)
+
+	found := false
+	for i, a := range args {
+		if a == "--group-add" && i+1 < len(args) && args[i+1] == "0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --group-add 0, got args: %v", args)
+	}
+}
+
+func TestBuildRunArgs_GroupAddMultiple(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+		GroupAdd:  []string{"0", "100"},
+	}
+
+	args := BuildRunArgs(config)
+
+	groups := map[string]bool{}
+	for i, a := range args {
+		if a == "--group-add" && i+1 < len(args) {
+			groups[args[i+1]] = true
+		}
+	}
+	if !groups["0"] || !groups["100"] {
+		t.Errorf("expected --group-add 0 and --group-add 100, got args: %v", args)
+	}
+}
+
+func TestBuildRunArgs_NoGroupAdd(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+	}
+
+	args := BuildRunArgs(config)
+
+	for _, a := range args {
+		if a == "--group-add" {
+			t.Error("expected no --group-add when GroupAdd is empty")
+		}
+	}
+}
+
+func TestBuildRunArgs_DockerPermissions(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"claude"},
+		User:      "1000:1000",
+		GroupAdd:  []string{"0"},
+	}
+
+	args := BuildRunArgs(config)
+
+	foundUser := false
+	foundGroup := false
+	for i, a := range args {
+		if a == "--user" && i+1 < len(args) && args[i+1] == "1000:1000" {
+			foundUser = true
+		}
+		if a == "--group-add" && i+1 < len(args) && args[i+1] == "0" {
+			foundGroup = true
+		}
+	}
+	if !foundUser {
+		t.Errorf("expected --user 1000:1000, got args: %v", args)
+	}
+	if !foundGroup {
+		t.Errorf("expected --group-add 0, got args: %v", args)
+	}
+}
+
+func TestBuildRunArgs_PodmanPermissions(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"claude"},
+		User:      "1000:1000",
+		GroupAdd:  []string{"0"},
+		Userns:    "keep-id",
+	}
+
+	args := BuildRunArgs(config)
+
+	foundUserns := false
+	foundUser := false
+	foundGroup := false
+	for i, a := range args {
+		if a == "--userns" && i+1 < len(args) && args[i+1] == "keep-id" {
+			foundUserns = true
+		}
+		if a == "--user" && i+1 < len(args) && args[i+1] == "1000:1000" {
+			foundUser = true
+		}
+		if a == "--group-add" && i+1 < len(args) && args[i+1] == "0" {
+			foundGroup = true
+		}
+	}
+	if !foundUserns {
+		t.Errorf("expected --userns keep-id, got args: %v", args)
+	}
+	if !foundUser {
+		t.Errorf("expected --user 1000:1000, got args: %v", args)
+	}
+	if !foundGroup {
+		t.Errorf("expected --group-add 0, got args: %v", args)
+	}
+}
+
+func TestBuildOneShotRunArgs_GroupAdd(t *testing.T) {
+	config := RunConfig{
+		ImageName: "test-image",
+		Command:   []string{"sh"},
+		GroupAdd:  []string{"0"},
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-test", config)
+
+	found := false
+	for i, a := range args {
+		if a == "--group-add" && i+1 < len(args) && args[i+1] == "0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --group-add 0 in one-shot args, got: %v", args)
+	}
+}
+
 func TestBuildRunArgs_MountOptions(t *testing.T) {
 	tests := []struct {
 		name    string

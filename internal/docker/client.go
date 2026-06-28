@@ -38,7 +38,8 @@ type RunConfig struct {
 	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 	CapAdd       []string // --cap-add values (e.g. "AUDIT_WRITE")
-	User         string   // overrides the image's USER (e.g. "0:0" for root)
+	GroupAdd     []string // --group-add values (e.g. "0" for root group)
+	User         string   // overrides the image's USER (e.g. "1000:1000")
 	Userns       string   // --userns value (e.g. "keep-id" for rootless Podman)
 }
 
@@ -211,6 +212,10 @@ func buildRunArgs(config RunConfig, mode runMode) []string {
 
 	for _, cap := range config.CapAdd {
 		args = append(args, "--cap-add", cap)
+	}
+
+	for _, group := range config.GroupAdd {
+		args = append(args, "--group-add", group)
 	}
 
 	for key, val := range config.EnvVars {
