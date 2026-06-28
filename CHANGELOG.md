@@ -6,6 +6,19 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.6.0](https://github.com/konono/aw/compare/v3.5.0...v3.6.0) (2026-06-28)
+
+
+### Features
+
+* **cmd:** redesign `aw export` as `aw build` ([#111](https://github.com/konono/aw/issues/111)) ([8669708](https://github.com/konono/aw/commit/8669708082effb3746559c600fff6fe973871afc))
+
+
+### Bug Fixes
+
+* **image:** warn on mise.toml instead of forcing build fallback ([071bd9e](https://github.com/konono/aw/commit/071bd9ea556d6f6c935fdce05e337767d8d5677a))
+* **image:** warn on mise.toml instead of forcing build fallback ([#110](https://github.com/konono/aw/issues/110)) ([98ad77c](https://github.com/konono/aw/commit/98ad77c99ebccaf93e93e056e8c7d501ee2c7034))
+
 ## [3.5.0](https://github.com/konono/aw/compare/v3.4.1...v3.5.0) (2026-06-28)
 
 
