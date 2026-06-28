@@ -46,6 +46,15 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /aw-init.sh /entrypoint.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 
+ARG AW_OCI_SOURCE=""
+ARG AW_OCI_VERSION=""
+ARG AW_OCI_OS=""
+ARG AW_OCI_TOOL=""
+LABEL org.opencontainers.image.source="${AW_OCI_SOURCE}" \
+      org.opencontainers.image.version="${AW_OCI_VERSION}" \
+      io.aw.os="${AW_OCI_OS}" \
+      io.aw.tool="${AW_OCI_TOOL}"
+
 USER {{.User}}
 WORKDIR {{.Workspace}}
 
