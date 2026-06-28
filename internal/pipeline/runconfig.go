@@ -17,6 +17,7 @@ func BuildRunConfig(ec *ExecutionContext, runtime string, command []string, envV
 		Command:      command,
 		SecurityOpts: ec.DockerSecurityOpts,
 		CapAdd:       ec.DockerCapAdd,
+		GroupAdd:     docker.RootGroupAdd(),
 		User:         docker.HostUserID(),
 		Userns:       docker.PodmanUserns(runtime),
 	}
@@ -51,6 +52,7 @@ func AuthRunConfig(ec *ExecutionContext, runtime string, tool string, command []
 		EnvVars:   envVars,
 		WorkDir:   platform.ToContainerPath(ec.WorkDir),
 		Command:   command,
+		GroupAdd:  docker.RootGroupAdd(),
 		User:      docker.HostUserID(),
 		Userns:    docker.PodmanUserns(runtime),
 	}

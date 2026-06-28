@@ -52,9 +52,9 @@ func KillProcessIfSSH(pid, sig int) error {
 }
 
 // HostUserID returns the --user value for docker run.
-// On Unix, this maps the current user's UID with GID 0.
+// On Unix, this maps the current user's UID and GID.
 func HostUserID() string {
-	return fmt.Sprintf("%d:0", os.Getuid())
+	return fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
 }
 
 // IsRunningAsRoot returns true if the current process is running as root.

@@ -59,7 +59,7 @@ RUN useradd -m -s /bin/bash agent && \
 ```
 
 - **ユーザー作成**: ホームディレクトリ付きのユーザーを作成
-- **sudoers**: aw は `--user UID:0` でコンテナを実行するため、UID ベースの sudo が必要
+- **sudoers**: aw は `--user UID:GID --group-add 0` でコンテナを実行するため、UID ベースの sudo が必要
 
 ## 例: Playwright 対応コンテナ
 

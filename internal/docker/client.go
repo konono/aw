@@ -38,7 +38,8 @@ type RunConfig struct {
 	Entrypoint   string   // overrides the image's ENTRYPOINT when non-empty
 	SecurityOpts []string // --security-opt values (e.g. "label=disable")
 	CapAdd       []string // --cap-add values (e.g. "AUDIT_WRITE")
-	User         string   // overrides the image's USER (e.g. "0:0" for root)
+	GroupAdd     []string // --group-add values (e.g. "0" for root group)
+	User         string   // overrides the image's USER (e.g. "1000:1000")
 	Userns       string   // --userns value (e.g. "keep-id" for rootless Podman)
 }
 
@@ -213,6 +214,10 @@ func buildRunArgs(config RunConfig, mode runMode) []string {
 		args = append(args, "--cap-add", cap)
 	}
 
+	for _, group := range config.GroupAdd {
+		args = append(args, "--group-add", group)
+	}
+
 	for key, val := range config.EnvVars {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, val))
 	}
@@ -266,6 +271,42 @@ func BuildExecRunArgs(containerName string, config RunConfig) []string {
 // Like BuildExecRunArgs but adds -d for detached mode.
 func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 	return buildRunArgs(config, runMode{interactive: true, initProcess: true, detached: true, name: containerName})
+}
+
+// ExecRunForeground runs a container in the foreground (no detach+attach).
+// Use for one-shot commands passed via -c where the container exits quickly.
+// Unlike ExecRun, signals are not absorbed — SIGTERM/SIGHUP terminate the
+// process naturally, and the reaper handles container cleanup.
+func (c *ShellClient) ExecRunForeground(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
+	writeFd, abort, err := spawnReaper()
+	if err != nil {
+		return fmt.Errorf("reaper: %w", err)
+	}
+
+	runArgs := BuildExecRunArgs(containerName, config)
+	cmd := exec.Command(c.dockerCmd(), runArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	runErr := cmd.Run()
+
+	exitCode := 0
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			if abort != nil {
+				abort()
+			}
+			return fmt.Errorf("running container: %w", runErr)
+		}
+	}
+
+	_ = writeFd.Close()
+	os.Exit(exitCode)
+	return nil
 }
 
 // ExecRun starts a container in detached mode, then attaches to it.
