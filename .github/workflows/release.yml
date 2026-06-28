@@ -66,7 +66,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Render build contexts
-        run: go run ./cmd/render-image --all --os debian12
+        run: go run ./cmd/render-image --all --os all
 
       - name: Set version
         id: version
@@ -79,9 +79,11 @@ jobs:
           VERSION: ${{ steps.version.outputs.ver }}
         run: |
           for tool in claude codex opencode cursor; do
-            INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-debian12/build-args.env" | cut -d= -f2-)
-            docker buildx bake -f docker-bake.hcl "${tool}" --push \
-              --set "${tool}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}"
+            for os in debian12 ubuntu2604 ubi9 ubi10; do
+              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-${os}/build-args.env" | cut -d= -f2-)
+              docker buildx bake -f docker-bake.hcl "aw-${tool}-${os}" --push \
+                --set "aw-${tool}-${os}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}"
+            done
           done
 
       - name: Create arch-specific tags
@@ -90,16 +92,18 @@ jobs:
           REGISTRY: ghcr.io/konono
         run: |
           for tool in claude codex opencode cursor; do
-            for arch in amd64 arm64; do
-              digest=$(docker buildx imagetools inspect \
-                "${REGISTRY}/aw-${tool}:${VER}-debian12" \
-                --format "{{range .Manifest.Manifests}}{{if eq .Platform.Architecture \"${arch}\"}}{{.Digest}}{{end}}{{end}}")
-              if [ -z "$digest" ]; then
-                echo "::error::Failed to get ${arch} digest for aw-${tool}:${VER}-debian12"
-                exit 1
-              fi
-              docker buildx imagetools create \
-                --tag "${REGISTRY}/aw-${tool}:${VER}-debian12-${arch}" \
-                "${REGISTRY}/aw-${tool}:${VER}-debian12@${digest}"
+            for os in debian12 ubuntu2604 ubi9 ubi10; do
+              for arch in amd64 arm64; do
+                digest=$(docker buildx imagetools inspect \
+                  "${REGISTRY}/aw-${tool}:${VER}-${os}" \
+                  --format "{{range .Manifest.Manifests}}{{if eq .Platform.Architecture \"${arch}\"}}{{.Digest}}{{end}}{{end}}")
+                if [ -z "$digest" ]; then
+                  echo "::error::Failed to get ${arch} digest for aw-${tool}:${VER}-${os}"
+                  exit 1
+                fi
+                docker buildx imagetools create \
+                  --tag "${REGISTRY}/aw-${tool}:${VER}-${os}-${arch}" \
+                  "${REGISTRY}/aw-${tool}:${VER}-${os}@${digest}"
+              done
             done
           done

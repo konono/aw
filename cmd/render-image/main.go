@@ -14,32 +14,41 @@ import (
 	"github.com/konono/aw/internal/version"
 )
 
+var supportedOS = []string{"debian12", "ubuntu2604", "ubi9", "ubi10"}
+
 func main() {
-	osFlag := flag.String("os", "debian12", "OS template (debian12, ubi9, ubi10, ubuntu2604)")
+	osFlag := flag.String("os", "debian12", "OS template (debian12, ubi9, ubi10, ubuntu2604, or 'all')")
 	toolFlag := flag.String("tool", "", "Tool name (claude, codex, opencode, cursor)")
 	outputFlag := flag.String("output", "", "Output directory for build context")
-	allFlag := flag.Bool("all", false, "Render all tools for the specified OS")
+	allFlag := flag.Bool("all", false, "Render all tools (and all OS if --os all)")
 	flag.Parse()
 
 	if *allFlag {
 		if *outputFlag == "" {
 			*outputFlag = "build"
 		}
-		for _, tool := range toolinfo.Names() {
-			dir := filepath.Join(*outputFlag, tool+"-"+*osFlag)
-			if err := renderContext(*osFlag, tool, dir); err != nil {
-				fmt.Fprintf(os.Stderr, "Error rendering %s-%s: %v\n", tool, *osFlag, err)
-				os.Exit(1)
+		osList := supportedOS
+		if *osFlag != "all" {
+			osList = []string{*osFlag}
+		}
+		for _, osName := range osList {
+			for _, tool := range toolinfo.Names() {
+				dir := filepath.Join(*outputFlag, tool+"-"+osName)
+				if err := renderContext(osName, tool, dir); err != nil {
+					fmt.Fprintf(os.Stderr, "Error rendering %s-%s: %v\n", tool, osName, err)
+					os.Exit(1)
+				}
+				fmt.Fprintf(os.Stderr, "Rendered: %s\n", dir)
 			}
-			fmt.Fprintf(os.Stderr, "Rendered: %s\n", dir)
 		}
 		return
 	}
 
 	if *toolFlag == "" {
 		fmt.Fprintln(os.Stderr, "Usage: render-image --tool <name> [--os <os>] [--output <dir>]")
-		fmt.Fprintln(os.Stderr, "       render-image --all [--os <os>] [--output <dir>]")
+		fmt.Fprintln(os.Stderr, "       render-image --all [--os <os|all>] [--output <dir>]")
 		fmt.Fprintf(os.Stderr, "Tools: %s\n", strings.Join(toolinfo.Names(), ", "))
+		fmt.Fprintf(os.Stderr, "OS:    %s, all\n", strings.Join(supportedOS, ", "))
 		os.Exit(1)
 	}
 
@@ -75,9 +84,9 @@ func renderContext(osName, tool, outputDir string) error {
 	}
 
 	files := map[string][]byte{
-		"Dockerfile":   dockerfile,
+		"Dockerfile":    dockerfile,
 		"entrypoint.sh": entrypoint,
-		"aw-init.sh":   initScript,
+		"aw-init.sh":    initScript,
 	}
 
 	for name, content := range files {

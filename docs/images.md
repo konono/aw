@@ -15,14 +15,20 @@ aw claude
 
 ## イメージ命名規則
 
-ツール別にイメージが分離されています:
+ツール別 × OS 別にイメージが用意されています:
 
 ```
-ghcr.io/konono/aw-claude:<version>-debian12
-ghcr.io/konono/aw-codex:<version>-debian12
-ghcr.io/konono/aw-opencode:<version>-debian12
-ghcr.io/konono/aw-cursor:<version>-debian12
+ghcr.io/konono/aw-<tool>:<version>-<os>
+
+# 例:
+ghcr.io/konono/aw-claude:3.5.0-debian12
+ghcr.io/konono/aw-claude:3.5.0-ubi9
+ghcr.io/konono/aw-codex:3.5.0-ubuntu2604
+ghcr.io/konono/aw-cursor:3.5.0-ubi10
 ```
+
+ツール: `claude`, `codex`, `opencode`, `cursor`
+OS: `debian12`（デフォルト）, `ubuntu2604`, `ubi9`, `ubi10`
 
 ### タグ体系
 
