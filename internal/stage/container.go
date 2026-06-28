@@ -139,6 +139,10 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	}
 
 	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec, s.configDir()) {
+		if _, err := os.Stat(filepath.Join(s.configDir(), "mise.toml")); err == nil {
+			fmt.Fprintln(os.Stderr, "Warning: ~/.config/aw/mise.toml found but ignored by official image.")
+			fmt.Fprintln(os.Stderr, "  To use mise tools, set image_pull_policy: build or place mise.toml in your workspace.")
+		}
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -161,9 +165,6 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) boo
 		return true
 	}
 	if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
-		return true
-	}
-	if _, err := os.Stat(filepath.Join(configDir, "mise.toml")); err == nil {
 		return true
 	}
 	return false
