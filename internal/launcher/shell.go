@@ -52,11 +52,16 @@ func (l *ShellLauncher) launchDockerShell(_ context.Context, ec *pipeline.Execut
 
 	spec := reaper.BuildSpec(ec)
 	runConfig := pipeline.ShellRunConfig(ec, runtime, command)
-	return client.ExecRun(ec.ContainerName, runConfig, func() (*os.File, func(), error) {
+	spawnReaper := func() (*os.File, func(), error) {
 		handle, err := reaper.Spawn(spec)
 		if err != nil {
 			return nil, nil, err
 		}
 		return handle.Write, handle.Abort, nil
-	})
+	}
+
+	if len(ec.CommandOverride) > 0 {
+		return client.ExecRunForeground(ec.ContainerName, runConfig, spawnReaper)
+	}
+	return client.ExecRun(ec.ContainerName, runConfig, spawnReaper)
 }

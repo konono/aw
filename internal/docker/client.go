@@ -273,6 +273,42 @@ func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 	return buildRunArgs(config, runMode{interactive: true, initProcess: true, detached: true, name: containerName})
 }
 
+// ExecRunForeground runs a container in the foreground (no detach+attach).
+// Use for one-shot commands passed via -c where the container exits quickly.
+// Unlike ExecRun, signals are not absorbed — SIGTERM/SIGHUP terminate the
+// process naturally, and the reaper handles container cleanup.
+func (c *ShellClient) ExecRunForeground(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
+	writeFd, abort, err := spawnReaper()
+	if err != nil {
+		return fmt.Errorf("reaper: %w", err)
+	}
+
+	runArgs := BuildExecRunArgs(containerName, config)
+	cmd := exec.Command(c.dockerCmd(), runArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	runErr := cmd.Run()
+
+	exitCode := 0
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			if abort != nil {
+				abort()
+			}
+			return fmt.Errorf("running container: %w", runErr)
+		}
+	}
+
+	_ = writeFd.Close()
+	os.Exit(exitCode)
+	return nil
+}
+
 // ExecRun starts a container in detached mode, then attaches to it.
 // SIGTERM and SIGHUP are absorbed so the container survives external signals.
 // If the attach session is interrupted, it auto-reconnects while the container
