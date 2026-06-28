@@ -159,10 +159,11 @@ func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) boo
 	return false
 }
 
-const officialImageRegistry = "ghcr.io/konono"
+const OfficialImageRegistry = "ghcr.io/konono"
 
-func officialImageName(tool string, os profile.OSTemplate) string {
-	return fmt.Sprintf("%s/aw-%s:%s-%s", officialImageRegistry, tool, version.Version, os)
+// OfficialImageName returns the GHCR image reference for the given tool and OS.
+func OfficialImageName(tool string, os profile.OSTemplate) string {
+	return fmt.Sprintf("%s/aw-%s:%s-%s", OfficialImageRegistry, tool, version.Version, os)
 }
 
 func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
@@ -176,7 +177,7 @@ func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.Exe
 		return "", nil
 	}
 
-	imageName := officialImageName(tool, ec.Profile.EffectiveOS())
+	imageName := OfficialImageName(tool, ec.Profile.EffectiveOS())
 
 	switch policy {
 	case profile.ImagePullPolicyAlways:

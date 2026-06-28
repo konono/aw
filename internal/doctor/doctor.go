@@ -1,14 +1,13 @@
 package doctor
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	"context"
 
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/mount"
@@ -494,7 +493,7 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 
 	client := docker.NewShellClient(rt)
 	for tool := range tools {
-		imageName := fmt.Sprintf("ghcr.io/konono/aw-%s:%s-%s", tool, version.Version, "debian12")
+		imageName := stage.OfficialImageName(tool, profile.OSDebian12)
 		exists, err := client.ImageExists(context.Background(), imageName)
 		if err != nil {
 			if verbose {

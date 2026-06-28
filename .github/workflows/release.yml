@@ -75,12 +75,14 @@ jobs:
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Build and push images
-        uses: docker/bake-action@v6
-        with:
-          files: docker-bake.hcl
-          push: true
         env:
           VERSION: ${{ steps.version.outputs.ver }}
+        run: |
+          for tool in claude codex opencode cursor; do
+            INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-debian12/build-args.env" | cut -d= -f2-)
+            docker buildx bake -f docker-bake.hcl "${tool}" --push \
+              --set "${tool}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}"
+          done
 
       - name: Create arch-specific tags
         env:
