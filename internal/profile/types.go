@@ -1,5 +1,12 @@
 package profile
 
+import (
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
 // ConfigSource describes where the config was loaded from.
 type ConfigSource struct {
 	IsBuiltin bool   // true if the built-in default config was used
@@ -113,7 +120,7 @@ type Profile struct {
 	Packages         []string          `yaml:"packages,omitempty"`
 	BuildEnv         map[string]string `yaml:"build_env,omitempty"`
 	CACert           string            `yaml:"ca_cert,omitempty"`
-	Export           *ExportConfig     `yaml:"export,omitempty"`
+	Build            *BuildConfig      `yaml:"build,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
 }
 
@@ -172,17 +179,61 @@ func (m CustomMount) IsReadOnly() bool {
 	return m.Mode != MountModeRW
 }
 
-// ExportInclude represents a file/directory to copy into a snapshot image.
-type ExportInclude struct {
+// BuildInclude represents a file/directory to copy into a snapshot image.
+type BuildInclude struct {
 	Src string `yaml:"src"`
 	Dst string `yaml:"dst"`
 }
 
-// ExportConfig holds settings for the `aw export` command.
-type ExportConfig struct {
-	Snapshot bool              `yaml:"snapshot,omitempty"`
-	Include  []ExportInclude   `yaml:"include,omitempty"`
-	Env      map[string]string `yaml:"env,omitempty"`
+// BuildConfig holds settings for the `aw build` command.
+type BuildConfig struct {
+	Include []BuildInclude    `yaml:"include,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+}
+
+// unmarshalProfileWithLegacyExport handles backward-compatible unmarshaling
+// of the deprecated "export:" YAML field into the "build:" field.
+func unmarshalProfileWithLegacyExport(unmarshal func(interface{}) error, build **BuildConfig) error {
+	type legacyExport struct {
+		Snapshot bool              `yaml:"snapshot,omitempty"`
+		Include  []BuildInclude    `yaml:"include,omitempty"`
+		Env      map[string]string `yaml:"env,omitempty"`
+	}
+	var aux struct {
+		Export *legacyExport `yaml:"export,omitempty"`
+	}
+	if err := unmarshal(&aux); err != nil {
+		return err
+	}
+	if aux.Export != nil && *build == nil {
+		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
+		*build = &BuildConfig{
+			Include: aux.Export.Include,
+			Env:     aux.Export.Env,
+		}
+	}
+	return nil
+}
+
+func (p *Profile) UnmarshalYAML(value *yaml.Node) error {
+	type profileAlias Profile
+	var alias profileAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*p = Profile(alias)
+	return unmarshalProfileWithLegacyExport(value.Decode, &p.Build)
+}
+
+func (d *ProfileDefaults) UnmarshalYAML(value *yaml.Node) error {
+	type defaultsAlias ProfileDefaults
+	var alias defaultsAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*d = ProfileDefaults(alias)
+	profile := (*Profile)(d)
+	return unmarshalProfileWithLegacyExport(value.Decode, &profile.Build)
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.

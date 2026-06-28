@@ -155,9 +155,8 @@ profiles:
   #     on-create: ./scripts/setup.sh
   #     on-end: ./scripts/cleanup.sh
   #
-  #   # ── Export settings (aw export) ───────────────────────────────
-  #   # export:
-  #   #   snapshot: true              # run setup in temp container and commit
+  #   # ── Build settings (aw build) ─────────────────────────────────
+  #   # build:
   #   #   include:                    # copy host dirs into the image
   #   #     - src: ./certs
   #   #       dst: /usr/local/share/ca-certificates

@@ -645,10 +645,10 @@ func TestProfileOverride_Packages(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Group 7: TestProfileOverride_Export
+// Group 7: TestProfileOverride_Build
 // ---------------------------------------------------------------------------
 
-func TestProfileOverride_Export(t *testing.T) {
+func TestProfileOverride_Build(t *testing.T) {
 	tests := []struct {
 		name     string
 		base     Profile
@@ -656,64 +656,55 @@ func TestProfileOverride_Export(t *testing.T) {
 		check    func(t *testing.T, m Profile)
 	}{
 		{
-			name: "ExportMerge",
+			name: "BuildMerge",
 			base: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Snapshot: false,
-					Include:  []ExportInclude{{Src: "./old", Dst: "/old"}},
-					Env:      map[string]string{"A": "1", "B": "2"},
+				Build: &BuildConfig{
+					Include: []BuildInclude{{Src: "./old", Dst: "/old"}},
+					Env:     map[string]string{"A": "1", "B": "2"},
 				},
 			},
 			override: Profile{
-				Export: &ExportConfig{
-					Snapshot: true,
-					Include:  []ExportInclude{{Src: "./new", Dst: "/new"}},
-					Env:      map[string]string{"B": "override", "C": "3"},
+				Build: &BuildConfig{
+					Include: []BuildInclude{{Src: "./new", Dst: "/new"}},
+					Env:     map[string]string{"B": "override", "C": "3"},
 				},
 			},
 			check: func(t *testing.T, m Profile) {
-				if m.Export == nil {
-					t.Fatal("Export should not be nil")
+				if m.Build == nil {
+					t.Fatal("Build should not be nil")
 				}
-				if !m.Export.Snapshot {
-					t.Error("Snapshot should be true after override")
+				if len(m.Build.Include) != 1 || m.Build.Include[0].Src != "./new" {
+					t.Errorf("Include should be replaced by override, got %v", m.Build.Include)
 				}
-				if len(m.Export.Include) != 1 || m.Export.Include[0].Src != "./new" {
-					t.Errorf("Include should be replaced by override, got %v", m.Export.Include)
+				if m.Build.Env["A"] != "1" {
+					t.Errorf("Env[A] = %q, want %q (preserved from base)", m.Build.Env["A"], "1")
 				}
-				if m.Export.Env["A"] != "1" {
-					t.Errorf("Env[A] = %q, want %q (preserved from base)", m.Export.Env["A"], "1")
+				if m.Build.Env["B"] != "override" {
+					t.Errorf("Env[B] = %q, want %q (overridden)", m.Build.Env["B"], "override")
 				}
-				if m.Export.Env["B"] != "override" {
-					t.Errorf("Env[B] = %q, want %q (overridden)", m.Export.Env["B"], "override")
-				}
-				if m.Export.Env["C"] != "3" {
-					t.Errorf("Env[C] = %q, want %q (added from override)", m.Export.Env["C"], "3")
+				if m.Build.Env["C"] != "3" {
+					t.Errorf("Env[C] = %q, want %q (added from override)", m.Build.Env["C"], "3")
 				}
 			},
 		},
 		{
-			name: "ExportNilOverridePreservesBase",
+			name: "BuildNilOverridePreservesBase",
 			base: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Snapshot: true,
-					Env:      map[string]string{"X": "1"},
+				Build: &BuildConfig{
+					Env: map[string]string{"X": "1"},
 				},
 			},
 			override: Profile{},
 			check: func(t *testing.T, m Profile) {
-				if m.Export == nil {
-					t.Fatal("Export should be preserved from base")
+				if m.Build == nil {
+					t.Fatal("Build should be preserved from base")
 				}
-				if !m.Export.Snapshot {
-					t.Error("Snapshot should be preserved from base")
-				}
-				if m.Export.Env["X"] != "1" {
-					t.Errorf("Env[X] = %q, want %q", m.Export.Env["X"], "1")
+				if m.Build.Env["X"] != "1" {
+					t.Errorf("Env[X] = %q, want %q", m.Build.Env["X"], "1")
 				}
 			},
 		},
@@ -1118,7 +1109,7 @@ func TestRelativeProfile_RoundTripsThroughDefaults(t *testing.T) {
 	}
 }
 
-func TestRelativeProfile_Export(t *testing.T) {
+func TestRelativeProfile_Build(t *testing.T) {
 	defaults := Profile{
 		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
@@ -1126,35 +1117,31 @@ func TestRelativeProfile_Export(t *testing.T) {
 	effective := Profile{
 		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
-		Export: &ExportConfig{
-			Snapshot: true,
-			Include:  []ExportInclude{{Src: "./certs", Dst: "/certs"}},
+		Build: &BuildConfig{
+			Include: []BuildInclude{{Src: "./certs", Dst: "/certs"}},
 		},
 	}
 
 	relative := RelativeProfile(defaults, effective)
 
-	if relative.Export == nil {
-		t.Fatal("Export should appear in relative since defaults has none")
-	}
-	if !relative.Export.Snapshot {
-		t.Error("Snapshot should be true in relative")
+	if relative.Build == nil {
+		t.Fatal("Build should appear in relative since defaults has none")
 	}
 
-	// When defaults and effective are the same, Export should be nil in relative
+	// When defaults and effective are the same, Build should be nil in relative
 	sameDefaults := Profile{
 		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
-		Export:      &ExportConfig{Snapshot: true},
+		Build:       &BuildConfig{},
 	}
 	sameEffective := Profile{
 		Environment: EnvironmentContainer,
 		Launch:      LaunchClaude,
-		Export:      &ExportConfig{Snapshot: true},
+		Build:       &BuildConfig{},
 	}
 	relative2 := RelativeProfile(sameDefaults, sameEffective)
-	if relative2.Export != nil {
-		t.Error("Export should be nil when defaults and effective match")
+	if relative2.Build != nil {
+		t.Error("Build should be nil when defaults and effective match")
 	}
 }
 

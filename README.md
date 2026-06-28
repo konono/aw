@@ -277,21 +277,27 @@ aw auth status claude  # 認証状態を確認
 
 `aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー名・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。イメージは GID 0 パターンで構築されるため、ホストの UID が異なってもリビルドは不要です。
 
-通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw export` で環境をイメージに焼き込むことで起動を高速化できます:
+通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw build` で環境をイメージに焼き込むことで起動を高速化できます:
 
 ```bash
-aw export claude --snapshot --apply
+aw build claude --apply
 ```
 
 このコマンドは以下を行います:
 
-1. 一時コンテナを作成し、プロジェクトの `devbox.json` / `mise.toml` に基づいてパッケージをインストール
-2. インストール済みの状態をイメージとしてコミット
-3. `--apply` により、プロファイルの設定に `image:` と `skip_devbox_install: true` / `skip_mise_install: true` を書き戻す
+1. 公式イメージをベースにコンテナを起動し、プロジェクトの `devbox.json` / `mise.toml` に基づいてパッケージをインストール
+2. インストール済みの状態を `aw-build:<profile>-<hash>` としてコミット（公式イメージは上書きしない）
+3. `--apply` により、プロファイルの設定に `image:` と `skip_mise_install: true` を書き戻す
 
 以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
 
-ランタイム構成を変更した場合は、再度 `aw export --snapshot --apply` を実行してイメージを更新してください。
+テンプレートからの完全ビルドが必要な場合は `--from-template` を使用します:
+
+```bash
+aw build claude --from-template --apply
+```
+
+ランタイム構成を変更した場合は、再度 `aw build --apply` を実行してイメージを更新してください。
 
 ### コンテナランタイムの選択
 
@@ -326,7 +332,7 @@ python = "3.12"
 { "packages": ["ripgrep", "jq", "gh"] }
 ```
 
-mise / devbox でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw export --snapshot --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
+mise / devbox でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw build --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
 
 詳細は [パッケージ管理ガイド](docs/mise.md) を参照してください。
 
@@ -372,7 +378,7 @@ aw auth login claude|codex|opencode|cursor   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
-aw export <profile> [options]   # イメージをビルドして tar 出力
+aw build <profile> [options]    # イメージをビルド（snapshot 込み）
 aw default-dockerfile          # デフォルト Dockerfile を出力
 aw default-init-script         # aw-init.sh（共通初期化スクリプト）を出力
 aw doctor                      # 環境・設定の診断
@@ -514,34 +520,32 @@ profiles:
 ネットワークのある環境でイメージを書き出し、オフライン環境に持ち込めます:
 
 ```bash
-# 基本的なエクスポート
-aw export claude -o my-image.tar
+# イメージをビルドして tar に保存
+aw build claude --save my-image.tar
 
-# --snapshot: ワークスペースのパッケージもイメージに焼き込み
-aw export claude --snapshot -o my-image.tar
+# --from-template: テンプレートからビルド（公式イメージではなく）
+aw build claude --from-template --save my-image.tar
 
-# --include: ホストのディレクトリをイメージにコピー（--snapshot を暗黙有効化）
-aw export claude --include ./certs:/usr/local/share/ca-certificates
+# --include: ホストのディレクトリをイメージにコピー
+aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-image.tar
 
-# --env: 環境変数をイメージに焼き込み（--snapshot を暗黙有効化）
-aw export claude --env HTTP_PROXY=http://proxy.corp:8080
+# --env: 環境変数をイメージに焼き込み
+aw build claude --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
 
 # USB 等で転送
 docker load -i my-image.tar             # オフライン環境でロード
 ```
 
-export オプションはプロファイルの `export:` セクションでも指定できます:
+build オプションはプロファイルの `build:` セクションでも指定できます:
 
 ```yaml
 profiles:
   airgap:
     environment: container
     launch: claude
-    image: 'aw-container:a1b2c3d4e5f6'
-    skip_devbox_install: true            # プロジェクトの devbox install をスキップ
+    image: 'aw-build:claude-a1b2c3d4'
     skip_mise_install: true              # プロジェクトの mise install をスキップ
-    export:
-      snapshot: true
+    build:
       include:
         - src: ./certs
           dst: /usr/local/share/ca-certificates
@@ -571,7 +575,7 @@ profiles:
 | [パッケージ管理](docs/mise.md) | mise / devbox によるコンテナ内ツール管理 |
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
-| [Export & Snapshot](docs/export-snapshot.md) | `aw export` のビルド・焼き込み・起動時の動作詳細 |
+| [Build & Snapshot](docs/build-snapshot.md) | `aw build` のビルド・焼き込み・起動時の動作詳細 |
 | [チーム & メッセージング](docs/teams.md) | マルチエージェント起動、自動レビュー、ブランチ分離 |
 
 ## 企業プロキシ・CA 証明書

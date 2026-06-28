@@ -49,7 +49,8 @@ type CLI struct {
 	Init             InitCmd             `cmd:"" help:"Write the built-in config to ~/.config/aw/config.yml."`
 	Auth             AuthCmd             `cmd:"" help:"Run auth login/logout/status for a tool."`
 	Login            LoginCmd            `cmd:"" help:"Alias for 'auth login'."`
-	Export           ExportCmd           `cmd:"" help:"Build and export a profile's image as a tar archive."`
+	Build            BuildCmd            `cmd:"" help:"Build a profile's container image."`
+	Export           ExportCmd           `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
 	Doctor           DoctorCmd           `cmd:"" help:"Check system environment and configuration."`
 	Reaper           ReaperCmd           `cmd:"" help:"View/recover post-container cleanup reports."`
 	Team             TeamCmd             `cmd:"" help:"Manage agent teams."`
@@ -126,14 +127,34 @@ type AuthStatusCmd struct{ authFlags }
 // LoginCmd is an alias for auth login.
 type LoginCmd struct{ authFlags }
 
-// ExportCmd builds and exports a profile's container image.
+// BuildCmd builds a profile's container image with snapshot.
+type BuildCmd struct {
+	ProfileName  string            `arg:"" help:"Profile name to build."`
+	Save         *string           `name:"save" optional:"" help:"Save image as tar archive (auto-names if path omitted)." type:"path"`
+	FromTemplate bool              `name:"from-template" help:"Build from Dockerfile template instead of official image."`
+	Apply        bool              `name:"apply" help:"Write image name back to config file."`
+	NoCache      bool              `name:"no-cache" help:"Rebuild without cache (requires --from-template)."`
+	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
+	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
+
+	skipSnapshot bool // internal: used by deprecated export compat shim
+}
+
+func (b *BuildCmd) Validate() error {
+	if b.NoCache && !b.FromTemplate {
+		return fmt.Errorf("--no-cache requires --from-template")
+	}
+	return nil
+}
+
+// ExportCmd is a deprecated alias for BuildCmd.
 type ExportCmd struct {
-	ProfileName string `arg:"" help:"Profile name to export."`
-	Output      string `short:"o" name:"output" help:"Output file path." type:"path"`
-	Snapshot    bool   `name:"snapshot" help:"Run setup and commit the result."`
-	Apply       bool   `name:"apply" help:"Write image name back to config file."`
-	NoCache     bool   `name:"no-cache" help:"Rebuild without cache."`
-	Include     []string `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
+	ProfileName string            `arg:"" help:"Profile name to export."`
+	Output      string            `short:"o" name:"output" help:"Output file path." type:"path"`
+	Snapshot    bool              `name:"snapshot" help:"(Deprecated, now always on) Run setup and commit the result."`
+	Apply       bool              `name:"apply" help:"Write image name back to config file."`
+	NoCache     bool              `name:"no-cache" help:"Rebuild without cache."`
+	Include     []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
 	Env         map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
 }
 
@@ -287,15 +308,15 @@ type InternalAgentLoopCmd struct {
 	Tool  string `name:"tool" env:"AW_TOOL" help:"Tool name."`
 }
 
-// parseExportIncludes parses --include src:dst strings into profile.ExportInclude.
-func parseExportIncludes(includes []string) ([]profile.ExportInclude, error) {
-	var result []profile.ExportInclude
+// parseBuildIncludes parses --include src:dst strings into profile.BuildInclude.
+func parseBuildIncludes(includes []string) ([]profile.BuildInclude, error) {
+	var result []profile.BuildInclude
 	for _, s := range includes {
 		parts := strings.SplitN(s, ":", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return nil, fmt.Errorf("--include requires format src:dst, got %q", s)
 		}
-		result = append(result, profile.ExportInclude{Src: parts[0], Dst: parts[1]})
+		result = append(result, profile.BuildInclude{Src: parts[0], Dst: parts[1]})
 	}
 	return result, nil
 }

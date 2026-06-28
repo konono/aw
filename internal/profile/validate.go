@@ -18,7 +18,7 @@ const (
 // reservedProfileNames are aw subcommand names that cannot be used as profile names.
 var reservedProfileNames = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
-	"export": true, "init": true, "auth": true, "login": true,
+	"export": true, "build": true, "init": true, "auth": true, "login": true,
 	"doctor": true, "reaper": true, "team": true, "msg": true,
 }
 
@@ -35,7 +35,7 @@ func Validate(p Profile) error {
 		validateBasicFields,
 		validateContainerFlags,
 		func(p Profile) error { return validateAuth(p.Auth) },
-		func(p Profile) error { return validateExport(p.Export, p.Environment) },
+		func(p Profile) error { return validateBuild(p.Build, p.Environment) },
 		func(p Profile) error { return validateReaper(p.Reaper, p.Environment) },
 	}
 	for _, v := range validators {
@@ -205,22 +205,22 @@ func validateReaper(reaper *ReaperProfileConfig, env Environment) error {
 	return nil
 }
 
-func validateExport(export *ExportConfig, env Environment) error {
-	if export == nil {
+func validateBuild(build *BuildConfig, env Environment) error {
+	if build == nil {
 		return nil
 	}
 	if env != EnvironmentContainer {
-		return fmt.Errorf("export is only valid with environment: container")
+		return fmt.Errorf("build is only valid with environment: container")
 	}
-	for i, inc := range export.Include {
+	for i, inc := range build.Include {
 		if inc.Src == "" {
-			return fmt.Errorf("export.include[%d]: src is required", i)
+			return fmt.Errorf("build.include[%d]: src is required", i)
 		}
 		if inc.Dst == "" {
-			return fmt.Errorf("export.include[%d]: dst is required", i)
+			return fmt.Errorf("build.include[%d]: dst is required", i)
 		}
 		if !strings.HasPrefix(inc.Dst, "/") {
-			return fmt.Errorf("export.include[%d]: dst must be an absolute path", i)
+			return fmt.Errorf("build.include[%d]: dst must be an absolute path", i)
 		}
 	}
 	return nil
