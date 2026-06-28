@@ -397,13 +397,12 @@ func TestValidate(t *testing.T) {
 			wantErr: "unknown auth.claude.login_mode",
 		},
 		{
-			name: "valid export config",
+			name: "valid build config",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Snapshot: true,
-					Include: []ExportInclude{
+				Build: &BuildConfig{
+					Include: []BuildInclude{
 						{Src: "./certs", Dst: "/usr/local/share/ca-certificates"},
 					},
 					Env: map[string]string{"FOO": "bar"},
@@ -411,46 +410,46 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "export with host environment",
+			name: "build with host environment",
 			profile: Profile{
 				Environment: EnvironmentHost,
 				Launch:      LaunchShell,
-				Export:       &ExportConfig{Snapshot: true},
+				Build:       &BuildConfig{},
 			},
-			wantErr: "export is only valid with environment: container",
+			wantErr: "build is only valid with environment: container",
 		},
 		{
-			name: "export include missing src",
+			name: "build include missing src",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Include: []ExportInclude{{Dst: "/home/agent/test"}},
+				Build: &BuildConfig{
+					Include: []BuildInclude{{Dst: "/home/agent/test"}},
 				},
 			},
-			wantErr: "export.include[0]: src is required",
+			wantErr: "build.include[0]: src is required",
 		},
 		{
-			name: "export include missing dst",
+			name: "build include missing dst",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Include: []ExportInclude{{Src: "./test"}},
+				Build: &BuildConfig{
+					Include: []BuildInclude{{Src: "./test"}},
 				},
 			},
-			wantErr: "export.include[0]: dst is required",
+			wantErr: "build.include[0]: dst is required",
 		},
 		{
-			name: "export include non-absolute dst",
+			name: "build include non-absolute dst",
 			profile: Profile{
 				Environment: EnvironmentContainer,
 				Launch:      LaunchClaude,
-				Export: &ExportConfig{
-					Include: []ExportInclude{{Src: "./test", Dst: "relative/path"}},
+				Build: &BuildConfig{
+					Include: []BuildInclude{{Src: "./test", Dst: "relative/path"}},
 				},
 			},
-			wantErr: "export.include[0]: dst must be an absolute path",
+			wantErr: "build.include[0]: dst must be an absolute path",
 		},
 		{
 			name: "valid reaper config",

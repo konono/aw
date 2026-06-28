@@ -31,8 +31,10 @@ BASH_PROFILE_FILE="$AW_HOME/.bash_profile"
 # path, which breaks tools that use getpwuid() instead of $HOME (ssh, git).
 _aw_uid=$(id -u)
 _aw_gid=$(id -g)
-_aw_tmp=$(grep -v -e "^[^:]*:[^:]*:${_aw_uid}:" -e "^${AW_USER}:" /etc/passwd) && printf '%s\n' "$_aw_tmp" > /etc/passwd || true
-echo "${AW_USER}:x:${_aw_uid}:${_aw_gid}:${AW_USER}:${AW_HOME}:/bin/bash" >> /etc/passwd
+if [ "$_aw_uid" != "0" ]; then
+  _aw_tmp=$(grep -v -e "^[^:]*:[^:]*:${_aw_uid}:" -e "^${AW_USER}:" /etc/passwd) && printf '%s\n' "$_aw_tmp" > /etc/passwd || true
+  echo "${AW_USER}:x:${_aw_uid}:${_aw_gid}:${AW_USER}:${AW_HOME}:/bin/bash" >> /etc/passwd
+fi
 unset _aw_uid _aw_gid _aw_tmp
 export HOME="$AW_HOME"
 

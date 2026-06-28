@@ -1,5 +1,12 @@
 package profile
 
+import (
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
 // ConfigSource describes where the config was loaded from.
 type ConfigSource struct {
 	IsBuiltin bool   // true if the built-in default config was used
@@ -113,7 +120,7 @@ type Profile struct {
 	Packages         []string          `yaml:"packages,omitempty"`
 	BuildEnv         map[string]string `yaml:"build_env,omitempty"`
 	CACert           string            `yaml:"ca_cert,omitempty"`
-	Export           *ExportConfig     `yaml:"export,omitempty"`
+	Build            *BuildConfig      `yaml:"build,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
 }
 
@@ -172,17 +179,67 @@ func (m CustomMount) IsReadOnly() bool {
 	return m.Mode != MountModeRW
 }
 
-// ExportInclude represents a file/directory to copy into a snapshot image.
-type ExportInclude struct {
+// BuildInclude represents a file/directory to copy into a snapshot image.
+type BuildInclude struct {
 	Src string `yaml:"src"`
 	Dst string `yaml:"dst"`
 }
 
-// ExportConfig holds settings for the `aw export` command.
-type ExportConfig struct {
+// BuildConfig holds settings for the `aw build` command.
+type BuildConfig struct {
+	Include []BuildInclude    `yaml:"include,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+
+	// LegacySnapshot is set when migrating from the deprecated export: YAML
+	// field that had snapshot: true. Not serialized; used only by the
+	// deprecated aw export compat shim.
+	LegacySnapshot bool `yaml:"-"`
+}
+
+type legacyExportConfig struct {
 	Snapshot bool              `yaml:"snapshot,omitempty"`
-	Include  []ExportInclude   `yaml:"include,omitempty"`
+	Include  []BuildInclude    `yaml:"include,omitempty"`
 	Env      map[string]string `yaml:"env,omitempty"`
+}
+
+func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig) {
+	if export != nil && *build == nil {
+		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
+		*build = &BuildConfig{
+			Include:        export.Include,
+			Env:            export.Env,
+			LegacySnapshot: export.Snapshot,
+		}
+	}
+}
+
+func (p *Profile) UnmarshalYAML(value *yaml.Node) error {
+	type profileAlias Profile
+	var raw struct {
+		profileAlias `yaml:",inline"`
+		Export       *legacyExportConfig `yaml:"export,omitempty"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*p = Profile(raw.profileAlias)
+	migrateLegacyExport(raw.Export, &p.Build)
+	return nil
+}
+
+func (d *ProfileDefaults) UnmarshalYAML(value *yaml.Node) error {
+	type defaultsAlias ProfileDefaults
+	var raw struct {
+		defaultsAlias `yaml:",inline"`
+		Export        *legacyExportConfig `yaml:"export,omitempty"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*d = ProfileDefaults(raw.defaultsAlias)
+	profile := (*Profile)(d)
+	migrateLegacyExport(raw.Export, &profile.Build)
+	return nil
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.

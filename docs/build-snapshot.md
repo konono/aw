@@ -1,31 +1,37 @@
-# Export & Snapshot の内部動作
+# Build & Snapshot の内部動作
 
-`aw export` がイメージをビルドし、`--snapshot` でツールを焼き込み、エクスポートしたイメージが起動時にどう動くかを説明します。
+`aw build` がイメージをビルドし、ツールを焼き込み、ビルドしたイメージが起動時にどう動くかを説明します。
 
 > **Note:** Dockerfile テンプレートは Go テンプレートとして実装されており、`container_user` の値に応じてユーザー名やホームディレクトリが動的にレンダリングされます。entrypoint.sh と aw-init.sh は静的スクリプトで、ランタイム環境変数（`AW_USER`, `AW_HOME`）で動作します。以下の説明ではデフォルトユーザー `agent`（ホーム `/home/agent`）を使用しています。
 
 ## 全体の流れ
 
 ```
-aw export dev --snapshot -o image.tar
+aw build dev --save image.tar
 ```
 
-1. **イメージビルド** — Dockerfile でベースイメージを作成（mise の基盤のみ。`package_manager: devbox` の場合は Nix + devbox も含む）
-2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`
-3. **tar 出力** — `docker save` でイメージを tar に書き出す（`--apply` のみの場合はスキップ）
+1. **イメージ取得** — 公式イメージを pull（または `--from-template` でテンプレートからビルド）
+2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
+3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
 
 ### フラグの組み合わせと動作
 
-| コマンド | ビルド | snapshot | tar 生成 | config 書き戻し |
+| コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
 |---|---|---|---|---|
-| `aw export <profile>` | o | - | o | - |
-| `aw export <profile> --snapshot` | o | o | o | - |
-| `aw export <profile> --apply` | o | - | **スキップ** | o |
-| `aw export <profile> --apply --snapshot` | o | o | **スキップ** | o |
-| `aw export <profile> --apply -o file.tar` | o | - | o | o |
-| `aw export <profile> --apply --snapshot -o file.tar` | o | o | o | o |
+| `aw build <profile>` | o | o | - | - |
+| `aw build <profile> --save file.tar` | o | o | o | - |
+| `aw build <profile> --apply` | o | o | - | o |
+| `aw build <profile> --apply --save file.tar` | o | o | o | o |
+| `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
 
-`--apply` 単体ではローカルキャッシュとして使う想定のため、tar ファイルは生成しない。airgap 用途で tar も必要な場合は `-o` を併用する。
+### デフォルトと --from-template の使い分け
+
+| 観点 | default（公式イメージベース） | --from-template |
+|------|------|------|
+| ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
+| ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
+| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, グローバル mise.toml も含む |
+| ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
 
 ## イメージビルド（Dockerfile）
 
@@ -47,7 +53,7 @@ debian:bookworm-slim
 
 > **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。`~/.config/aw/devbox.json` のパッケージもビルド時にインストールされます。
 
-この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（export 時）です。
+この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（build 時）です。
 
 ## snapshot スクリプトの動作
 
@@ -60,7 +66,7 @@ debian:bookworm-slim
 /tmp/aw-include-1  ← 同上（複数指定可）
 ```
 
-全マウントが **read-only** です。export はビルド操作であり、ホスト側のファイルを変更してはいけないためです。
+全マウントが **read-only** です。build はビルド操作であり、ホスト側のファイルを変更してはいけないためです。
 
 ### なぜワークスペースをコピーするか
 
@@ -73,7 +79,7 @@ debian:bookworm-slim
 
 ```bash
 WORK="/tmp/aw-snapshot-work"
-cp -a "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
+cp -r "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
 cd "$WORK" && mise install       # こちらで実行
 cd "$WORK" && devbox install     # devbox モード時のみ
 rm -rf "$WORK"                   # commit 前にクリーンアップ
@@ -91,6 +97,8 @@ mise shim がバージョンを解決するには設定ファイルが必要で�
 ### --include のコピー
 
 `--include` で指定されたディレクトリは `/tmp/aw-include-N` に ro マウントされ、スクリプト内で `cp -a` でコンテナ内の宛先パスにコピーします。ro マウントからの読み取りコピーなので問題ありません。
+
+コピー先のファイルには `chown $(id -u):0` + `chmod -R g=u`（GID 0 パターン）を適用します。これにより、`--save` で書き出したイメージを異なる UID の環境にロードした場合でも、`--group-add 0` によるグループ権限で include ファイルにアクセスできます。
 
 ### env ファイルの生成
 
@@ -110,7 +118,7 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 
 ## 通常起動時の entrypoint.sh + aw-init.sh
 
-エクスポートしたイメージを `aw dev` で起動すると、以下が起きます:
+ビルドしたイメージを `aw dev` で起動すると、以下が起きます:
 
 ### 1. マウント
 

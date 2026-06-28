@@ -15,7 +15,7 @@ func MergeProfile(base, override Profile) Profile {
 	mergeCollectionFields(&merged, base, override)
 	merged.Worktree = mergeWorktree(merged.Worktree, override.Worktree)
 	merged.Auth = mergeAuth(merged.Auth, override.Auth)
-	merged.Export = mergeExport(merged.Export, override.Export)
+	merged.Build = mergeBuild(merged.Build, override.Build)
 	merged.Reaper = mergeReaper(merged.Reaper, override.Reaper)
 	return merged
 }
@@ -177,8 +177,8 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	relativeCollectionFields(&relative, defaults, effective)
 	relative.Worktree = relativeWorktree(defaults.Worktree, effective.Worktree)
 	relative.Auth = relativeAuth(defaults.Auth, effective.Auth)
-	if !equalExport(effective.Export, defaults.Export) && effective.Export != nil {
-		relative.Export = cloneExport(effective.Export)
+	if !equalBuild(effective.Build, defaults.Build) && effective.Build != nil {
+		relative.Build = cloneBuild(effective.Build)
 	}
 	if !equalReaper(effective.Reaper, defaults.Reaper) && effective.Reaper != nil {
 		c := *effective.Reaper
@@ -426,19 +426,16 @@ func cloneMounts(mounts []CustomMount) []CustomMount {
 	return cloned
 }
 
-func mergeExport(base, override *ExportConfig) *ExportConfig {
+func mergeBuild(base, override *BuildConfig) *BuildConfig {
 	if override == nil {
-		return cloneExport(base)
+		return cloneBuild(base)
 	}
 	if base == nil {
-		return cloneExport(override)
+		return cloneBuild(override)
 	}
 	merged := *base
-	if override.Snapshot {
-		merged.Snapshot = true
-	}
 	if override.Include != nil {
-		merged.Include = cloneExportIncludes(override.Include)
+		merged.Include = cloneBuildIncludes(override.Include)
 	}
 	if override.Env != nil {
 		envCopy := make(map[string]string, len(merged.Env)+len(override.Env))
@@ -453,21 +450,21 @@ func mergeExport(base, override *ExportConfig) *ExportConfig {
 	return &merged
 }
 
-func cloneExport(cfg *ExportConfig) *ExportConfig {
+func cloneBuild(cfg *BuildConfig) *BuildConfig {
 	if cfg == nil {
 		return nil
 	}
 	clone := *cfg
-	clone.Include = cloneExportIncludes(cfg.Include)
+	clone.Include = cloneBuildIncludes(cfg.Include)
 	clone.Env = maps.Clone(cfg.Env)
 	return &clone
 }
 
-func cloneExportIncludes(includes []ExportInclude) []ExportInclude {
+func cloneBuildIncludes(includes []BuildInclude) []BuildInclude {
 	if includes == nil {
 		return nil
 	}
-	cloned := make([]ExportInclude, len(includes))
+	cloned := make([]BuildInclude, len(includes))
 	copy(cloned, includes)
 	return cloned
 }
@@ -487,12 +484,9 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-func equalExport(a, b *ExportConfig) bool {
+func equalBuild(a, b *BuildConfig) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
-	}
-	if a.Snapshot != b.Snapshot {
-		return false
 	}
 	if len(a.Include) != len(b.Include) {
 		return false

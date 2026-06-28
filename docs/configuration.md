@@ -335,7 +335,7 @@ profiles:
 
 事前にビルド済みのコンテナイメージ名。`environment: container` の場合のみ有効。`os`、`dockerfile` と排他的です。
 
-指定した場合、`aw` はビルドをスキップし、このイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`aw export` でイメージを tar に書き出し、`docker load` で持ち込む使い方を想定しています。
+指定した場合、`aw` はビルドをスキップし、このイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`aw build --save` でイメージを tar に書き出し、`docker load` で持ち込む使い方を想定しています。
 
 ### `dockerfile`（任意）
 
@@ -490,13 +490,14 @@ tree
 - `mode` — `ro`（デフォルト）または `rw`
 - `options` — Docker/Podman のマウントオプション（例: `"z"`, `"Z,nocopy"`, `"cached"`）
 
-### `export`（任意）
+### `build`（任意）
 
-`aw export` コマンド用の設定。`environment: container` の場合のみ有効。
+`aw build` コマンド用の設定。`environment: container` の場合のみ有効。
+
+> **Note:** 旧 `export:` フィールドも後方互換のため読み込まれますが、`build:` の使用を推奨します。
 
 サポートされるフィールド:
 
-- `snapshot` — `true` の場合、一時コンテナでワークスペースのパッケージインストールや環境ファイル生成を実行し、その状態を `docker commit` でイメージに焼き込む
 - `include` — ホストのディレクトリをイメージ内にコピーするリスト。各エントリは `src`（ホストパス）と `dst`（コンテナ内の絶対パス）を持つ
 - `env` — イメージに焼き込む環境変数のマップ
 
@@ -505,8 +506,7 @@ profiles:
   airgap:
     environment: container
     launch: claude
-    export:
-      snapshot: true
+    build:
       include:
         - src: ./certs
           dst: /usr/local/share/ca-certificates
@@ -514,7 +514,7 @@ profiles:
         HTTP_PROXY: http://proxy.corp:8080
 ```
 
-CLI フラグ（`--snapshot`, `--include`, `--env`）でも指定でき、設定ファイルの値とマージされます。`--include` や `--env` を指定すると `--snapshot` が暗黙的に有効になります。
+CLI フラグ（`--include`, `--env`）でも指定でき、設定ファイルの値とマージされます。
 
 ## 組み込みスターター設定
 

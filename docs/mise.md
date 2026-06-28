@@ -109,8 +109,8 @@ gh = "latest"
 
 mise / devbox でインストールされたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが実行されます。
 
-構成が固まったら `aw export --snapshot --apply` でインストール済みの状態をイメージに焼き込むことで、起動時のインストールをスキップできます:
+構成が固まったら `aw build --apply` でインストール済みの状態をイメージに焼き込むことで、起動時のインストールをスキップできます:
 
 ```bash
-aw export claude --snapshot --apply
+aw build claude --apply
 ```
