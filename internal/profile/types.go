@@ -59,6 +59,16 @@ const (
 	OSUbuntu2604 OSTemplate = "ubuntu2604"
 )
 
+// OSTemplateNames returns the list of all supported OS template names.
+func OSTemplateNames() []string {
+	return []string{
+		string(OSDebian12),
+		string(OSUBI9),
+		string(OSUBI10),
+		string(OSUbuntu2604),
+	}
+}
+
 // PackageManager specifies the package manager used inside the container.
 type PackageManager string
 

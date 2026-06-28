@@ -47,7 +47,7 @@ go install github.com/konono/aw@latest
 aw        # デフォルトの claude プロファイルで Debian コンテナが起動
 ```
 
-設定ファイルなしでそのまま使えます。カスタマイズしたくなったら:
+設定ファイルなしでそのまま使えます。初回起動時は公式プレビルドイメージが自動的に pull されるため、ビルド待ちなしですぐに使えます（[詳細](docs/images.md)）。カスタマイズしたくなったら:
 
 ```bash
 aw init   # ~/.config/aw/config.yml にスターター設定を書き出す

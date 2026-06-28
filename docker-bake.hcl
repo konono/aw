@@ -9,78 +9,37 @@ variable "REGISTRY" {
   default = "ghcr.io/konono"
 }
 
-group "default" {
-  targets = ["claude", "codex", "opencode", "cursor"]
+variable "DEFAULT_OS" {
+  default = "debian12"
 }
 
-target "_common" {
-  platforms = ["linux/amd64", "linux/arm64"]
+group "default" {
+  targets = ["image"]
+}
+
+target "image" {
+  name       = "aw-${tool}-${os}"
+  matrix = {
+    tool = ["claude", "codex", "opencode", "cursor"]
+    os   = ["debian12", "ubuntu2604", "ubi9", "ubi10"]
+  }
+  platforms  = ["linux/amd64", "linux/arm64"]
+  context    = "./build/${tool}-${os}"
+  dockerfile = "Dockerfile"
   args = {
     AW_OCI_SOURCE  = "https://github.com/konono/aw"
     AW_OCI_VERSION = "${VERSION}"
+    AW_OCI_OS      = "${os}"
+    AW_OCI_TOOL    = "${tool}"
   }
-}
-
-target "claude" {
-  inherits   = ["_common"]
-  context    = "./build/claude-debian12"
-  dockerfile = "Dockerfile"
-  args = {
-    AW_OCI_OS   = "debian12"
-    AW_OCI_TOOL = "claude"
-  }
-  tags = [
-    "${REGISTRY}/aw-claude:${VERSION}-debian12",
-    "${REGISTRY}/aw-claude:${VERSION}",
-    "${REGISTRY}/aw-claude:debian12",
-    "${REGISTRY}/aw-claude:latest",
-  ]
-}
-
-target "codex" {
-  inherits   = ["_common"]
-  context    = "./build/codex-debian12"
-  dockerfile = "Dockerfile"
-  args = {
-    AW_OCI_OS   = "debian12"
-    AW_OCI_TOOL = "codex"
-  }
-  tags = [
-    "${REGISTRY}/aw-codex:${VERSION}-debian12",
-    "${REGISTRY}/aw-codex:${VERSION}",
-    "${REGISTRY}/aw-codex:debian12",
-    "${REGISTRY}/aw-codex:latest",
-  ]
-}
-
-target "opencode" {
-  inherits   = ["_common"]
-  context    = "./build/opencode-debian12"
-  dockerfile = "Dockerfile"
-  args = {
-    AW_OCI_OS   = "debian12"
-    AW_OCI_TOOL = "opencode"
-  }
-  tags = [
-    "${REGISTRY}/aw-opencode:${VERSION}-debian12",
-    "${REGISTRY}/aw-opencode:${VERSION}",
-    "${REGISTRY}/aw-opencode:debian12",
-    "${REGISTRY}/aw-opencode:latest",
-  ]
-}
-
-target "cursor" {
-  inherits   = ["_common"]
-  context    = "./build/cursor-debian12"
-  dockerfile = "Dockerfile"
-  args = {
-    AW_OCI_OS   = "debian12"
-    AW_OCI_TOOL = "cursor"
-  }
-  tags = [
-    "${REGISTRY}/aw-cursor:${VERSION}-debian12",
-    "${REGISTRY}/aw-cursor:${VERSION}",
-    "${REGISTRY}/aw-cursor:debian12",
-    "${REGISTRY}/aw-cursor:latest",
-  ]
+  tags = concat(
+    [
+      "${REGISTRY}/aw-${tool}:${VERSION}-${os}",
+      "${REGISTRY}/aw-${tool}:${os}",
+    ],
+    equal(os, DEFAULT_OS) ? [
+      "${REGISTRY}/aw-${tool}:${VERSION}",
+      "${REGISTRY}/aw-${tool}:latest",
+    ] : [],
+  )
 }

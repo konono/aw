@@ -38,6 +38,14 @@ type DockerStage struct {
 	DockerClient docker.Client
 	ConfigSyncer config.Syncer
 	MountBuilder mount.Builder
+	ConfigDir    string // override for platform.ConfigDir(); empty = default
+}
+
+func (s *DockerStage) configDir() string {
+	if s.ConfigDir != "" {
+		return s.ConfigDir
+	}
+	return platform.ConfigDir()
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
@@ -130,7 +138,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec, platform.ConfigDir()) {
+	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec, s.configDir()) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -143,7 +151,9 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	return s.buildImage(ctx, ec, cenv)
 }
 
-func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
+// HasBuildCustomizations reports whether the profile has settings that require
+// building from template instead of using the official prebuilt image.
+func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
@@ -153,13 +163,17 @@ func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) boo
 	if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
 		return true
 	}
+	if _, err := os.Stat(filepath.Join(configDir, "mise.toml")); err == nil {
+		return true
+	}
 	return false
 }
 
-const officialImageRegistry = "ghcr.io/konono"
+const OfficialImageRegistry = "ghcr.io/konono"
 
-func officialImageName(tool string, os profile.OSTemplate) string {
-	return fmt.Sprintf("%s/aw-%s:%s-%s", officialImageRegistry, tool, version.Version, os)
+// OfficialImageName returns the GHCR image reference for the given tool and OS.
+func OfficialImageName(tool string, os profile.OSTemplate) string {
+	return fmt.Sprintf("%s/aw-%s:%s-%s", OfficialImageRegistry, tool, version.Version, os)
 }
 
 func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
@@ -173,7 +187,7 @@ func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.Exe
 		return "", nil
 	}
 
-	imageName := officialImageName(tool, ec.Profile.EffectiveOS())
+	imageName := OfficialImageName(tool, ec.Profile.EffectiveOS())
 
 	switch policy {
 	case profile.ImagePullPolicyAlways:
