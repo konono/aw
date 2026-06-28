@@ -1310,9 +1310,9 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 	}
 }
 
-func TestResolveOfficialImage_MiseTomlWarnsButUsesOfficial(t *testing.T) {
+func TestResolveOfficialImage_MiseTomlSkipsOfficial(t *testing.T) {
 	tmpDir := t.TempDir()
-	dc := &mockDockerClient{available: true, imageExists: true}
+	dc := &mockDockerClient{available: true, imageExists: true, pullSucceeds: true}
 	setupToolConfig(t, tmpDir, "claude")
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "mise.toml"), []byte("[tools]\nnode = \"22\"\n"), 0o644); err != nil {
@@ -1338,8 +1338,11 @@ func TestResolveOfficialImage_MiseTomlWarnsButUsesOfficial(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	if dc.buildCalled {
-		t.Error("mise.toml present: should use official image, not build")
+	if dc.pullCalled {
+		t.Error("mise.toml present: Pull should not be called")
+	}
+	if !dc.buildCalled {
+		t.Error("mise.toml present: Build should be called")
 	}
 }
 

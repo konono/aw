@@ -74,9 +74,8 @@ profiles:
 - `gh_token: true` が設定されている（gh CLI がインストールされるため）
 - `container_user:` が `agent` 以外に設定されている
 - グローバル `~/.config/aw/packages.txt` にパッケージがある
+- グローバル `~/.config/aw/mise.toml` が存在する（mise ツールがビルド時にインストールされるため）
 - `image_pull_policy: build` が設定されている
-
-> **Note:** `~/.config/aw/mise.toml` が存在する場合、公式イメージは引き続き使用されますが warning が表示されます。mise ツールを使いたい場合は `image_pull_policy: build` を設定するか、mise.toml をワークスペースに配置してください（ワークスペースの mise.toml はエントリポイントで自動インストールされます）。
 
 ## カスタマイズが必要な場合
 
