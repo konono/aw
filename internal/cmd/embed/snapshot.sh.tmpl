@@ -5,6 +5,22 @@ AW_ENV_FILE={{.Home}}/.aw_env.sh
 BASHRC_FILE={{.Home}}/.bashrc
 BASH_PROFILE_FILE={{.Home}}/.bash_profile
 
+# Register current UID in /etc/passwd so sudo/su work correctly.
+# Same pattern as aw-init.sh — needed because snapshot runs with --user
+# <hostUID> but the image only has the build-time user (UID 1001).
+_snap_uid=$(id -u)
+_snap_gid=$(id -g)
+if ! id -un "{{.User}}" >/dev/null 2>&1 || [ "$(id -u "{{.User}}")" != "$_snap_uid" ]; then
+  _snap_tmp=$(grep -v -e "^[^:]*:[^:]*:${_snap_uid}:" -e "^{{.User}}:" /etc/passwd) && printf '%s\n' "$_snap_tmp" > /etc/passwd || true
+  echo "{{.User}}:x:${_snap_uid}:${_snap_gid}:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
+fi
+unset _snap_uid _snap_gid _snap_tmp
+export HOME="{{.Home}}"
+
+if [ "$(stat -c '%u' "{{.Home}}")" != "$(id -u)" ]; then
+  sudo chown -R "$(id -u):$(id -g)" "{{.Home}}" 2>/dev/null || true
+fi
+
 run_as_user() {
   local script="$1"
   if [ "$(id -un)" = "{{.User}}" ]; then
@@ -17,7 +33,7 @@ run_as_user() {
 WORK="/tmp/aw-snapshot-work"
 mkdir -p "$WORK"
 cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
-chown -R {{.User}}:0 "$WORK"
+sudo chown -R "$(id -u):0" "$WORK" 2>/dev/null || true
 
 NIX_ENV=""
 if [ -f {{.Home}}/.nix-profile/etc/profile.d/nix.sh ]; then
@@ -50,7 +66,7 @@ if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
     if [ -f "$MISE_TOML" ]; then
       echo "Registering tools globally for snapshot..."
       cp "$MISE_TOML" {{.Home}}/.config/mise/config.toml
-      chown {{.User}}:0 {{.Home}}/.config/mise/config.toml
+      sudo chown "$(id -u):0" {{.Home}}/.config/mise/config.toml
     fi
   fi
 fi
@@ -65,7 +81,7 @@ while true; do
   if [ -d "$src" ]; then
     mkdir -p "$dst"
     cp -a "$src/." "$dst/"
-    chown -R {{.User}}:0 "$dst"
+    sudo chown -R "$(id -u):0" "$dst"
     echo "Copied include $i -> $dst"
   fi
   i=$((i + 1))
@@ -121,6 +137,6 @@ if [ -f {{.Home}}/.bashrc ]; then
 fi
 BASH_PROFILE
 
-chown {{.User}}:0 "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+sudo chown "$(id -u):0" "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
 rm -rf "$WORK"
 echo "Snapshot setup complete."
