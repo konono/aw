@@ -82,6 +82,7 @@ while true; do
     mkdir -p "$dst"
     cp -a "$src/." "$dst/"
     sudo chown -R "$(id -u):0" "$dst"
+    sudo chmod -R g=u "$dst"
     echo "Copied include $i -> $dst"
   fi
   i=$((i + 1))
@@ -138,5 +139,6 @@ fi
 BASH_PROFILE
 
 sudo chown "$(id -u):0" "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+sudo chmod g=u "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
 rm -rf "$WORK"
 echo "Snapshot setup complete."
