@@ -499,20 +499,8 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 		}
 		checked[key] = true
 
-		hasCustom := len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
-			p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
-			(p.ContainerUser != "" && p.ContainerUser != "agent")
-		if !hasCustom {
-			if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
-				hasCustom = true
-			}
-		}
-		if !hasCustom {
-			if _, err := os.Stat(filepath.Join(configDir, "mise.toml")); err == nil {
-				hasCustom = true
-			}
-		}
-		if hasCustom {
+		ec := &pipeline.ExecutionContext{Profile: p}
+		if stage.HasBuildCustomizations(ec, configDir) {
 			if verbose {
 				res.detail(fmt.Sprintf("%s: has build customizations, will build from template", tool))
 			}

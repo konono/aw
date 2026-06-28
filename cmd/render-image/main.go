@@ -14,8 +14,6 @@ import (
 	"github.com/konono/aw/internal/version"
 )
 
-var supportedOS = []string{"debian12", "ubuntu2604", "ubi9", "ubi10"}
-
 func main() {
 	osFlag := flag.String("os", "debian12", "OS template (debian12, ubi9, ubi10, ubuntu2604, or 'all')")
 	toolFlag := flag.String("tool", "", "Tool name (claude, codex, opencode, cursor)")
@@ -27,7 +25,7 @@ func main() {
 		if *outputFlag == "" {
 			*outputFlag = "build"
 		}
-		osList := supportedOS
+		osList := profile.OSTemplateNames()
 		if *osFlag != "all" {
 			osList = []string{*osFlag}
 		}
@@ -48,7 +46,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Usage: render-image --tool <name> [--os <os>] [--output <dir>]")
 		fmt.Fprintln(os.Stderr, "       render-image --all [--os <os|all>] [--output <dir>]")
 		fmt.Fprintf(os.Stderr, "Tools: %s\n", strings.Join(toolinfo.Names(), ", "))
-		fmt.Fprintf(os.Stderr, "OS:    %s, all\n", strings.Join(supportedOS, ", "))
+		fmt.Fprintf(os.Stderr, "OS:    %s, all\n", strings.Join(profile.OSTemplateNames(), ", "))
 		os.Exit(1)
 	}
 

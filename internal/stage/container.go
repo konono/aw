@@ -138,7 +138,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec, s.configDir()) {
+	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec, s.configDir()) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -151,7 +151,9 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	return s.buildImage(ctx, ec, cenv)
 }
 
-func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
+// HasBuildCustomizations reports whether the profile has settings that require
+// building from template instead of using the official prebuilt image.
+func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
