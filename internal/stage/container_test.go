@@ -82,6 +82,10 @@ func (m *mockDockerClient) Commit(_ context.Context, _, _ string, _ []string) er
 	return nil
 }
 
+func (m *mockDockerClient) Pull(_ context.Context, _ string) error {
+	return fmt.Errorf("image not found in registry")
+}
+
 func (m *mockDockerClient) RemoveContainer(_ context.Context, _ string) error {
 	return nil
 }

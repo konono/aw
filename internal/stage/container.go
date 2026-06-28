@@ -25,6 +25,7 @@ import (
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/internal/version"
 )
 
 const (
@@ -128,7 +129,72 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
 		return imageName, nil
 	}
+
+	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec) {
+		if imageName, err := s.resolveOfficialImage(ctx, ec); err == nil && imageName != "" {
+			return imageName, nil
+		}
+	}
+
 	return s.buildImage(ctx, ec, cenv)
+}
+
+func hasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
+	p := ec.Profile
+	return len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
+		p.PackageManager == profile.PackageManagerDevbox
+}
+
+const officialImageRegistry = "ghcr.io/konono"
+
+func officialImageName(tool string, os profile.OSTemplate) string {
+	return fmt.Sprintf("%s/aw-%s:v%s-%s", officialImageRegistry, tool, version.Version, os)
+}
+
+func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
+	policy := ec.Profile.EffectiveImagePullPolicy()
+	if policy == profile.ImagePullPolicyBuild {
+		return "", nil
+	}
+
+	tool := ec.Profile.EffectiveTool()
+	if tool == "" {
+		return "", nil
+	}
+
+	imageName := officialImageName(tool, ec.Profile.EffectiveOS())
+
+	switch policy {
+	case profile.ImagePullPolicyAlways:
+		fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+		if err := s.DockerClient.Pull(ctx, imageName); err != nil {
+			return "", fmt.Errorf("pulling official image: %w", err)
+		}
+		return imageName, nil
+
+	case profile.ImagePullPolicyNever:
+		exists, err := s.DockerClient.ImageExists(ctx, imageName)
+		if err != nil || !exists {
+			return "", nil
+		}
+		fmt.Fprintf(os.Stderr, "Using official image '%s'...\n", imageName)
+		return imageName, nil
+
+	default: // auto
+		exists, err := s.DockerClient.ImageExists(ctx, imageName)
+		if err != nil {
+			return "", nil
+		}
+		if exists {
+			fmt.Fprintf(os.Stderr, "Using official image '%s'...\n", imageName)
+			return imageName, nil
+		}
+		fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+		if err := s.DockerClient.Pull(ctx, imageName); err != nil {
+			return "", nil
+		}
+		return imageName, nil
+	}
 }
 
 func (s *DockerStage) syncToolConfig(ec *pipeline.ExecutionContext, tool string, cenv containerenv.Config) (toolStageDir, toolContainerDir string, err error) {
