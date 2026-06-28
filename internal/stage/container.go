@@ -38,6 +38,14 @@ type DockerStage struct {
 	DockerClient docker.Client
 	ConfigSyncer config.Syncer
 	MountBuilder mount.Builder
+	ConfigDir    string // override for platform.ConfigDir(); empty = default
+}
+
+func (s *DockerStage) configDir() string {
+	if s.ConfigDir != "" {
+		return s.ConfigDir
+	}
+	return platform.ConfigDir()
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
@@ -130,7 +138,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec, platform.ConfigDir()) {
+	if ec.Profile.Dockerfile == "" && !hasBuildCustomizations(ec, s.configDir()) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err

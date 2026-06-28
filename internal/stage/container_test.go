@@ -1157,6 +1157,7 @@ func TestResolveOfficialImage_AutoLocalExists(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1188,6 +1189,7 @@ func TestResolveOfficialImage_AutoPullSuccess(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1219,6 +1221,7 @@ func TestResolveOfficialImage_AutoPullFail(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1250,6 +1253,7 @@ func TestResolveOfficialImage_BuildPolicy(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1282,6 +1286,7 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1302,6 +1307,42 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 	}
 	if !dc.buildCalled {
 		t.Error("custom packages: Build should be called")
+	}
+}
+
+func TestResolveOfficialImage_MiseTomlSkipsOfficial(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true, pullSucceeds: true}
+	setupToolConfig(t, tmpDir, "claude")
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "mise.toml"), []byte("[tools]\nnode = \"22\"\n"), 0o644); err != nil {
+		t.Fatalf("creating mise.toml: %v", err)
+	}
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+		ConfigDir:    tmpDir,
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.pullCalled {
+		t.Error("mise.toml present: Pull should not be called")
+	}
+	if !dc.buildCalled {
+		t.Error("mise.toml present: Build should be called")
 	}
 }
 

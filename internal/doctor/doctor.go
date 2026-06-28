@@ -12,6 +12,8 @@ import (
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
+	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
@@ -462,18 +464,65 @@ func checkProfiles(res *result, cfg *profile.Config, runtimeOK map[string]bool, 
 }
 
 func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]bool, verbose bool) {
-	tools := map[string]bool{}
-	for _, p := range cfg.Profiles {
+	type imageCheck struct {
+		tool string
+		os   profile.OSTemplate
+	}
+	checked := map[string]bool{}
+	var checks []imageCheck
+
+	configDir := platform.ConfigDir()
+	for name, p := range cfg.Profiles {
 		if p.Environment != profile.EnvironmentContainer {
 			continue
 		}
 		tool := p.EffectiveTool()
-		if tool == "" || tools[tool] {
+		if tool == "" {
 			continue
 		}
-		tools[tool] = true
+		if p.Image != "" || p.Dockerfile != "" {
+			if verbose {
+				res.detail(fmt.Sprintf("%s (%s): uses custom image/dockerfile", name, tool))
+			}
+			continue
+		}
+		if p.EffectiveImagePullPolicy() == profile.ImagePullPolicyBuild {
+			if verbose {
+				res.detail(fmt.Sprintf("%s (%s): image_pull_policy=build", name, tool))
+			}
+			continue
+		}
+
+		key := fmt.Sprintf("%s-%s", tool, p.EffectiveOS())
+		if checked[key] {
+			continue
+		}
+		checked[key] = true
+
+		hasCustom := len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
+			p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
+			(p.ContainerUser != "" && p.ContainerUser != "agent")
+		if !hasCustom {
+			if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
+				hasCustom = true
+			}
+		}
+		if !hasCustom {
+			if _, err := os.Stat(filepath.Join(configDir, "mise.toml")); err == nil {
+				hasCustom = true
+			}
+		}
+		if hasCustom {
+			if verbose {
+				res.detail(fmt.Sprintf("%s: has build customizations, will build from template", tool))
+			}
+			continue
+		}
+
+		checks = append(checks, imageCheck{tool: tool, os: p.EffectiveOS()})
 	}
-	if len(tools) == 0 {
+
+	if len(checks) == 0 {
 		return
 	}
 
@@ -492,23 +541,23 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 	fmt.Println("Official Images")
 
 	client := docker.NewShellClient(rt)
-	for tool := range tools {
-		imageName := stage.OfficialImageName(tool, profile.OSDebian12)
+	for _, c := range checks {
+		imageName := stage.OfficialImageName(c.tool, c.os)
 		exists, err := client.ImageExists(context.Background(), imageName)
 		if err != nil {
 			if verbose {
-				res.detail(fmt.Sprintf("%s: check failed (%v)", tool, err))
+				res.detail(fmt.Sprintf("%s: check failed (%v)", c.tool, err))
 			}
 			continue
 		}
 		if exists {
-			res.pass(fmt.Sprintf("%s: %s (local)", tool, imageName))
+			res.pass(fmt.Sprintf("%s: %s (local)", c.tool, imageName))
 		} else {
 			if verbose {
-				res.detail(fmt.Sprintf("%s: %s not cached locally", tool, imageName))
+				res.detail(fmt.Sprintf("%s: %s not cached locally", c.tool, imageName))
 				res.detail("  → will be pulled on first use (image_pull_policy: auto)")
 			} else {
-				res.pass(fmt.Sprintf("%s: will be pulled on first use", tool))
+				res.pass(fmt.Sprintf("%s: will be pulled on first use", c.tool))
 			}
 		}
 	}

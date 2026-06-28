@@ -94,10 +94,12 @@ jobs:
               digest=$(docker buildx imagetools inspect \
                 "${REGISTRY}/aw-${tool}:${VER}-debian12" \
                 --format "{{range .Manifest.Manifests}}{{if eq .Platform.Architecture \"${arch}\"}}{{.Digest}}{{end}}{{end}}")
-              if [ -n "$digest" ]; then
-                docker buildx imagetools create \
-                  --tag "${REGISTRY}/aw-${tool}:${VER}-debian12-${arch}" \
-                  "${REGISTRY}/aw-${tool}:${VER}-debian12@${digest}"
+              if [ -z "$digest" ]; then
+                echo "::error::Failed to get ${arch} digest for aw-${tool}:${VER}-debian12"
+                exit 1
               fi
+              docker buildx imagetools create \
+                --tag "${REGISTRY}/aw-${tool}:${VER}-debian12-${arch}" \
+                "${REGISTRY}/aw-${tool}:${VER}-debian12@${digest}"
             done
           done
