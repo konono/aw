@@ -79,7 +79,7 @@ debian:bookworm-slim
 
 ```bash
 WORK="/tmp/aw-snapshot-work"
-cp -a "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
+cp -r "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
 cd "$WORK" && mise install       # こちらで実行
 cd "$WORK" && devbox install     # devbox モード時のみ
 rm -rf "$WORK"                   # commit 前にクリーンアップ
