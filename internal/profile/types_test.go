@@ -1,6 +1,10 @@
 package profile
 
-import "testing"
+import (
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
 
 func TestWorktreeConfig_EffectiveBase(t *testing.T) {
 	tests := []struct {
@@ -155,6 +159,100 @@ func TestProfile_EffectiveMountSSH(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProfile_UnmarshalYAML_LegacyExport(t *testing.T) {
+	t.Run("export field migrated to build", func(t *testing.T) {
+		input := `
+environment: container
+launch: claude
+export:
+  snapshot: true
+  include:
+    - src: ./certs
+      dst: /usr/local/share/ca-certificates
+  env:
+    HTTP_PROXY: http://proxy:8080
+`
+		var p Profile
+		if err := yaml.Unmarshal([]byte(input), &p); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if p.Build == nil {
+			t.Fatal("Build should be populated from legacy export field")
+		}
+		if !p.Build.LegacySnapshot {
+			t.Error("LegacySnapshot should be true")
+		}
+		if len(p.Build.Include) != 1 || p.Build.Include[0].Src != "./certs" {
+			t.Errorf("Include = %v, want [{./certs /usr/local/share/ca-certificates}]", p.Build.Include)
+		}
+		if p.Build.Env["HTTP_PROXY"] != "http://proxy:8080" {
+			t.Errorf("Env[HTTP_PROXY] = %q", p.Build.Env["HTTP_PROXY"])
+		}
+	})
+
+	t.Run("build field takes precedence over export", func(t *testing.T) {
+		input := `
+environment: container
+launch: claude
+build:
+  include:
+    - src: ./from-build
+      dst: /build
+export:
+  snapshot: true
+  include:
+    - src: ./from-export
+      dst: /export
+`
+		var p Profile
+		if err := yaml.Unmarshal([]byte(input), &p); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if p.Build == nil {
+			t.Fatal("Build should not be nil")
+		}
+		if len(p.Build.Include) != 1 || p.Build.Include[0].Src != "./from-build" {
+			t.Errorf("Build should use build: field, got Include = %v", p.Build.Include)
+		}
+		if p.Build.LegacySnapshot {
+			t.Error("LegacySnapshot should be false when build: takes precedence")
+		}
+	})
+
+	t.Run("export snapshot only", func(t *testing.T) {
+		input := `
+environment: container
+launch: claude
+export:
+  snapshot: true
+`
+		var p Profile
+		if err := yaml.Unmarshal([]byte(input), &p); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if p.Build == nil {
+			t.Fatal("Build should be populated from legacy export field")
+		}
+		if !p.Build.LegacySnapshot {
+			t.Error("LegacySnapshot should be true for export: { snapshot: true }")
+		}
+	})
+
+	t.Run("no export or build field", func(t *testing.T) {
+		input := `
+environment: container
+launch: claude
+`
+		var p Profile
+		if err := yaml.Unmarshal([]byte(input), &p); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if p.Build != nil {
+			t.Errorf("Build should be nil when neither export nor build is set, got %+v", p.Build)
+		}
+	})
 }
 
 func TestEffectiveDelivery(t *testing.T) {

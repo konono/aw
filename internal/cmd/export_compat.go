@@ -11,17 +11,9 @@ import (
 func (e *ExportCmd) Run() error {
 	fmt.Fprintln(os.Stderr, "Warning: 'aw export' is deprecated, use 'aw build' instead.")
 
+	snapshot := exportNeedsSnapshot(e.Snapshot, e.Include, e.Env, loadProfileBuildConfig(e.ProfileName))
+
 	var save *string
-	snapshot := e.Snapshot || len(e.Include) > 0 || len(e.Env) > 0
-
-	if !snapshot {
-		if profileCfg := loadProfileBuildConfig(e.ProfileName); profileCfg != nil {
-			if len(profileCfg.Include) > 0 || len(profileCfg.Env) > 0 {
-				snapshot = true
-			}
-		}
-	}
-
 	saveTar := !e.Apply || e.Output != ""
 	if saveTar {
 		save = &e.Output
@@ -38,6 +30,18 @@ func (e *ExportCmd) Run() error {
 		skipSnapshot: !snapshot,
 	}
 	return b.Run()
+}
+
+func exportNeedsSnapshot(flagSnapshot bool, flagIncludes []string, flagEnv map[string]string, profileCfg *profile.BuildConfig) bool {
+	if flagSnapshot || len(flagIncludes) > 0 || len(flagEnv) > 0 {
+		return true
+	}
+	if profileCfg != nil {
+		if profileCfg.LegacySnapshot || len(profileCfg.Include) > 0 || len(profileCfg.Env) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func loadProfileBuildConfig(profileName string) *profile.BuildConfig {

@@ -189,6 +189,11 @@ type BuildInclude struct {
 type BuildConfig struct {
 	Include []BuildInclude    `yaml:"include,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
+
+	// LegacySnapshot is set when migrating from the deprecated export: YAML
+	// field that had snapshot: true. Not serialized; used only by the
+	// deprecated aw export compat shim.
+	LegacySnapshot bool `yaml:"-"`
 }
 
 // unmarshalProfileWithLegacyExport handles backward-compatible unmarshaling
@@ -208,8 +213,9 @@ func unmarshalProfileWithLegacyExport(unmarshal func(interface{}) error, build *
 	if aux.Export != nil && *build == nil {
 		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
 		*build = &BuildConfig{
-			Include: aux.Export.Include,
-			Env:     aux.Export.Env,
+			Include:        aux.Export.Include,
+			Env:            aux.Export.Env,
+			LegacySnapshot: aux.Export.Snapshot,
 		}
 	}
 	return nil

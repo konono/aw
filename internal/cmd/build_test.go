@@ -151,6 +151,64 @@ func TestComputeBuildImageName(t *testing.T) {
 	}
 }
 
+func TestExportNeedsSnapshot(t *testing.T) {
+	t.Run("no flags no config", func(t *testing.T) {
+		if exportNeedsSnapshot(false, nil, nil, nil) {
+			t.Error("should be false with no flags and no config")
+		}
+	})
+
+	t.Run("snapshot flag", func(t *testing.T) {
+		if !exportNeedsSnapshot(true, nil, nil, nil) {
+			t.Error("should be true with --snapshot flag")
+		}
+	})
+
+	t.Run("include flag implies snapshot", func(t *testing.T) {
+		if !exportNeedsSnapshot(false, []string{"./a:/a"}, nil, nil) {
+			t.Error("should be true with --include flag")
+		}
+	})
+
+	t.Run("env flag implies snapshot", func(t *testing.T) {
+		if !exportNeedsSnapshot(false, nil, map[string]string{"K": "V"}, nil) {
+			t.Error("should be true with --env flag")
+		}
+	})
+
+	t.Run("profile LegacySnapshot", func(t *testing.T) {
+		cfg := &profile.BuildConfig{LegacySnapshot: true}
+		if !exportNeedsSnapshot(false, nil, nil, cfg) {
+			t.Error("should be true with profile LegacySnapshot")
+		}
+	})
+
+	t.Run("profile include implies snapshot", func(t *testing.T) {
+		cfg := &profile.BuildConfig{
+			Include: []profile.BuildInclude{{Src: "./a", Dst: "/a"}},
+		}
+		if !exportNeedsSnapshot(false, nil, nil, cfg) {
+			t.Error("should be true with profile includes")
+		}
+	})
+
+	t.Run("profile env implies snapshot", func(t *testing.T) {
+		cfg := &profile.BuildConfig{
+			Env: map[string]string{"K": "V"},
+		}
+		if !exportNeedsSnapshot(false, nil, nil, cfg) {
+			t.Error("should be true with profile env")
+		}
+	})
+
+	t.Run("empty profile config", func(t *testing.T) {
+		cfg := &profile.BuildConfig{}
+		if exportNeedsSnapshot(false, nil, nil, cfg) {
+			t.Error("should be false with empty profile config")
+		}
+	})
+}
+
 func TestApplyBuildResult(t *testing.T) {
 	t.Run("adds image to profile with apt", func(t *testing.T) {
 		dir := t.TempDir()

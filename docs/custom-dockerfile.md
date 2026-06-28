@@ -133,7 +133,7 @@ profiles:
     container_user: dev   # Dockerfile 内で useradd したユーザー名
 ```
 
-`container_user` を指定しない場合、aw はデフォルトの `agent` ユーザーを前提とします。Dockerfile 内のユーザー名と一致しないと、マウント先や export --snapshot が正しく動作しません。
+`container_user` を指定しない場合、aw はデフォルトの `agent` ユーザーを前提とします。Dockerfile 内のユーザー名と一致しないと、マウント先や `aw build` の snapshot が正しく動作しません。
 
 ## 注意事項
 
