@@ -8,11 +8,14 @@ BASH_PROFILE_FILE={{.Home}}/.bash_profile
 # Register current UID in /etc/passwd so sudo/su work correctly.
 # Same pattern as aw-init.sh — needed because snapshot runs with --user
 # <hostUID> but the image only has the build-time user (UID 1001).
+# Skip when running as root (UID 0) to avoid stripping the root entry.
 _snap_uid=$(id -u)
 _snap_gid=$(id -g)
-if ! id -un "{{.User}}" >/dev/null 2>&1 || [ "$(id -u "{{.User}}")" != "$_snap_uid" ]; then
-  _snap_tmp=$(grep -v -e "^[^:]*:[^:]*:${_snap_uid}:" -e "^{{.User}}:" /etc/passwd) && printf '%s\n' "$_snap_tmp" > /etc/passwd || true
-  echo "{{.User}}:x:${_snap_uid}:${_snap_gid}:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
+if [ "$_snap_uid" != "0" ]; then
+  if ! id -un "{{.User}}" >/dev/null 2>&1 || [ "$(id -u "{{.User}}")" != "$_snap_uid" ]; then
+    _snap_tmp=$(grep -v -e "^[^:]*:[^:]*:${_snap_uid}:" -e "^{{.User}}:" /etc/passwd) && printf '%s\n' "$_snap_tmp" > /etc/passwd || true
+    echo "{{.User}}:x:${_snap_uid}:${_snap_gid}:{{.User}}:{{.Home}}:/bin/bash" >> /etc/passwd
+  fi
 fi
 unset _snap_uid _snap_gid _snap_tmp
 export HOME="{{.Home}}"
@@ -66,7 +69,7 @@ if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
     if [ -f "$MISE_TOML" ]; then
       echo "Registering tools globally for snapshot..."
       cp "$MISE_TOML" {{.Home}}/.config/mise/config.toml
-      sudo chown "$(id -u):0" {{.Home}}/.config/mise/config.toml
+      sudo chown "$(id -u):0" {{.Home}}/.config/mise/config.toml 2>/dev/null || true
     fi
   fi
 fi
@@ -81,8 +84,8 @@ while true; do
   if [ -d "$src" ]; then
     mkdir -p "$dst"
     cp -a "$src/." "$dst/"
-    sudo chown -R "$(id -u):0" "$dst"
-    sudo chmod -R g=u "$dst"
+    sudo chown -R "$(id -u):0" "$dst" 2>/dev/null || true
+    sudo chmod -R g=u "$dst" 2>/dev/null || true
     echo "Copied include $i -> $dst"
   fi
   i=$((i + 1))
@@ -138,7 +141,7 @@ if [ -f {{.Home}}/.bashrc ]; then
 fi
 BASH_PROFILE
 
-sudo chown "$(id -u):0" "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
-sudo chmod g=u "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE"
+sudo chown "$(id -u):0" "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE" 2>/dev/null || true
+sudo chmod g=u "$AW_ENV_FILE" "$BASHRC_FILE" "$BASH_PROFILE_FILE" 2>/dev/null || true
 rm -rf "$WORK"
 echo "Snapshot setup complete."

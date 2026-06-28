@@ -19,7 +19,6 @@ aw build dev --save image.tar
 | コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
 |---|---|---|---|---|
 | `aw build <profile>` | o | o | - | - |
-| `aw build <profile> --save` | o | o | o（自動命名） | - |
 | `aw build <profile> --save file.tar` | o | o | o | - |
 | `aw build <profile> --apply` | o | o | - | o |
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
