@@ -6,6 +6,15 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.5.0](https://github.com/konono/aw/compare/v3.4.1...v3.5.0) (2026-06-28)
+
+
+### Features
+
+* **container:** use host GID with supplementary root group for bind mount permissions ([#105](https://github.com/konono/aw/issues/105)) ([b6453e8](https://github.com/konono/aw/commit/b6453e82746b6eb655982998f4f9f7655b5434d0))
+* **image:** official prebuilt image infrastructure with pull-first resolver ([#107](https://github.com/konono/aw/issues/107)) ([2411ba7](https://github.com/konono/aw/commit/2411ba78a723be0aca3a43419b3cd183837e896e))
+* **release:** GHCR image publish, doctor check, and official image docs ([#108](https://github.com/konono/aw/issues/108)) ([c321093](https://github.com/konono/aw/commit/c3210933878f047cd141beb0d4b1bce865786a90))
+
 ## [3.4.1](https://github.com/konono/aw/compare/v3.4.0...v3.4.1) (2026-06-25)
 
 
