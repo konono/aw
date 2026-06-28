@@ -153,6 +153,9 @@ func hasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) boo
 	if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
 		return true
 	}
+	if _, err := os.Stat(filepath.Join(configDir, "mise.toml")); err == nil {
+		return true
+	}
 	return false
 }
 
