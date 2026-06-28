@@ -3,6 +3,7 @@ package toolinfo
 import (
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/konono/aw/internal/containerenv"
 )
@@ -54,6 +55,16 @@ var tools = map[string]ToolSpec{
 		DefaultHomeSubdir: ".cursor",
 		InstallHint:       "Install Cursor CLI: curl https://cursor.com/install -fsS | bash",
 	},
+}
+
+// Names returns the sorted list of all registered tool names.
+func Names() []string {
+	names := make([]string, 0, len(tools))
+	for name := range tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // Lookup returns the ToolSpec for the given tool name.

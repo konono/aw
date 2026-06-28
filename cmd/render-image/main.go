@@ -14,8 +14,6 @@ import (
 	"github.com/konono/aw/internal/version"
 )
 
-var supportedTools = []string{"claude", "codex", "opencode", "cursor"}
-
 func main() {
 	osFlag := flag.String("os", "debian12", "OS template (debian12, ubi9, ubi10, ubuntu2604)")
 	toolFlag := flag.String("tool", "", "Tool name (claude, codex, opencode, cursor)")
@@ -27,7 +25,7 @@ func main() {
 		if *outputFlag == "" {
 			*outputFlag = "build"
 		}
-		for _, tool := range supportedTools {
+		for _, tool := range toolinfo.Names() {
 			dir := filepath.Join(*outputFlag, tool+"-"+*osFlag)
 			if err := renderContext(*osFlag, tool, dir); err != nil {
 				fmt.Fprintf(os.Stderr, "Error rendering %s-%s: %v\n", tool, *osFlag, err)
@@ -41,7 +39,7 @@ func main() {
 	if *toolFlag == "" {
 		fmt.Fprintln(os.Stderr, "Usage: render-image --tool <name> [--os <os>] [--output <dir>]")
 		fmt.Fprintln(os.Stderr, "       render-image --all [--os <os>] [--output <dir>]")
-		fmt.Fprintf(os.Stderr, "Tools: %s\n", strings.Join(supportedTools, ", "))
+		fmt.Fprintf(os.Stderr, "Tools: %s\n", strings.Join(toolinfo.Names(), ", "))
 		os.Exit(1)
 	}
 
@@ -61,7 +59,7 @@ func renderContext(osName, tool, outputDir string) error {
 	cenv := containerenv.Default()
 
 	if _, ok := toolinfo.Lookup(tool); !ok {
-		return fmt.Errorf("unknown tool: %q (supported: %s)", tool, strings.Join(supportedTools, ", "))
+		return fmt.Errorf("unknown tool: %q (supported: %s)", tool, strings.Join(toolinfo.Names(), ", "))
 	}
 
 	dockerfile, err := image.RenderDockerfile(osTemplate, profile.PackageManagerApt, cenv)

@@ -141,8 +141,14 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 
 func hasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
-	return len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
-		p.PackageManager == profile.PackageManagerDevbox
+	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
+		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() {
+		return true
+	}
+	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
+		return true
+	}
+	return false
 }
 
 const officialImageRegistry = "ghcr.io/konono"
@@ -183,6 +189,7 @@ func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.Exe
 	default: // auto
 		exists, err := s.DockerClient.ImageExists(ctx, imageName)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: checking official image: %v; falling back to build\n", err)
 			return "", nil
 		}
 		if exists {
