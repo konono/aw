@@ -130,7 +130,7 @@ type LoginCmd struct{ authFlags }
 // BuildCmd builds a profile's container image with snapshot.
 type BuildCmd struct {
 	ProfileName  string            `arg:"" help:"Profile name to build."`
-	Save         *string           `name:"save" help:"Save image as tar archive."`
+	Save         *string           `name:"save" help:"Save image as tar archive (auto-names if path omitted)."`
 	FromTemplate bool              `name:"from-template" help:"Build from Dockerfile template instead of official image."`
 	Apply        bool              `name:"apply" help:"Write image name back to config file."`
 	NoCache      bool              `name:"no-cache" help:"Rebuild without cache (requires --from-template)."`
