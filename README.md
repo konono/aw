@@ -180,7 +180,7 @@ mount_container_sock: true    # docker-compose up/down
 
 ### ファイルの所有者
 
-コンテナイメージは固定の UID 1001 / GID 0（root グループ）でビルドされ、すべてのディレクトリに `chmod g=u` が適用されています。実行時には `--user <host-uid>:0` でホストユーザーの UID を渡し、entrypoint が `/etc/passwd` にエントリを動的に追加します（OpenShift スタイルの GID 0 パターン）。
+コンテナイメージは固定の UID 1001 / GID 0（root グループ）でビルドされ、すべてのディレクトリに `chmod g=u` が適用されています。実行時には `--user <host-uid>:<host-gid> --group-add 0` でホストユーザーの UID/GID を渡しつつ、補助グループとして root グループ（GID 0）を追加します。entrypoint が `/etc/passwd` にエントリを動的に追加します（OpenShift スタイルの GID 0 パターン）。
 
 この設計により、イメージをリビルドすることなく任意の UID で実行でき、コンテナ内でエージェントが作成・変更したファイルは、ホスト上でもホストユーザーの所有として見えます。
 
