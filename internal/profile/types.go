@@ -67,6 +67,16 @@ const (
 	PackageManagerDevbox PackageManager = "devbox"
 )
 
+// ImagePullPolicy controls how official prebuilt images are resolved.
+type ImagePullPolicy string
+
+const (
+	ImagePullPolicyAuto   ImagePullPolicy = "auto"
+	ImagePullPolicyAlways ImagePullPolicy = "always"
+	ImagePullPolicyNever  ImagePullPolicy = "never"
+	ImagePullPolicyBuild  ImagePullPolicy = "build"
+)
+
 // Profile describes a single named workspace profile.
 type Profile struct {
 	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
@@ -78,6 +88,7 @@ type Profile struct {
 	OS               OSTemplate        `yaml:"os,omitempty"`
 	Image            string            `yaml:"image,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
+	ImagePullPolicy  ImagePullPolicy   `yaml:"image_pull_policy,omitempty"`
 	ContainerRuntime   ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	ContainerUser      string            `yaml:"container_user,omitempty"`
 	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
@@ -178,6 +189,14 @@ func (p *Profile) EffectiveContainerRuntime() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+// EffectiveImagePullPolicy returns the image pull policy, defaulting to "auto".
+func (p *Profile) EffectiveImagePullPolicy() ImagePullPolicy {
+	if p.ImagePullPolicy != "" {
+		return p.ImagePullPolicy
+	}
+	return ImagePullPolicyAuto
 }
 
 func (p *Profile) EffectiveContainerUser() string {

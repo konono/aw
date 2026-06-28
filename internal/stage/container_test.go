@@ -31,6 +31,8 @@ type mockDockerClient struct {
 	saveCalled          bool
 	saveImageName       string
 	saveOutputPath      string
+	pullCalled          bool
+	pullSucceeds        bool
 }
 
 func (m *mockDockerClient) CheckAvailable() error {
@@ -80,6 +82,14 @@ func (m *mockDockerClient) RunOneShot(_ context.Context, config docker.RunConfig
 
 func (m *mockDockerClient) Commit(_ context.Context, _, _ string, _ []string) error {
 	return nil
+}
+
+func (m *mockDockerClient) Pull(_ context.Context, _ string) error {
+	m.pullCalled = true
+	if m.pullSucceeds {
+		return nil
+	}
+	return fmt.Errorf("image not found in registry")
 }
 
 func (m *mockDockerClient) RemoveContainer(_ context.Context, _ string) error {
@@ -1135,6 +1145,171 @@ func TestDockerStage_BuildEnv_AffectsImageHash(t *testing.T) {
 
 	if dc1.buildImageName == dc2.buildImageName {
 		t.Errorf("image hashes should differ with/without build_env, both got %q", dc1.buildImageName)
+	}
+}
+
+func TestResolveOfficialImage_AutoLocalExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true}
+	setupToolConfig(t, tmpDir, "claude")
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.pullCalled {
+		t.Error("auto + local exists: Pull should not be called")
+	}
+	if dc.buildCalled {
+		t.Error("auto + local exists: Build should not be called")
+	}
+}
+
+func TestResolveOfficialImage_AutoPullSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: false, pullSucceeds: true}
+	setupToolConfig(t, tmpDir, "claude")
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if !dc.pullCalled {
+		t.Error("auto + not local: Pull should be called")
+	}
+	if dc.buildCalled {
+		t.Error("auto + pull success: Build should not be called")
+	}
+}
+
+func TestResolveOfficialImage_AutoPullFail(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: false}
+	setupToolConfig(t, tmpDir, "claude")
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if !dc.pullCalled {
+		t.Error("auto + not local: Pull should be called")
+	}
+	if !dc.buildCalled {
+		t.Error("auto + pull fail: Build should be called as fallback")
+	}
+}
+
+func TestResolveOfficialImage_BuildPolicy(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true}
+	setupToolConfig(t, tmpDir, "claude")
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchClaude,
+			ImagePullPolicy: profile.ImagePullPolicyBuild,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.pullCalled {
+		t.Error("build policy: Pull should not be called")
+	}
+	if !dc.buildCalled {
+		t.Error("build policy: Build should be called")
+	}
+}
+
+func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true, pullSucceeds: true}
+	setupToolConfig(t, tmpDir, "claude")
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			Packages:    []string{"jq"},
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.pullCalled {
+		t.Error("custom packages: Pull should not be called")
+	}
+	if !dc.buildCalled {
+		t.Error("custom packages: Build should be called")
+	}
+}
+
+func setupToolConfig(t *testing.T, homeDir, tool string) {
+	t.Helper()
+	toolDir := filepath.Join(homeDir, ".agent-workspace", tool)
+	if err := os.MkdirAll(toolDir, 0o755); err != nil {
+		t.Fatalf("creating tool dir: %v", err)
 	}
 }
 

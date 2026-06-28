@@ -42,6 +42,9 @@ func mergeStringFields(merged *Profile, override Profile) {
 	if override.CACert != "" {
 		merged.CACert = override.CACert
 	}
+	if override.ImagePullPolicy != "" {
+		merged.ImagePullPolicy = override.ImagePullPolicy
+	}
 }
 
 func mergeImageFields(merged *Profile, override Profile) {
@@ -205,6 +208,9 @@ func relativeStringFields(relative *Profile, defaults, effective Profile) {
 	}
 	if effective.CACert != defaults.CACert {
 		relative.CACert = effective.CACert
+	}
+	if effective.ImagePullPolicy != defaults.ImagePullPolicy {
+		relative.ImagePullPolicy = effective.ImagePullPolicy
 	}
 }
 

@@ -48,6 +48,7 @@ type Client interface {
 	CheckAvailable() error
 	Build(ctx context.Context, imageName, contextDir, dockerfilePath string, buildArgs map[string]string, noCache bool) error
 	ImageExists(ctx context.Context, imageName string) (bool, error)
+	Pull(ctx context.Context, imageName string) error
 	Save(ctx context.Context, imageName, outputPath string) error
 	RunOneShot(ctx context.Context, config RunConfig) (containerID string, err error)
 	Commit(ctx context.Context, containerID, imageName string, changes []string) error
@@ -152,6 +153,17 @@ func isImageInspectNotFound(output []byte) bool {
 		}
 	}
 	return false
+}
+
+// Pull downloads a container image from a registry.
+func (c *ShellClient) Pull(ctx context.Context, imageName string) error {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "pull", imageName)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s pull %q: %w", c.dockerCmd(), imageName, err)
+	}
+	return nil
 }
 
 // Save exports a container image to a tar archive.
