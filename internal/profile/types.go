@@ -196,50 +196,50 @@ type BuildConfig struct {
 	LegacySnapshot bool `yaml:"-"`
 }
 
-// unmarshalProfileWithLegacyExport handles backward-compatible unmarshaling
-// of the deprecated "export:" YAML field into the "build:" field.
-func unmarshalProfileWithLegacyExport(unmarshal func(interface{}) error, build **BuildConfig) error {
-	type legacyExport struct {
-		Snapshot bool              `yaml:"snapshot,omitempty"`
-		Include  []BuildInclude    `yaml:"include,omitempty"`
-		Env      map[string]string `yaml:"env,omitempty"`
-	}
-	var aux struct {
-		Export *legacyExport `yaml:"export,omitempty"`
-	}
-	if err := unmarshal(&aux); err != nil {
-		return err
-	}
-	if aux.Export != nil && *build == nil {
+type legacyExportConfig struct {
+	Snapshot bool              `yaml:"snapshot,omitempty"`
+	Include  []BuildInclude    `yaml:"include,omitempty"`
+	Env      map[string]string `yaml:"env,omitempty"`
+}
+
+func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig) {
+	if export != nil && *build == nil {
 		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
 		*build = &BuildConfig{
-			Include:        aux.Export.Include,
-			Env:            aux.Export.Env,
-			LegacySnapshot: aux.Export.Snapshot,
+			Include:        export.Include,
+			Env:            export.Env,
+			LegacySnapshot: export.Snapshot,
 		}
 	}
-	return nil
 }
 
 func (p *Profile) UnmarshalYAML(value *yaml.Node) error {
 	type profileAlias Profile
-	var alias profileAlias
-	if err := value.Decode(&alias); err != nil {
+	var raw struct {
+		profileAlias `yaml:",inline"`
+		Export       *legacyExportConfig `yaml:"export,omitempty"`
+	}
+	if err := value.Decode(&raw); err != nil {
 		return err
 	}
-	*p = Profile(alias)
-	return unmarshalProfileWithLegacyExport(value.Decode, &p.Build)
+	*p = Profile(raw.profileAlias)
+	migrateLegacyExport(raw.Export, &p.Build)
+	return nil
 }
 
 func (d *ProfileDefaults) UnmarshalYAML(value *yaml.Node) error {
 	type defaultsAlias ProfileDefaults
-	var alias defaultsAlias
-	if err := value.Decode(&alias); err != nil {
+	var raw struct {
+		defaultsAlias `yaml:",inline"`
+		Export        *legacyExportConfig `yaml:"export,omitempty"`
+	}
+	if err := value.Decode(&raw); err != nil {
 		return err
 	}
-	*d = ProfileDefaults(alias)
+	*d = ProfileDefaults(raw.defaultsAlias)
 	profile := (*Profile)(d)
-	return unmarshalProfileWithLegacyExport(value.Decode, &profile.Build)
+	migrateLegacyExport(raw.Export, &profile.Build)
+	return nil
 }
 
 // EffectiveOS returns the OS template, defaulting to "debian12" if empty.

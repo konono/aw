@@ -38,7 +38,7 @@ run_as_user() {
 
 WORK="/tmp/aw-snapshot-work"
 mkdir -p "$WORK"
-cp -a "$WORKSPACE/." "$WORK/" 2>/dev/null || true
+cp -r "$WORKSPACE/." "$WORK/"
 sudo chown -R "$(id -u):0" "$WORK"
 
 NIX_ENV=""
