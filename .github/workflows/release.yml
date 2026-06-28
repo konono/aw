@@ -43,6 +43,7 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
@@ -81,6 +82,10 @@ jobs:
           for tool in claude codex opencode cursor; do
             for os in debian12 ubuntu2604 ubi9 ubi10; do
               INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-${os}/build-args.env" | cut -d= -f2-)
+              if [ -z "$INSTALL_SCRIPT" ]; then
+                echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
+                exit 1
+              fi
               docker buildx bake -f docker-bake.hcl "aw-${tool}-${os}" --push \
                 --set "aw-${tool}-${os}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}"
             done
