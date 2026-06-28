@@ -11,7 +11,17 @@ import (
 func (e *ExportCmd) Run() error {
 	fmt.Fprintln(os.Stderr, "Warning: 'aw export' is deprecated, use 'aw build' instead.")
 
-	snapshot := exportNeedsSnapshot(e.Snapshot, e.Include, e.Env, loadProfileBuildConfig(e.ProfileName))
+	cfg, err := profile.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	var buildCfg *profile.BuildConfig
+	if p, ok := cfg.Profiles[e.ProfileName]; ok {
+		buildCfg = p.Build
+	}
+
+	snapshot := exportNeedsSnapshot(e.Snapshot, e.Include, e.Env, buildCfg)
 
 	var save *string
 	saveTar := !e.Apply || e.Output != ""
@@ -20,14 +30,15 @@ func (e *ExportCmd) Run() error {
 	}
 
 	b := BuildCmd{
-		ProfileName:  e.ProfileName,
-		Save:         save,
-		FromTemplate: true,
-		Apply:        e.Apply,
-		NoCache:      e.NoCache,
-		Include:      e.Include,
-		Env:          e.Env,
-		skipSnapshot: !snapshot,
+		ProfileName:     e.ProfileName,
+		Save:            save,
+		FromTemplate:    true,
+		Apply:           e.Apply,
+		NoCache:         e.NoCache,
+		Include:         e.Include,
+		Env:             e.Env,
+		skipSnapshot:    !snapshot,
+		preloadedConfig: cfg,
 	}
 	return b.Run()
 }
@@ -42,16 +53,4 @@ func exportNeedsSnapshot(flagSnapshot bool, flagIncludes []string, flagEnv map[s
 		}
 	}
 	return false
-}
-
-func loadProfileBuildConfig(profileName string) *profile.BuildConfig {
-	cfg, err := profile.Load()
-	if err != nil {
-		return nil
-	}
-	p, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil
-	}
-	return p.Build
 }

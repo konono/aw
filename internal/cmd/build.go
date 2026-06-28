@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
@@ -30,9 +32,13 @@ func (b *BuildCmd) Run() error {
 		return err
 	}
 
-	cfg, err := profile.Load()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+	cfg := b.preloadedConfig
+	if cfg == nil {
+		var err error
+		cfg, err = profile.Load()
+		if err != nil {
+			return fmt.Errorf("loading config: %w", err)
+		}
 	}
 
 	p, ok := cfg.Profiles[b.ProfileName]
@@ -121,25 +127,19 @@ func (b *BuildCmd) Run() error {
 	return nil
 }
 
+var tagUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
 func computeBuildImageName(profileName, baseImage string, includes []profile.BuildInclude, envVars map[string]string) string {
 	hashInput := baseImage + "\n" + profileName
 	for _, inc := range includes {
 		hashInput += "\ninclude:" + inc.Src + ":" + inc.Dst
 	}
-	for _, k := range sortedKeys(envVars) {
+	for _, k := range slices.Sorted(maps.Keys(envVars)) {
 		hashInput += "\nenv:" + k + "=" + envVars[k]
 	}
 	hash := sha256.Sum256([]byte(hashInput))
-	return fmt.Sprintf("aw-build:%s-%x", profileName, hash[:6])
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
+	safe := tagUnsafe.ReplaceAllString(profileName, "-")
+	return fmt.Sprintf("aw-build:%s-%x", safe, hash[:6])
 }
 
 func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.Profile, includes []profile.BuildInclude, envVars map[string]string, cenv containerenv.Config, commitImage string) error {
@@ -199,8 +199,8 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		`ENTRYPOINT ["/entrypoint.sh"]`,
 		`CMD ["bash"]`,
 	}
-	for k, v := range envVars {
-		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, v))
+	for _, k := range slices.Sorted(maps.Keys(envVars)) {
+		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, envVars[k]))
 	}
 
 	if err := client.Commit(ctx, containerID, commitImage, changes); err != nil {

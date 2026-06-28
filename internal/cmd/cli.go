@@ -137,7 +137,8 @@ type BuildCmd struct {
 	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
 	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
 
-	skipSnapshot bool // internal: used by deprecated export compat shim
+	skipSnapshot    bool            // internal: used by deprecated export compat shim
+	preloadedConfig *profile.Config // internal: avoids double profile.Load() in export compat
 }
 
 func (b *BuildCmd) Validate() error {

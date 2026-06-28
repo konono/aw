@@ -149,6 +149,11 @@ func TestComputeBuildImageName(t *testing.T) {
 	if name == name5 {
 		t.Errorf("different env vars should produce different names")
 	}
+
+	name6 := computeBuildImageName("my/custom profile", "base:img", nil, nil)
+	if strings.ContainsAny(name6[strings.Index(name6, ":")+1:], "/ ") {
+		t.Errorf("profile name with special chars should be sanitized in tag, got %q", name6)
+	}
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {
