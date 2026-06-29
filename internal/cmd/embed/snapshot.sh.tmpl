@@ -40,7 +40,9 @@ run_as_user() {
 
 WORK="/tmp/aw-snapshot-work"
 mkdir -p "$WORK"
-cp -r "$WORKSPACE/." "$WORK/"
+for f in devbox.json mise.toml .mise.toml; do
+  [ -f "$WORKSPACE/$f" ] && cp "$WORKSPACE/$f" "$WORK/"
+done
 sudo chown -R "$(id -u):0" "$WORK"
 
 NIX_ENV=""
