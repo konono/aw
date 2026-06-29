@@ -1131,8 +1131,12 @@ func TestProjectConfigPath(t *testing.T) {
 		defer func() { _ = os.Chdir(origDir) }()
 
 		got := ProjectConfigPath()
-		if got != awYml {
-			t.Errorf("ProjectConfigPath() = %q, want %q", got, awYml)
+		realDir, _ := filepath.EvalSymlinks(projectDir)
+		want := filepath.Join(realDir, ".aw.yml")
+		gotDir, _ := filepath.EvalSymlinks(filepath.Dir(got))
+		gotResolved := filepath.Join(gotDir, filepath.Base(got))
+		if gotResolved != want {
+			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
 		}
 	})
 
@@ -1147,8 +1151,11 @@ func TestProjectConfigPath(t *testing.T) {
 		defer func() { _ = os.Chdir(origDir) }()
 
 		got := ProjectConfigPath()
-		want := filepath.Join(projectDir, ".aw.yml")
-		if got != want {
+		realDir, _ := filepath.EvalSymlinks(projectDir)
+		want := filepath.Join(realDir, ".aw.yml")
+		gotDir, _ := filepath.EvalSymlinks(filepath.Dir(got))
+		gotResolved := filepath.Join(gotDir, filepath.Base(got))
+		if gotResolved != want {
 			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
 		}
 	})
