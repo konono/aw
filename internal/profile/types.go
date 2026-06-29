@@ -1,9 +1,6 @@
 package profile
 
 import (
-	"fmt"
-	"os"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,7 +20,7 @@ type Config struct {
 	Defaults ProfileDefaults    `yaml:",inline"` // top-level defaults shared by all profiles
 	Profiles map[string]Profile `yaml:"profiles"`
 	Teams    map[string]Team    `yaml:"teams,omitempty"`
-	Source   ConfigSource       `yaml:"-"`
+	Source ConfigSource `yaml:"-"`
 }
 
 // Role is a predefined agent role within a team.
@@ -122,6 +119,8 @@ type Profile struct {
 	CACert           string            `yaml:"ca_cert,omitempty"`
 	Build            *BuildConfig      `yaml:"build,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
+
+	hadLegacyExport bool `yaml:"-"`
 }
 
 // ReaperProfileConfig controls reaper behavior per-profile.
@@ -202,15 +201,9 @@ type legacyExportConfig struct {
 	Env      map[string]string `yaml:"env,omitempty"`
 }
 
-// suppressWarnings suppresses deprecation warnings during config parsing.
-// Set by loadInternal(quiet=true) for non-interactive contexts like tab completion.
-var suppressWarnings bool
-
-func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig) {
+func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig, hadLegacy *bool) {
 	if export != nil && *build == nil {
-		if !suppressWarnings {
-			fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
-		}
+		*hadLegacy = true
 		*build = &BuildConfig{
 			Include:        export.Include,
 			Env:            export.Env,
@@ -229,7 +222,7 @@ func (p *Profile) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*p = Profile(raw.profileAlias)
-	migrateLegacyExport(raw.Export, &p.Build)
+	migrateLegacyExport(raw.Export, &p.Build, &p.hadLegacyExport)
 	return nil
 }
 
@@ -244,7 +237,7 @@ func (d *ProfileDefaults) UnmarshalYAML(value *yaml.Node) error {
 	}
 	*d = ProfileDefaults(raw.defaultsAlias)
 	profile := (*Profile)(d)
-	migrateLegacyExport(raw.Export, &profile.Build)
+	migrateLegacyExport(raw.Export, &profile.Build, &profile.hadLegacyExport)
 	return nil
 }
 
