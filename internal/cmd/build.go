@@ -165,6 +165,10 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		Userns:     userns,
 	}
 
+	if filepath.Clean(ec.OrigWorkDir) == filepath.Clean(ec.HomeDir) {
+		rc.SecurityOpts = append(rc.SecurityOpts, "label=type:spc_t")
+	}
+
 	rc.Mounts = append(rc.Mounts, docker.Mount{
 		Source:   ec.OrigWorkDir,
 		Target:   cenv.Workspace,
