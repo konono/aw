@@ -34,7 +34,7 @@ mise.toml / devbox.json にコミット
 [tools]
 node = "22"      # Claude Code に必要
 python = "3.14"
-go = "1.23"
+go = "1.25"
 gh = "latest"
 ```
 
@@ -70,7 +70,7 @@ run = "npm ci"
   "packages": [
     "nodejs@22",
     "python@3",
-    "go@1.23",
+    "go@1.25",
     "gh"
   ]
 }
@@ -87,7 +87,7 @@ run = "npm ci"
 ```toml
 [tools]
 python = "3.14"
-go = "1.23"
+go = "1.25"
 gh = "latest"
 ```
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/internal/gitroot"
@@ -1179,4 +1180,123 @@ func TestProjectConfigPath(t *testing.T) {
 			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestLoadQuiet_SkipsTrustPrompt(t *testing.T) {
+	dir := t.TempDir()
+	globalDir := t.TempDir()
+
+	origGit := gitroot.FindRoot
+	origGlobal := globalConfigDir
+	origPrompt := promptTrust
+	t.Cleanup(func() {
+		gitroot.FindRoot = origGit
+		globalConfigDir = origGlobal
+		promptTrust = origPrompt
+	})
+	gitroot.FindRoot = func() (string, error) { return "", fmt.Errorf("not in git") }
+	globalConfigDir = func() (string, error) { return globalDir, nil }
+
+	promptCalled := false
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return false
+	}
+
+	configPath := filepath.Join(dir, ".aw.yml")
+	content := `
+profiles:
+  sensitive:
+    environment: container
+    launch: claude
+    mounts:
+      - source: /tmp/evil
+        target: /mnt/evil
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	cfg, err := LoadQuiet()
+	if err != nil {
+		t.Fatalf("LoadQuiet() error: %v", err)
+	}
+
+	if promptCalled {
+		t.Error("LoadQuiet should not trigger the trust prompt")
+	}
+
+	p, ok := cfg.Profiles["sensitive"]
+	if !ok {
+		t.Fatal("expected 'sensitive' profile")
+		return
+	}
+	if len(p.Mounts) == 0 {
+		t.Error("LoadQuiet should preserve sensitive fields (mounts) without stripping")
+	}
+}
+
+func TestLoadQuiet_SuppressesDeprecationWarning(t *testing.T) {
+	dir := t.TempDir()
+	globalDir := t.TempDir()
+
+	origGit := gitroot.FindRoot
+	origGlobal := globalConfigDir
+	origPrompt := promptTrust
+	t.Cleanup(func() {
+		gitroot.FindRoot = origGit
+		globalConfigDir = origGlobal
+		promptTrust = origPrompt
+	})
+	gitroot.FindRoot = func() (string, error) { return "", fmt.Errorf("not in git") }
+	globalConfigDir = func() (string, error) { return globalDir, nil }
+	promptTrust = func(_ string, _ []string) bool { return true }
+
+	configPath := filepath.Join(dir, ".agent-workspace.yml")
+	content := `
+profiles:
+  legacy:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	origStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	cfg, err := LoadQuiet()
+
+	_ = w.Close()
+	captured := make([]byte, 4096)
+	n, _ := r.Read(captured)
+	stderrOutput := string(captured[:n])
+
+	if err != nil {
+		t.Fatalf("LoadQuiet() error: %v", err)
+	}
+
+	if strings.Contains(stderrOutput, "deprecated") {
+		t.Errorf("LoadQuiet should not print deprecation warnings, got: %s", stderrOutput)
+	}
+
+	_, ok := cfg.Profiles["legacy"]
+	if !ok {
+		t.Error("expected 'legacy' profile from .agent-workspace.yml")
+	}
 }

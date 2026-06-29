@@ -32,7 +32,7 @@ AI コーディングエージェントは強力ですが、ホストマシン�
 
 | ツール | 必須 | 用途 |
 |--------|------|------|
-| [Go](https://go.dev/dl/) 1.23+ | ✓ | `go install` によるインストール |
+| [Go](https://go.dev/dl/) 1.25+ | ✓ | `go install` によるインストール |
 | [Docker](https://docs.docker.com/get-docker/) または [Podman](https://podman.io/docs/installation) | ✓ | コンテナの実行（デフォルトは Podman） |
 | `git` | — | `worktree` 機能を使う場合 |
 
@@ -51,6 +51,20 @@ aw        # デフォルトの claude プロファイルで Debian コンテナ�
 
 ```bash
 aw init   # ~/.config/aw/config.yml にスターター設定を書き出す
+```
+
+### シェル補完
+
+bash / zsh / fish のタブ補完を有効化できます。サブコマンド・フラグに加え、プロファイル名・ツール名・チーム名が動的に補完されます。
+
+```bash
+# 現在のセッションで有効化
+eval "$(aw completion zsh -c)"    # zsh
+eval "$(aw completion bash -c)"   # bash
+aw completion fish -c | source    # fish
+
+# 恒久化する場合
+aw completion zsh   # → .zshrc に追加するコマンドを表示
 ```
 
 ### Linux + Podman の事前設定

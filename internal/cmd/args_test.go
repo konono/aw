@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/alecthomas/kong"
 )
 
 func TestRunCmd_Validate_RecentAndCwdConflict(t *testing.T) {
@@ -42,6 +44,53 @@ func TestRunCmd_Validate_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func newTestParser(t *testing.T) *kong.Kong {
+	t.Helper()
+	var cli CLI
+	parser, err := kong.New(&cli, kong.Name("aw"), kong.Exit(func(int) {}))
+	if err != nil {
+		t.Fatalf("kong.New: %v", err)
+	}
+	return parser
+}
+
+func TestIsSubcommand(t *testing.T) {
+	parser := newTestParser(t)
+	tests := []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"build", "myprofile"}, true},
+		{[]string{"completion", "zsh", "-c"}, true},
+		{[]string{"auth", "login", "claude"}, true},
+		{[]string{"profiles"}, true},
+		{[]string{"run", "myprofile", "-c", "echo"}, false},
+		{[]string{"myprofile", "-c", "echo"}, false},
+		{[]string{"-c", "echo"}, false},
+		{[]string{}, false},
+		{[]string{"--version"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(joinArgs(tt.args), func(t *testing.T) {
+			got := IsSubcommand(parser, tt.args)
+			if got != tt.want {
+				t.Errorf("IsSubcommand(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
+func joinArgs(args []string) string {
+	if len(args) == 0 {
+		return "(empty)"
+	}
+	s := args[0]
+	for _, a := range args[1:] {
+		s += " " + a
+	}
+	return s
 }
 
 func TestSplitAtDashC(t *testing.T) {

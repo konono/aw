@@ -26,7 +26,24 @@ var globalConfigDir = func() (string, error) {
 // if not in a git repository. If no config file is found, it returns the built-in
 // default config.
 func Load() (*Config, error) {
-	globalCfg, err := loadGlobalConfig()
+	return loadInternal(false)
+}
+
+// LoadQuiet finds and loads the config file like Load, but skips the
+// interactive trust prompt and deprecation warnings. Use this for
+// non-interactive contexts like shell tab completion where only profile/team
+// names are needed and stdin may not be a terminal.
+//
+// Security note: the returned Config may contain untrusted sensitive fields
+// (mounts, env, worktree hooks, etc.) because CheckProjectTrust is skipped.
+// Callers must not use these fields to execute commands or modify the host.
+// Current callers (completion predictors) only read map keys (names).
+func LoadQuiet() (*Config, error) {
+	return loadInternal(true)
+}
+
+func loadInternal(quiet bool) (*Config, error) {
+	globalCfg, err := loadGlobalConfig(quiet)
 	if err != nil {
 		return nil, err
 	}
@@ -44,18 +61,24 @@ func Load() (*Config, error) {
 		var deprecated bool
 		projectPath, deprecated = findProjectConfig(dir)
 		if projectPath != "" {
-			if deprecated {
+			if !quiet && deprecated {
 				fmt.Fprintf(os.Stderr, "Warning: %s is deprecated, rename to .aw.yml\n", legacyConfigFileName)
 			}
 			data, err := os.ReadFile(projectPath)
 			if err == nil {
-				projectCfg, err = Parse(data)
+				if quiet {
+					projectCfg, err = parseQuiet(data)
+				} else {
+					projectCfg, err = Parse(data)
+				}
 				if err != nil {
 					return nil, err
 				}
-				projectCfg, err = CheckProjectTrust(projectPath, data, projectCfg)
-				if err != nil {
-					return nil, fmt.Errorf("checking project config trust: %w", err)
+				if !quiet {
+					projectCfg, err = CheckProjectTrust(projectPath, data, projectCfg)
+					if err != nil {
+						return nil, fmt.Errorf("checking project config trust: %w", err)
+					}
 				}
 			} else if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("reading config file: %w", err)
@@ -93,7 +116,7 @@ func findGlobalConfig(dir string) string {
 	return ""
 }
 
-func loadGlobalConfig() (*Config, error) {
+func loadGlobalConfig(quiet bool) (*Config, error) {
 	dir, err := globalConfigDir()
 	if err != nil {
 		return nil, nil
@@ -106,7 +129,12 @@ func loadGlobalConfig() (*Config, error) {
 	if err != nil {
 		return nil, nil
 	}
-	cfg, err := Parse(data)
+	var cfg *Config
+	if quiet {
+		cfg, err = parseQuiet(data)
+	} else {
+		cfg, err = Parse(data)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("parsing global config %s: %w", path, err)
 	}
@@ -139,16 +167,42 @@ func LoadFile(path string) (*Config, error) {
 
 // Parse parses YAML bytes into a Config.
 func Parse(data []byte) (*Config, error) {
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+	cfg, hadLegacy, err := parseConfig(data)
+	if err != nil {
+		return nil, err
+	}
+	if hadLegacy {
+		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
+	}
+	return cfg, nil
+}
+
+func parseQuiet(data []byte) (*Config, error) {
+	cfg, _, err := parseConfig(data)
+	return cfg, err
+}
+
+func parseConfig(data []byte) (cfg *Config, hadLegacyExport bool, err error) {
+	var c Config
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return nil, false, fmt.Errorf("parsing config: %w", err)
 	}
 
-	if cfg.Profiles == nil {
-		cfg.Profiles = make(map[string]Profile)
+	if c.Profiles == nil {
+		c.Profiles = make(map[string]Profile)
 	}
 
-	return &cfg, nil
+	hadLegacy := c.Defaults.AsProfile().hadLegacyExport
+	if !hadLegacy {
+		for _, p := range c.Profiles {
+			if p.hadLegacyExport {
+				hadLegacy = true
+				break
+			}
+		}
+	}
+
+	return &c, hadLegacy, nil
 }
 
 // findProjectConfig searches dir for a project config file.
