@@ -26,6 +26,23 @@ var globalConfigDir = func() (string, error) {
 // if not in a git repository. If no config file is found, it returns the built-in
 // default config.
 func Load() (*Config, error) {
+	return loadInternal(false)
+}
+
+// LoadQuiet finds and loads the config file like Load, but skips the
+// interactive trust prompt and deprecation warnings. Use this for
+// non-interactive contexts like shell tab completion where only profile/team
+// names are needed and stdin may not be a terminal.
+func LoadQuiet() (*Config, error) {
+	return loadInternal(true)
+}
+
+func loadInternal(quiet bool) (*Config, error) {
+	if quiet {
+		suppressWarnings = true
+		defer func() { suppressWarnings = false }()
+	}
+
 	globalCfg, err := loadGlobalConfig()
 	if err != nil {
 		return nil, err
@@ -44,7 +61,7 @@ func Load() (*Config, error) {
 		var deprecated bool
 		projectPath, deprecated = findProjectConfig(dir)
 		if projectPath != "" {
-			if deprecated {
+			if !quiet && deprecated {
 				fmt.Fprintf(os.Stderr, "Warning: %s is deprecated, rename to .aw.yml\n", legacyConfigFileName)
 			}
 			data, err := os.ReadFile(projectPath)
@@ -53,9 +70,11 @@ func Load() (*Config, error) {
 				if err != nil {
 					return nil, err
 				}
-				projectCfg, err = CheckProjectTrust(projectPath, data, projectCfg)
-				if err != nil {
-					return nil, fmt.Errorf("checking project config trust: %w", err)
+				if !quiet {
+					projectCfg, err = CheckProjectTrust(projectPath, data, projectCfg)
+					if err != nil {
+						return nil, fmt.Errorf("checking project config trust: %w", err)
+					}
 				}
 			} else if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("reading config file: %w", err)

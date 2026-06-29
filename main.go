@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	kongcompletion "github.com/jotaen/kong-completion"
 	"github.com/konono/aw/internal/cmd"
+	"github.com/konono/aw/internal/completion"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/version"
 )
@@ -19,14 +21,6 @@ func main() {
 		os.Exit(reaper.Run())
 	}
 
-	// Split -c passthrough before kong sees it.
-	kongArgs, passthroughArgs, splitErr := cmd.SplitAtDashC(args)
-	if splitErr != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", splitErr)
-		os.Exit(1)
-	}
-	pt := &cmd.PassthroughCmd{Args: passthroughArgs}
-
 	var cli cmd.CLI
 	parser, err := kong.New(&cli,
 		kong.Name("aw"),
@@ -38,6 +32,27 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Split -c passthrough only for the default run command.
+	// When an explicit subcommand is used (e.g. "completion -c"),
+	// leave -c for kong to handle as a subcommand flag.
+	kongArgs := args
+	var passthroughArgs []string
+	if !cmd.IsSubcommand(parser, args) {
+		var splitErr error
+		kongArgs, passthroughArgs, splitErr = cmd.SplitAtDashC(args)
+		if splitErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", splitErr)
+			os.Exit(1)
+		}
+	}
+	pt := &cmd.PassthroughCmd{Args: passthroughArgs}
+
+	kongcompletion.Register(parser,
+		kongcompletion.WithPredictor("profile", completion.ProfilePredictor{}),
+		kongcompletion.WithPredictor("tool", completion.ToolPredictor{}),
+		kongcompletion.WithPredictor("team", completion.TeamPredictor{}),
+	)
 
 	ctx, err := parser.Parse(kongArgs)
 	if err != nil {

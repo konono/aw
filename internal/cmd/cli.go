@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	kongcompletion "github.com/jotaen/kong-completion"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -59,6 +60,9 @@ type CLI struct {
 	DefaultDockerfile DefaultDockerfileCmd `cmd:"" name:"default-dockerfile" help:"Print the default Dockerfile."`
 	DefaultInitScript DefaultInitScriptCmd `cmd:"" name:"default-init-script" help:"Print aw-init.sh."`
 
+	// Completion support
+	Completion kongcompletion.Completion `cmd:"" help:"Outputs shell code for initialising tab completions."`
+
 	// Internal subcommands (hidden, used by containers)
 	InternalMCPMsg    InternalMCPMsgCmd    `cmd:"" name:"internal-mcp-msg" hidden:"" help:"Run MCP message server."`
 	InternalCheckInbox InternalCheckInboxCmd `cmd:"" name:"internal-check-inbox" hidden:"" help:"Check inbox for unread messages."`
@@ -80,7 +84,7 @@ type DefaultInitScriptCmd struct{}
 
 // RunCmd launches a profile.
 type RunCmd struct {
-	Profile  string `arg:"" optional:"" help:"Profile name to run."`
+	Profile  string `arg:"" optional:"" help:"Profile name to run." completion-predictor:"profile"`
 	Recent   bool   `short:"r" name:"recent" help:"Pick a directory from launch history." aliases:"recent-dir"`
 	Query    string `name:"query" help:"Initial query for --recent picker."`
 	Cwd      string `short:"C" name:"cwd" help:"Change to path before loading config."`
@@ -111,7 +115,7 @@ type AuthCmd struct {
 }
 
 type authFlags struct {
-	Tool    string `arg:"" help:"Tool name (claude, codex, opencode, cursor) or profile name."`
+	Tool    string `arg:"" help:"Tool name (claude, codex, opencode, cursor) or profile name." completion-predictor:"tool"`
 	Profile string `short:"p" name:"profile" help:"Explicit profile name."`
 }
 
@@ -129,7 +133,7 @@ type LoginCmd struct{ authFlags }
 
 // BuildCmd builds a profile's container image with snapshot.
 type BuildCmd struct {
-	ProfileName  string            `arg:"" help:"Profile name to build."`
+	ProfileName  string            `arg:"" help:"Profile name to build." completion-predictor:"profile"`
 	Save         *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
 	FromTemplate bool              `name:"from-template" help:"Build from Dockerfile template instead of official image."`
 	Apply        bool              `name:"apply" help:"Write image name back to config file."`
@@ -150,7 +154,7 @@ func (b *BuildCmd) Validate() error {
 
 // ExportCmd is a deprecated alias for BuildCmd.
 type ExportCmd struct {
-	ProfileName string            `arg:"" help:"Profile name to export."`
+	ProfileName string            `arg:"" help:"Profile name to export." completion-predictor:"profile"`
 	Output      string            `short:"o" name:"output" help:"Output file path." type:"path"`
 	Snapshot    bool              `name:"snapshot" help:"(Deprecated, now always on) Run setup and commit the result."`
 	Apply       bool              `name:"apply" help:"Write image name back to config file."`
@@ -210,24 +214,24 @@ type TeamCmd struct {
 
 // TeamStartCmd starts a team.
 type TeamStartCmd struct {
-	TeamName string `arg:"" help:"Team name to start."`
+	TeamName string `arg:"" help:"Team name to start." completion-predictor:"team"`
 	Resume   bool   `name:"resume" help:"Resume a previous session."`
 	Task     string `name:"task" help:"Task description for the team."`
 }
 
 // TeamStopCmd stops a team.
 type TeamStopCmd struct {
-	TeamName string `arg:"" help:"Team name to stop."`
+	TeamName string `arg:"" help:"Team name to stop." completion-predictor:"team"`
 }
 
 // TeamStatusCmd shows team status.
 type TeamStatusCmd struct {
-	TeamName string `arg:"" optional:"" help:"Team name (shows all if omitted)."`
+	TeamName string `arg:"" optional:"" help:"Team name (shows all if omitted)." completion-predictor:"team"`
 }
 
 // TeamScopeCmd prints team scope.
 type TeamScopeCmd struct {
-	TeamName string `arg:"" help:"Team name."`
+	TeamName string `arg:"" help:"Team name." completion-predictor:"team"`
 }
 
 // MsgCmd handles messaging subcommands.
@@ -307,6 +311,37 @@ type InternalAgentLoopCmd struct {
 	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
 	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
 	Tool  string `name:"tool" env:"AW_TOOL" help:"Tool name."`
+}
+
+// IsSubcommand returns true if the first non-flag argument matches a known
+// subcommand in the kong parser model, excluding the default command (run).
+// The default command uses -c as a passthrough separator, so SplitAtDashC
+// must still run for it.
+func IsSubcommand(parser *kong.Kong, args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	first := args[0]
+	if strings.HasPrefix(first, "-") {
+		return false
+	}
+	for _, child := range parser.Model.Children {
+		if child == nil {
+			continue
+		}
+		if child == parser.Model.DefaultCmd {
+			continue
+		}
+		if child.Name == first {
+			return true
+		}
+		for _, alias := range child.Aliases {
+			if alias == first {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // parseBuildIncludes parses --include src:dst strings into profile.BuildInclude.

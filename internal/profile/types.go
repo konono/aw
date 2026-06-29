@@ -202,9 +202,15 @@ type legacyExportConfig struct {
 	Env      map[string]string `yaml:"env,omitempty"`
 }
 
+// suppressWarnings suppresses deprecation warnings during config parsing.
+// Set by loadInternal(quiet=true) for non-interactive contexts like tab completion.
+var suppressWarnings bool
+
 func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig) {
 	if export != nil && *build == nil {
-		fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
+		if !suppressWarnings {
+			fmt.Fprintln(os.Stderr, "Warning: 'export:' config field is deprecated, use 'build:' instead.")
+		}
 		*build = &BuildConfig{
 			Include:        export.Include,
 			Env:            export.Env,
