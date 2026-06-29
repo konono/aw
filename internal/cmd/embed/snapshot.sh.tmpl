@@ -40,7 +40,10 @@ run_as_user() {
 
 WORK="/tmp/aw-snapshot-work"
 mkdir -p "$WORK"
-cp -r "$WORKSPACE/." "$WORK/"
+# cp may encounter files owned by other UIDs (e.g. container volumes,
+# GitLab data) that are unreadable. These are irrelevant to the build,
+# so continue past permission errors.
+cp -r "$WORKSPACE/." "$WORK/" 2>&1 | grep -v 'Permission denied' >&2 || true
 sudo chown -R "$(id -u):0" "$WORK"
 
 NIX_ENV=""
