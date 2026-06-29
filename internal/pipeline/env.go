@@ -28,7 +28,7 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
 	}
 
-	if pkgs := CollectPackages(platform.ConfigDir(), ec.Profile.Packages); len(pkgs) > 0 {
+	if pkgs := CollectPackages(platform.ConfigDir(), ec.Profile.Packages, ec.OrigWorkDir); len(pkgs) > 0 {
 		envVars["AW_PACKAGES"] = strings.Join(pkgs, ",")
 	}
 

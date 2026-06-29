@@ -11,7 +11,9 @@ import (
 // CollectPackages reads packages.txt from the aw config directory and merges
 // with profile-level packages, deduplicating while preserving order.
 // configDir is the aw configuration directory (platform.ConfigDir()).
-func CollectPackages(configDir string, profilePkgs []string) []string {
+// Optional workDirs specify workspace directories whose packages.txt files
+// are also merged (after global and profile packages).
+func CollectPackages(configDir string, profilePkgs []string, workDirs ...string) []string {
 	seen := make(map[string]bool)
 	var result []string
 	addPkg := func(pkg string) {
@@ -22,18 +24,25 @@ func CollectPackages(configDir string, profilePkgs []string) []string {
 		}
 	}
 
-	packagesFile := filepath.Join(configDir, "packages.txt")
-	if data, err := os.ReadFile(packagesFile); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" && !strings.HasPrefix(line, "#") {
-				addPkg(line)
+	readPackagesFile := func(path string) {
+		if data, err := os.ReadFile(path); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" && !strings.HasPrefix(line, "#") {
+					addPkg(line)
+				}
 			}
 		}
 	}
 
+	readPackagesFile(filepath.Join(configDir, "packages.txt"))
+
 	for _, pkg := range profilePkgs {
 		addPkg(pkg)
+	}
+
+	for _, dir := range workDirs {
+		readPackagesFile(filepath.Join(dir, "packages.txt"))
 	}
 
 	return result

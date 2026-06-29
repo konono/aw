@@ -115,7 +115,9 @@ func TestMergeBuildFields(t *testing.T) {
 }
 
 func TestComputeBuildImageName(t *testing.T) {
-	name := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12", nil, nil)
+	emptyDir := t.TempDir()
+
+	name := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12", nil, nil, emptyDir)
 	if !strings.HasPrefix(name, "aw-build:claude-") {
 		t.Errorf("expected prefix 'aw-build:claude-', got %q", name)
 	}
@@ -128,32 +130,119 @@ func TestComputeBuildImageName(t *testing.T) {
 		t.Errorf("hash should be 12 chars, got %d (%q)", len(hash), hash)
 	}
 
-	name2 := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12", nil, nil)
+	name2 := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12", nil, nil, emptyDir)
 	if name != name2 {
 		t.Errorf("same inputs should produce same name: %q != %q", name, name2)
 	}
 
-	name3 := computeBuildImageName("claude", "different-base:image", nil, nil)
+	name3 := computeBuildImageName("claude", "different-base:image", nil, nil, emptyDir)
 	if name == name3 {
 		t.Errorf("different base images should produce different names")
 	}
 
 	name4 := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12",
-		[]profile.BuildInclude{{Src: "./certs", Dst: "/certs"}}, nil)
+		[]profile.BuildInclude{{Src: "./certs", Dst: "/certs"}}, nil, emptyDir)
 	if name == name4 {
 		t.Errorf("different includes should produce different names")
 	}
 
 	name5 := computeBuildImageName("claude", "ghcr.io/konono/aw-claude:3.5.0-debian12",
-		nil, map[string]string{"HTTP_PROXY": "http://proxy:8080"})
+		nil, map[string]string{"HTTP_PROXY": "http://proxy:8080"}, emptyDir)
 	if name == name5 {
 		t.Errorf("different env vars should produce different names")
 	}
 
-	name6 := computeBuildImageName("my/custom profile", "base:img", nil, nil)
+	name6 := computeBuildImageName("my/custom profile", "base:img", nil, nil, emptyDir)
 	if strings.ContainsAny(name6[strings.Index(name6, ":")+1:], "/ ") {
 		t.Errorf("profile name with special chars should be sanitized in tag, got %q", name6)
 	}
+
+	t.Run("different workspace files produce different names", func(t *testing.T) {
+		dirA := t.TempDir()
+		dirB := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dirA, "mise.toml"), []byte("[tools]\nnode = \"20\"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dirB, "mise.toml"), []byte("[tools]\npython = \"3.12\"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		nameA := computeBuildImageName("claude", "base:img", nil, nil, dirA)
+		nameB := computeBuildImageName("claude", "base:img", nil, nil, dirB)
+		if nameA == nameB {
+			t.Errorf("different workspace mise.toml should produce different names")
+		}
+	})
+}
+
+func TestHasWorkspaceFiles(t *testing.T) {
+	t.Run("empty dir", func(t *testing.T) {
+		dir := t.TempDir()
+		if hasWorkspaceFiles(dir) {
+			t.Error("should return false for empty dir")
+		}
+	})
+
+	for _, name := range []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if !hasWorkspaceFiles(dir) {
+				t.Errorf("should return true when %s exists", name)
+			}
+		})
+	}
+}
+
+func TestHasBuildInputs(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		dir := t.TempDir()
+		if hasBuildInputs(dir, nil, nil, profile.Profile{}) {
+			t.Error("should return false with no inputs")
+		}
+	})
+
+	t.Run("workspace file", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if !hasBuildInputs(dir, nil, nil, profile.Profile{}) {
+			t.Error("should return true with workspace file")
+		}
+	})
+
+	t.Run("includes", func(t *testing.T) {
+		dir := t.TempDir()
+		if !hasBuildInputs(dir, []profile.BuildInclude{{Src: "./a", Dst: "/a"}}, nil, profile.Profile{}) {
+			t.Error("should return true with includes")
+		}
+	})
+
+	t.Run("env vars", func(t *testing.T) {
+		dir := t.TempDir()
+		if !hasBuildInputs(dir, nil, map[string]string{"K": "V"}, profile.Profile{}) {
+			t.Error("should return true with env vars")
+		}
+	})
+
+	t.Run("profile packages", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{Packages: []string{"jq"}}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true with profile packages")
+		}
+	})
+
+	t.Run("build config includes via merged params", func(t *testing.T) {
+		dir := t.TempDir()
+		incl := []profile.BuildInclude{{Src: "./certs", Dst: "/certs"}}
+		env := map[string]string{"HTTP_PROXY": "http://proxy:8080"}
+		if !hasBuildInputs(dir, incl, env, profile.Profile{}) {
+			t.Error("should return true with merged build config includes and env")
+		}
+	})
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {
@@ -395,6 +484,40 @@ profiles:
 		}
 		if strings.Contains(content, "skip_mise_install: true") {
 			t.Errorf("skip_mise_install should be false, got:\n%s", content)
+		}
+	})
+
+	t.Run("creates new file when not exists", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, ".aw.yml")
+
+		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", profile.PackageManagerApt, true); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+
+		data, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatalf("file should be created: %v", err)
+		}
+		content := string(data)
+		if !strings.Contains(content, "aw-build:claude-abc123") {
+			t.Errorf("config should contain image name, got:\n%s", content)
+		}
+		if !strings.Contains(content, "claude") {
+			t.Errorf("config should contain profile name, got:\n%s", content)
+		}
+		cfg, err := profile.Parse(data)
+		if err != nil {
+			t.Fatalf("created file should be valid YAML: %v", err)
+			return
+		}
+		p, ok := cfg.Profiles["claude"]
+		if !ok {
+			t.Fatalf("profile 'claude' should exist in created config")
+			return
+		}
+		if p.Image != "aw-build:claude-abc123" {
+			t.Errorf("image = %q, want %q", p.Image, "aw-build:claude-abc123")
 		}
 	})
 }
