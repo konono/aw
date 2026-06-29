@@ -1166,7 +1166,9 @@ func TestProjectConfigPath(t *testing.T) {
 		got := ProjectConfigPath()
 		realCwd, _ := filepath.EvalSymlinks(cwdDir)
 		want := filepath.Join(realCwd, ".aw.yml")
-		if got != want {
+		gotPath, _ := filepath.EvalSymlinks(got)
+		wantPath, _ := filepath.EvalSymlinks(want)
+		if gotPath != wantPath {
 			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
 		}
 	})
