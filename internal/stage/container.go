@@ -164,7 +164,7 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) boo
 		(p.ContainerUser != "" && p.ContainerUser != "agent") {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(configDir, nil); len(pkgs) > 0 {
+	if pkgs := pipeline.CollectPackages(configDir, nil, ec.OrigWorkDir); len(pkgs) > 0 {
 		return true
 	}
 	return false
@@ -342,7 +342,7 @@ func resolveBuildInputs(customDockerfile string, tool string, pkgMgr profile.Pac
 	if ec.Profile.EffectiveGhToken() {
 		bi.ghInstallScript = ghCLIInstallScript()
 	}
-	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages)
+	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages, ec.OrigWorkDir)
 	if len(packages) > 0 {
 		bi.extraPackages = strings.Join(packages, " ")
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
 	"gopkg.in/yaml.v3"
@@ -68,6 +69,13 @@ func (b *BuildCmd) Run() error {
 
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
 
+	workDir := ec.OrigWorkDir
+	if !hasBuildInputs(workDir, incl, envVars, p) {
+		fmt.Fprintln(os.Stderr, "Warning: No mise.toml, devbox.json, packages.txt, --include, or --env found.")
+		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
+		return nil
+	}
+
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
@@ -77,7 +85,7 @@ func (b *BuildCmd) Run() error {
 	resultImage := ec.DockerImage
 
 	if snapshot {
-		commitImage := computeBuildImageName(b.ProfileName, ec.DockerImage, incl, envVars)
+		commitImage := computeBuildImageName(b.ProfileName, ec.DockerImage, incl, envVars, workDir)
 		if err := runSnapshot(client, ec, p, incl, envVars, cenv, commitImage); err != nil {
 			return err
 		}
@@ -103,9 +111,14 @@ func (b *BuildCmd) Run() error {
 	pkgMgr := p.EffectivePackageManager()
 
 	if b.Apply {
-		targetFile := profile.FindProfileSource(b.ProfileName)
-		if targetFile == "" {
-			targetFile = cfg.Source.FilePath
+		var targetFile string
+		if hasWorkspaceFiles(workDir) {
+			targetFile = profile.ProjectConfigPath()
+		} else {
+			targetFile = profile.FindProfileSource(b.ProfileName)
+			if targetFile == "" {
+				targetFile = cfg.Source.FilePath
+			}
 		}
 		if targetFile == "" {
 			return fmt.Errorf("--apply requires a config file. Run `aw init` first")
@@ -127,15 +140,47 @@ func (b *BuildCmd) Run() error {
 	return nil
 }
 
+var workspaceFileNames = []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"}
+
+func hasWorkspaceFiles(dir string) bool {
+	for _, name := range workspaceFileNames {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[string]string, p profile.Profile) bool {
+	if hasWorkspaceFiles(dir) {
+		return true
+	}
+	if len(includes) > 0 || len(envVars) > 0 {
+		return true
+	}
+	if len(p.Packages) > 0 {
+		return true
+	}
+	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
+		return true
+	}
+	return false
+}
+
 var tagUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
-func computeBuildImageName(profileName, baseImage string, includes []profile.BuildInclude, envVars map[string]string) string {
+func computeBuildImageName(profileName, baseImage string, includes []profile.BuildInclude, envVars map[string]string, workDir string) string {
 	hashInput := baseImage + "\n" + profileName
 	for _, inc := range includes {
 		hashInput += "\ninclude:" + inc.Src + ":" + inc.Dst
 	}
 	for _, k := range slices.Sorted(maps.Keys(envVars)) {
 		hashInput += "\nenv:" + k + "=" + envVars[k]
+	}
+	for _, name := range workspaceFileNames {
+		if data, err := os.ReadFile(filepath.Join(workDir, name)); err == nil {
+			hashInput += "\nworkspace:" + name + ":" + string(data)
+		}
 	}
 	hash := sha256.Sum256([]byte(hashInput))
 	safe := tagUnsafe.ReplaceAllString(profileName, "-")
@@ -258,8 +303,11 @@ func printConfigSnippet(imageName, runtime, launch, tarPath string, pkgMgr profi
 
 func applyBuildResult(configPath, profileName, imageName string, pkgMgr profile.PackageManager, snapshot bool) error {
 	data, err := os.ReadFile(configPath)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading config file: %w", err)
+	}
+	if data == nil {
+		data = []byte("{}\n")
 	}
 
 	var doc yaml.Node

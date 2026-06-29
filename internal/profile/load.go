@@ -168,6 +168,25 @@ func findProjectConfig(dir string) (path string, deprecated bool) {
 	return "", false
 }
 
+// ProjectConfigPath returns the path for the project-local config file.
+// If an existing project config is found, it returns that path.
+// Otherwise it returns <git-root>/.aw.yml (or <cwd>/.aw.yml if not in a git repo).
+func ProjectConfigPath() string {
+	var dir string
+	if repoRoot, err := gitroot.FindRoot(); err == nil {
+		dir = repoRoot
+	} else if cwd, err := os.Getwd(); err == nil {
+		dir = cwd
+	}
+	if dir == "" {
+		return ""
+	}
+	if path, _ := findProjectConfig(dir); path != "" {
+		return path
+	}
+	return filepath.Join(dir, ".aw.yml")
+}
+
 // FindProfileSource returns the config file path where the given profile is
 // defined. It checks project config first, then global config, following the
 // same priority as Load(). Returns empty string if the profile only exists in
