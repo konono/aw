@@ -11,5 +11,5 @@
   - `feat!:` or `BREAKING CHANGE` footer → major version bump
   - `chore:`, `refactor:`, `docs:`, `test:`, `ci:` → no version bump
 - All changes to main require a PR with merge commit (no squash, no rebase)
-- CI must pass: Go tests (1.22/1.23) + commitlint
+- CI must pass: Go tests (1.25/1.26) + commitlint
 - Releases are automated: release-please creates a Release PR → merge it → GoReleaser builds binaries

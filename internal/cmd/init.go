@@ -69,7 +69,7 @@ const miseTomlTemplate = `# ~/.config/aw/mise.toml — グローバル mise 設�
 # [tools]
 # node = "22"
 # python = "3.14"
-# go = "1.23"
+# go = "1.25"
 # gh = "latest"
 #
 # [tasks.install]

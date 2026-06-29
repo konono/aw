@@ -33,6 +33,11 @@ func Load() (*Config, error) {
 // interactive trust prompt and deprecation warnings. Use this for
 // non-interactive contexts like shell tab completion where only profile/team
 // names are needed and stdin may not be a terminal.
+//
+// Security note: the returned Config may contain untrusted sensitive fields
+// (mounts, env, worktree hooks, etc.) because CheckProjectTrust is skipped.
+// Callers must not use these fields to execute commands or modify the host.
+// Current callers (completion predictors) only read map keys (names).
 func LoadQuiet() (*Config, error) {
 	return loadInternal(true)
 }
