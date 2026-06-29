@@ -1113,3 +1113,61 @@ func TestFindProjectConfig_Helper(t *testing.T) {
 		}
 	})
 }
+
+func TestProjectConfigPath(t *testing.T) {
+	t.Run("returns existing project config", func(t *testing.T) {
+		projectDir := t.TempDir()
+		mockLoadEnv(t, projectDir, false, t.TempDir())
+
+		awYml := filepath.Join(projectDir, ".aw.yml")
+		if err := os.WriteFile(awYml, []byte("default: claude\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		origDir, _ := os.Getwd()
+		if err := os.Chdir(projectDir); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chdir(origDir) }()
+
+		got := ProjectConfigPath()
+		if got != awYml {
+			t.Errorf("ProjectConfigPath() = %q, want %q", got, awYml)
+		}
+	})
+
+	t.Run("returns git root .aw.yml when no config exists", func(t *testing.T) {
+		projectDir := t.TempDir()
+		mockLoadEnv(t, projectDir, false, t.TempDir())
+
+		origDir, _ := os.Getwd()
+		if err := os.Chdir(projectDir); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chdir(origDir) }()
+
+		got := ProjectConfigPath()
+		want := filepath.Join(projectDir, ".aw.yml")
+		if got != want {
+			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("falls back to cwd when not in git repo", func(t *testing.T) {
+		cwdDir := t.TempDir()
+		mockLoadEnv(t, "", true, t.TempDir())
+
+		origDir, _ := os.Getwd()
+		if err := os.Chdir(cwdDir); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chdir(origDir) }()
+
+		got := ProjectConfigPath()
+		realCwd, _ := filepath.EvalSymlinks(cwdDir)
+		want := filepath.Join(realCwd, ".aw.yml")
+		if got != want {
+			t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
+		}
+	})
+}

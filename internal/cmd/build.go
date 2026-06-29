@@ -62,18 +62,21 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
+	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
+	workDir := ec.OrigWorkDir
+
+	if !hasBuildInputs(workDir, incl, envVars, p) {
+		if b.Apply {
+			return fmt.Errorf("no build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env); nothing to apply")
+		}
+		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
+		return nil
+	}
+
 	dockerStage := stage.NewDockerStage()
 	if err := dockerStage.Run(context.Background(), ec); err != nil {
 		return err
-	}
-
-	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
-
-	workDir := ec.OrigWorkDir
-	if !hasBuildInputs(workDir, incl, envVars, p) {
-		fmt.Fprintln(os.Stderr, "Warning: No mise.toml, devbox.json, packages.txt, --include, or --env found.")
-		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
-		return nil
 	}
 
 	runtime := p.EffectiveContainerRuntime()

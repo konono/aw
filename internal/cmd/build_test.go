@@ -234,6 +234,15 @@ func TestHasBuildInputs(t *testing.T) {
 			t.Error("should return true with profile packages")
 		}
 	})
+
+	t.Run("build config includes via merged params", func(t *testing.T) {
+		dir := t.TempDir()
+		incl := []profile.BuildInclude{{Src: "./certs", Dst: "/certs"}}
+		env := map[string]string{"HTTP_PROXY": "http://proxy:8080"}
+		if !hasBuildInputs(dir, incl, env, profile.Profile{}) {
+			t.Error("should return true with merged build config includes and env")
+		}
+	})
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {
