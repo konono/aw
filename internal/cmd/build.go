@@ -165,6 +165,8 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		Userns:     userns,
 	}
 
+	// Snapshot bind mounts bypass mount.go's :z labeling; spc_t avoids
+	// SELinux AVC denials (especially for home directory mounts on Podman).
 	rc.SecurityOpts = append(rc.SecurityOpts, "label=type:spc_t")
 
 	rc.Mounts = append(rc.Mounts, docker.Mount{

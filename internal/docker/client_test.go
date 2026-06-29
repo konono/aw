@@ -378,6 +378,27 @@ func TestBuildRunArgs_NoUserns(t *testing.T) {
 	}
 }
 
+func TestBuildOneShotRunArgs_SecurityOpts(t *testing.T) {
+	config := RunConfig{
+		ImageName:    "test-image",
+		Command:      []string{"sh"},
+		SecurityOpts: []string{"label=type:spc_t"},
+	}
+
+	args := BuildOneShotRunArgs("aw-snapshot-test", config)
+
+	found := false
+	for i, a := range args {
+		if a == "--security-opt" && i+1 < len(args) && args[i+1] == "label=type:spc_t" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected --security-opt label=type:spc_t in one-shot args, got: %v", args)
+	}
+}
+
 func TestBuildOneShotRunArgs_Userns(t *testing.T) {
 	config := RunConfig{
 		ImageName: "test-image",
