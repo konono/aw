@@ -172,7 +172,7 @@ section "5. mise バイナリプリインストール"
 # ────────────────────────────────────────────────────────────────
 
 MISE_OUT=$($AW "$PROFILE" -- mise --version 2>&1) || true
-if echo "$MISE_OUT" | grep -q "2025"; then
+if echo "$MISE_OUT" | grep -q "202[0-9]"; then
   MISE_VER=$(echo "$MISE_OUT" | grep "2025" | head -1)
   pass "mise インストール済み: $MISE_VER"
 else
@@ -206,8 +206,8 @@ cd "$TMPDIR"
 mkdir -p dood-test && cd dood-test
 write_test_config
 
-DHOST_OUT=$($AW test-claude-dood -- bash -c 'echo $DOCKER_HOST' 2>&1) || true
-if echo "$DHOST_OUT" | grep -q "unix:///run/container.sock"; then
+DHOST_OUT=$($AW test-claude-dood -- env 2>&1) || true
+if echo "$DHOST_OUT" | grep -q "DOCKER_HOST=unix:///run/container.sock"; then
   pass "DOCKER_HOST が自動設定された"
 else
   fail "DOCKER_HOST が設定されていない: $(echo "$DHOST_OUT" | tail -3)"
@@ -261,7 +261,7 @@ mkdir -p devbox-test && cd devbox-test
 write_test_config
 
 DEVBOX_OUT=$($AW test-devbox -- mise --version 2>&1) || true
-if echo "$DEVBOX_OUT" | grep -q "2025"; then
+if echo "$DEVBOX_OUT" | grep -q "202[0-9]"; then
   pass "devbox モードでも mise がインストール済み"
 else
   fail "devbox モードで mise が見つからない: $(echo "$DEVBOX_OUT" | tail -3)"

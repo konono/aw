@@ -112,7 +112,7 @@ func DataSymlinksFor(tool string, cenv containerenv.Config) string {
 const GhCLIVersion = "2.95.0"
 
 // MiseVersion is the pinned version of mise installed in all images.
-const MiseVersion = "2025.6.14"
+const MiseVersion = "2026.6.14"
 
 // ContainerEnvVarsFor returns tool-specific container environment variables
 // (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add context-specific
