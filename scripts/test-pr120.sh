@@ -17,17 +17,23 @@ PASS=0
 FAIL=0
 SKIP=0
 
-pass() { echo -e "  ${GREEN}PASS${NC}: $1"; ((PASS++)); }
-fail() { echo -e "  ${RED}FAIL${NC}: $1"; ((FAIL++)); }
-skip() { echo -e "  ${YELLOW}SKIP${NC}: $1"; ((SKIP++)); }
+pass() { echo -e "  ${GREEN}PASS${NC}: $1"; PASS=$((PASS + 1)); }
+fail() { echo -e "  ${RED}FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo -e "  ${YELLOW}SKIP${NC}: $1"; SKIP=$((SKIP + 1)); }
 
 section() { echo -e "\n${YELLOW}=== $1 ===${NC}"; }
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-AW="${AW:-aw}"
+GOBIN_AW="$(go env GOPATH)/bin/aw"
+if [ -x "$GOBIN_AW" ]; then
+  AW="${AW:-$GOBIN_AW}"
+else
+  AW="${AW:-aw}"
+fi
 PROFILE="${PROFILE:-test-claude}"
+echo "Using: $AW"
 
 # テスト用の最小プロファイル定義
 write_test_config() {
@@ -117,9 +123,9 @@ cd "$TMPDIR"
 mkdir -p no-workspace && cd no-workspace
 write_test_config
 
-# aw build --apply がグローバル mise.toml を拾わないことを確認
+# aw build --apply がグローバル mise.toml を拾わないことを確認（公式イメージ pull にフォールバック）
 OUT=$($AW build "$PROFILE" --apply 2>&1) || true
-if echo "$OUT" | grep -q "no build inputs found"; then
+if echo "$OUT" | grep -q "No build inputs found"; then
   pass "~/.config/aw/mise.toml は無視された（ビルド入力として認識しない）"
 else
   fail "~/.config/aw/mise.toml がビルド入力として認識された: $(echo "$OUT" | tail -3)"
