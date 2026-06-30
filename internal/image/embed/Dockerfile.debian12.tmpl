@@ -35,13 +35,7 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
       su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
     fi && \
-    if [ -f /tmp/aw-build/mise.toml ]; then \
-      su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
-      mkdir -p {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
-      chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install && {{.Home}}/.local/bin/mise ls 2>/dev/null | awk "\$2 ~ /^[0-9]/ {print \$1\"@\"\$2}" | xargs -r {{.Home}}/.local/bin/mise use -g'; \
-    fi && rm -rf /tmp/aw-build && \
+    rm -rf /tmp/aw-build && \
     chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 
 COPY aw-init.sh /aw-init.sh
