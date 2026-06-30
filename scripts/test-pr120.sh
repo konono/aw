@@ -206,8 +206,8 @@ cd "$TMPDIR"
 mkdir -p dood-test && cd dood-test
 write_test_config
 
-DHOST_OUT=$($AW test-claude-dood -- bash -c 'echo \$DOCKER_HOST' 2>&1) || true
-if echo "$DHOST_OUT" | grep -q "unix:///run/container.sock"; then
+DHOST_OUT=$($AW test-claude-dood -- env 2>&1) || true
+if echo "$DHOST_OUT" | grep -q "DOCKER_HOST=unix:///run/container.sock"; then
   pass "DOCKER_HOST が自動設定された"
 else
   fail "DOCKER_HOST が設定されていない: $(echo "$DHOST_OUT" | tail -3)"

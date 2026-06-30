@@ -55,7 +55,10 @@ jobs:
           for tool in claude; do
             for os in debian12; do
               IMAGE="${REGISTRY}/aw-${tool}:${TAG}-${os}"
-              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-${os}/build-args.env" | cut -d= -f2-)
+              ENV_FILE="build/${tool}-${os}/build-args.env"
+              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
+              GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+              MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
               if [ -z "$INSTALL_SCRIPT" ]; then
                 echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
                 exit 1
@@ -64,6 +67,8 @@ jobs:
               docker buildx build \
                 --platform linux/arm64,linux/amd64 \
                 --build-arg "AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
+                --build-arg "AW_GH_VERSION=${GH_VERSION}" \
+                --build-arg "AW_MISE_VERSION=${MISE_VERSION}" \
                 --build-arg "AW_OCI_SOURCE=https://github.com/konono/aw" \
                 --build-arg "AW_OCI_VERSION=${TAG}" \
                 --build-arg "AW_OCI_OS=${os}" \
