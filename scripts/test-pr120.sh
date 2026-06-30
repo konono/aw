@@ -171,9 +171,14 @@ fi
 section "5. mise バイナリプリインストール"
 # ────────────────────────────────────────────────────────────────
 
+cd "$TMPDIR"
+mkdir -p mise-test && cd mise-test
+write_test_config
+
+sleep 2
 MISE_OUT=$($AW "$PROFILE" -- mise --version 2>&1) || true
 if echo "$MISE_OUT" | grep -q "202[0-9]"; then
-  MISE_VER=$(echo "$MISE_OUT" | grep "2025" | head -1)
+  MISE_VER=$(echo "$MISE_OUT" | grep "202[0-9]" | head -1)
   pass "mise インストール済み: $MISE_VER"
 else
   fail "mise が見つからないまたはバージョン不一致: $MISE_OUT"
