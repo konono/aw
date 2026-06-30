@@ -75,7 +75,7 @@ profiles:
 - ワークスペースの `packages.txt` にパッケージがある
 - `image_pull_policy: build` が設定されている
 
-> **Note:** `gh_token: true` はカスタムビルドのトリガーにはなりません。gh CLI は公式イメージを含む全イメージにプリインストールされています。`gh_token` は実行時の `GITHUB_TOKEN` 環境変数注入のみを制御します。
+> **Note:** gh CLI と mise は公式イメージを含む全イメージにプリインストールされています。`gh_token: true` はカスタムビルドのトリガーにはなりません — 実行時の `GITHUB_TOKEN` 環境変数注入のみを制御します。
 
 ## カスタマイズが必要な場合
 

@@ -46,7 +46,7 @@ debian:bookworm-slim
   │   ├── HOME=/home/agent
   │   ├── BASH_ENV=/home/agent/.aw_env.sh    ← 非インタラクティブシェルで自動読み込み
   │   └── PATH に .local/bin を追加
-  ├── gh CLI をインストール（ビルド時）
+  ├── gh CLI + mise バイナリをインストール（ビルド時、バージョン固定）
   ├── ENTRYPOINT ["/entrypoint.sh"]
   └── WORKDIR /workspace
 ```

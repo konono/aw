@@ -36,7 +36,9 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
       su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
     fi && \
-    su -s /bin/bash {{.User}} -c "MISE_VERSION=v\$AW_MISE_VERSION curl -fsSL https://mise.jdx.dev/install.sh | sh" && \
+    if [ -n "$AW_MISE_VERSION" ]; then \
+      su -s /bin/bash {{.User}} -c "MISE_VERSION=v\$AW_MISE_VERSION curl -fsSL https://mise.jdx.dev/install.sh | sh"; \
+    fi && \
     rm -rf /tmp/aw-build && \
     chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 
