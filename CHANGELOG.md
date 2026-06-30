@@ -6,6 +6,20 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [3.7.0](https://github.com/konono/aw/compare/v3.6.0...v3.7.0) (2026-06-30)
+
+
+### Features
+
+* **cmd:** add shell tab completion for aw CLI ([#117](https://github.com/konono/aw/issues/117)) ([630c9e3](https://github.com/konono/aw/commit/630c9e31a936050d260b0296c2b3826cda40a6b1))
+* **cmd:** migrate -c passthrough to -- separator and deprecate -c ([#119](https://github.com/konono/aw/issues/119)) ([4c5a2a0](https://github.com/konono/aw/commit/4c5a2a0a2f4d2b7998e8e17d4b78efac85b44a43))
+* **cmd:** write build --apply to project-local .aw.yml when workspace files exist ([#116](https://github.com/konono/aw/issues/116)) ([276896b](https://github.com/konono/aw/commit/276896bcf886847fd64ee0a90362b6fb64be2372))
+
+
+### Bug Fixes
+
+* **cmd:** apply spc_t security context to ephemeral snapshot containers ([#113](https://github.com/konono/aw/issues/113)) ([e826775](https://github.com/konono/aw/commit/e82677571dac0faeb183af012d3ba14c5cc2d626))
+
 ## [3.6.0](https://github.com/konono/aw/compare/v3.5.0...v3.6.0) (2026-06-28)
 
 
