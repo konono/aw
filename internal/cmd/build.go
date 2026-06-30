@@ -66,7 +66,7 @@ func (b *BuildCmd) Run() error {
 
 	if !hasBuildInputs(workDir, incl, envVars, p) {
 		if b.Apply {
-			return fmt.Errorf("no build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env); nothing to apply")
+			return b.applyOfficialImage(p, ec)
 		}
 		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
@@ -139,6 +139,41 @@ func (b *BuildCmd) Run() error {
 		fmt.Fprintf(os.Stderr, "Built image '%s'\n", resultImage)
 	}
 
+	return nil
+}
+
+func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionContext) error {
+	tool := p.EffectiveTool()
+	if tool == "" {
+		return fmt.Errorf("no build inputs found and no tool configured; nothing to apply")
+	}
+
+	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
+	runtime := p.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
+
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+	if err := client.Pull(context.Background(), imageName); err != nil {
+		return fmt.Errorf("pulling official image: %w", err)
+	}
+
+	targetFile := profile.FindProfileSource(b.ProfileName)
+	if targetFile == "" {
+		cfg, err := profile.Load()
+		if err == nil && cfg.Source.FilePath != "" {
+			targetFile = cfg.Source.FilePath
+		}
+	}
+	if targetFile == "" {
+		return fmt.Errorf("--apply requires a config file. Run `aw init` first")
+	}
+
+	pkgMgr := p.EffectivePackageManager()
+	if err := applyBuildResult(targetFile, b.ProfileName, imageName, pkgMgr, false); err != nil {
+		return fmt.Errorf("applying build result: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
 	return nil
 }
 
