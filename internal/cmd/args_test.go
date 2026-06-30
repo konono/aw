@@ -152,6 +152,12 @@ func TestExtractRunPassthrough(t *testing.T) {
 			args:     []string{"--", "echo", "-c", "hello"},
 			wantCmd:  []string{"echo", "-c", "hello"},
 		},
+		{
+			name:     "-c before double dash splits at double dash",
+			args:     []string{"profile", "-c", "echo", "--", "cmd"},
+			wantKong: []string{"profile", "-c", "echo"},
+			wantCmd:  []string{"cmd"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

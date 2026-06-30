@@ -31,38 +31,25 @@ type PassthroughCmd struct {
 // "--" is preferred; "-c" is used only when "--" is absent.
 // Returns usedLegacy=true when "-c" was the separator.
 func ExtractRunPassthrough(args []string) (kongArgs, cmdArgs []string, usedLegacy bool, err error) {
-	dashDashIdx := -1
-	dashCIdx := -1
+	// First pass: look for "--" anywhere in args (always takes priority).
 	for i, a := range args {
-		if a == "--" && dashDashIdx < 0 {
-			dashDashIdx = i
-			break
+		if a == "--" {
+			if i+1 >= len(args) {
+				return nil, nil, false, fmt.Errorf("-- requires a command")
+			}
+			return args[:i], args[i+1:], false, nil
 		}
-		if a == "-c" && dashCIdx < 0 {
-			dashCIdx = i
+	}
+	// Second pass: fall back to legacy "-c" only when "--" is absent.
+	for i, a := range args {
+		if a == "-c" {
+			if i+1 >= len(args) {
+				return nil, nil, true, fmt.Errorf("-c requires a command")
+			}
+			return args[:i], args[i+1:], true, nil
 		}
 	}
-
-	idx := -1
-	if dashDashIdx >= 0 {
-		idx = dashDashIdx
-		usedLegacy = false
-	} else if dashCIdx >= 0 {
-		idx = dashCIdx
-		usedLegacy = true
-	}
-
-	if idx < 0 {
-		return args, nil, false, nil
-	}
-	if idx+1 >= len(args) {
-		sep := "--"
-		if usedLegacy {
-			sep = "-c"
-		}
-		return nil, nil, usedLegacy, fmt.Errorf("%s requires a command", sep)
-	}
-	return args[:idx], args[idx+1:], usedLegacy, nil
+	return args, nil, false, nil
 }
 
 // CLI is the top-level kong grammar.
@@ -341,8 +328,8 @@ type InternalAgentLoopCmd struct {
 
 // IsSubcommand returns true if the first non-flag argument matches a known
 // subcommand in the kong parser model, excluding the default command (run).
-// The default command uses -c as a passthrough separator, so SplitAtDashC
-// must still run for it.
+// The default command uses -- (or legacy -c) as a passthrough separator, so
+// ExtractRunPassthrough must still run for it.
 func IsSubcommand(parser *kong.Kong, args []string) bool {
 	if len(args) == 0 {
 		return false
