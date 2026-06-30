@@ -19,6 +19,10 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["GITHUB_TOKEN"] = ec.GhTokenValue
 	}
 
+	if ec.ContainerSockReady {
+		envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+	}
+
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
 	}

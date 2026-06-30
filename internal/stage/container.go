@@ -550,7 +550,7 @@ When you install a new tool or package, record it in the workspace so it persist
 		sections = append(sections, `## Docker / Podman (DooD)
 
 Container runtime socket is mounted at /run/container.sock.
-Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///run/container.sock
+DOCKER_HOST is pre-configured — docker/docker-compose commands work directly.
 
 - Use docker-compose / docker commands directly — do NOT try to install Docker or start a daemon
 - Containers created via docker-compose are sibling containers on the host`)
