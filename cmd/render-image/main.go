@@ -21,44 +21,48 @@ func main() {
 	allFlag := flag.Bool("all", false, "Render all tools (and all OS if --os all)")
 	flag.Parse()
 
-	if *allFlag {
-		if *outputFlag == "" {
-			*outputFlag = "build"
-		}
-		osList := profile.OSTemplateNames()
-		if *osFlag != "all" {
-			osList = []string{*osFlag}
-		}
-		for _, osName := range osList {
-			for _, tool := range toolinfo.Names() {
-				dir := filepath.Join(*outputFlag, tool+"-"+osName)
-				if err := renderContext(osName, tool, dir); err != nil {
-					fmt.Fprintf(os.Stderr, "Error rendering %s-%s: %v\n", tool, osName, err)
-					os.Exit(1)
-				}
-				fmt.Fprintf(os.Stderr, "Rendered: %s\n", dir)
-			}
-		}
-		return
-	}
-
-	if *toolFlag == "" {
-		fmt.Fprintln(os.Stderr, "Usage: render-image --tool <name> [--os <os>] [--output <dir>]")
+	tools := toolinfo.Names()
+	if !*allFlag && *toolFlag != "" {
+		tools = []string{*toolFlag}
+	} else if !*allFlag {
+		fmt.Fprintln(os.Stderr, "Usage: render-image --tool <name> [--os <os|all>] [--output <dir>]")
 		fmt.Fprintln(os.Stderr, "       render-image --all [--os <os|all>] [--output <dir>]")
 		fmt.Fprintf(os.Stderr, "Tools: %s\n", strings.Join(toolinfo.Names(), ", "))
 		fmt.Fprintf(os.Stderr, "OS:    %s, all\n", strings.Join(profile.OSTemplateNames(), ", "))
 		os.Exit(1)
 	}
 
-	if *outputFlag == "" {
-		*outputFlag = filepath.Join("build", *toolFlag+"-"+*osFlag)
+	osList := profile.OSTemplateNames()
+	if *osFlag != "all" {
+		osList = []string{*osFlag}
 	}
 
-	if err := renderContext(*osFlag, *toolFlag, *outputFlag); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	explicitOutput := *outputFlag != ""
+	if !explicitOutput {
+		*outputFlag = "build"
 	}
-	fmt.Fprintf(os.Stderr, "Rendered: %s\n", *outputFlag)
+
+	// When --output is explicitly set for a single tool+OS, write directly
+	// to that path (backwards-compatible with the old --tool behavior).
+	if explicitOutput && len(tools) == 1 && len(osList) == 1 {
+		if err := renderContext(osList[0], tools[0], *outputFlag); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Rendered: %s\n", *outputFlag)
+		return
+	}
+
+	for _, osName := range osList {
+		for _, tool := range tools {
+			dir := filepath.Join(*outputFlag, tool+"-"+osName)
+			if err := renderContext(osName, tool, dir); err != nil {
+				fmt.Fprintf(os.Stderr, "Error rendering %s-%s: %v\n", tool, osName, err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "Rendered: %s\n", dir)
+		}
+	}
 }
 
 func renderContext(osName, tool, outputDir string) error {
