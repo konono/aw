@@ -37,8 +37,20 @@ func main() {
 		osList = []string{*osFlag}
 	}
 
-	if *outputFlag == "" {
+	explicitOutput := *outputFlag != ""
+	if !explicitOutput {
 		*outputFlag = "build"
+	}
+
+	// When --output is explicitly set for a single tool+OS, write directly
+	// to that path (backwards-compatible with the old --tool behavior).
+	if explicitOutput && len(tools) == 1 && len(osList) == 1 {
+		if err := renderContext(osList[0], tools[0], *outputFlag); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Rendered: %s\n", *outputFlag)
+		return
 	}
 
 	for _, osName := range osList {
