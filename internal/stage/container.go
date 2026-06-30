@@ -356,6 +356,7 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 		hashInput += "\n" + bi.toolInstallScript
 		hashInput += "\n" + string(pkgMgr)
 		hashInput += "\n" + toolinfo.GhCLIVersion
+		hashInput += "\n" + toolinfo.MiseVersion
 	}
 	if bi.extraPackages != "" {
 		hashInput += "\n" + bi.extraPackages
@@ -382,6 +383,7 @@ func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi
 	buildArgs := map[string]string{}
 	if customDockerfile == "" {
 		buildArgs["AW_GH_VERSION"] = toolinfo.GhCLIVersion
+		buildArgs["AW_MISE_VERSION"] = toolinfo.MiseVersion
 	}
 	if bi.toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = bi.toolPkg

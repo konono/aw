@@ -15,6 +15,7 @@ ENV HOME="{{.Home}}" \
 
 ARG AW_TOOL_PKG=""
 ARG AW_GH_VERSION=""
+ARG AW_MISE_VERSION=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
 RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
@@ -27,7 +28,7 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
       rm -rf /var/lib/apt/lists/*; \
     fi && \
     if [ -n "$AW_GH_VERSION" ]; then \
-      ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; esac && \
+      ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1;; esac && \
       curl -fsSL "https://github.com/cli/cli/releases/download/v${AW_GH_VERSION}/gh_${AW_GH_VERSION}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && \
       mv /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
       rm -rf /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}; \
@@ -44,7 +45,7 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
     if [ -n "$AW_TOOL_PKG" ]; then \
       su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
     fi && \
-    su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
+    su -s /bin/bash {{.User}} -c "MISE_VERSION=v\$AW_MISE_VERSION curl -fsSL https://mise.jdx.dev/install.sh | sh" && \
     rm -rf /tmp/aw-build && \
     su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true' && \
     su -s /bin/bash {{.User}} -c '. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null && nix-collect-garbage -d 2>/dev/null || true' && \

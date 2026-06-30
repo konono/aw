@@ -20,7 +20,9 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 	}
 
 	if ec.ContainerSockReady {
-		envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+		if _, ok := envVars["DOCKER_HOST"]; !ok {
+			envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+		}
 	}
 
 	if ec.Profile.EffectiveSkipMiseInstall() {

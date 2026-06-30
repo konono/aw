@@ -172,7 +172,8 @@ func runContainerCommand(t *testing.T, runtime, imageName string, command ...str
 // toolBuildArgs returns the Docker build args for installing a tool.
 func toolBuildArgs(tool string, pkgMgr profile.PackageManager) map[string]string {
 	args := map[string]string{
-		"AW_GH_VERSION": toolinfo.GhCLIVersion,
+		"AW_GH_VERSION":  toolinfo.GhCLIVersion,
+		"AW_MISE_VERSION": toolinfo.MiseVersion,
 	}
 	if pkgMgr == profile.PackageManagerDevbox {
 		if pkg := toolinfo.DevboxPkg(tool); pkg != "" {

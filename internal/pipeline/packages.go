@@ -39,7 +39,9 @@ func CollectPackages(profilePkgs []string, workDirs ...string) []string {
 	}
 
 	for _, dir := range workDirs {
-		readPackagesFile(filepath.Join(dir, "packages.txt"))
+		if dir != "" {
+			readPackagesFile(filepath.Join(dir, "packages.txt"))
+		}
 	}
 
 	return result
