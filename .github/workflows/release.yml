@@ -43,7 +43,12 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [claude, codex, opencode, cursor]
+        os: [debian12, ubuntu2604, ubi9, ubi10]
     permissions:
       contents: read
       packages: write
@@ -66,8 +71,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Render build contexts
-        run: go run ./cmd/render-image --all --os all
+      - name: Render build context
+        run: go run ./cmd/render-image --tool ${{ matrix.tool }} --os ${{ matrix.os }}
 
       - name: Set version
         id: version
@@ -75,45 +80,41 @@ jobs:
         env:
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
 
-      - name: Build and push images
+      - name: Build and push image
         env:
           VERSION: ${{ steps.version.outputs.ver }}
+          TOOL: ${{ matrix.tool }}
+          OS: ${{ matrix.os }}
         run: |
-          for tool in claude codex opencode cursor; do
-            for os in debian12 ubuntu2604 ubi9 ubi10; do
-              ENV_FILE="build/${tool}-${os}/build-args.env"
-              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
-              GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-              MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-              if [ -z "$INSTALL_SCRIPT" ]; then
-                echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
-                exit 1
-              fi
-              docker buildx bake -f docker-bake.hcl "aw-${tool}-${os}" --push \
-                --set "aw-${tool}-${os}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
-                --set "aw-${tool}-${os}.args.AW_GH_VERSION=${GH_VERSION}" \
-                --set "aw-${tool}-${os}.args.AW_MISE_VERSION=${MISE_VERSION}"
-            done
-          done
+          ENV_FILE="build/${TOOL}-${OS}/build-args.env"
+          INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
+          GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          if [ -z "$INSTALL_SCRIPT" ]; then
+            echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${TOOL}-${OS}"
+            exit 1
+          fi
+          docker buildx bake -f docker-bake.hcl "aw-${TOOL}-${OS}" --push \
+            --set "aw-${TOOL}-${OS}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
+            --set "aw-${TOOL}-${OS}.args.AW_GH_VERSION=${GH_VERSION}" \
+            --set "aw-${TOOL}-${OS}.args.AW_MISE_VERSION=${MISE_VERSION}"
 
       - name: Create arch-specific tags
         env:
           VER: ${{ steps.version.outputs.ver }}
           REGISTRY: ghcr.io/konono
+          TOOL: ${{ matrix.tool }}
+          OS: ${{ matrix.os }}
         run: |
-          for tool in claude codex opencode cursor; do
-            for os in debian12 ubuntu2604 ubi9 ubi10; do
-              for arch in amd64 arm64; do
-                digest=$(docker buildx imagetools inspect \
-                  "${REGISTRY}/aw-${tool}:${VER}-${os}" \
-                  --format "{{range .Manifest.Manifests}}{{if eq .Platform.Architecture \"${arch}\"}}{{.Digest}}{{end}}{{end}}")
-                if [ -z "$digest" ]; then
-                  echo "::error::Failed to get ${arch} digest for aw-${tool}:${VER}-${os}"
-                  exit 1
-                fi
-                docker buildx imagetools create \
-                  --tag "${REGISTRY}/aw-${tool}:${VER}-${os}-${arch}" \
-                  "${REGISTRY}/aw-${tool}:${VER}-${os}@${digest}"
-              done
-            done
+          for arch in amd64 arm64; do
+            digest=$(docker buildx imagetools inspect \
+              "${REGISTRY}/aw-${TOOL}:${VER}-${OS}" \
+              --format "{{range .Manifest.Manifests}}{{if eq .Platform.Architecture \"${arch}\"}}{{.Digest}}{{end}}{{end}}")
+            if [ -z "$digest" ]; then
+              echo "::error::Failed to get ${arch} digest for aw-${TOOL}:${VER}-${OS}"
+              exit 1
+            fi
+            docker buildx imagetools create \
+              --tag "${REGISTRY}/aw-${TOOL}:${VER}-${OS}-${arch}" \
+              "${REGISTRY}/aw-${TOOL}:${VER}-${OS}@${digest}"
           done
