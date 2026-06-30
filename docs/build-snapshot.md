@@ -30,7 +30,7 @@ aw build dev --save image.tar
 |------|------|------|
 | ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
 | ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
-| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, グローバル mise.toml も含む |
+| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, workspace mise.toml |
 | ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
 
 ## イメージビルド（Dockerfile）

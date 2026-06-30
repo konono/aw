@@ -453,7 +453,7 @@ aw codex --cwd ~/src/my-project    # 指定ディレクトリで codex を起動
 ビルトインデフォルト → ~/.config/aw/config.yml → .aw.yml
 ```
 
-`~/.config/aw/` にはグローバル設定のほか、`mise.toml` や `devbox.json` を置くとコンテナイメージのビルド時に反映されます（`aw init` で雛形が生成されます）。プロジェクトルートに `.aw-env` ファイルを置くと、`KEY=VALUE` 形式でコンテナへの環境変数を追加できます（YAML 設定のマージとは別の仕組みで、プロファイルの `env:` より優先されます）。
+`~/.config/aw/` にはプロファイル設定を配置します（`aw init` で雛形が生成されます）。ツールやパッケージの追加はワークスペースの `mise.toml` や `packages.txt` で管理します。プロジェクトルートに `.aw-env` ファイルを置くと、`KEY=VALUE` 形式でコンテナへの環境変数を追加できます（YAML 設定のマージとは別の仕組みで、プロファイルの `env:` より優先されます）。
 
 ```yaml
 default: claude

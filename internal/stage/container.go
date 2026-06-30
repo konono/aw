@@ -379,8 +379,9 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 }
 
 func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi buildInputs) map[string]string {
-	buildArgs := map[string]string{
-		"AW_GH_VERSION": toolinfo.GhCLIVersion,
+	buildArgs := map[string]string{}
+	if customDockerfile == "" {
+		buildArgs["AW_GH_VERSION"] = toolinfo.GhCLIVersion
 	}
 	if bi.toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = bi.toolPkg
