@@ -6,6 +6,15 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.0.1](https://github.com/konono/aw/compare/v4.0.0...v4.0.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* correct MiseVersion to 2026.6.14 and fix test-pr120.sh ([534fdf5](https://github.com/konono/aw/commit/534fdf5e2588541fe68cbca4cea12b6f8f0486dd))
+* **release:** pass AW_GH_VERSION and AW_MISE_VERSION to image builds ([b231717](https://github.com/konono/aw/commit/b231717ec99f874d46ddcb614eb358fcb36b224e))
+* repair test-pr120.sh — arithmetic exit and GOBIN path ([4233262](https://github.com/konono/aw/commit/4233262d2caa832ca334edc3187421a15a28b9f8))
+
 ## [4.0.0](https://github.com/konono/aw/compare/v3.7.0...v4.0.0) (2026-06-30)
 
 
