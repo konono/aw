@@ -21,22 +21,27 @@ func exitCode(code int) error {
 	return ExitError{Code: code}
 }
 
-// PassthroughCmd holds the -c passthrough args split before kong sees them.
-type PassthroughCmd struct{ Args []string }
+// PassthroughCmd holds the passthrough args split before kong sees them.
+type PassthroughCmd struct {
+	Args       []string
+	UsedLegacy bool
+}
 
-// SplitAtDashC splits args at the first -c. Everything before -c goes to kong,
-// everything after becomes the passthrough command for container launch.
-// Returns an error if -c has no following arguments.
-func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string, err error) {
+// ExtractRunPassthrough splits args at the first "--" or legacy "-c",
+// whichever appears first. This preserves backward compatibility: when a
+// user writes "aw profile -c npm run -- build", the -c at position 1
+// wins and "npm run -- build" becomes the passthrough command intact.
+// Returns usedLegacy=true when "-c" was the separator.
+func ExtractRunPassthrough(args []string) (kongArgs, cmdArgs []string, usedLegacy bool, err error) {
 	for i, a := range args {
-		if a == "-c" {
-			if i+1 < len(args) {
-				return args[:i], args[i+1:], nil
+		if a == "--" || a == "-c" {
+			if i+1 >= len(args) {
+				return nil, nil, a == "-c", fmt.Errorf("%s requires a command", a)
 			}
-			return nil, nil, fmt.Errorf("-c requires a command")
+			return args[:i], args[i+1:], a == "-c", nil
 		}
 	}
-	return args, nil, nil
+	return args, nil, false, nil
 }
 
 // CLI is the top-level kong grammar.
@@ -315,8 +320,8 @@ type InternalAgentLoopCmd struct {
 
 // IsSubcommand returns true if the first non-flag argument matches a known
 // subcommand in the kong parser model, excluding the default command (run).
-// The default command uses -c as a passthrough separator, so SplitAtDashC
-// must still run for it.
+// The default command uses -- (or legacy -c) as a passthrough separator, so
+// ExtractRunPassthrough must still run for it.
 func IsSubcommand(parser *kong.Kong, args []string) bool {
 	if len(args) == 0 {
 		return false

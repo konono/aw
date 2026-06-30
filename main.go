@@ -33,20 +33,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Split -c passthrough only for the default run command.
+	// Split passthrough (-- or legacy -c) only for the default run command.
 	// When an explicit subcommand is used (e.g. "completion -c"),
-	// leave -c for kong to handle as a subcommand flag.
+	// leave args for kong to handle as subcommand flags.
 	kongArgs := args
 	var passthroughArgs []string
+	var usedLegacy bool
 	if !cmd.IsSubcommand(parser, args) {
 		var splitErr error
-		kongArgs, passthroughArgs, splitErr = cmd.SplitAtDashC(args)
+		kongArgs, passthroughArgs, usedLegacy, splitErr = cmd.ExtractRunPassthrough(args)
 		if splitErr != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", splitErr)
 			os.Exit(1)
 		}
 	}
-	pt := &cmd.PassthroughCmd{Args: passthroughArgs}
+	pt := &cmd.PassthroughCmd{Args: passthroughArgs, UsedLegacy: usedLegacy}
 
 	kongcompletion.Register(parser,
 		kongcompletion.WithPredictor("profile", completion.ProfilePredictor{}),

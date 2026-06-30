@@ -13,7 +13,7 @@
 |-------|---------|---------------|-----------------|
 | Unit | `go test ./...` | Build arg routing, hash calculation, template rendering, profile merge/validate | Real image build, entrypoint behavior |
 | Integration | `go test -tags integration` | Image build, tool --version via entrypoint, runtime install | Podman rootless, mounts, SSH, config.yml resolution |
-| Manual (aw -c) | `aw <profile> -c <cmd>` | Full pipeline: config → profile → build → mount → entrypoint → tool | — |
+| Manual (aw --) | `aw <profile> -- <cmd>` | Full pipeline: config → profile → build → mount → entrypoint → tool | — |
 
 ## When to run which tests
 
@@ -73,10 +73,10 @@ go test -v -tags integration -timeout 10m ./internal/image/ -run TestIntegration
 
 ### Mount, SSH, container socket, Podman rootless changes
 
-These are NOT covered by go test. Manual `aw -c` testing required:
+These are NOT covered by go test. Manual `aw --` testing required:
 
 ```bash
-aw test-debian12-claude -c claude --version
+aw test-debian12-claude -- claude --version
 ```
 
 ### Pre-release (full matrix)
@@ -85,15 +85,15 @@ aw test-debian12-claude -c claude --version
 go test ./...
 go test -v -tags integration -timeout 60m ./internal/image/
 
-# Manual: representative aw -c checks
-aw test-debian12-claude -c claude --version
-aw test-devbox-claude -c claude --version
+# Manual: representative aw -- checks
+aw test-debian12-claude -- claude --version
+aw test-devbox-claude -- claude --version
 podman images | grep aw-container
 ```
 
 ## Test profiles
 
-`.aw.yml` in the project root defines 13 test profiles (4 OS × 3 tools + 1 devbox) for `aw -c` manual testing. See `aw profiles` for the full list.
+`.aw.yml` in the project root defines 13 test profiles (4 OS × 3 tools + 1 devbox) for `aw -- <cmd>` manual testing. See `aw profiles` for the full list.
 
 # Architecture: Package Manager
 

@@ -91,7 +91,11 @@ func (r *RunCmd) Run(pt *PassthroughCmd) error {
 	ec.NoCache = r.NoCache
 
 	if len(ec.CommandOverride) > 0 && p.Environment == profile.EnvironmentHost {
-		return fmt.Errorf("-c flag is only supported with environment: container")
+		return fmt.Errorf("command passthrough is only supported with environment: container")
+	}
+
+	if pt.UsedLegacy && len(ec.CommandOverride) > 0 && os.Getenv("AW_NO_DEPRECATION") == "" {
+		fmt.Fprintln(os.Stderr, "Warning: '-c' is deprecated for command passthrough; use '--' instead (e.g. aw claude -- echo hello). Suppress with AW_NO_DEPRECATION=1.")
 	}
 
 	// Record directory history (use OrigWorkDir, not worktree path)

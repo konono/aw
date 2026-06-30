@@ -93,47 +93,87 @@ func joinArgs(args []string) string {
 	return s
 }
 
-func TestSplitAtDashC(t *testing.T) {
+func TestExtractRunPassthrough(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       []string
 		wantKong   []string
 		wantCmd    []string
+		wantLegacy bool
 		wantErr    bool
 	}{
 		{
-			name:     "no -c",
+			name:     "no separator",
 			args:     []string{"profile", "--recent"},
 			wantKong: []string{"profile", "--recent"},
 		},
 		{
-			name:     "with -c",
-			args:     []string{"host-shell", "-c", "echo", "hello"},
-			wantKong: []string{"host-shell"},
-			wantCmd:  []string{"echo", "hello"},
+			name:       "legacy -c",
+			args:       []string{"host-shell", "-c", "echo", "hello"},
+			wantKong:   []string{"host-shell"},
+			wantCmd:    []string{"echo", "hello"},
+			wantLegacy: true,
 		},
 		{
-			name:     "-c at start",
-			args:     []string{"-c", "cmd"},
-			wantCmd:  []string{"cmd"},
+			name:       "legacy -c at start",
+			args:       []string{"-c", "cmd"},
+			wantCmd:    []string{"cmd"},
+			wantLegacy: true,
 		},
 		{
 			name:    "-c with no args after",
 			args:    []string{"profile", "-c"},
 			wantErr: true,
 		},
+		{
+			name:     "double dash",
+			args:     []string{"profile", "--", "echo", "hello"},
+			wantKong: []string{"profile"},
+			wantCmd:  []string{"echo", "hello"},
+		},
+		{
+			name:    "double dash at start",
+			args:    []string{"--", "cmd"},
+			wantCmd: []string{"cmd"},
+		},
+		{
+			name:    "double dash with no args after",
+			args:    []string{"profile", "--"},
+			wantErr: true,
+		},
+		{
+			name:     "first separator wins: -- before -c",
+			args:     []string{"profile", "--", "-c", "echo"},
+			wantKong: []string{"profile"},
+			wantCmd:  []string{"-c", "echo"},
+		},
+		{
+			name:     "first separator wins: -- at start before -c",
+			args:     []string{"--", "echo", "-c", "hello"},
+			wantCmd:  []string{"echo", "-c", "hello"},
+		},
+		{
+			name:       "first separator wins: -c before --",
+			args:       []string{"profile", "-c", "npm", "run", "--", "build"},
+			wantKong:   []string{"profile"},
+			wantCmd:    []string{"npm", "run", "--", "build"},
+			wantLegacy: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kongArgs, cmdArgs, err := SplitAtDashC(tt.args)
+			kongArgs, cmdArgs, usedLegacy, err := ExtractRunPassthrough(tt.args)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("expected error for -c with no args")
+					t.Fatal("expected error")
 				}
 				return
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			if usedLegacy != tt.wantLegacy {
+				t.Errorf("usedLegacy = %v, want %v", usedLegacy, tt.wantLegacy)
 			}
 			if len(kongArgs) == 0 && len(tt.wantKong) == 0 {
 				// both nil/empty — ok

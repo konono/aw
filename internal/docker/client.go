@@ -286,7 +286,7 @@ func BuildDetachedRunArgs(containerName string, config RunConfig) []string {
 }
 
 // ExecRunForeground runs a container in the foreground (no detach+attach).
-// Use for one-shot commands passed via -c where the container exits quickly.
+// Use for one-shot commands passed via -- where the container exits quickly.
 // Unlike ExecRun, signals are not absorbed — SIGTERM/SIGHUP terminate the
 // process naturally, and the reaper handles container cleanup.
 func (c *ShellClient) ExecRunForeground(containerName string, config RunConfig, spawnReaper func() (*os.File, func(), error)) error {
