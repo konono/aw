@@ -1,0 +1,154 @@
+name: PR Preview Images
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'internal/image/**'
+      - 'internal/containerenv/**'
+      - 'internal/stage/**'
+      - 'internal/toolinfo/**'
+      - 'internal/pipeline/**'
+      - 'docker-bake.hcl'
+      - '.github/workflows/pr-preview-images.yml'
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  build-preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render build contexts
+        run: go run ./cmd/render-image --all --os all
+
+      - name: Build and push preview images
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REGISTRY: ghcr.io/konono
+        run: |
+          TAG="pr-${PR_NUMBER}"
+          for tool in claude; do
+            for os in debian12; do
+              IMAGE="${REGISTRY}/aw-${tool}:${TAG}-${os}"
+              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-${os}/build-args.env" | cut -d= -f2-)
+              if [ -z "$INSTALL_SCRIPT" ]; then
+                echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
+                exit 1
+              fi
+              echo "Building ${IMAGE}..."
+              docker buildx build \
+                --platform linux/arm64,linux/amd64 \
+                --build-arg "AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
+                --build-arg "AW_OCI_SOURCE=https://github.com/konono/aw" \
+                --build-arg "AW_OCI_VERSION=${TAG}" \
+                --build-arg "AW_OCI_OS=${os}" \
+                --build-arg "AW_OCI_TOOL=${tool}" \
+                --tag "${IMAGE}" \
+                --push \
+                "build/${tool}-${os}"
+            done
+          done
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = `pr-${{ github.event.pull_request.number }}`;
+            const body = [
+              '### 🐳 Preview images published',
+              '',
+              '```bash',
+              `# Pull and test:`,
+              `docker pull ghcr.io/konono/aw-claude:${tag}-debian12`,
+              '',
+              `# Or use with aw (set image in profile):`,
+              `#   image: ghcr.io/konono/aw-claude:${tag}-debian12`,
+              '```',
+              '',
+              `<sub>Built from ${context.sha.substring(0, 7)}</sub>`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+            });
+            const marker = '### 🐳 Preview images published';
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body,
+              });
+            }
+
+  cleanup-preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete preview images
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = ${{ github.event.pull_request.number }};
+            const exactTag = `pr-${pr}-debian12`;
+            const org = context.repo.owner;
+            for (const tool of ['claude']) {
+              const pkg = `aw-${tool}`;
+              try {
+                const { data: versions } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+                  package_type: 'container',
+                  package_name: pkg,
+                  username: org,
+                  per_page: 100,
+                });
+                for (const v of versions) {
+                  if (v.metadata?.container?.tags?.some(t => t === exactTag)) {
+                    console.log(`Deleting ${pkg}:${v.metadata.container.tags}`);
+                    await github.rest.packages.deletePackageVersionForUser({
+                      package_type: 'container',
+                      package_name: pkg,
+                      username: org,
+                      package_version_id: v.id,
+                    });
+                  }
+                }
+              } catch (e) {
+                console.log(`Cleanup for ${pkg}: ${e.message}`);
+              }
+            }
