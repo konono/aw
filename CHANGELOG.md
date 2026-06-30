@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.0.2](https://github.com/konono/aw/compare/v4.0.1...v4.0.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* add separate dir and sleep for test 5 to avoid container conflict ([2e415e2](https://github.com/konono/aw/commit/2e415e27b7ff7bfb43b5b1fa97c01091e1179ff7))
+
 ## [4.0.1](https://github.com/konono/aw/compare/v4.0.0...v4.0.1) (2026-06-30)
 
 
