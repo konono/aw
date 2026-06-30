@@ -2,6 +2,7 @@ name: PR Preview Images
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     paths:
       - 'internal/image/**'
       - 'internal/containerenv/**'
@@ -11,6 +12,10 @@ on:
       - 'docker-bake.hcl'
       - '.github/workflows/pr-preview-images.yml'
 
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -18,6 +23,7 @@ permissions:
 
 jobs:
   build-preview:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
@@ -46,11 +52,14 @@ jobs:
           REGISTRY: ghcr.io/konono
         run: |
           TAG="pr-${PR_NUMBER}"
-          # Build only claude + debian12 for preview (fast feedback)
           for tool in claude; do
             for os in debian12; do
               IMAGE="${REGISTRY}/aw-${tool}:${TAG}-${os}"
               INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "build/${tool}-${os}/build-args.env" | cut -d= -f2-)
+              if [ -z "$INSTALL_SCRIPT" ]; then
+                echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
+                exit 1
+              fi
               echo "Building ${IMAGE}..."
               docker buildx build \
                 --platform linux/arm64,linux/amd64 \
@@ -64,7 +73,6 @@ jobs:
                 "build/${tool}-${os}"
             done
           done
-          echo "preview_tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -85,7 +93,6 @@ jobs:
               `<sub>Built from ${context.sha.substring(0, 7)}</sub>`,
             ].join('\n');
 
-            // Find and update existing comment or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -118,9 +125,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const tag = `pr-${{ github.event.pull_request.number }}`;
+            const pr = ${{ github.event.pull_request.number }};
+            const exactTag = `pr-${pr}-debian12`;
             const org = context.repo.owner;
-            // List and delete matching package versions
             for (const tool of ['claude']) {
               const pkg = `aw-${tool}`;
               try {
@@ -131,7 +138,7 @@ jobs:
                   per_page: 100,
                 });
                 for (const v of versions) {
-                  if (v.metadata?.container?.tags?.some(t => t.startsWith(tag))) {
+                  if (v.metadata?.container?.tags?.some(t => t === exactTag)) {
                     console.log(`Deleting ${pkg}:${v.metadata.container.tags}`);
                     await github.rest.packages.deletePackageVersionForUser({
                       package_type: 'container',
