@@ -17,7 +17,6 @@ import (
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
 	"gopkg.in/yaml.v3"
@@ -164,7 +163,7 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 	if len(p.Packages) > 0 {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
+	if pkgs := pipeline.CollectPackages(nil); len(pkgs) > 0 {
 		return true
 	}
 	return false

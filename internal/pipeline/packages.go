@@ -8,12 +8,11 @@ import (
 	"github.com/konono/aw/internal/profile"
 )
 
-// CollectPackages reads packages.txt from the aw config directory and merges
-// with profile-level packages, deduplicating while preserving order.
-// configDir is the aw configuration directory (platform.ConfigDir()).
+// CollectPackages merges profile-level packages with workspace packages.txt
+// files, deduplicating while preserving order.
 // Optional workDirs specify workspace directories whose packages.txt files
-// are also merged (after global and profile packages).
-func CollectPackages(configDir string, profilePkgs []string, workDirs ...string) []string {
+// are also merged (after profile packages).
+func CollectPackages(profilePkgs []string, workDirs ...string) []string {
 	seen := make(map[string]bool)
 	var result []string
 	addPkg := func(pkg string) {
@@ -34,8 +33,6 @@ func CollectPackages(configDir string, profilePkgs []string, workDirs ...string)
 			}
 		}
 	}
-
-	readPackagesFile(filepath.Join(configDir, "packages.txt"))
 
 	for _, pkg := range profilePkgs {
 		addPkg(pkg)
