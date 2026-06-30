@@ -142,21 +142,22 @@ func TestExtractRunPassthrough(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:     "double dash wins over -c",
+			name:     "first separator wins: -- before -c",
 			args:     []string{"profile", "--", "-c", "echo"},
 			wantKong: []string{"profile"},
 			wantCmd:  []string{"-c", "echo"},
 		},
 		{
-			name:     "double dash before -c position",
+			name:     "first separator wins: -- at start before -c",
 			args:     []string{"--", "echo", "-c", "hello"},
 			wantCmd:  []string{"echo", "-c", "hello"},
 		},
 		{
-			name:     "-c before double dash splits at double dash",
-			args:     []string{"profile", "-c", "echo", "--", "cmd"},
-			wantKong: []string{"profile", "-c", "echo"},
-			wantCmd:  []string{"cmd"},
+			name:       "first separator wins: -c before --",
+			args:       []string{"profile", "-c", "npm", "run", "--", "build"},
+			wantKong:   []string{"profile"},
+			wantCmd:    []string{"npm", "run", "--", "build"},
+			wantLegacy: true,
 		},
 	}
 	for _, tt := range tests {

@@ -27,26 +27,18 @@ type PassthroughCmd struct {
 	UsedLegacy bool
 }
 
-// ExtractRunPassthrough splits args at "--" or legacy "-c".
-// "--" is preferred; "-c" is used only when "--" is absent.
+// ExtractRunPassthrough splits args at the first "--" or legacy "-c",
+// whichever appears first. This preserves backward compatibility: when a
+// user writes "aw profile -c npm run -- build", the -c at position 1
+// wins and "npm run -- build" becomes the passthrough command intact.
 // Returns usedLegacy=true when "-c" was the separator.
 func ExtractRunPassthrough(args []string) (kongArgs, cmdArgs []string, usedLegacy bool, err error) {
-	// First pass: look for "--" anywhere in args (always takes priority).
 	for i, a := range args {
-		if a == "--" {
+		if a == "--" || a == "-c" {
 			if i+1 >= len(args) {
-				return nil, nil, false, fmt.Errorf("-- requires a command")
+				return nil, nil, a == "-c", fmt.Errorf("%s requires a command", a)
 			}
-			return args[:i], args[i+1:], false, nil
-		}
-	}
-	// Second pass: fall back to legacy "-c" only when "--" is absent.
-	for i, a := range args {
-		if a == "-c" {
-			if i+1 >= len(args) {
-				return nil, nil, true, fmt.Errorf("-c requires a command")
-			}
-			return args[:i], args[i+1:], true, nil
+			return args[:i], args[i+1:], a == "-c", nil
 		}
 	}
 	return args, nil, false, nil

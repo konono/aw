@@ -147,7 +147,7 @@ func removeContainer(runtime, containerID string) {
 }
 
 // runContainerCommand runs a command through the image's entrypoint, just
-// like `aw <profile> -c <command...>` in production.
+// like `aw <profile> -- <command...>` in production.
 func runContainerCommand(t *testing.T, runtime, imageName string, command ...string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -243,7 +243,7 @@ echo RC_OK
 
 // TestIntegration_ToolPerOS verifies that each tool installs and runs on each
 // OS template. Uses runContainerCommand to test through the entrypoint, just
-// like `aw <profile> -c <tool> --version`.
+// like `aw <profile> -- <tool> --version`.
 //
 //	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_ToolPerOS
 func TestIntegration_ToolPerOS(t *testing.T) {
@@ -267,7 +267,7 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 				t.Logf("building %s on %s with args: %v", tool, osTemplate, buildArgs)
 				buildImage(t, runtime, imageName, buildDir, buildArgs)
 
-				// Test tool via entrypoint (like `aw <profile> -c <tool> --version`)
+				// Test tool via entrypoint (like `aw <profile> -- <tool> --version`)
 				out := runContainerCommand(t, runtime, imageName, tool, "--version")
 				if !strings.Contains(strings.ToLower(out), tool) {
 					t.Errorf("%s --version did not produce expected output on %s:\n%s", tool, osTemplate, out)
@@ -347,7 +347,7 @@ func TestIntegration_E2E(t *testing.T) {
 
 			buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude", profile.PackageManagerApt))
 
-			// Tool launch via entrypoint (like `aw claude -c claude --version`)
+			// Tool launch via entrypoint (like `aw claude -- claude --version`)
 			t.Run("tool_launch", func(t *testing.T) {
 				out := runContainerCommand(t, runtime, imageName, "claude", "--version")
 				if !strings.Contains(strings.ToLower(out), "claude") {
