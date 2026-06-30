@@ -30,7 +30,7 @@ aw build dev --save image.tar
 |------|------|------|
 | ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
 | ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
-| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, グローバル mise.toml も含む |
+| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, workspace mise.toml |
 | ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
 
 ## イメージビルド（Dockerfile）
@@ -46,12 +46,12 @@ debian:bookworm-slim
   │   ├── HOME=/home/agent
   │   ├── BASH_ENV=/home/agent/.aw_env.sh    ← 非インタラクティブシェルで自動読み込み
   │   └── PATH に .local/bin を追加
-  ├── ~/.config/aw/mise.toml のツールをインストール（ビルド時）
+  ├── gh CLI + mise バイナリをインストール（ビルド時、バージョン固定）
   ├── ENTRYPOINT ["/entrypoint.sh"]
   └── WORKDIR /workspace
 ```
 
-> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。`~/.config/aw/devbox.json` のパッケージもビルド時にインストールされます。
+> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。
 
 この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（build 時）です。
 

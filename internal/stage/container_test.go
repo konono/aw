@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -772,101 +771,10 @@ func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
 	}
 }
 
-func TestDockerStage_DevboxMode_CopiesDevboxJSON(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
-	}
-	configDir := filepath.Join(homeDir, ".config", "aw")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	devboxJSON := `{"packages":["hello@latest"]}`
-	if err := os.WriteFile(filepath.Join(configDir, "devbox.json"), []byte(devboxJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	dc := &mockDockerClient{available: true}
-	s := &DockerStage{
-		DockerClient: dc,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-	}
-
-	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment:    profile.EnvironmentContainer,
-			Launch:         profile.LaunchClaude,
-			PackageManager: profile.PackageManagerDevbox,
-		},
-		HomeDir: homeDir,
-		WorkDir: t.TempDir(),
-	}
-
-	if err := s.Run(context.Background(), ec); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	data, ok := dc.buildContextFiles["devbox.json"]
-	if !ok {
-		t.Fatal("devbox.json should be copied to build context")
-	}
-	if string(data) != devboxJSON {
-		t.Errorf("devbox.json content = %q, want %q", string(data), devboxJSON)
-	}
-}
-
-func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
-	}
-	configDir := filepath.Join(homeDir, ".config", "aw")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "devbox.json"), []byte(`{"packages":[]}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	dc := &mockDockerClient{available: true}
-	s := &DockerStage{
-		DockerClient: dc,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-	}
-
-	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-		},
-		HomeDir: homeDir,
-		WorkDir: t.TempDir(),
-	}
-
-	if err := s.Run(context.Background(), ec); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	if _, ok := dc.buildContextFiles["devbox.json"]; ok {
-		t.Error("devbox.json should not be copied to build context in apt mode")
-	}
-}
 
 func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
-	}
-	configDir := filepath.Join(homeDir, ".config", "aw")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ntree\n"), 0644); err != nil {
+	workDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("jq\ntree\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -882,8 +790,9 @@ func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
 			Environment: profile.EnvironmentContainer,
 			Launch:      profile.LaunchClaude,
 		},
-		HomeDir: homeDir,
-		WorkDir: t.TempDir(),
+		HomeDir:     t.TempDir(),
+		WorkDir:     workDir,
+		OrigWorkDir: workDir,
 	}
 
 	if err := s.Run(context.Background(), ec); err != nil {
@@ -1157,7 +1066,6 @@ func TestResolveOfficialImage_AutoLocalExists(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1189,7 +1097,6 @@ func TestResolveOfficialImage_AutoPullSuccess(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1221,7 +1128,6 @@ func TestResolveOfficialImage_AutoPullFail(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1253,7 +1159,6 @@ func TestResolveOfficialImage_BuildPolicy(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1286,7 +1191,6 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1310,38 +1214,6 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 	}
 }
 
-func TestResolveOfficialImage_MiseTomlWarnsButUsesOfficial(t *testing.T) {
-	tmpDir := t.TempDir()
-	dc := &mockDockerClient{available: true, imageExists: true}
-	setupToolConfig(t, tmpDir, "claude")
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "mise.toml"), []byte("[tools]\nnode = \"22\"\n"), 0o644); err != nil {
-		t.Fatalf("creating mise.toml: %v", err)
-	}
-
-	s := &DockerStage{
-		DockerClient: dc,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
-	}
-	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-		},
-		HomeDir: tmpDir,
-		WorkDir: tmpDir,
-	}
-
-	if err := s.Run(context.Background(), ec); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	if dc.buildCalled {
-		t.Error("mise.toml present: should use official image, not build")
-	}
-}
 
 func setupToolConfig(t *testing.T, homeDir, tool string) {
 	t.Helper()

@@ -17,7 +17,6 @@ import (
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
 	"gopkg.in/yaml.v3"
@@ -67,7 +66,7 @@ func (b *BuildCmd) Run() error {
 
 	if !hasBuildInputs(workDir, incl, envVars, p) {
 		if b.Apply {
-			return fmt.Errorf("no build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env); nothing to apply")
+			return b.applyOfficialImage(p, ec)
 		}
 		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
@@ -143,6 +142,41 @@ func (b *BuildCmd) Run() error {
 	return nil
 }
 
+func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionContext) error {
+	tool := p.EffectiveTool()
+	if tool == "" {
+		return fmt.Errorf("no build inputs found and no tool configured; nothing to apply")
+	}
+
+	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
+	runtime := p.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
+
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+	if err := client.Pull(context.Background(), imageName); err != nil {
+		return fmt.Errorf("pulling official image: %w", err)
+	}
+
+	targetFile := profile.FindProfileSource(b.ProfileName)
+	if targetFile == "" {
+		cfg, err := profile.Load()
+		if err == nil && cfg.Source.FilePath != "" {
+			targetFile = cfg.Source.FilePath
+		}
+	}
+	if targetFile == "" {
+		return fmt.Errorf("--apply requires a config file. Run `aw init` first")
+	}
+
+	pkgMgr := p.EffectivePackageManager()
+	if err := applyBuildResult(targetFile, b.ProfileName, imageName, pkgMgr, false); err != nil {
+		return fmt.Errorf("applying build result: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
+	return nil
+}
+
 var workspaceFileNames = []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"}
 
 func hasWorkspaceFiles(dir string) bool {
@@ -162,9 +196,6 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 		return true
 	}
 	if len(p.Packages) > 0 {
-		return true
-	}
-	if pkgs := pipeline.CollectPackages(platform.ConfigDir(), nil); len(pkgs) > 0 {
 		return true
 	}
 	return false

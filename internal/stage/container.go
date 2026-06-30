@@ -21,7 +21,6 @@ import (
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
@@ -38,14 +37,6 @@ type DockerStage struct {
 	DockerClient docker.Client
 	ConfigSyncer config.Syncer
 	MountBuilder mount.Builder
-	ConfigDir    string // override for platform.ConfigDir(); empty = default
-}
-
-func (s *DockerStage) configDir() string {
-	if s.ConfigDir != "" {
-		return s.ConfigDir
-	}
-	return platform.ConfigDir()
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
@@ -138,11 +129,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec, s.configDir()) {
-		if _, err := os.Stat(filepath.Join(s.configDir(), "mise.toml")); err == nil {
-			fmt.Fprintln(os.Stderr, "Warning: ~/.config/aw/mise.toml found but ignored by official image.")
-			fmt.Fprintln(os.Stderr, "  To use mise tools, set image_pull_policy: build or place mise.toml in your workspace.")
-		}
+	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -157,14 +144,14 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 
 // HasBuildCustomizations reports whether the profile has settings that require
 // building from template instead of using the official prebuilt image.
-func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
+func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
-		p.PackageManager == profile.PackageManagerDevbox || p.EffectiveGhToken() ||
+		p.PackageManager == profile.PackageManagerDevbox ||
 		(p.ContainerUser != "" && p.ContainerUser != "agent") {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(configDir, nil, ec.OrigWorkDir); len(pkgs) > 0 {
+	if pkgs := pipeline.CollectPackages(nil, ec.OrigWorkDir); len(pkgs) > 0 {
 		return true
 	}
 	return false
@@ -325,7 +312,6 @@ func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (ssh
 type buildInputs struct {
 	toolPkg           string
 	toolInstallScript string
-	ghInstallScript   string
 	extraPackages     string
 }
 
@@ -339,10 +325,7 @@ func resolveBuildInputs(customDockerfile string, tool string, pkgMgr profile.Pac
 	} else {
 		bi.toolInstallScript = toolinfo.InstallScript(tool)
 	}
-	if ec.Profile.EffectiveGhToken() {
-		bi.ghInstallScript = ghCLIInstallScript()
-	}
-	packages := pipeline.CollectPackages(platform.ConfigDir(), ec.Profile.Packages, ec.OrigWorkDir)
+	packages := pipeline.CollectPackages(ec.Profile.Packages, ec.OrigWorkDir)
 	if len(packages) > 0 {
 		bi.extraPackages = strings.Join(packages, " ")
 	}
@@ -369,22 +352,11 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 	hashInput += "\n" + cenv.User
 
 	if customDockerfile == "" {
-		userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
 		hashInput += "\n" + bi.toolPkg
 		hashInput += "\n" + bi.toolInstallScript
 		hashInput += "\n" + string(pkgMgr)
-		if miseData, err := os.ReadFile(userMiseToml); err == nil {
-			hashInput += "\n" + string(miseData)
-		}
-		if pkgMgr == profile.PackageManagerDevbox {
-			if devboxData, err := os.ReadFile(filepath.Join(platform.ConfigDir(), "devbox.json")); err == nil {
-				hashInput += "\n" + string(devboxData)
-			}
-		}
-	}
-
-	if bi.ghInstallScript != "" {
-		hashInput += "\n" + bi.ghInstallScript
+		hashInput += "\n" + toolinfo.GhCLIVersion
+		hashInput += "\n" + toolinfo.MiseVersion
 	}
 	if bi.extraPackages != "" {
 		hashInput += "\n" + bi.extraPackages
@@ -409,14 +381,15 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 
 func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi buildInputs) map[string]string {
 	buildArgs := map[string]string{}
+	if customDockerfile == "" {
+		buildArgs["AW_GH_VERSION"] = toolinfo.GhCLIVersion
+		buildArgs["AW_MISE_VERSION"] = toolinfo.MiseVersion
+	}
 	if bi.toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = bi.toolPkg
 	}
 	if bi.toolInstallScript != "" {
 		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = bi.toolInstallScript
-	}
-	if bi.ghInstallScript != "" {
-		buildArgs["AW_GH_INSTALL_SCRIPT"] = bi.ghInstallScript
 	}
 	if bi.extraPackages != "" && customDockerfile == "" {
 		buildArgs["AW_EXTRA_PACKAGES"] = bi.extraPackages
@@ -447,10 +420,6 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	if err := copyUserConfigs(buildDir, customDockerfile, pkgMgr); err != nil {
-		return "", err
-	}
-
 	caCertInBuildDir, err := copyCACert(buildDir, customDockerfile, ec)
 	if err != nil {
 		return "", err
@@ -476,26 +445,6 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	return imageName, nil
 }
 
-func copyUserConfigs(buildDir, customDockerfile string, pkgMgr profile.PackageManager) error {
-	if customDockerfile != "" {
-		return nil
-	}
-	userMiseToml := filepath.Join(platform.ConfigDir(), "mise.toml")
-	if pkgMgr == profile.PackageManagerDevbox {
-		userDevboxJSON := filepath.Join(platform.ConfigDir(), "devbox.json")
-		if data, err := os.ReadFile(userDevboxJSON); err == nil {
-			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), data, 0644); err != nil {
-				return fmt.Errorf("copying user devbox.json to build context: %w", err)
-			}
-		}
-	}
-	if data, err := os.ReadFile(userMiseToml); err == nil {
-		if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), data, 0644); err != nil {
-			return fmt.Errorf("copying user mise.toml to build context: %w", err)
-		}
-	}
-	return nil
-}
 
 func copyCACert(buildDir, customDockerfile string, ec *pipeline.ExecutionContext) (caCertInBuildDir string, err error) {
 	if ec.Profile.CACert == "" {
@@ -570,19 +519,28 @@ func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) 
 
 - npm: Node.js package manager. Use "npm install -g <pkg>" to install global packages
 - mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
-- Both are pre-installed and available in PATH`)
+- Both are pre-installed and available in PATH
+
+When you install a new tool or package, record it in the workspace so it persists across container rebuilds:
+- devbox packages: add via "devbox global add <pkg>" or edit devbox.json in the workspace root
+- mise tools: add to mise.toml (or .mise.toml) in the workspace root
+- apt/dnf system packages: add to packages.txt in the workspace root (one package per line)`)
 	} else {
 		sections = append(sections, `## Package Managers
 
 - mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
-- Pre-installed and available in PATH`)
+- Pre-installed and available in PATH
+
+When you install a new tool or package, record it in the workspace so it persists across container rebuilds:
+- mise tools: add to mise.toml (or .mise.toml) in the workspace root
+- apt/dnf system packages: add to packages.txt in the workspace root (one package per line)`)
 	}
 
 	if ec.ContainerSockReady {
 		sections = append(sections, `## Docker / Podman (DooD)
 
 Container runtime socket is mounted at /run/container.sock.
-Before running docker/docker-compose commands, set: export DOCKER_HOST=unix:///run/container.sock
+DOCKER_HOST is pre-configured — docker/docker-compose commands work directly.
 
 - Use docker-compose / docker commands directly — do NOT try to install Docker or start a daemon
 - Containers created via docker-compose are sibling containers on the host`)
@@ -719,11 +677,4 @@ func readKeychainPassword(service, account string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func ghCLIInstallScript() string {
-	return `GH_VER=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | awk -F'"' '/"tag_name"/{print $4}' | sed 's/^v//') && ` +
-		`ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; esac && ` +
-		`curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && ` +
-		`mv /tmp/gh_${GH_VER}_linux_${ARCH}/bin/gh /usr/local/bin/gh && ` +
-		`rm -rf /tmp/gh_${GH_VER}_linux_${ARCH}`
-}
 

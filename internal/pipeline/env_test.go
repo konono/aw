@@ -3,7 +3,6 @@ package pipeline
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/konono/aw/internal/containerenv"
@@ -55,23 +54,16 @@ func TestContainerEnvVars_AWPackages_FromProfile(t *testing.T) {
 	}
 }
 
-func TestContainerEnvVars_AWPackages_FromFile(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
-	}
-	configDir := filepath.Join(homeDir, ".config", "aw")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("curl\nwget\n"), 0644); err != nil {
+func TestContainerEnvVars_AWPackages_FromWorkspaceFile(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("curl\nwget\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	ec := &ExecutionContext{
 		Profile:      profile.Profile{},
-		HomeDir:      homeDir,
+		HomeDir:      t.TempDir(),
+		OrigWorkDir:  workDir,
 		ContainerEnv: containerenv.Default(),
 	}
 	envVars := ContainerEnvVars(ec, "claude")
@@ -94,13 +86,13 @@ func TestContainerEnvVars_AWPackages_NotSetWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestCollectPackages_FromFile(t *testing.T) {
-	configDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ntree\n# comment\n\ncurl\n"), 0644); err != nil {
+func TestCollectPackages_FromWorkspaceFile(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("jq\ntree\n# comment\n\ncurl\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	pkgs := CollectPackages(configDir, nil)
+	pkgs := CollectPackages(nil, workDir)
 	want := []string{"jq", "tree", "curl"}
 	if len(pkgs) != len(want) {
 		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
@@ -113,45 +105,27 @@ func TestCollectPackages_FromFile(t *testing.T) {
 }
 
 func TestCollectPackages_FromProfile(t *testing.T) {
-	pkgs := CollectPackages(t.TempDir(), []string{"jq", "tree"})
+	pkgs := CollectPackages([]string{"jq", "tree"})
 	if len(pkgs) != 2 || pkgs[0] != "jq" || pkgs[1] != "tree" {
 		t.Errorf("CollectPackages() = %v, want [jq tree]", pkgs)
 	}
 }
 
-func TestCollectPackages_MergedAndDeduped(t *testing.T) {
-	configDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\ncurl\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	pkgs := CollectPackages(configDir, []string{"curl", "tree"})
-	want := []string{"jq", "curl", "tree"}
-	if len(pkgs) != len(want) {
-		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
-	}
-	for i, p := range pkgs {
-		if p != want[i] {
-			t.Errorf("CollectPackages()[%d] = %q, want %q", i, p, want[i])
-		}
-	}
-}
-
 func TestCollectPackages_NoFileNoProfile(t *testing.T) {
-	pkgs := CollectPackages(t.TempDir(), nil)
+	pkgs := CollectPackages(nil)
 	if len(pkgs) != 0 {
 		t.Errorf("CollectPackages() = %v, want empty", pkgs)
 	}
 }
 
 func TestCollectPackages_FiltersInvalidNames(t *testing.T) {
-	configDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(configDir, "packages.txt"), []byte("jq\n$(evil)\nvalid-pkg\n"), 0644); err != nil {
+	workDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("jq\n$(evil)\nvalid-pkg\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	pkgs := CollectPackages(configDir, []string{"good", "rm -rf /", "ok"})
-	want := []string{"jq", "valid-pkg", "good", "ok"}
+	pkgs := CollectPackages([]string{"good", "rm -rf /", "ok"}, workDir)
+	want := []string{"good", "ok", "jq", "valid-pkg"}
 	if len(pkgs) != len(want) {
 		t.Fatalf("CollectPackages() = %v, want %v", pkgs, want)
 	}

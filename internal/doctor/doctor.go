@@ -13,7 +13,6 @@ import (
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
@@ -471,7 +470,6 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 	checked := map[string]bool{}
 	var checks []imageCheck
 
-	configDir := platform.ConfigDir()
 	for name, p := range cfg.Profiles {
 		if p.Environment != profile.EnvironmentContainer {
 			continue
@@ -500,7 +498,7 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 		checked[key] = true
 
 		ec := &pipeline.ExecutionContext{Profile: p}
-		if stage.HasBuildCustomizations(ec, configDir) {
+		if stage.HasBuildCustomizations(ec) {
 			if verbose {
 				res.detail(fmt.Sprintf("%s: has build customizations, will build from template", tool))
 			}

@@ -14,7 +14,8 @@ ENV HOME="{{.Home}}" \
     PATH="{{.Home}}/.local/bin:${PATH}"
 
 ARG AW_TOOL_INSTALL_SCRIPT=""
-ARG AW_GH_INSTALL_SCRIPT=""
+ARG AW_GH_VERSION=""
+ARG AW_MISE_VERSION=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
 RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
@@ -26,19 +27,19 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
       apt-get update && apt-get install -y --no-install-recommends "$@" && \
       rm -rf /var/lib/apt/lists/*; \
     fi && \
-    if [ -n "$AW_GH_INSTALL_SCRIPT" ]; then \
-      bash -c "$AW_GH_INSTALL_SCRIPT"; \
+    if [ -n "$AW_GH_VERSION" ]; then \
+      ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1;; esac && \
+      curl -fsSL "https://github.com/cli/cli/releases/download/v${AW_GH_VERSION}/gh_${AW_GH_VERSION}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && \
+      mv /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
+      rm -rf /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}; \
     fi && \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
       su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
     fi && \
-    if [ -f /tmp/aw-build/mise.toml ]; then \
-      su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
-      mkdir -p {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      cp /tmp/aw-build/mise.toml {{.Home}}/.config/mise/config.toml && \
-      chown -R {{.User}}:0 {{.Home}}/.config/mise {{.Home}}/.local/share && \
-      su -s /bin/bash {{.User}} -c 'export MISE_YES=1 && {{.Home}}/.local/bin/mise install && {{.Home}}/.local/bin/mise ls 2>/dev/null | awk "\$2 ~ /^[0-9]/ {print \$1\"@\"\$2}" | xargs -r {{.Home}}/.local/bin/mise use -g'; \
-    fi && rm -rf /tmp/aw-build && \
+    if [ -n "$AW_MISE_VERSION" ]; then \
+      su -s /bin/bash {{.User}} -c "MISE_VERSION=v\$AW_MISE_VERSION curl -fsSL https://mise.jdx.dev/install.sh | sh"; \
+    fi && \
+    rm -rf /tmp/aw-build && \
     chgrp -R 0 {{.Home}} && chmod -R g=u {{.Home}} && chmod g=u /etc/passwd
 
 COPY aw-init.sh /aw-init.sh

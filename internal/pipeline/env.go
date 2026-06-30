@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/konono/aw/internal/mount"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 )
 
@@ -20,6 +19,12 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["GITHUB_TOKEN"] = ec.GhTokenValue
 	}
 
+	if ec.ContainerSockReady {
+		if _, ok := envVars["DOCKER_HOST"]; !ok {
+			envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+		}
+	}
+
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
 	}
@@ -28,7 +33,7 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
 	}
 
-	if pkgs := CollectPackages(platform.ConfigDir(), ec.Profile.Packages, ec.OrigWorkDir); len(pkgs) > 0 {
+	if pkgs := CollectPackages(ec.Profile.Packages, ec.OrigWorkDir); len(pkgs) > 0 {
 		envVars["AW_PACKAGES"] = strings.Join(pkgs, ",")
 	}
 

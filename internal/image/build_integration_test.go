@@ -171,7 +171,10 @@ func runContainerCommand(t *testing.T, runtime, imageName string, command ...str
 
 // toolBuildArgs returns the Docker build args for installing a tool.
 func toolBuildArgs(tool string, pkgMgr profile.PackageManager) map[string]string {
-	args := map[string]string{}
+	args := map[string]string{
+		"AW_GH_VERSION":  toolinfo.GhCLIVersion,
+		"AW_MISE_VERSION": toolinfo.MiseVersion,
+	}
 	if pkgMgr == profile.PackageManagerDevbox {
 		if pkg := toolinfo.DevboxPkg(tool); pkg != "" {
 			args["AW_TOOL_PKG"] = pkg
@@ -321,7 +324,8 @@ func TestIntegration_Smoke(t *testing.T) {
 }
 
 // TestIntegration_E2E replicates the real `aw <tool>` flow: build an image with
-// mise.toml and a tool package, then launch the tool through entrypoint.sh.
+// a tool package, then launch the tool through entrypoint.sh and verify runtime
+// mise install works.
 //
 //	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E
 func TestIntegration_E2E(t *testing.T) {
@@ -340,11 +344,6 @@ func TestIntegration_E2E(t *testing.T) {
 			}
 			defer cleanup()
 
-			miseToml := []byte("[tools]\njq = \"latest\"\n")
-			if err := os.WriteFile(filepath.Join(buildDir, "mise.toml"), miseToml, 0644); err != nil {
-				t.Fatalf("writing mise.toml: %v", err)
-			}
-
 			buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude", profile.PackageManagerApt))
 
 			// Tool launch via entrypoint (like `aw claude -- claude --version`)
@@ -355,15 +354,7 @@ func TestIntegration_E2E(t *testing.T) {
 				}
 			})
 
-			// mise.toml tool via entrypoint
-			t.Run("mise_tool", func(t *testing.T) {
-				out := runContainerCommand(t, runtime, imageName, "jq", "--version")
-				if !strings.Contains(out, "jq") {
-					t.Errorf("jq --version (mise.toml) failed:\n%s", out)
-				}
-			})
-
-			// Runtime tool install via mise
+			// Runtime tool install via mise (mise binary is pre-installed in image)
 			t.Run("runtime_install", func(t *testing.T) {
 				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
 				t.Cleanup(func() { removeContainer(runtime, containerID) })

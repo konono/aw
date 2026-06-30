@@ -21,7 +21,7 @@ aw container ──mount──> host/VM container socket
 
 ### 1. devbox.json を配置
 
-`~/.config/aw/devbox.json` にコンテナ内で使うツールを定義します。このファイルはイメージビルド時に自動的にインストールされます。
+ワークスペースルートに `devbox.json` を配置してコンテナ内で使うツールを定義します。エントリポイントで自動的にインストールされます。
 
 ```json
 {
