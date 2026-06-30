@@ -14,6 +14,7 @@ ENV HOME="{{.Home}}" \
     PATH="{{.Home}}/.nix-profile/bin:{{.Home}}/.local/bin:${PATH}"
 
 ARG AW_TOOL_PKG=""
+ARG AW_GH_VERSION=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
 RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
@@ -25,11 +26,10 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
       apt-get update && apt-get install -y --no-install-recommends "$@" && \
       rm -rf /var/lib/apt/lists/*; \
     fi && \
-    GH_VER=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | awk -F'"' '/"tag_name"/{print $4}' | sed 's/^v//') && \
     ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; esac && \
-    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && \
-    mv /tmp/gh_${GH_VER}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
-    rm -rf /tmp/gh_${GH_VER}_linux_${ARCH} && \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${AW_GH_VERSION}/gh_${AW_GH_VERSION}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && \
+    mv /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
+    rm -rf /tmp/gh_${AW_GH_VERSION}_linux_${ARCH} && \
     mkdir -p /nix && chown {{.User}}:0 /nix && chmod g=u /nix && \
     mkdir -p {{.Home}}/.config/nix && \
     printf 'sandbox = false\nfilter-syscalls = false\n' > {{.Home}}/.config/nix/nix.conf && \

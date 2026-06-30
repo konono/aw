@@ -71,12 +71,11 @@ profiles:
 - `build_env:` でビルド引数が設定されている
 - `ca_cert:` で CA 証明書が設定されている
 - `package_manager: devbox` が設定されている
-- `gh_token: true` が設定されている（gh CLI がインストールされるため）
 - `container_user:` が `agent` 以外に設定されている
-- グローバル `~/.config/aw/packages.txt` にパッケージがある
+- ワークスペースの `packages.txt` にパッケージがある
 - `image_pull_policy: build` が設定されている
 
-> **Note:** `~/.config/aw/mise.toml` が存在する場合、公式イメージは引き続き使用されますが warning が表示されます。mise ツールを使いたい場合は `image_pull_policy: build` を設定するか、mise.toml をワークスペースに配置してください（ワークスペースの mise.toml はエントリポイントで自動インストールされます）。
+> **Note:** `gh_token: true` はカスタムビルドのトリガーにはなりません。gh CLI は公式イメージを含む全イメージにプリインストールされています。`gh_token` は実行時の `GITHUB_TOKEN` 環境変数注入のみを制御します。
 
 ## カスタマイズが必要な場合
 

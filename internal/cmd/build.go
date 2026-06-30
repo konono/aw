@@ -163,9 +163,6 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 	if len(p.Packages) > 0 {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(nil); len(pkgs) > 0 {
-		return true
-	}
 	return false
 }
 

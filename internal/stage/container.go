@@ -21,7 +21,6 @@ import (
 	"github.com/konono/aw/internal/mount"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/sshagent"
 	"github.com/konono/aw/internal/toolinfo"
@@ -38,14 +37,6 @@ type DockerStage struct {
 	DockerClient docker.Client
 	ConfigSyncer config.Syncer
 	MountBuilder mount.Builder
-	ConfigDir    string // override for platform.ConfigDir(); empty = default
-}
-
-func (s *DockerStage) configDir() string {
-	if s.ConfigDir != "" {
-		return s.ConfigDir
-	}
-	return platform.ConfigDir()
 }
 
 // NewDockerStage creates a DockerStage with default implementations.
@@ -138,7 +129,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		return imageName, nil
 	}
 
-	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec, s.configDir()) {
+	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -153,7 +144,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 
 // HasBuildCustomizations reports whether the profile has settings that require
 // building from template instead of using the official prebuilt image.
-func HasBuildCustomizations(ec *pipeline.ExecutionContext, configDir string) bool {
+func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox ||
@@ -364,6 +355,7 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 		hashInput += "\n" + bi.toolPkg
 		hashInput += "\n" + bi.toolInstallScript
 		hashInput += "\n" + string(pkgMgr)
+		hashInput += "\n" + toolinfo.GhCLIVersion
 	}
 	if bi.extraPackages != "" {
 		hashInput += "\n" + bi.extraPackages
@@ -387,7 +379,9 @@ func computeImageTag(buildDir, dockerfilePath, customDockerfile string, ec *pipe
 }
 
 func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi buildInputs) map[string]string {
-	buildArgs := map[string]string{}
+	buildArgs := map[string]string{
+		"AW_GH_VERSION": toolinfo.GhCLIVersion,
+	}
 	if bi.toolPkg != "" {
 		buildArgs["AW_TOOL_PKG"] = bi.toolPkg
 	}
@@ -423,10 +417,6 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	}
 	defer cleanup()
 
-	if err := copyUserConfigs(buildDir, customDockerfile, pkgMgr); err != nil {
-		return "", err
-	}
-
 	caCertInBuildDir, err := copyCACert(buildDir, customDockerfile, ec)
 	if err != nil {
 		return "", err
@@ -452,9 +442,6 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 	return imageName, nil
 }
 
-func copyUserConfigs(buildDir, customDockerfile string, pkgMgr profile.PackageManager) error {
-	return nil
-}
 
 func copyCACert(buildDir, customDockerfile string, ec *pipeline.ExecutionContext) (caCertInBuildDir string, err error) {
 	if ec.Profile.CACert == "" {

@@ -46,12 +46,12 @@ debian:bookworm-slim
   │   ├── HOME=/home/agent
   │   ├── BASH_ENV=/home/agent/.aw_env.sh    ← 非インタラクティブシェルで自動読み込み
   │   └── PATH に .local/bin を追加
-  ├── ~/.config/aw/mise.toml のツールをインストール（ビルド時）
+  ├── gh CLI をインストール（ビルド時）
   ├── ENTRYPOINT ["/entrypoint.sh"]
   └── WORKDIR /workspace
 ```
 
-> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。`~/.config/aw/devbox.json` のパッケージもビルド時にインストールされます。
+> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。
 
 この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（build 時）です。
 

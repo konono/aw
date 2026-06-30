@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -773,45 +772,6 @@ func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
 }
 
 
-func TestDockerStage_AptMode_NoDevboxJSON(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	if runtime.GOOS == "windows" {
-		t.Setenv("APPDATA", filepath.Join(homeDir, ".config"))
-	}
-	configDir := filepath.Join(homeDir, ".config", "aw")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "devbox.json"), []byte(`{"packages":[]}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	dc := &mockDockerClient{available: true}
-	s := &DockerStage{
-		DockerClient: dc,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-	}
-
-	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-		},
-		HomeDir: homeDir,
-		WorkDir: t.TempDir(),
-	}
-
-	if err := s.Run(context.Background(), ec); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	if _, ok := dc.buildContextFiles["devbox.json"]; ok {
-		t.Error("devbox.json should not be copied to build context in apt mode")
-	}
-}
-
 func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
 	workDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("jq\ntree\n"), 0644); err != nil {
@@ -1106,7 +1066,6 @@ func TestResolveOfficialImage_AutoLocalExists(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1138,7 +1097,6 @@ func TestResolveOfficialImage_AutoPullSuccess(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1170,7 +1128,6 @@ func TestResolveOfficialImage_AutoPullFail(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1202,7 +1159,6 @@ func TestResolveOfficialImage_BuildPolicy(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
@@ -1235,7 +1191,6 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 		DockerClient: dc,
 		ConfigSyncer: &mockConfigSyncer{},
 		MountBuilder: &mockMountBuilder{},
-		ConfigDir:    tmpDir,
 	}
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
