@@ -44,6 +44,7 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
     if [ -n "$AW_TOOL_PKG" ]; then \
       su -s /bin/bash {{.User}} -c "$DEVBOX_SHELLENV; devbox global add $AW_TOOL_PKG"; \
     fi && \
+    su -s /bin/bash {{.User}} -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh' && \
     rm -rf /tmp/aw-build && \
     su -s /bin/bash {{.User}} -c 'export HOME={{.Home}} && . {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null; devbox global shellenv 2>/dev/null | grep "^export " > {{.Home}}/.devbox_global_env || true' && \
     su -s /bin/bash {{.User}} -c '. {{.Home}}/.nix-profile/etc/profile.d/nix.sh 2>/dev/null && nix-collect-garbage -d 2>/dev/null || true' && \

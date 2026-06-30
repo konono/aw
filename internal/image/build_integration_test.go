@@ -352,6 +352,20 @@ func TestIntegration_E2E(t *testing.T) {
 					t.Errorf("claude --version did not produce expected output:\n%s", out)
 				}
 			})
+
+			// Runtime tool install via mise (mise binary is pre-installed in image)
+			t.Run("runtime_install", func(t *testing.T) {
+				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
+				t.Cleanup(func() { removeContainer(runtime, containerID) })
+
+				execInContainer(t, runtime, containerID, "bash", "-lc",
+					"MISE_YES=1 mise install fd@latest && mise use -g fd@latest")
+				out := execInContainer(t, runtime, containerID, "bash", "-lc",
+					"fd --version")
+				if !strings.Contains(out, "fd") {
+					t.Errorf("fd --version after runtime mise install failed:\n%s", out)
+				}
+			})
 		})
 	}
 }
