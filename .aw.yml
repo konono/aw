@@ -1,4 +1,4 @@
-# aw test profiles — used by `aw -c` manual testing
+# aw test profiles — used by `aw -- <cmd>` manual testing
 # These profiles verify tool installation across all OS templates and package managers.
 
 profiles:

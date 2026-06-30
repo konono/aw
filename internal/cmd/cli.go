@@ -21,22 +21,48 @@ func exitCode(code int) error {
 	return ExitError{Code: code}
 }
 
-// PassthroughCmd holds the -c passthrough args split before kong sees them.
-type PassthroughCmd struct{ Args []string }
+// PassthroughCmd holds the passthrough args split before kong sees them.
+type PassthroughCmd struct {
+	Args       []string
+	UsedLegacy bool
+}
 
-// SplitAtDashC splits args at the first -c. Everything before -c goes to kong,
-// everything after becomes the passthrough command for container launch.
-// Returns an error if -c has no following arguments.
-func SplitAtDashC(args []string) (kongArgs []string, cmdArgs []string, err error) {
+// ExtractRunPassthrough splits args at "--" or legacy "-c".
+// "--" is preferred; "-c" is used only when "--" is absent.
+// Returns usedLegacy=true when "-c" was the separator.
+func ExtractRunPassthrough(args []string) (kongArgs, cmdArgs []string, usedLegacy bool, err error) {
+	dashDashIdx := -1
+	dashCIdx := -1
 	for i, a := range args {
-		if a == "-c" {
-			if i+1 < len(args) {
-				return args[:i], args[i+1:], nil
-			}
-			return nil, nil, fmt.Errorf("-c requires a command")
+		if a == "--" && dashDashIdx < 0 {
+			dashDashIdx = i
+			break
+		}
+		if a == "-c" && dashCIdx < 0 {
+			dashCIdx = i
 		}
 	}
-	return args, nil, nil
+
+	idx := -1
+	if dashDashIdx >= 0 {
+		idx = dashDashIdx
+		usedLegacy = false
+	} else if dashCIdx >= 0 {
+		idx = dashCIdx
+		usedLegacy = true
+	}
+
+	if idx < 0 {
+		return args, nil, false, nil
+	}
+	if idx+1 >= len(args) {
+		sep := "--"
+		if usedLegacy {
+			sep = "-c"
+		}
+		return nil, nil, usedLegacy, fmt.Errorf("%s requires a command", sep)
+	}
+	return args[:idx], args[idx+1:], usedLegacy, nil
 }
 
 // CLI is the top-level kong grammar.
