@@ -6,6 +6,17 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.0.0](https://github.com/konono/aw/compare/v3.7.0...v4.0.0) (2026-06-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **image:** ~/.config/aw/mise.toml, ~/.config/aw/devbox.json, and ~/.config/aw/packages.txt are no longer read. Migrate to workspace files (mise.toml, devbox.json, packages.txt) or profile settings (packages field). `aw init` no longer generates mise.toml or devbox.json templates.
+
+### Features
+
+* **image:** remove user-level config files and bundle gh CLI in all images ([#120](https://github.com/konono/aw/issues/120)) ([05029ff](https://github.com/konono/aw/commit/05029ff2f1b7593ec13f79215d49b11d22dcbb06))
+
 ## [3.7.0](https://github.com/konono/aw/compare/v3.6.0...v3.7.0) (2026-06-30)
 
 
