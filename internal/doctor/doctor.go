@@ -16,6 +16,7 @@ import (
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/reaper"
 	"github.com/konono/aw/internal/stage"
+	"github.com/konono/aw/internal/toolinfo"
 	"github.com/konono/aw/internal/version"
 )
 
@@ -474,10 +475,7 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 		if p.Environment != profile.EnvironmentContainer {
 			continue
 		}
-		tool := p.EffectiveTool()
-		if tool == "" {
-			tool = "base"
-		}
+		tool := toolinfo.ImageTool(p.EffectiveTool())
 		if p.Image != "" || p.Dockerfile != "" {
 			if verbose {
 				res.detail(fmt.Sprintf("%s (%s): uses custom image/dockerfile", name, tool))

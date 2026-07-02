@@ -2,7 +2,10 @@
 # These profiles verify tool installation across all OS templates and package managers.
 
 profiles:
-  # ── apt mode (default): 4 OS × 3 tools ─────────────────────────
+  # ── apt mode (default): 4 OS × 4 tools + shell ──────────────────
+  test-debian12-shell:
+    os: debian12
+    launch: shell
   test-debian12-claude:
     os: debian12
     launch: claude

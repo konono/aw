@@ -170,10 +170,7 @@ func (s *DockerStage) resolveOfficialImage(ctx context.Context, ec *pipeline.Exe
 		return "", nil
 	}
 
-	tool := ec.Profile.EffectiveTool()
-	if tool == "" {
-		tool = "base"
-	}
+	tool := toolinfo.ImageTool(ec.Profile.EffectiveTool())
 
 	imageName := OfficialImageName(tool, ec.Profile.EffectiveOS())
 

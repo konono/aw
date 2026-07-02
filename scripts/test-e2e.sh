@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Modes:"
       echo "  --quick        (default) Image check + debian12 tool launch + core tests"
-      echo "  --full         Image check + all 16 profiles launch + core tests"
+      echo "  --full         Image check + all tool profiles launch + core tests"
       echo "  --images-only  GHCR image existence check only (no container launch)"
       echo ""
       echo "Options:"
