@@ -20,6 +20,9 @@ type ToolSpec struct {
 }
 
 var tools = map[string]ToolSpec{
+	"base": {
+		DisplayName: "Base",
+	},
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",

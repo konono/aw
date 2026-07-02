@@ -476,7 +476,7 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 		}
 		tool := p.EffectiveTool()
 		if tool == "" {
-			continue
+			tool = "base"
 		}
 		if p.Image != "" || p.Dockerfile != "" {
 			if verbose {

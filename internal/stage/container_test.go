@@ -1215,6 +1215,66 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 }
 
 
+func TestResolveOfficialImage_ShellUsesBase(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: true}
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if dc.pullCalled {
+		t.Error("shell + base local exists: Pull should not be called")
+	}
+	if dc.buildCalled {
+		t.Error("shell + base local exists: Build should not be called")
+	}
+}
+
+func TestResolveOfficialImage_ShellPullSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: false, pullSucceeds: true}
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if !dc.pullCalled {
+		t.Error("shell + not local: Pull should be called")
+	}
+	if dc.buildCalled {
+		t.Error("shell + pull success: Build should not be called")
+	}
+}
+
 func setupToolConfig(t *testing.T, homeDir, tool string) {
 	t.Helper()
 	toolDir := filepath.Join(homeDir, ".agent-workspace", tool)

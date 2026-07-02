@@ -27,7 +27,7 @@ fail() { echo -e "  ${RED}FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
 warn() { echo -e "  ${YELLOW}WARN${NC}: $1"; WARN=$((WARN + 1)); }
 section() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 
-TOOLS=(claude codex opencode cursor)
+TOOLS=(base claude codex opencode cursor)
 OSES=(debian12 ubuntu2604 ubi9 ubi10)
 REGISTRY="ghcr.io/konono"
 
@@ -170,18 +170,21 @@ fi
 # 2. ツール起動テスト
 # ====================================================================
 
+LAUNCH_TOOLS=()
+for t in "${TOOLS[@]}"; do [ "$t" != "base" ] && LAUNCH_TOOLS+=("$t"); done
+
 if [ "$MODE" = "full" ]; then
   TEST_OSES=("${OSES[@]}")
-  section "2. ツール起動テスト (full: ${#TOOLS[@]} tools × ${#TEST_OSES[@]} OS)"
+  section "2. ツール起動テスト (full: ${#LAUNCH_TOOLS[@]} tools × ${#TEST_OSES[@]} OS)"
 else
   TEST_OSES=(debian12)
-  section "2. ツール起動テスト (quick: ${#TOOLS[@]} tools × debian12)"
+  section "2. ツール起動テスト (quick: ${#LAUNCH_TOOLS[@]} tools × debian12)"
 fi
 
 cd "$REPO_ROOT"
 
 for os in "${TEST_OSES[@]}"; do
-  for tool in "${TOOLS[@]}"; do
+  for tool in "${LAUNCH_TOOLS[@]}"; do
     profile="test-${os}-${tool}"
     vcmd=$(tool_version_cmd "$tool")
     pattern=$(tool_version_pattern "$tool")

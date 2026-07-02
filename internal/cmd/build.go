@@ -145,7 +145,7 @@ func (b *BuildCmd) Run() error {
 func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionContext) error {
 	tool := p.EffectiveTool()
 	if tool == "" {
-		return fmt.Errorf("no build inputs found and no tool configured; nothing to apply")
+		tool = "base"
 	}
 
 	imageName := stage.OfficialImageName(tool, p.EffectiveOS())

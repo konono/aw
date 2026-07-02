@@ -30,6 +30,9 @@ type ToolPredictor struct{}
 func (t ToolPredictor) Predict(args complete.Args) []string {
 	seen := make(map[string]bool)
 	for _, name := range toolinfo.Names() {
+		if name == "base" {
+			continue
+		}
 		seen[name] = true
 	}
 	cfg, err := profile.LoadQuiet()

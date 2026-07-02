@@ -16,7 +16,7 @@ import (
 
 func main() {
 	osFlag := flag.String("os", "debian12", "OS template (debian12, ubi9, ubi10, ubuntu2604, or 'all')")
-	toolFlag := flag.String("tool", "", "Tool name (claude, codex, opencode, cursor)")
+	toolFlag := flag.String("tool", "", "Tool name (base, claude, codex, opencode, cursor)")
 	outputFlag := flag.String("output", "", "Output directory for build context")
 	allFlag := flag.Bool("all", false, "Render all tools (and all OS if --os all)")
 	flag.Parse()
