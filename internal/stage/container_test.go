@@ -1275,6 +1275,36 @@ func TestResolveOfficialImage_ShellPullSuccess(t *testing.T) {
 	}
 }
 
+func TestResolveOfficialImage_ShellPullFail(t *testing.T) {
+	tmpDir := t.TempDir()
+	dc := &mockDockerClient{available: true, imageExists: false}
+
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+		},
+		HomeDir: tmpDir,
+		WorkDir: tmpDir,
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if !dc.pullCalled {
+		t.Error("shell + not local: Pull should be called")
+	}
+	if !dc.buildCalled {
+		t.Error("shell + pull fail: Build should be called as fallback")
+	}
+}
+
 func setupToolConfig(t *testing.T, homeDir, tool string) {
 	t.Helper()
 	toolDir := filepath.Join(homeDir, ".agent-workspace", tool)
