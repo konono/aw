@@ -20,12 +20,10 @@ NC='\033[0m'
 
 PASS=0
 FAIL=0
-SKIP=0
 WARN=0
 
 pass() { echo -e "  ${GREEN}PASS${NC}: $1"; PASS=$((PASS + 1)); }
 fail() { echo -e "  ${RED}FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
-skip() { echo -e "  ${YELLOW}SKIP${NC}: $1"; SKIP=$((SKIP + 1)); }
 warn() { echo -e "  ${YELLOW}WARN${NC}: $1"; WARN=$((WARN + 1)); }
 section() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 
@@ -43,7 +41,12 @@ while [[ $# -gt 0 ]]; do
     --quick)      MODE="quick"; shift ;;
     --full)       MODE="full"; shift ;;
     --images-only) MODE="images-only"; shift ;;
-    --version)    VERSION="$2"; shift 2 ;;
+    --version)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --version requires a version argument (e.g. --version 4.0.3)"
+        exit 1
+      fi
+      VERSION="$2"; shift 2 ;;
     -h|--help)
       echo "Usage: $0 [--quick|--full|--images-only] [--version X.Y.Z]"
       echo ""
@@ -157,7 +160,7 @@ fi
 if [ "$MODE" = "images-only" ]; then
   echo ""
   echo "========================================"
-  echo -e "結果: ${GREEN}PASS=$PASS${NC}  ${RED}FAIL=$FAIL${NC}  ${YELLOW}WARN=$WARN${NC}  ${YELLOW}SKIP=$SKIP${NC}"
+  echo -e "結果: ${GREEN}PASS=$PASS${NC}  ${RED}FAIL=$FAIL${NC}  ${YELLOW}WARN=$WARN${NC}"
   echo "========================================"
   [ "$FAIL" -gt 0 ] && exit 1
   exit 0
@@ -215,6 +218,13 @@ if echo "$GH_OUT" | grep -q "gh version"; then
   pass "gh CLI: $GH_VER"
 else
   fail "gh CLI が見つからない"
+fi
+
+GH_TOKEN_OUT=$($AW test-claude-gh -- gh --version 2>&1) || true
+if echo "$GH_TOKEN_OUT" | grep -q "gh version"; then
+  pass "gh_token: true でも gh CLI が利用可能"
+else
+  fail "gh_token: true で gh CLI が見つからない"
 fi
 
 MISE_OUT=$($AW test-debian12-claude -- mise --version 2>&1) || true
@@ -300,13 +310,9 @@ fi
 
 section "6. ユーザーレベル config 廃止: ~/.config/aw/mise.toml が無視される"
 
-BACKUP_MISE=""
-if [ -f ~/.config/aw/mise.toml ]; then
-  BACKUP_MISE=$(cat ~/.config/aw/mise.toml)
-fi
-
-mkdir -p ~/.config/aw
-cat > ~/.config/aw/mise.toml << 'EOF'
+FAKE_HOME="$TMPDIR/fake-home"
+mkdir -p "$FAKE_HOME/.config/aw"
+cat > "$FAKE_HOME/.config/aw/mise.toml" << 'EOF'
 [tools]
 ripgrep = "14"
 EOF
@@ -315,17 +321,11 @@ cd "$TMPDIR"
 mkdir -p no-workspace && cd no-workspace
 write_test_config
 
-OUT=$($AW build test-claude --apply 2>&1) || true
+OUT=$(HOME="$FAKE_HOME" $AW build test-claude --apply 2>&1) || true
 if echo "$OUT" | grep -q "No build inputs found"; then
   pass "~/.config/aw/mise.toml は無視された"
 else
   fail "~/.config/aw/mise.toml がビルド入力として認識された"
-fi
-
-if [ -n "$BACKUP_MISE" ]; then
-  echo "$BACKUP_MISE" > ~/.config/aw/mise.toml
-else
-  rm -f ~/.config/aw/mise.toml
 fi
 
 # ====================================================================
@@ -426,7 +426,7 @@ fi
 
 echo ""
 echo "========================================"
-echo -e "結果: ${GREEN}PASS=$PASS${NC}  ${RED}FAIL=$FAIL${NC}  ${YELLOW}WARN=$WARN${NC}  ${YELLOW}SKIP=$SKIP${NC}"
+echo -e "結果: ${GREEN}PASS=$PASS${NC}  ${RED}FAIL=$FAIL${NC}  ${YELLOW}WARN=$WARN${NC}"
 echo "========================================"
 
 if [ "$FAIL" -gt 0 ]; then
