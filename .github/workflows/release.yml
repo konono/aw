@@ -118,3 +118,47 @@ jobs:
               --tag "${REGISTRY}/aw-${TOOL}:${VER}-${OS}-${arch}" \
               "${REGISTRY}/aw-${TOOL}:${VER}-${OS}@${digest}"
           done
+
+  verify-images:
+    needs: [release-please, publish-images]
+    if: ${{ always() && needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      packages: read
+    steps:
+      - name: Set version
+        id: version
+        run: echo "ver=${TAG_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all images exist
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+          REGISTRY: ghcr.io/konono
+        run: |
+          failed=0
+          for tool in claude codex opencode cursor; do
+            for os in debian12 ubuntu2604 ubi9 ubi10; do
+              image="${REGISTRY}/aw-${tool}:${VER}-${os}"
+              if docker buildx imagetools inspect "$image" > /dev/null 2>&1; then
+                echo "✓ ${image}"
+              else
+                echo "::error::✗ ${image} — missing"
+                failed=$((failed + 1))
+              fi
+            done
+          done
+          echo ""
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::${failed} of 16 images missing. Re-run failed publish-images jobs."
+            exit 1
+          fi
+          echo "All 16 images verified."
