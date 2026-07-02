@@ -220,13 +220,6 @@ else
   fail "gh CLI が見つからない"
 fi
 
-GH_TOKEN_OUT=$($AW test-claude-gh -- gh --version 2>&1) || true
-if echo "$GH_TOKEN_OUT" | grep -q "gh version"; then
-  pass "gh_token: true でも gh CLI が利用可能"
-else
-  fail "gh_token: true で gh CLI が見つからない"
-fi
-
 MISE_OUT=$($AW test-debian12-claude -- mise --version 2>&1) || true
 if echo "$MISE_OUT" | grep -q "202[0-9]"; then
   MISE_VER=$(echo "$MISE_OUT" | grep "202[0-9]" | head -1 | xargs)
@@ -279,10 +272,27 @@ else
 fi
 
 # ====================================================================
-# 5. aw build --apply: ワークスペース mise.toml ありでビルド成功
+# 5. gh_token: true で gh CLI が利用可能
 # ====================================================================
 
-section "5. aw build --apply: ワークスペース mise.toml ありでビルド成功"
+section "5. gh_token: true で gh CLI が利用可能"
+
+cd "$TMPDIR"
+mkdir -p gh-token-test && cd gh-token-test
+write_test_config
+
+GH_TOKEN_OUT=$($AW test-claude-gh -- gh --version 2>&1) || true
+if echo "$GH_TOKEN_OUT" | grep -q "gh version"; then
+  pass "gh_token: true でも gh CLI が利用可能"
+else
+  fail "gh_token: true で gh CLI が見つからない"
+fi
+
+# ====================================================================
+# 6. aw build --apply: ワークスペース mise.toml ありでビルド成功
+# ====================================================================
+
+section "6. aw build --apply: ワークスペース mise.toml ありでビルド成功"
 
 cd "$TMPDIR"
 mkdir -p mise-project && cd mise-project
@@ -305,10 +315,10 @@ else
 fi
 
 # ====================================================================
-# 6. ユーザーレベル config 廃止確認
+# 7. ユーザーレベル config 廃止確認
 # ====================================================================
 
-section "6. ユーザーレベル config 廃止: ~/.config/aw/mise.toml が無視される"
+section "7. ユーザーレベル config 廃止: ~/.config/aw/mise.toml が無視される"
 
 FAKE_HOME="$TMPDIR/fake-home"
 mkdir -p "$FAKE_HOME/.config/aw"
@@ -329,10 +339,10 @@ else
 fi
 
 # ====================================================================
-# 7. ワークスペース mise.toml による entrypoint インストール
+# 8. ワークスペース mise.toml による entrypoint インストール
 # ====================================================================
 
-section "7. ワークスペース mise.toml による entrypoint インストール"
+section "8. ワークスペース mise.toml による entrypoint インストール"
 
 cd "$TMPDIR"
 mkdir -p mise-entrypoint && cd mise-entrypoint
@@ -350,10 +360,10 @@ else
 fi
 
 # ====================================================================
-# 8. DOCKER_HOST 自動設定 (mount_container_sock)
+# 9. DOCKER_HOST 自動設定 (mount_container_sock)
 # ====================================================================
 
-section "8. DOCKER_HOST 自動設定 (mount_container_sock)"
+section "9. DOCKER_HOST 自動設定 (mount_container_sock)"
 
 cd "$TMPDIR"
 mkdir -p dood-test && cd dood-test
@@ -367,10 +377,10 @@ else
 fi
 
 # ====================================================================
-# 9. aw init
+# 10. aw init
 # ====================================================================
 
-section "9. aw init"
+section "10. aw init"
 
 INIT_HOME="$TMPDIR/init-test-home"
 mkdir -p "$INIT_HOME"
@@ -390,10 +400,10 @@ else
 fi
 
 # ====================================================================
-# 10. aw doctor
+# 11. aw doctor
 # ====================================================================
 
-section "10. aw doctor"
+section "11. aw doctor"
 
 cd "$REPO_ROOT"
 DOCTOR_OUT=$($AW doctor 2>&1) || true
@@ -404,10 +414,10 @@ else
 fi
 
 # ====================================================================
-# 11. devbox モード
+# 12. devbox モード
 # ====================================================================
 
-section "11. devbox モード"
+section "12. devbox モード"
 
 cd "$TMPDIR"
 mkdir -p devbox-test && cd devbox-test
