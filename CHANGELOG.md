@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.0.3](https://github.com/konono/aw/compare/v4.0.2...v4.0.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* **release:** isolate image builds with tool × OS matrix ([#126](https://github.com/konono/aw/issues/126)) ([302b1df](https://github.com/konono/aw/commit/302b1dffd1a251b257a3a70863a7ac8a40017499))
+
 ## [4.0.2](https://github.com/konono/aw/compare/v4.0.1...v4.0.2) (2026-06-30)
 
 
