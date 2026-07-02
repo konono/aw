@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.1.0](https://github.com/konono/aw/compare/v4.0.3...v4.1.0) (2026-07-02)
+
+
+### Features
+
+* add aw-base official image for shell profiles ([#129](https://github.com/konono/aw/issues/129)) ([66dcbe6](https://github.com/konono/aw/commit/66dcbe60dbd1fd83b1da0629fa1455cd5892a136))
+
 ## [4.0.3](https://github.com/konono/aw/compare/v4.0.2...v4.0.3) (2026-06-30)
 
 
