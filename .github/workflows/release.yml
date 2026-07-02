@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tool: [claude, codex, opencode, cursor]
+        tool: [base, claude, codex, opencode, cursor]
         os: [debian12, ubuntu2604, ubi9, ubi10]
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
           INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
           GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
           MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-          if [ -z "$INSTALL_SCRIPT" ]; then
+          if [ -z "$INSTALL_SCRIPT" ] && [ "$TOOL" != "base" ]; then
             echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${TOOL}-${OS}"
             exit 1
           fi
@@ -145,7 +145,7 @@ jobs:
           REGISTRY: ghcr.io/konono
         run: |
           failed=0
-          for tool in claude codex opencode cursor; do
+          for tool in base claude codex opencode cursor; do
             for os in debian12 ubuntu2604 ubi9 ubi10; do
               image="${REGISTRY}/aw-${tool}:${VER}-${os}"
               if docker buildx imagetools inspect "$image" > /dev/null 2>&1; then
@@ -158,7 +158,7 @@ jobs:
           done
           echo ""
           if [ "$failed" -gt 0 ]; then
-            echo "::error::${failed} of 16 images missing. Re-run failed publish-images jobs."
+            echo "::error::${failed} of 20 images missing. Re-run failed publish-images jobs."
             exit 1
           fi
-          echo "All 16 images verified."
+          echo "All 20 images verified."

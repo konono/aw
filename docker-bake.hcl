@@ -20,7 +20,7 @@ group "default" {
 target "image" {
   name       = "aw-${tool}-${os}"
   matrix = {
-    tool = ["claude", "codex", "opencode", "cursor"]
+    tool = ["base", "claude", "codex", "opencode", "cursor"]
     os   = ["debian12", "ubuntu2604", "ubi9", "ubi10"]
   }
   platforms  = ["linux/amd64", "linux/arm64"]

@@ -110,3 +110,12 @@ func TestDataSymlinksFor(t *testing.T) {
 		t.Errorf("DataSymlinksFor(unknown) = %q, want empty", got)
 	}
 }
+
+func TestImageTool(t *testing.T) {
+	if got := ImageTool(""); got != "base" {
+		t.Errorf("ImageTool(\"\") = %q, want \"base\"", got)
+	}
+	if got := ImageTool("claude"); got != "claude" {
+		t.Errorf("ImageTool(\"claude\") = %q, want \"claude\"", got)
+	}
+}

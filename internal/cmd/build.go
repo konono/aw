@@ -19,6 +19,7 @@ import (
 	"github.com/konono/aw/internal/pipeline"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
+	"github.com/konono/aw/internal/toolinfo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -143,10 +144,7 @@ func (b *BuildCmd) Run() error {
 }
 
 func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionContext) error {
-	tool := p.EffectiveTool()
-	if tool == "" {
-		return fmt.Errorf("no build inputs found and no tool configured; nothing to apply")
-	}
+	tool := toolinfo.ImageTool(p.EffectiveTool())
 
 	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
 	runtime := p.EffectiveContainerRuntime()

@@ -20,6 +20,9 @@ type ToolSpec struct {
 }
 
 var tools = map[string]ToolSpec{
+	"base": {
+		DisplayName: "Base",
+	},
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
@@ -106,6 +109,15 @@ func ContainerDirFor(tool string, cenv containerenv.Config) string {
 
 func DataSymlinksFor(tool string, cenv containerenv.Config) string {
 	return cenv.ToolDataSymlinks(tool)
+}
+
+// ImageTool returns the tool name used for official image resolution.
+// AI tools return their own name; shell (empty tool) maps to "base".
+func ImageTool(tool string) string {
+	if tool == "" {
+		return "base"
+	}
+	return tool
 }
 
 // GhCLIVersion is the pinned version of the GitHub CLI installed in all images.
