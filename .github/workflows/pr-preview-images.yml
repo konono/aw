@@ -52,7 +52,7 @@ jobs:
           REGISTRY: ghcr.io/konono
         run: |
           TAG="pr-${PR_NUMBER}"
-          for tool in claude; do
+          for tool in base claude codex opencode cursor; do
             for os in debian12; do
               IMAGE="${REGISTRY}/aw-${tool}:${TAG}-${os}"
               ENV_FILE="build/${tool}-${os}/build-args.env"
@@ -84,19 +84,21 @@ jobs:
         with:
           script: |
             const tag = `pr-${{ github.event.pull_request.number }}`;
-            const body = [
+            const tools = ['base', 'claude', 'codex', 'opencode', 'cursor'];
+            const lines = [
               '### 🐳 Preview images published',
               '',
               '```bash',
-              `# Pull and test:`,
-              `docker pull ghcr.io/konono/aw-claude:${tag}-debian12`,
+              '# Pull and test:',
+              ...tools.map(t => `docker pull ghcr.io/konono/aw-${t}:${tag}-debian12`),
               '',
-              `# Or use with aw (set image in profile):`,
+              '# Or use with aw (set image in profile):',
               `#   image: ghcr.io/konono/aw-claude:${tag}-debian12`,
               '```',
               '',
               `<sub>Built from ${context.sha.substring(0, 7)}</sub>`,
-            ].join('\n');
+            ];
+            const body = lines.join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -133,7 +135,7 @@ jobs:
             const pr = ${{ github.event.pull_request.number }};
             const exactTag = `pr-${pr}-debian12`;
             const org = context.repo.owner;
-            for (const tool of ['claude']) {
+            for (const tool of ['base', 'claude', 'codex', 'opencode', 'cursor']) {
               const pkg = `aw-${tool}`;
               try {
                 const { data: versions } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
