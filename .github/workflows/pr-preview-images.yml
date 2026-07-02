@@ -59,7 +59,7 @@ jobs:
               INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
               GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
               MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-              if [ -z "$INSTALL_SCRIPT" ]; then
+              if [ -z "$INSTALL_SCRIPT" ] && [ "$tool" != "base" ]; then
                 echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
                 exit 1
               fi
