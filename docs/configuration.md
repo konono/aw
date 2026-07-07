@@ -462,7 +462,7 @@ tree
 
 コンテナランタイム（Docker/Podman）のソケットをコンテナにマウントし、docker-compose 等によるコンテナ操作を有効にするかどうか（DooD: Docker outside of Docker 方式）。
 
-コンテナ内に `DOCKER_HOST=unix:///run/container.sock` が自動設定されます。docker-compose / docker CLI はユーザーが devbox.json やカスタム Dockerfile で別途インストールしてください。
+コンテナ内に `DOCKER_HOST` と `CONTAINER_HOST`（podman-remote 用）が `unix:///run/container.sock` に自動設定されます。docker-compose / docker CLI はユーザーが mise.toml や devbox.json、カスタム Dockerfile で別途インストールしてください。
 
 **デフォルト: `false`（無効）**。
 

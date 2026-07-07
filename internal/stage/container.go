@@ -557,7 +557,9 @@ If the commands are not found after mise install, create symlinks to fix the shi
     DC_DIR=$(mise where docker-compose 2>/dev/null) && \
       mkdir -p "$DC_DIR/bin" && \
       cp "$DC_DIR"/docker-cli-plugin-docker-compose "$DC_DIR/bin/docker-compose" && \
-      mise reshim`)
+      mise reshim
+
+If the above fails, check actual binary names with: ls $(mise where podman) or ls $(mise where docker-compose)`)
 	}
 
 	if ec.Profile.EffectiveGhToken() {

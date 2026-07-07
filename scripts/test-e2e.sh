@@ -366,7 +366,7 @@ fi
 # 9. DOCKER_HOST 自動設定 (mount_container_sock)
 # ====================================================================
 
-section "9. DOCKER_HOST 自動設定 (mount_container_sock)"
+section "9. DOCKER_HOST / CONTAINER_HOST 自動設定 (mount_container_sock)"
 
 cd "$TMPDIR"
 mkdir -p dood-test && cd dood-test
@@ -377,6 +377,11 @@ if echo "$DHOST_OUT" | grep -q "DOCKER_HOST=unix:///run/container.sock"; then
   pass "DOCKER_HOST が自動設定された"
 else
   fail "DOCKER_HOST が設定されていない"
+fi
+if echo "$DHOST_OUT" | grep -q "CONTAINER_HOST=unix:///run/container.sock"; then
+  pass "CONTAINER_HOST が自動設定された"
+else
+  fail "CONTAINER_HOST が設定されていない"
 fi
 
 # ====================================================================

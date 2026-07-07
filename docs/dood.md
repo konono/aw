@@ -58,6 +58,7 @@ aw claude-compose
 
 コンテナ内に以下が自動設定されます:
 - `DOCKER_HOST=unix:///run/container.sock`
+- `CONTAINER_HOST=unix:///run/container.sock`（mise 経由の podman-remote 用）
 - ランタイムソケットが `/run/container.sock` にマウント
 
 ## コンテナ内での使い方
