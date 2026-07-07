@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.3.1](https://github.com/konono/aw/compare/v4.3.0...v4.3.1) (2026-07-07)
+
+
+### Bug Fixes
+
+* ensure build --apply writes block-style YAML when .aw.yml is absent ([#135](https://github.com/konono/aw/issues/135)) ([9c98b12](https://github.com/konono/aw/commit/9c98b12f18a17dff3b1402904c2a37003776863f))
+
 ## [4.3.0](https://github.com/konono/aw/compare/v4.2.0...v4.3.0) (2026-07-07)
 
 
