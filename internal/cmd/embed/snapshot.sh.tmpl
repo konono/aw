@@ -65,12 +65,29 @@ if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
   else
     if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
       echo "Installing mise..."
-      run_as_user 'curl https://mise.jdx.dev/install.sh | sh'
+      run_as_user 'export MISE_INSTALL_MUSL=1 && curl -fsSL https://mise.jdx.dev/install.sh | sh'
     fi
     MISE_CMD="export HOME={{.Home}} && export MISE_DATA_DIR={{.Home}}/.local/share/mise && export MISE_CONFIG_DIR={{.Home}}/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$WORK && export MISE_YES=1"
     mkdir -p {{.Home}}/.config/mise
     echo "Installing tools from mise.toml..."
     run_as_user "$MISE_CMD && cd \"$WORK\" && mise install"
+
+    # Fix mise shim naming for podman and docker-compose
+    run_as_user "$MISE_CMD && \
+      PODMAN_DIR=\$(mise where podman 2>/dev/null) && \
+      mkdir -p \"\$PODMAN_DIR/bin\" && \
+      (cd \"\$PODMAN_DIR/bin\" && ln -sf ../podman-remote-static-linux_* podman)" || true
+    run_as_user "$MISE_CMD && \
+      DC_DIR=\$(mise where docker-compose 2>/dev/null) && \
+      mkdir -p \"\$DC_DIR/bin\" && \
+      (cd \"\$DC_DIR/bin\" && ln -sf ../docker-cli-plugin-docker-compose docker-compose)" || true
+    if [ -S /run/container.sock ]; then
+      run_as_user "$MISE_CMD && \
+        DC_DIR=\$(mise where docker-compose 2>/dev/null) && \
+        mkdir -p \"{{.Home}}/.docker/cli-plugins\" && \
+        ln -sf \"\$DC_DIR/docker-cli-plugin-docker-compose\" \"{{.Home}}/.docker/cli-plugins/docker-compose\"" || true
+    fi
+    run_as_user "$MISE_CMD && mise reshim" 2>/dev/null || true
     MISE_TOML="$WORK/mise.toml"
     [ ! -f "$MISE_TOML" ] && MISE_TOML="$WORK/.mise.toml"
     if [ -f "$MISE_TOML" ]; then

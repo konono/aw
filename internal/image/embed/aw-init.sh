@@ -10,6 +10,36 @@ run_as_user() {
   /bin/bash -lc "$1"
 }
 
+# aw_fix_mise_shims — fix non-standard binary names installed by mise.
+# Call after "mise install" with MISE_CMD as the first argument.
+# Fixes: podman shim naming, docker-compose shim naming, podman compose plugin.
+aw_fix_mise_shims() {
+  local mise_cmd="$1"
+
+  # podman: podman-remote-static-linux_<arch> -> podman
+  # Uses subshell (cd ...) so the glob expands relative to $PODMAN_DIR/bin/
+  run_as_user "$mise_cmd && \
+    PODMAN_DIR=\$(mise where podman 2>/dev/null) && \
+    mkdir -p \"\$PODMAN_DIR/bin\" && \
+    (cd \"\$PODMAN_DIR/bin\" && ln -sf ../podman-remote-static-linux_* podman)" || true
+
+  # docker-compose: docker-cli-plugin-docker-compose -> docker-compose
+  run_as_user "$mise_cmd && \
+    DC_DIR=\$(mise where docker-compose 2>/dev/null) && \
+    mkdir -p \"\$DC_DIR/bin\" && \
+    (cd \"\$DC_DIR/bin\" && ln -sf ../docker-cli-plugin-docker-compose docker-compose)" || true
+
+  # podman compose plugin: podman searches ~/.docker/cli-plugins/ not PATH
+  if [ -S /run/container.sock ]; then
+    run_as_user "$mise_cmd && \
+      DC_DIR=\$(mise where docker-compose 2>/dev/null) && \
+      mkdir -p \"$AW_HOME/.docker/cli-plugins\" && \
+      ln -sf \"\$DC_DIR/docker-cli-plugin-docker-compose\" \"$AW_HOME/.docker/cli-plugins/docker-compose\"" || true
+  fi
+
+  run_as_user "$mise_cmd && mise reshim" 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------------------
 # Resolve core variables
 # ---------------------------------------------------------------------------

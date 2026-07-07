@@ -545,19 +545,26 @@ DOCKER_HOST and CONTAINER_HOST are pre-configured — docker/docker-compose/podm
 ### mise-installed podman / docker-compose shim naming issue
 
 mise installs podman and docker-compose with non-standard binary names (e.g. podman-remote-static-linux_<arch>, docker-cli-plugin-docker-compose).
-If the commands are not found after mise install, create symlinks to fix the shim names:
+The entrypoint automatically fixes shim names and installs the podman compose plugin after mise install.
 
-    # podman
+If you install podman or docker-compose manually via mise later (not via mise.toml at startup), run these commands to fix the shim names:
+
+    # podman (use subshell cd so the glob expands in the correct directory)
     PODMAN_DIR=$(mise where podman 2>/dev/null) && \
       mkdir -p "$PODMAN_DIR/bin" && \
-      ln -sf ../podman-remote-static-linux_* "$PODMAN_DIR/bin/podman" && \
+      (cd "$PODMAN_DIR/bin" && ln -sf ../podman-remote-static-linux_* podman) && \
       mise reshim
 
-    # docker-compose
+    # docker-compose (standalone command)
     DC_DIR=$(mise where docker-compose 2>/dev/null) && \
       mkdir -p "$DC_DIR/bin" && \
-      cp "$DC_DIR"/docker-cli-plugin-docker-compose "$DC_DIR/bin/docker-compose" && \
+      (cd "$DC_DIR/bin" && ln -sf ../docker-cli-plugin-docker-compose docker-compose) && \
       mise reshim
+
+    # docker-compose (podman compose plugin)
+    DC_DIR=$(mise where docker-compose 2>/dev/null) && \
+      mkdir -p ~/.docker/cli-plugins && \
+      ln -sf "$DC_DIR/docker-cli-plugin-docker-compose" ~/.docker/cli-plugins/docker-compose
 
 If the above fails, check actual binary names with: ls $(mise where podman) or ls $(mise where docker-compose)`)
 	}

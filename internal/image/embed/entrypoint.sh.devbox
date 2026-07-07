@@ -37,6 +37,7 @@ if [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
     mkdir -p "$AW_HOME/.config/mise"
     echo "Installing tools from mise.toml..."
     run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mise install"
+    aw_fix_mise_shims "$MISE_CMD"
   fi
   AW_PKG_FOUND=1
 fi
