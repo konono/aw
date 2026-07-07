@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.2.0](https://github.com/konono/aw/compare/v4.1.0...v4.2.0) (2026-07-07)
+
+
+### Features
+
+* set CONTAINER_HOST env var and document mise shim naming issue ([#131](https://github.com/konono/aw/issues/131)) ([cd8019a](https://github.com/konono/aw/commit/cd8019a9535e05f4ddc6ad9d0018c6896cfd3b47))
+
 ## [4.1.0](https://github.com/konono/aw/compare/v4.0.3...v4.1.0) (2026-07-02)
 
 
