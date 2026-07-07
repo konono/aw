@@ -352,6 +352,7 @@ func applyBuildResult(configPath, profileName, imageName string, pkgMgr profile.
 	}
 
 	root := doc.Content[0]
+	root.Style = 0
 	if root.Kind != yaml.MappingNode {
 		return fmt.Errorf("config root is not a mapping")
 	}
