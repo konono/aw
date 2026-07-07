@@ -73,6 +73,43 @@ func TestContainerEnvVars_AWPackages_FromWorkspaceFile(t *testing.T) {
 	}
 }
 
+func TestContainerEnvVars_ContainerSock_SetsBothHosts(t *testing.T) {
+	ec := &ExecutionContext{
+		Profile:            profile.Profile{},
+		ContainerSockReady: true,
+		ContainerEnv:       containerenv.Default(),
+	}
+	envVars := ContainerEnvVars(ec, "claude")
+
+	want := "unix:///run/container.sock"
+	if envVars["DOCKER_HOST"] != want {
+		t.Errorf("DOCKER_HOST = %q, want %q", envVars["DOCKER_HOST"], want)
+	}
+	if envVars["CONTAINER_HOST"] != want {
+		t.Errorf("CONTAINER_HOST = %q, want %q", envVars["CONTAINER_HOST"], want)
+	}
+}
+
+func TestContainerEnvVars_ContainerSock_RespectsExisting(t *testing.T) {
+	ec := &ExecutionContext{
+		Profile:            profile.Profile{},
+		ContainerSockReady: true,
+		ContainerEnv:       containerenv.Default(),
+		EnvVars: map[string]string{
+			"DOCKER_HOST":    "unix:///custom/docker.sock",
+			"CONTAINER_HOST": "unix:///custom/podman.sock",
+		},
+	}
+	envVars := ContainerEnvVars(ec, "claude")
+
+	if envVars["DOCKER_HOST"] != "unix:///custom/docker.sock" {
+		t.Errorf("DOCKER_HOST should not be overridden, got %q", envVars["DOCKER_HOST"])
+	}
+	if envVars["CONTAINER_HOST"] != "unix:///custom/podman.sock" {
+		t.Errorf("CONTAINER_HOST should not be overridden, got %q", envVars["CONTAINER_HOST"])
+	}
+}
+
 func TestContainerEnvVars_AWPackages_NotSetWhenEmpty(t *testing.T) {
 	ec := &ExecutionContext{
 		Profile:      profile.Profile{},

@@ -204,7 +204,7 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────
-section "7. DOCKER_HOST 自動設定 (mount_container_sock)"
+section "7. DOCKER_HOST / CONTAINER_HOST 自動設定 (mount_container_sock)"
 # ────────────────────────────────────────────────────────────────
 
 cd "$TMPDIR"
@@ -216,6 +216,11 @@ if echo "$DHOST_OUT" | grep -q "DOCKER_HOST=unix:///run/container.sock"; then
   pass "DOCKER_HOST が自動設定された"
 else
   fail "DOCKER_HOST が設定されていない: $(echo "$DHOST_OUT" | tail -3)"
+fi
+if echo "$DHOST_OUT" | grep -q "CONTAINER_HOST=unix:///run/container.sock"; then
+  pass "CONTAINER_HOST が自動設定された"
+else
+  fail "CONTAINER_HOST が設定されていない: $(echo "$DHOST_OUT" | tail -3)"
 fi
 
 # ────────────────────────────────────────────────────────────────

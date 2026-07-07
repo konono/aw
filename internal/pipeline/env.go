@@ -20,8 +20,12 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 	}
 
 	if ec.ContainerSockReady {
+		sockURL := "unix://" + mount.ContainerSockContainerPath
 		if _, ok := envVars["DOCKER_HOST"]; !ok {
-			envVars["DOCKER_HOST"] = "unix://" + mount.ContainerSockContainerPath
+			envVars["DOCKER_HOST"] = sockURL
+		}
+		if _, ok := envVars["CONTAINER_HOST"]; !ok {
+			envVars["CONTAINER_HOST"] = sockURL
 		}
 	}
 

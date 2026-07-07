@@ -537,10 +537,29 @@ When you install a new tool or package, record it in the workspace so it persist
 		sections = append(sections, `## Docker / Podman (DooD)
 
 Container runtime socket is mounted at /run/container.sock.
-DOCKER_HOST is pre-configured — docker/docker-compose commands work directly.
+DOCKER_HOST and CONTAINER_HOST are pre-configured — docker/docker-compose/podman commands work directly.
 
-- Use docker-compose / docker commands directly — do NOT try to install Docker or start a daemon
-- Containers created via docker-compose are sibling containers on the host`)
+- Use docker-compose / docker / podman commands directly — do NOT try to install Docker or start a daemon
+- Containers created via docker-compose are sibling containers on the host
+
+### mise-installed podman / docker-compose shim naming issue
+
+mise installs podman and docker-compose with non-standard binary names (e.g. podman-remote-static-linux_<arch>, docker-cli-plugin-docker-compose).
+If the commands are not found after mise install, create symlinks to fix the shim names:
+
+    # podman
+    PODMAN_DIR=$(mise where podman 2>/dev/null) && \
+      mkdir -p "$PODMAN_DIR/bin" && \
+      ln -sf ../podman-remote-static-linux_* "$PODMAN_DIR/bin/podman" && \
+      mise reshim
+
+    # docker-compose
+    DC_DIR=$(mise where docker-compose 2>/dev/null) && \
+      mkdir -p "$DC_DIR/bin" && \
+      cp "$DC_DIR"/docker-cli-plugin-docker-compose "$DC_DIR/bin/docker-compose" && \
+      mise reshim
+
+If the above fails, check actual binary names with: ls $(mise where podman) or ls $(mise where docker-compose)`)
 	}
 
 	if ec.Profile.EffectiveGhToken() {

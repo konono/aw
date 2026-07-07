@@ -246,6 +246,12 @@ func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	if !strings.Contains(content, "## Docker / Podman (DooD)") {
 		t.Error("missing Docker section")
 	}
+	if !strings.Contains(content, "CONTAINER_HOST") {
+		t.Error("Docker section should mention CONTAINER_HOST")
+	}
+	if !strings.Contains(content, "mise-installed podman") {
+		t.Error("Docker section should include mise shim naming note")
+	}
 	if !strings.Contains(content, "## GitHub CLI") {
 		t.Error("missing GitHub CLI section")
 	}
