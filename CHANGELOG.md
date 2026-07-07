@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.3.0](https://github.com/konono/aw/compare/v4.2.0...v4.3.0) (2026-07-07)
+
+
+### Features
+
+* auto-fix mise shim names for podman and docker-compose ([#133](https://github.com/konono/aw/issues/133)) ([c2e14ba](https://github.com/konono/aw/commit/c2e14ba43dc314446980393ccf60c0889da9ba90))
+
 ## [4.2.0](https://github.com/konono/aw/compare/v4.1.0...v4.2.0) (2026-07-07)
 
 
