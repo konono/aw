@@ -314,7 +314,7 @@ func TestIntegration_Smoke(t *testing.T) {
 		t.Cleanup(func() { removeContainer(runtime, containerID) })
 
 		execInContainer(t, runtime, containerID, "bash", "-lc",
-			"curl -fsSL https://mise.jdx.dev/install.sh | sh")
+			"export MISE_INSTALL_MUSL=1 && curl -fsSL https://mise.jdx.dev/install.sh | sh")
 		out := execInContainer(t, runtime, containerID, "bash", "-lc",
 			"mise --version")
 		if out == "" {
