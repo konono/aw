@@ -196,6 +196,10 @@ case ":\${PATH}:" in
 esac
 export MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE:-$AW_WORKSPACE}"
 export MISE_YES=1
+if [ -S /run/container.sock ]; then
+  [ -z "\${DOCKER_HOST:-}" ] && export DOCKER_HOST="unix:///run/container.sock"
+  [ -z "\${CONTAINER_HOST:-}" ] && export CONTAINER_HOST="unix:///run/container.sock"
+fi
 if [ -n "\${GITHUB_TOKEN:-}" ] && [ -x "$AW_HOME/.git-credential-token" ]; then
   export GIT_CONFIG_COUNT=1
   export GIT_CONFIG_KEY_0="credential.https://github.com.helper"
