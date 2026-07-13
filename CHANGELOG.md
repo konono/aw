@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.4.0](https://github.com/konono/aw/compare/v4.3.1...v4.4.0) (2026-07-13)
+
+
+### Features
+
+* add Kubernetes manifest generation and image push support ([#137](https://github.com/konono/aw/issues/137)) ([10c7c65](https://github.com/konono/aw/commit/10c7c6574fb13d1216011e67f3b0dbddb6e961e7))
+
 ## [4.3.1](https://github.com/konono/aw/compare/v4.3.0...v4.3.1) (2026-07-07)
 
 
