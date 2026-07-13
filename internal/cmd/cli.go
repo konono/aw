@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -56,6 +57,7 @@ type CLI struct {
 	Auth             AuthCmd             `cmd:"" help:"Run auth login/logout/status for a tool."`
 	Login            LoginCmd            `cmd:"" help:"Alias for 'auth login'."`
 	Build            BuildCmd            `cmd:"" help:"Build a profile's container image."`
+	Manifest         ManifestCmd         `cmd:"" help:"Generate Kubernetes manifests for a profile."`
 	Export           ExportCmd           `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
 	Doctor           DoctorCmd           `cmd:"" help:"Check system environment and configuration."`
 	Reaper           ReaperCmd           `cmd:"" help:"View/recover post-container cleanup reports."`
@@ -143,6 +145,8 @@ type BuildCmd struct {
 	FromTemplate bool              `name:"from-template" help:"Build from Dockerfile template instead of official image."`
 	Apply        bool              `name:"apply" help:"Write image name back to config file."`
 	NoCache      bool              `name:"no-cache" help:"Rebuild without cache (requires --from-template)."`
+	Push         bool              `name:"push" help:"Push the image to a container registry."`
+	Registry     string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`
 	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
 	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
 
@@ -153,6 +157,12 @@ type BuildCmd struct {
 func (b *BuildCmd) Validate() error {
 	if b.NoCache && !b.FromTemplate {
 		return fmt.Errorf("--no-cache requires --from-template")
+	}
+	if b.Push && b.Registry == "" {
+		return fmt.Errorf("--push requires --registry")
+	}
+	if b.Registry != "" && !b.Push {
+		return fmt.Errorf("--registry requires --push")
 	}
 	return nil
 }
@@ -166,6 +176,28 @@ type ExportCmd struct {
 	NoCache     bool              `name:"no-cache" help:"Rebuild without cache."`
 	Include     []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
 	Env         map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
+}
+
+// ManifestCmd generates Kubernetes manifests.
+type ManifestCmd struct {
+	ProfileName string `arg:"" help:"Profile name." completion-predictor:"profile"`
+	Output      string `short:"o" name:"output" help:"Output directory (default: stdout)."`
+	Name        string `name:"name" help:"Instance name suffix for multi-instance deployments."`
+	Image       string `name:"image" help:"Override image name."`
+}
+
+var dns1123Re = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+func (m *ManifestCmd) Validate() error {
+	if m.Name != "" {
+		if len(m.Name) > 63 {
+			return fmt.Errorf("--name must be 63 characters or less")
+		}
+		if !dns1123Re.MatchString(m.Name) {
+			return fmt.Errorf("--name must be a valid DNS-1123 label (lowercase alphanumeric and hyphens, must start/end with alphanumeric)")
+		}
+	}
+	return nil
 }
 
 // DoctorCmd checks system environment.

@@ -119,6 +119,7 @@ type Profile struct {
 	CACert           string            `yaml:"ca_cert,omitempty"`
 	Build            *BuildConfig      `yaml:"build,omitempty"`
 	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
+	Kubernetes       *KubernetesConfig `yaml:"kubernetes,omitempty"`
 
 	hadLegacyExport bool `yaml:"-"`
 }
@@ -129,6 +130,74 @@ type ReaperProfileConfig struct {
 	KeepContainer    bool   `yaml:"keep-container,omitempty"`
 	ReportRetention  int    `yaml:"report-retention,omitempty"`
 	CollectLogs      string `yaml:"collect-logs,omitempty"`
+}
+
+// KubernetesMode specifies the operational mode for Kubernetes deployments.
+type KubernetesMode string
+
+const (
+	KubernetesModeInteractive KubernetesMode = "interactive"
+	KubernetesModeChat        KubernetesMode = "chat"
+)
+
+// KubernetesConfig holds Kubernetes-specific settings for manifest generation.
+type KubernetesConfig struct {
+	Mode             KubernetesMode    `yaml:"mode,omitempty"`
+	Namespace        string            `yaml:"namespace,omitempty"`
+	Registry         string            `yaml:"registry,omitempty"`
+	Resources        *ResourceConfig   `yaml:"resources,omitempty"`
+	NodeSelector     map[string]string `yaml:"node_selector,omitempty"`
+	Tolerations      []Toleration      `yaml:"tolerations,omitempty"`
+	ServiceAccount   string            `yaml:"service_account,omitempty"`
+	ImagePullSecrets []string          `yaml:"image_pull_secrets,omitempty"`
+	PodLabels        map[string]string `yaml:"pod_labels,omitempty"`
+	PodAnnotations   map[string]string `yaml:"pod_annotations,omitempty"`
+	WorkspaceSize    string            `yaml:"workspace_size,omitempty"`
+	StorageClass     string            `yaml:"storage_class,omitempty"`
+	Secrets          *SecretsConfig    `yaml:"secrets,omitempty"`
+}
+
+// SecretsConfig defines credentials to inject into the K8s Secret.
+type SecretsConfig struct {
+	Env   []string     `yaml:"env,omitempty"`
+	Files []SecretFile `yaml:"files,omitempty"`
+}
+
+// SecretFile defines a host file to embed in the K8s Secret and mount into the pod.
+type SecretFile struct {
+	Source    string `yaml:"source"`
+	MountPath string `yaml:"mountPath"`
+	Env       string `yaml:"env,omitempty"`
+}
+
+// EffectiveMode returns the Kubernetes mode, defaulting to "interactive".
+func (k *KubernetesConfig) EffectiveMode() KubernetesMode {
+	if k != nil && k.Mode != "" {
+		return k.Mode
+	}
+	return KubernetesModeInteractive
+}
+
+// EffectiveNamespace returns the Kubernetes namespace, defaulting to "aw".
+func (k *KubernetesConfig) EffectiveNamespace() string {
+	if k != nil && k.Namespace != "" {
+		return k.Namespace
+	}
+	return "aw"
+}
+
+// Toleration represents a Kubernetes pod toleration.
+type Toleration struct {
+	Key      string `yaml:"key,omitempty"`
+	Operator string `yaml:"operator,omitempty"`
+	Value    string `yaml:"value,omitempty"`
+	Effect   string `yaml:"effect,omitempty"`
+}
+
+// ResourceConfig holds Kubernetes resource requests and limits.
+type ResourceConfig struct {
+	Requests map[string]string `yaml:"requests,omitempty"`
+	Limits   map[string]string `yaml:"limits,omitempty"`
 }
 
 // ProfileDefaults describes top-level defaults shared by all profiles.

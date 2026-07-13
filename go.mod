@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	github.com/alecthomas/kong v1.15.0
+	github.com/distribution/reference v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/jotaen/kong-completion v0.0.14
 	github.com/junegunn/fzf v0.73.1
@@ -25,6 +26,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab // indirect

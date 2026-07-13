@@ -19,7 +19,7 @@ const (
 var reservedProfileNames = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "build": true, "init": true, "auth": true, "login": true,
-	"doctor": true, "reaper": true, "team": true, "msg": true,
+	"doctor": true, "reaper": true, "team": true, "msg": true, "manifest": true,
 }
 
 var validRoles = map[Role]bool{
@@ -37,6 +37,7 @@ func Validate(p Profile) error {
 		func(p Profile) error { return validateAuth(p.Auth) },
 		func(p Profile) error { return validateBuild(p.Build, p.Environment) },
 		func(p Profile) error { return validateReaper(p.Reaper, p.Environment) },
+		func(p Profile) error { return validateKubernetes(p.Kubernetes) },
 	}
 	for _, v := range validators {
 		if err := v(p); err != nil {
@@ -276,6 +277,41 @@ func validateAuth(auth *AuthConfig) error {
 		}
 	}
 
+	return nil
+}
+
+func validateKubernetes(k *KubernetesConfig) error {
+	if k == nil {
+		return nil
+	}
+	switch k.Mode {
+	case "", KubernetesModeInteractive, KubernetesModeChat:
+	default:
+		return fmt.Errorf("unknown kubernetes.mode: %q (must be \"interactive\" or \"chat\")", k.Mode)
+	}
+	if k.Namespace != "" {
+		if len(k.Namespace) > 63 {
+			return fmt.Errorf("kubernetes.namespace must be 63 characters or less")
+		}
+	}
+	if k.WorkspaceSize != "" {
+		if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)?([eE][0-9]+)?([kKMGTPE]i?)?$`).MatchString(k.WorkspaceSize) {
+			return fmt.Errorf("kubernetes.workspace_size must be a valid Kubernetes quantity (e.g. \"10Gi\", \"1073741824\", \"1.5Gi\")")
+		}
+	}
+	if k.Secrets != nil {
+		for i, f := range k.Secrets.Files {
+			if f.Source == "" {
+				return fmt.Errorf("kubernetes.secrets.files[%d]: source is required", i)
+			}
+			if f.MountPath == "" {
+				return fmt.Errorf("kubernetes.secrets.files[%d]: mountPath is required", i)
+			}
+			if !strings.HasPrefix(f.MountPath, "/") {
+				return fmt.Errorf("kubernetes.secrets.files[%d]: mountPath must be an absolute path", i)
+			}
+		}
+	}
 	return nil
 }
 

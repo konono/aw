@@ -14,6 +14,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/distribution/reference"
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
@@ -107,6 +108,32 @@ func (b *BuildCmd) Run() error {
 		if err := client.Save(context.Background(), resultImage, outputPath); err != nil {
 			return fmt.Errorf("saving image: %w", err)
 		}
+	}
+
+	if b.Push {
+		// Strip existing registry prefix from resultImage before prepending the target registry.
+		// Local images (e.g. "aw-container:hash") have no registry and are used as-is.
+		// Remote images (e.g. "ghcr.io/konono/aw-claude:tag") have their registry replaced.
+		imagePart := resultImage
+		if ref, err := reference.ParseNormalizedNamed(resultImage); err == nil {
+			domain := reference.Domain(ref)
+			if strings.Contains(resultImage, domain+"/") {
+				imagePart = reference.Path(ref)
+				if tagged, ok := ref.(reference.Tagged); ok {
+					imagePart += ":" + tagged.Tag()
+				}
+			}
+		}
+		pushImage := b.Registry + "/" + imagePart
+		fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", resultImage, pushImage)
+		if err := client.Tag(context.Background(), resultImage, pushImage); err != nil {
+			return fmt.Errorf("tagging image: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "Pushing image '%s'...\n", pushImage)
+		if err := client.Push(context.Background(), pushImage); err != nil {
+			return fmt.Errorf("pushing image: %w", err)
+		}
+		resultImage = pushImage
 	}
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")

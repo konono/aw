@@ -95,6 +95,14 @@ func (m *mockDockerClient) RemoveContainer(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockDockerClient) Tag(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockDockerClient) Push(_ context.Context, _ string) error {
+	return nil
+}
+
 type mockConfigSyncer struct {
 	syncCalled    bool
 	onboardCalled bool
