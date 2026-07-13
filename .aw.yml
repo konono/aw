@@ -75,6 +75,29 @@ profiles:
     os: debian12
     launch: cursor
 
+  # ── Kubernetes manifest profiles ──────────────────────────────────
+  k8s-claude:
+    os: ubi9
+    launch: claude
+    environment: container
+    gh_token: true
+    kubernetes:
+      mode: chat
+      namespace: aw
+      secrets:
+        env:
+          - CLAUDE_CODE_USE_VERTEX
+          - ANTHROPIC_VERTEX_PROJECT_ID
+          - CLOUD_ML_PROJECT_ID
+          - GCP_PROJECT_ID
+          - ANTHROPIC_VERTEX_REGION
+          - CLOUD_ML_REGION
+          - GCP_REGION
+        files:
+          - source: ~/.config/gcloud/application_default_credentials.json
+            mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
+            env: GOOGLE_APPLICATION_CREDENTIALS
+
 teams:
   review-team:
     members:

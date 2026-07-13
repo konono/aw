@@ -17,6 +17,7 @@ func MergeProfile(base, override Profile) Profile {
 	merged.Auth = mergeAuth(merged.Auth, override.Auth)
 	merged.Build = mergeBuild(merged.Build, override.Build)
 	merged.Reaper = mergeReaper(merged.Reaper, override.Reaper)
+	merged.Kubernetes = mergeKubernetes(merged.Kubernetes, override.Kubernetes)
 	return merged
 }
 
@@ -183,6 +184,9 @@ func RelativeProfile(defaults, effective Profile) Profile {
 	if !equalReaper(effective.Reaper, defaults.Reaper) && effective.Reaper != nil {
 		c := *effective.Reaper
 		relative.Reaper = &c
+	}
+	if effective.Kubernetes != nil && defaults.Kubernetes == nil {
+		relative.Kubernetes = cloneKubernetes(effective.Kubernetes)
 	}
 	return relative
 }
@@ -505,6 +509,133 @@ func equalBuild(a, b *BuildConfig) bool {
 		}
 	}
 	return true
+}
+
+func cloneKubernetes(k *KubernetesConfig) *KubernetesConfig {
+	if k == nil {
+		return nil
+	}
+	c := *k
+	c.NodeSelector = maps.Clone(k.NodeSelector)
+	c.PodLabels = maps.Clone(k.PodLabels)
+	c.PodAnnotations = maps.Clone(k.PodAnnotations)
+	if k.Tolerations != nil {
+		c.Tolerations = make([]Toleration, len(k.Tolerations))
+		copy(c.Tolerations, k.Tolerations)
+	}
+	if k.ImagePullSecrets != nil {
+		c.ImagePullSecrets = make([]string, len(k.ImagePullSecrets))
+		copy(c.ImagePullSecrets, k.ImagePullSecrets)
+	}
+	if k.Resources != nil {
+		r := *k.Resources
+		r.Requests = maps.Clone(k.Resources.Requests)
+		r.Limits = maps.Clone(k.Resources.Limits)
+		c.Resources = &r
+	}
+	if k.Secrets != nil {
+		s := *k.Secrets
+		s.Env = append([]string{}, k.Secrets.Env...)
+		s.Files = append([]SecretFile{}, k.Secrets.Files...)
+		c.Secrets = &s
+	}
+	return &c
+}
+
+func mergeKubernetes(base, override *KubernetesConfig) *KubernetesConfig {
+	if override == nil {
+		return base
+	}
+	if base == nil {
+		c := *override
+		return &c
+	}
+	merged := *base
+	if override.Mode != "" {
+		merged.Mode = override.Mode
+	}
+	if override.Namespace != "" {
+		merged.Namespace = override.Namespace
+	}
+	if override.Registry != "" {
+		merged.Registry = override.Registry
+	}
+	if override.Resources != nil {
+		c := *override.Resources
+		c.Requests = maps.Clone(override.Resources.Requests)
+		c.Limits = maps.Clone(override.Resources.Limits)
+		merged.Resources = &c
+	}
+	if override.NodeSelector != nil {
+		merged.NodeSelector = maps.Clone(override.NodeSelector)
+	}
+	if override.Tolerations != nil {
+		tols := make([]Toleration, len(override.Tolerations))
+		copy(tols, override.Tolerations)
+		merged.Tolerations = tols
+	}
+	if override.ServiceAccount != "" {
+		merged.ServiceAccount = override.ServiceAccount
+	}
+	if override.ImagePullSecrets != nil {
+		ips := make([]string, len(override.ImagePullSecrets))
+		copy(ips, override.ImagePullSecrets)
+		merged.ImagePullSecrets = ips
+	}
+	if override.PodLabels != nil {
+		merged.PodLabels = maps.Clone(override.PodLabels)
+	}
+	if override.PodAnnotations != nil {
+		merged.PodAnnotations = maps.Clone(override.PodAnnotations)
+	}
+	if override.WorkspaceSize != "" {
+		merged.WorkspaceSize = override.WorkspaceSize
+	}
+	if override.StorageClass != "" {
+		merged.StorageClass = override.StorageClass
+	}
+	if override.Secrets != nil {
+		merged.Secrets = mergeSecretsConfig(merged.Secrets, override.Secrets)
+	}
+	return &merged
+}
+
+func mergeSecretsConfig(base, override *SecretsConfig) *SecretsConfig {
+	if base == nil {
+		c := *override
+		c.Env = append([]string{}, override.Env...)
+		c.Files = append([]SecretFile{}, override.Files...)
+		return &c
+	}
+	merged := SecretsConfig{}
+	// Merge env: base + override (dedup by appending override entries not in base)
+	seen := make(map[string]bool, len(base.Env))
+	for _, e := range base.Env {
+		seen[e] = true
+	}
+	merged.Env = append([]string{}, base.Env...)
+	for _, e := range override.Env {
+		if !seen[e] {
+			merged.Env = append(merged.Env, e)
+		}
+	}
+	// Merge files: base + override (override wins on duplicate mountPath)
+	filesByMount := make(map[string]SecretFile, len(base.Files))
+	var mountOrder []string
+	for _, f := range base.Files {
+		filesByMount[f.MountPath] = f
+		mountOrder = append(mountOrder, f.MountPath)
+	}
+	for _, f := range override.Files {
+		if _, exists := filesByMount[f.MountPath]; !exists {
+			mountOrder = append(mountOrder, f.MountPath)
+		}
+		filesByMount[f.MountPath] = f
+	}
+	for _, mp := range mountOrder {
+		merged.Files = append(merged.Files, filesByMount[mp])
+	}
+	return &merged
 }
 
 func mergeReaper(base, override *ReaperProfileConfig) *ReaperProfileConfig {

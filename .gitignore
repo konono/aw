@@ -9,3 +9,5 @@ docs/journal/
 docs/plan.md
 .tracecraft
 build/
+.kube/
+.envrc

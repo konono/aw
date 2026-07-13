@@ -634,7 +634,7 @@ func seedCursorAuth(stageDir, homeDir string) error {
 		return nil
 	}
 
-	if data := cursorAuthFromKeychain(); data != nil {
+	if data := CursorAuthFromKeychain(); data != nil {
 		if err := os.MkdirAll(stageDir, 0755); err != nil {
 			return err
 		}
@@ -651,7 +651,9 @@ func seedCursorAuth(stageDir, homeDir string) error {
 	return nil
 }
 
-func cursorAuthFromKeychain() []byte {
+// CursorAuthFromKeychain reads Cursor auth tokens from macOS Keychain.
+// Returns nil if not on macOS or if tokens are not found.
+func CursorAuthFromKeychain() []byte {
 	if runtime.GOOS != "darwin" {
 		return nil
 	}

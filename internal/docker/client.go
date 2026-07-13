@@ -50,6 +50,8 @@ type Client interface {
 	ImageExists(ctx context.Context, imageName string) (bool, error)
 	Pull(ctx context.Context, imageName string) error
 	Save(ctx context.Context, imageName, outputPath string) error
+	Tag(ctx context.Context, source, target string) error
+	Push(ctx context.Context, imageName string) error
 	RunOneShot(ctx context.Context, config RunConfig) (containerID string, err error)
 	Commit(ctx context.Context, containerID, imageName string, changes []string) error
 	RemoveContainer(ctx context.Context, containerID string) error
@@ -509,6 +511,21 @@ func (c *ShellClient) RemoveContainer(ctx context.Context, containerID string) e
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), "rm", containerID)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	return cmd.Run()
+}
+
+// Tag tags a local image with a new name.
+func (c *ShellClient) Tag(ctx context.Context, source, target string) error {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "tag", source, target)
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Push pushes an image to a container registry.
+func (c *ShellClient) Push(ctx context.Context, imageName string) error {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "push", imageName)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 

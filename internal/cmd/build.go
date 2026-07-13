@@ -66,6 +66,9 @@ func (b *BuildCmd) Run() error {
 	workDir := ec.OrigWorkDir
 
 	if !hasBuildInputs(workDir, incl, envVars, p) {
+		if b.Push {
+			return b.pushOfficialImage(p)
+		}
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
@@ -107,6 +110,19 @@ func (b *BuildCmd) Run() error {
 		if err := client.Save(context.Background(), resultImage, outputPath); err != nil {
 			return fmt.Errorf("saving image: %w", err)
 		}
+	}
+
+	if b.Push {
+		pushImage := replaceImageRegistry(resultImage, b.Registry)
+		fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", resultImage, pushImage)
+		if err := client.Tag(context.Background(), resultImage, pushImage); err != nil {
+			return fmt.Errorf("tagging image: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "Pushing image '%s'...\n", pushImage)
+		if err := client.Push(context.Background(), pushImage); err != nil {
+			return fmt.Errorf("pushing image: %w", err)
+		}
+		resultImage = pushImage
 	}
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
@@ -172,6 +188,49 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 		return fmt.Errorf("applying build result: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
+	return nil
+}
+
+func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
+	tool := toolinfo.ImageTool(p.EffectiveTool())
+	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
+	runtime := p.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
+
+	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+	if err := client.Pull(context.Background(), imageName); err != nil {
+		return fmt.Errorf("pulling official image: %w", err)
+	}
+
+	pushImage := replaceImageRegistry(imageName, b.Registry)
+	fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", imageName, pushImage)
+	if err := client.Tag(context.Background(), imageName, pushImage); err != nil {
+		return fmt.Errorf("tagging image: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Pushing image '%s'...\n", pushImage)
+	if err := client.Push(context.Background(), pushImage); err != nil {
+		return fmt.Errorf("pushing image: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "\nDone. Pushed '%s'\n", pushImage)
+
+	if b.Apply {
+		targetFile := profile.FindProfileSource(b.ProfileName)
+		if targetFile == "" {
+			cfg, err := profile.Load()
+			if err == nil && cfg.Source.FilePath != "" {
+				targetFile = cfg.Source.FilePath
+			}
+		}
+		if targetFile != "" {
+			pkgMgr := p.EffectivePackageManager()
+			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, pkgMgr, false); err != nil {
+				return fmt.Errorf("applying build result: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
+		}
+	}
+
 	return nil
 }
 
