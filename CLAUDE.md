@@ -25,6 +25,20 @@ Unit tests are sufficient:
 go test ./...
 ```
 
+### Kubernetes manifest changes (`internal/manifest/`)
+
+Unit tests are sufficient (golden file comparison, no K8s cluster needed):
+
+```bash
+go test ./internal/manifest/...
+```
+
+For OpenShift validation (optional):
+
+```bash
+aw manifest <profile> --name test | oc apply --dry-run=client -f -
+```
+
 ### Dockerfile template changes (`internal/image/embed/Dockerfile.*.tmpl`)
 
 Unit tests + integration Smoke:

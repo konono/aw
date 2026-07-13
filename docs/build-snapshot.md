@@ -23,6 +23,22 @@ aw build dev --save image.tar
 | `aw build <profile> --apply` | o | o | - | o |
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
 | `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
+| `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
+| `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
+
+### レジストリへの push
+
+`--push --registry <registry>` でビルド済みイメージをコンテナレジストリに push できます。K8s manifest 生成 (`aw manifest`) と組み合わせて使用します。
+
+```bash
+# ビルド + push
+aw build claude --push --registry ghcr.io/myorg
+
+# ビルド + push + config にイメージ名を書き戻し
+aw build claude --push --registry ghcr.io/myorg --apply
+```
+
+イメージ名のレジストリプレフィックスは `distribution/reference` で正規に解析されるため、`ghcr.io`、`localhost:5000`、ECR/GCR 等のレジストリに対応しています。
 
 ### デフォルトと --from-template の使い分け
 

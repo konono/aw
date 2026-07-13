@@ -587,6 +587,79 @@ aw init
 
 `~/.ssh` はデフォルトではマウントされません。フル SSH アクセスには `mount_ssh: true`、Git 操作のみなら `ssh_agent_forwarding: true` を設定してください。
 
+## Kubernetes マニフェスト生成
+
+`aw manifest` コマンドでプロファイルから K8s マニフェストを生成できます。ローカル Docker/Podman のフローには影響しません。
+
+### kubernetes: セクション
+
+プロファイルに `kubernetes:` を追加すると、`aw manifest` の生成内容をカスタマイズできます:
+
+```yaml
+profiles:
+  k8s-claude:
+    launch: claude
+    environment: container
+    gh_token: true
+    kubernetes:
+      mode: chat                    # "interactive" (default) / "chat"
+      namespace: dev-agents         # default: "aw"
+      registry: ghcr.io/myorg       # aw build --push 時のレジストリ
+      resources:
+        requests: { cpu: "1", memory: 2Gi }
+        limits:   { cpu: "4", memory: 8Gi }
+      node_selector:
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: dedicated
+          value: ai-agent
+          effect: NoSchedule
+      service_account: my-sa        # 既存 SA を使う場合（SA リソース生成をスキップ）
+      image_pull_secrets: [ghcr-secret]
+      pod_labels: { team: backend }
+      pod_annotations: {}
+      workspace_size: 10Gi          # 指定時のみ PVC 生成
+      storage_class: gp3
+      secrets:                      # 認証情報の注入
+        env:
+          - ANTHROPIC_API_KEY
+          - CLAUDE_CODE_USE_VERTEX
+        files:
+          - source: ~/.config/gcloud/application_default_credentials.json
+            mountPath: /home/agent/.config/gcloud/application_default_credentials.json
+            env: GOOGLE_APPLICATION_CREDENTIALS
+```
+
+### 利用モード
+
+| モード | 用途 | Pod の動作 |
+|---|---|---|
+| `interactive` | 開発者が `kubectl attach` で接続 | ツールコマンドを直接起動 (stdin/tty あり) |
+| `chat` | Slack Bot が `kubectl exec` でプロンプト送信 | `sleep infinity` で待機、exec で実行 |
+
+### secrets 設定
+
+`kubernetes.secrets` を省略すると、ホスト環境から既知の認証情報 (Vertex AI, Bedrock, GCP ADC 等) を自動検出します。明示的に指定した場合は自動検出は無効になります。
+
+- `secrets.env` — ホストの環境変数を K8s Secret (envFrom) に転送
+- `secrets.files` — ホストのファイルを K8s Secret に埋め込み、Pod 内にマウント。`env` フィールドでマウントパスを環境変数として設定可能
+
+### コマンド例
+
+```bash
+# マニフェスト生成 (stdout)
+aw manifest k8s-claude --name alice
+
+# ファイルに出力
+aw manifest k8s-claude --name alice -o ./manifests/
+
+# イメージビルド + push
+aw build k8s-claude --push --registry ghcr.io/myorg
+
+# クラスタに適用
+aw manifest k8s-claude --name alice | kubectl apply -f -
+```
+
 ## Tips
 
 - `aw profiles` で利用可能なプロファイルとその読み込み元を確認できます
