@@ -14,7 +14,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/distribution/reference"
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/docker"
 	"github.com/konono/aw/internal/pipeline"
@@ -67,6 +66,9 @@ func (b *BuildCmd) Run() error {
 	workDir := ec.OrigWorkDir
 
 	if !hasBuildInputs(workDir, incl, envVars, p) {
+		if b.Push {
+			return b.pushOfficialImage(p)
+		}
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
@@ -111,20 +113,7 @@ func (b *BuildCmd) Run() error {
 	}
 
 	if b.Push {
-		// Strip existing registry prefix from resultImage before prepending the target registry.
-		// Local images (e.g. "aw-container:hash") have no registry and are used as-is.
-		// Remote images (e.g. "ghcr.io/konono/aw-claude:tag") have their registry replaced.
-		imagePart := resultImage
-		if ref, err := reference.ParseNormalizedNamed(resultImage); err == nil {
-			domain := reference.Domain(ref)
-			if strings.Contains(resultImage, domain+"/") {
-				imagePart = reference.Path(ref)
-				if tagged, ok := ref.(reference.Tagged); ok {
-					imagePart += ":" + tagged.Tag()
-				}
-			}
-		}
-		pushImage := b.Registry + "/" + imagePart
+		pushImage := replaceImageRegistry(resultImage, b.Registry)
 		fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", resultImage, pushImage)
 		if err := client.Tag(context.Background(), resultImage, pushImage); err != nil {
 			return fmt.Errorf("tagging image: %w", err)
@@ -199,6 +188,49 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 		return fmt.Errorf("applying build result: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
+	return nil
+}
+
+func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
+	tool := toolinfo.ImageTool(p.EffectiveTool())
+	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
+	runtime := p.EffectiveContainerRuntime()
+	client := docker.NewShellClient(runtime)
+
+	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+	if err := client.Pull(context.Background(), imageName); err != nil {
+		return fmt.Errorf("pulling official image: %w", err)
+	}
+
+	pushImage := replaceImageRegistry(imageName, b.Registry)
+	fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", imageName, pushImage)
+	if err := client.Tag(context.Background(), imageName, pushImage); err != nil {
+		return fmt.Errorf("tagging image: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Pushing image '%s'...\n", pushImage)
+	if err := client.Push(context.Background(), pushImage); err != nil {
+		return fmt.Errorf("pushing image: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "\nDone. Pushed '%s'\n", pushImage)
+
+	if b.Apply {
+		targetFile := profile.FindProfileSource(b.ProfileName)
+		if targetFile == "" {
+			cfg, err := profile.Load()
+			if err == nil && cfg.Source.FilePath != "" {
+				targetFile = cfg.Source.FilePath
+			}
+		}
+		if targetFile != "" {
+			pkgMgr := p.EffectivePackageManager()
+			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, pkgMgr, false); err != nil {
+				return fmt.Errorf("applying build result: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
+		}
+	}
+
 	return nil
 }
 

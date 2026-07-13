@@ -186,8 +186,7 @@ func RelativeProfile(defaults, effective Profile) Profile {
 		relative.Reaper = &c
 	}
 	if effective.Kubernetes != nil && defaults.Kubernetes == nil {
-		c := *effective.Kubernetes
-		relative.Kubernetes = &c
+		relative.Kubernetes = cloneKubernetes(effective.Kubernetes)
 	}
 	return relative
 }
@@ -512,6 +511,37 @@ func equalBuild(a, b *BuildConfig) bool {
 	return true
 }
 
+func cloneKubernetes(k *KubernetesConfig) *KubernetesConfig {
+	if k == nil {
+		return nil
+	}
+	c := *k
+	c.NodeSelector = maps.Clone(k.NodeSelector)
+	c.PodLabels = maps.Clone(k.PodLabels)
+	c.PodAnnotations = maps.Clone(k.PodAnnotations)
+	if k.Tolerations != nil {
+		c.Tolerations = make([]Toleration, len(k.Tolerations))
+		copy(c.Tolerations, k.Tolerations)
+	}
+	if k.ImagePullSecrets != nil {
+		c.ImagePullSecrets = make([]string, len(k.ImagePullSecrets))
+		copy(c.ImagePullSecrets, k.ImagePullSecrets)
+	}
+	if k.Resources != nil {
+		r := *k.Resources
+		r.Requests = maps.Clone(k.Resources.Requests)
+		r.Limits = maps.Clone(k.Resources.Limits)
+		c.Resources = &r
+	}
+	if k.Secrets != nil {
+		s := *k.Secrets
+		s.Env = append([]string{}, k.Secrets.Env...)
+		s.Files = append([]SecretFile{}, k.Secrets.Files...)
+		c.Secrets = &s
+	}
+	return &c
+}
+
 func mergeKubernetes(base, override *KubernetesConfig) *KubernetesConfig {
 	if override == nil {
 		return base
@@ -565,10 +595,45 @@ func mergeKubernetes(base, override *KubernetesConfig) *KubernetesConfig {
 		merged.StorageClass = override.StorageClass
 	}
 	if override.Secrets != nil {
-		c := *override.Secrets
-		c.Env = append([]string{}, override.Secrets.Env...)
-		c.Files = append([]SecretFile{}, override.Secrets.Files...)
-		merged.Secrets = &c
+		merged.Secrets = mergeSecretsConfig(merged.Secrets, override.Secrets)
+	}
+	return &merged
+}
+
+func mergeSecretsConfig(base, override *SecretsConfig) *SecretsConfig {
+	if base == nil {
+		c := *override
+		c.Env = append([]string{}, override.Env...)
+		c.Files = append([]SecretFile{}, override.Files...)
+		return &c
+	}
+	merged := SecretsConfig{}
+	// Merge env: base + override (dedup by appending override entries not in base)
+	seen := make(map[string]bool, len(base.Env))
+	for _, e := range base.Env {
+		seen[e] = true
+	}
+	merged.Env = append([]string{}, base.Env...)
+	for _, e := range override.Env {
+		if !seen[e] {
+			merged.Env = append(merged.Env, e)
+		}
+	}
+	// Merge files: base + override (override wins on duplicate mountPath)
+	filesByMount := make(map[string]SecretFile, len(base.Files))
+	var mountOrder []string
+	for _, f := range base.Files {
+		filesByMount[f.MountPath] = f
+		mountOrder = append(mountOrder, f.MountPath)
+	}
+	for _, f := range override.Files {
+		if _, exists := filesByMount[f.MountPath]; !exists {
+			mountOrder = append(mountOrder, f.MountPath)
+		}
+		filesByMount[f.MountPath] = f
+	}
+	for _, mp := range mountOrder {
+		merged.Files = append(merged.Files, filesByMount[mp])
 	}
 	return &merged
 }

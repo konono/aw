@@ -12,7 +12,7 @@ import (
 	"github.com/konono/aw/internal/toolinfo"
 )
 
-func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv containerenv.Config, sc *profile.SecretsConfig, labels map[string]string) (Resource, error) {
+func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv containerenv.Config, sc *profile.SecretsConfig, hasToolConfig bool, labels map[string]string) (Resource, error) {
 	k := p.Kubernetes
 	mode := k.EffectiveMode()
 	tool := p.EffectiveTool()
@@ -28,13 +28,13 @@ func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv
 		labelAppInstance: labels[labelAppInstance],
 	}
 
-	container := buildMainContainer(imageName, name, tool, toolDir, mode, cenv, p, hasSecretFiles, sc, k)
+	container := buildMainContainer(imageName, name, tool, toolDir, mode, cenv, p, hasSecretFiles, hasToolConfig, sc, k)
 
 	podSpec := map[string]interface{}{
 		"serviceAccountName": sa,
 		"securityContext":    podSecurityContext(),
 		"containers":        []interface{}{container},
-		"volumes":           buildVolumes(name, k, hasSecretFiles, toolDir != ""),
+		"volumes":           buildVolumes(name, k, hasSecretFiles, hasToolConfig),
 	}
 
 	if k != nil && len(k.NodeSelector) > 0 {
@@ -51,7 +51,7 @@ func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv
 		podSpec["imagePullSecrets"] = secrets
 	}
 
-	if toolDir != "" {
+	if hasToolConfig {
 		podSpec["initContainers"] = []interface{}{buildInitContainer(imageName, toolDir)}
 	}
 
@@ -90,7 +90,7 @@ func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv
 	return Resource{Kind: "Deployment", Name: name, YAML: data}, nil
 }
 
-func buildMainContainer(imageName, name, tool, toolDir string, mode profile.KubernetesMode, cenv containerenv.Config, p profile.Profile, hasSecretFiles bool, sc *profile.SecretsConfig, k *profile.KubernetesConfig) map[string]interface{} {
+func buildMainContainer(imageName, name, tool, toolDir string, mode profile.KubernetesMode, cenv containerenv.Config, p profile.Profile, hasSecretFiles, hasToolConfig bool, sc *profile.SecretsConfig, k *profile.KubernetesConfig) map[string]interface{} {
 	pullPolicy := "IfNotPresent"
 	if strings.HasSuffix(imageName, ":latest") {
 		pullPolicy = "Always"
@@ -159,7 +159,7 @@ func buildMainContainer(imageName, name, tool, toolDir string, mode profile.Kube
 		},
 	}
 
-	container["volumeMounts"] = buildVolumeMounts(toolDir, hasSecretFiles, sc)
+	container["volumeMounts"] = buildVolumeMounts(toolDir, hasSecretFiles, hasToolConfig, sc)
 	container["securityContext"] = containerSecurityContext()
 
 	if k != nil && k.Resources != nil {
@@ -185,7 +185,7 @@ func buildInitContainer(imageName, toolDir string) map[string]interface{} {
 		"name":            "init-tool-config",
 		"image":           imageName,
 		"imagePullPolicy": pullPolicy,
-		"command":         []string{"sh", "-c", "cp -rL /tool-config-ro/. " + toolDir + "/"},
+		"command":         []string{"cp", "-rL", "/tool-config-ro/.", toolDir + "/"},
 		"volumeMounts": []map[string]interface{}{
 			{
 				"name":      "tool-config-ro",
@@ -201,7 +201,7 @@ func buildInitContainer(imageName, toolDir string) map[string]interface{} {
 	}
 }
 
-func buildVolumeMounts(toolDir string, hasSecretFiles bool, sc *profile.SecretsConfig) []map[string]interface{} {
+func buildVolumeMounts(toolDir string, hasSecretFiles, hasToolConfig bool, sc *profile.SecretsConfig) []map[string]interface{} {
 	mounts := []map[string]interface{}{
 		{
 			"name":      "init-script",
@@ -211,7 +211,7 @@ func buildVolumeMounts(toolDir string, hasSecretFiles bool, sc *profile.SecretsC
 		},
 	}
 
-	if toolDir != "" {
+	if hasToolConfig {
 		mounts = append(mounts, map[string]interface{}{
 			"name":      "tool-config",
 			"mountPath": toolDir,

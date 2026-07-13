@@ -10,6 +10,9 @@ import (
 // Exported so that pipeline.CollectPackages can reuse it.
 var ValidPackageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*$`)
 
+var dns1123LabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+var k8sQuantityRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?([eE][0-9]+)?([kKMGTPE]i?)?$`)
+
 const (
 	maxReaperTimeout       = 3600
 	maxReaperReportRetention = 100
@@ -293,9 +296,12 @@ func validateKubernetes(k *KubernetesConfig) error {
 		if len(k.Namespace) > 63 {
 			return fmt.Errorf("kubernetes.namespace must be 63 characters or less")
 		}
+		if !dns1123LabelRe.MatchString(k.Namespace) {
+			return fmt.Errorf("kubernetes.namespace %q is not a valid DNS-1123 label (must be lowercase alphanumeric or '-', and start/end with alphanumeric)", k.Namespace)
+		}
 	}
 	if k.WorkspaceSize != "" {
-		if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)?([eE][0-9]+)?([kKMGTPE]i?)?$`).MatchString(k.WorkspaceSize) {
+		if !k8sQuantityRe.MatchString(k.WorkspaceSize) {
 			return fmt.Errorf("kubernetes.workspace_size must be a valid Kubernetes quantity (e.g. \"10Gi\", \"1073741824\", \"1.5Gi\")")
 		}
 	}

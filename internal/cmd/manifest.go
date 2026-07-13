@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/distribution/reference"
 	"github.com/konono/aw/internal/manifest"
 	"github.com/konono/aw/internal/profile"
 	"github.com/konono/aw/internal/stage"
@@ -93,14 +94,27 @@ func resolveImageName(p profile.Profile) string {
 	official := stage.OfficialImageName(tool, p.EffectiveOS())
 
 	if p.Kubernetes != nil && p.Kubernetes.Registry != "" {
-		// Replace the default registry with the user's registry.
-		// OfficialImageName returns "ghcr.io/konono/aw-<tool>:<version>-<os>".
-		// Extract the image name after the registry prefix.
-		parts := strings.SplitN(official, "/", 3)
-		if len(parts) == 3 {
-			return p.Kubernetes.Registry + "/" + parts[2]
-		}
+		return replaceImageRegistry(official, p.Kubernetes.Registry)
 	}
 
 	return official
+}
+
+// replaceImageRegistry replaces the registry prefix of an image reference.
+// e.g. "ghcr.io/konono/aw-claude:v1-debian12" with registry "ghcr.io/myorg"
+// becomes "ghcr.io/myorg/aw-claude:v1-debian12".
+func replaceImageRegistry(imageName, registry string) string {
+	ref, err := reference.ParseNormalizedNamed(imageName)
+	if err != nil {
+		return registry + "/" + imageName
+	}
+	refPath := reference.Path(ref)
+	if idx := strings.LastIndex(refPath, "/"); idx >= 0 {
+		refPath = refPath[idx+1:]
+	}
+	result := registry + "/" + refPath
+	if tagged, ok := ref.(reference.Tagged); ok {
+		result += ":" + tagged.Tag()
+	}
+	return result
 }

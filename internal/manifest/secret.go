@@ -2,13 +2,10 @@ package manifest
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -16,6 +13,7 @@ import (
 	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/internal/stage"
 )
 
 func renderEnvSecret(name, namespace string, sc *profile.SecretsConfig, p profile.Profile) (Resource, error) {
@@ -47,9 +45,8 @@ func renderEnvSecret(name, namespace string, sc *profile.SecretsConfig, p profil
 	return Resource{Kind: "Secret", Name: name + "-env-secrets", YAML: data}, nil
 }
 
-func renderFileSecret(name, namespace, homeDir string, sc *profile.SecretsConfig) (*Resource, error) {
-	fileData := collectFileSecrets(sc, homeDir)
-
+// renderFileSecretFromData renders a file Secret from pre-collected data.
+func renderFileSecretFromData(name, namespace string, fileData map[string]string) (*Resource, error) {
 	if len(fileData) == 0 {
 		return nil, nil
 	}
@@ -81,6 +78,29 @@ func renderFileSecret(name, namespace, homeDir string, sc *profile.SecretsConfig
 	return &r, nil
 }
 
+// effectiveSecretsForDeployment returns a SecretsConfig that only includes
+// files that were actually collected, so the Deployment doesn't reference
+// mounts/envs for files that couldn't be read.
+func effectiveSecretsForDeployment(sc *profile.SecretsConfig, collectedData map[string]string) *profile.SecretsConfig {
+	if sc == nil {
+		return nil
+	}
+	var files []profile.SecretFile
+	for _, f := range sc.Files {
+		key := secretKeyForFile(f)
+		if _, ok := collectedData[key]; ok {
+			files = append(files, f)
+		}
+	}
+	if len(sc.Env) == 0 && len(files) == 0 {
+		return nil
+	}
+	return &profile.SecretsConfig{
+		Env:   sc.Env,
+		Files: files,
+	}
+}
+
 func collectEnvSecrets(sc *profile.SecretsConfig, p profile.Profile) map[string]string {
 	var result map[string]string
 
@@ -109,20 +129,24 @@ func collectEnvSecrets(sc *profile.SecretsConfig, p profile.Profile) map[string]
 	return result
 }
 
-func collectFileSecrets(sc *profile.SecretsConfig, homeDir string) map[string]string {
+func collectFileSecrets(sc *profile.SecretsConfig, homeDir string, inMemoryFiles map[string][]byte) map[string]string {
 	if sc == nil || len(sc.Files) == 0 {
 		return nil
 	}
 
 	result := make(map[string]string)
 	for _, f := range sc.Files {
+		key := secretKeyForFile(f)
+		if mem, ok := inMemoryFiles[f.MountPath]; ok {
+			result[key] = string(mem)
+			continue
+		}
 		src := pathutil.ExpandTilde(f.Source, homeDir)
 		data, err := os.ReadFile(src)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: secrets.files: %s: %v\n", f.Source, err)
 			continue
 		}
-		key := secretKeyForFile(f)
 		result[key] = string(data)
 	}
 
@@ -135,20 +159,23 @@ func collectFileSecrets(sc *profile.SecretsConfig, homeDir string) map[string]st
 var safeKeyRe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
 // secretKeyForFile generates a unique Secret data key from a SecretFile.
-// Uses the parent directory name as a prefix to avoid basename collisions.
+// Derives the key from mountPath (guaranteed unique per volume mount) to
+// avoid collisions between files with the same parent-dir/filename.
 func secretKeyForFile(f profile.SecretFile) string {
-	dir := filepath.Base(filepath.Dir(f.Source))
-	base := filepath.Base(f.Source)
-	key := fmt.Sprintf("%s--%s", dir, base)
-	return safeKeyRe.ReplaceAllString(key, "-")
+	key := strings.TrimPrefix(f.MountPath, "/")
+	key = safeKeyRe.ReplaceAllString(key, "-")
+	if len(key) > 253 {
+		key = key[:253]
+	}
+	return key
 }
 
 func detectGhToken() string {
-	out, err := exec.Command("gh", "auth", "token").Output()
+	token, err := stage.DetectGhToken()
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return token
 }
 
 // secretFileVolumeMounts returns volume mounts for files in the file Secret.
@@ -193,29 +220,20 @@ type volumeMount struct {
 }
 
 type toolAuthResult struct {
-	path string // temp file path containing auth data
-	data []byte
+	path    string // file path containing auth data (empty when inMemory is set)
+	inMemory []byte // in-memory auth data (avoids temp file for Keychain data)
 }
 
 // detectToolAuth tries to find auth credentials for the given tool.
 // For cursor: macOS Keychain → ~/.config/cursor/auth.json file fallback.
 // For codex: ~/.codex/auth.json.
-// Returns nil if no auth found. If Keychain data is found, it writes a temp file.
+// Returns nil if no auth found. Keychain data is returned in-memory to avoid
+// leaking credentials to temp files.
 func detectToolAuth(tool, homeDir string) *toolAuthResult {
 	switch tool {
 	case "cursor":
 		if data := cursorAuthFromKeychain(); data != nil {
-			tmpFile, err := os.CreateTemp("", "aw-cursor-auth-*.json")
-			if err != nil {
-				return nil
-			}
-			if _, err := tmpFile.Write(data); err != nil {
-				_ = tmpFile.Close()
-				_ = os.Remove(tmpFile.Name())
-				return nil
-			}
-			_ = tmpFile.Close()
-			return &toolAuthResult{path: tmpFile.Name(), data: data}
+			return &toolAuthResult{inMemory: data}
 		}
 		path := filepath.Join(homeDir, ".config", "cursor", "auth.json")
 		if _, err := os.Stat(path); err == nil {
@@ -231,33 +249,7 @@ func detectToolAuth(tool, homeDir string) *toolAuthResult {
 }
 
 func cursorAuthFromKeychain() []byte {
-	if runtime.GOOS != "darwin" {
-		return nil
-	}
-	access, err := readKeychainPassword("cursor-access-token", "cursor-user")
-	if err != nil || access == "" {
-		return nil
-	}
-	refresh, err := readKeychainPassword("cursor-refresh-token", "cursor-user")
-	if err != nil || refresh == "" {
-		return nil
-	}
-	data, err := json.MarshalIndent(struct {
-		AccessToken  string `json:"accessToken"`
-		RefreshToken string `json:"refreshToken"`
-	}{access, refresh}, "", "  ")
-	if err != nil {
-		return nil
-	}
-	return append(data, '\n')
-}
-
-func readKeychainPassword(service, account string) (string, error) {
-	out, err := exec.Command("security", "find-generic-password", "-s", service, "-a", account, "-w").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
+	return stage.CursorAuthFromKeychain()
 }
 
 // HasSecretFiles returns true if the secrets config has files to mount.
@@ -265,16 +257,16 @@ func HasSecretFiles(sc *profile.SecretsConfig) bool {
 	return sc != nil && len(sc.Files) > 0
 }
 
-// effectiveSecretsConfig returns the secrets config, falling back to auto-detection
-// for known tools when no explicit config is provided.
-func effectiveSecretsConfig(p profile.Profile, homeDir string) *profile.SecretsConfig {
+// effectiveSecretsConfig returns the secrets config and any in-memory file data
+// (e.g. from Keychain). Falls back to auto-detection when no explicit config is provided.
+func effectiveSecretsConfig(p profile.Profile, homeDir string) (*profile.SecretsConfig, map[string][]byte) {
 	if p.Kubernetes != nil && p.Kubernetes.Secrets != nil {
-		return p.Kubernetes.Secrets
+		return p.Kubernetes.Secrets, nil
 	}
 	return autoDetectSecrets(p, homeDir)
 }
 
-func autoDetectSecrets(p profile.Profile, homeDir string) *profile.SecretsConfig {
+func autoDetectSecrets(p profile.Profile, homeDir string) (*profile.SecretsConfig, map[string][]byte) {
 	var envVars []string
 	var files []profile.SecretFile
 
@@ -304,15 +296,25 @@ func autoDetectSecrets(p profile.Profile, homeDir string) *profile.SecretsConfig
 
 	tool := p.EffectiveTool()
 	cenv := containerenv.FromUser(p.EffectiveContainerUser())
+	var inMemoryFiles map[string][]byte
 	if authData := detectToolAuth(tool, homeDir); authData != nil {
-		files = append(files, profile.SecretFile{
-			Source:    authData.path,
-			MountPath: cenv.ToolDir(tool) + "/auth.json",
-		})
+		mountPath := cenv.ToolDir(tool) + "/auth.json"
+		if authData.inMemory != nil {
+			inMemoryFiles = map[string][]byte{mountPath: authData.inMemory}
+			files = append(files, profile.SecretFile{
+				Source:    "(keychain)",
+				MountPath: mountPath,
+			})
+		} else {
+			files = append(files, profile.SecretFile{
+				Source:    authData.path,
+				MountPath: mountPath,
+			})
+		}
 	}
 
 	if len(envVars) == 0 && len(files) == 0 {
-		return nil
+		return nil, nil
 	}
-	return &profile.SecretsConfig{Env: envVars, Files: files}
+	return &profile.SecretsConfig{Env: envVars, Files: files}, inMemoryFiles
 }

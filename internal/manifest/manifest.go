@@ -40,7 +40,7 @@ func Generate(opts Options) ([]Resource, error) {
 
 	tool := opts.Profile.EffectiveTool()
 	cenv := containerenv.FromUser(opts.Profile.EffectiveContainerUser())
-	sc := effectiveSecretsConfig(opts.Profile, opts.HomeDir)
+	sc, inMemoryFiles := effectiveSecretsConfig(opts.Profile, opts.HomeDir)
 
 	labels := standardLabels(name, opts.ProfileName, tool, string(mode))
 	if k != nil && len(k.PodLabels) > 0 {
@@ -89,7 +89,8 @@ func Generate(opts Options) ([]Resource, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rendering tool configmap: %w", err)
 	}
-	if toolCM != nil {
+	hasToolConfig := toolCM != nil
+	if hasToolConfig {
 		resources = append(resources, *toolCM)
 	}
 
@@ -99,13 +100,18 @@ func Generate(opts Options) ([]Resource, error) {
 	}
 	resources = append(resources, envSecret)
 
-	fileSecret, err := renderFileSecret(name, namespace, opts.HomeDir, sc)
+	fileSecretData := collectFileSecrets(sc, opts.HomeDir, inMemoryFiles)
+	fileSecret, err := renderFileSecretFromData(name, namespace, fileSecretData)
 	if err != nil {
 		return nil, fmt.Errorf("rendering file secret: %w", err)
 	}
 	if fileSecret != nil {
 		resources = append(resources, *fileSecret)
 	}
+
+	// Build the effective SecretsConfig based on actually collected data
+	// so the Deployment only references files that actually exist.
+	effectiveSC := effectiveSecretsForDeployment(sc, fileSecretData)
 
 	if k != nil && k.WorkspaceSize != "" {
 		pvc, err := renderPVC(name, namespace, k.WorkspaceSize, k.StorageClass)
@@ -117,7 +123,7 @@ func Generate(opts Options) ([]Resource, error) {
 		}
 	}
 
-	dep, err := renderDeployment(name, namespace, imageName, opts.Profile, cenv, sc, labels)
+	dep, err := renderDeployment(name, namespace, imageName, opts.Profile, cenv, effectiveSC, hasToolConfig, labels)
 	if err != nil {
 		return nil, fmt.Errorf("rendering deployment: %w", err)
 	}
@@ -142,6 +148,10 @@ var resourceNameRe = regexp.MustCompile(`[^a-z0-9-]`)
 
 func resourceName(profileName, instanceName string) (string, error) {
 	sanitized := resourceNameRe.ReplaceAllString(strings.ToLower(profileName), "-")
+	sanitized = strings.Trim(sanitized, "-")
+	if sanitized == "" {
+		sanitized = "default"
+	}
 	base := "aw-" + sanitized
 	var name string
 	if instanceName != "" {

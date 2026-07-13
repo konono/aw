@@ -14,12 +14,15 @@ func podSecurityContext() map[string]interface{} {
 	}
 }
 
-// containerSecurityContext returns per-container security context.
-// AUDIT_WRITE capability is intentionally omitted for OpenShift restricted SCC compatibility.
+// containerSecurityContext returns per-container security context
+// compliant with the Kubernetes restricted Pod Security Standard.
 func containerSecurityContext() map[string]interface{} {
 	return map[string]interface{}{
 		"allowPrivilegeEscalation": false,
 		"runAsNonRoot":             true,
+		"capabilities": map[string]interface{}{
+			"drop": []string{"ALL"},
+		},
 		"seccompProfile": map[string]string{
 			"type": "RuntimeDefault",
 		},
