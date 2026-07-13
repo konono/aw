@@ -172,15 +172,9 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 		return fmt.Errorf("pulling official image: %w", err)
 	}
 
-	targetFile := profile.FindProfileSource(b.ProfileName)
-	if targetFile == "" {
-		cfg, err := profile.Load()
-		if err == nil && cfg.Source.FilePath != "" {
-			targetFile = cfg.Source.FilePath
-		}
-	}
-	if targetFile == "" {
-		return fmt.Errorf("--apply requires a config file. Run `aw init` first")
+	targetFile, err := applyTargetFile(b.ProfileName)
+	if err != nil {
+		return err
 	}
 
 	pkgMgr := p.EffectivePackageManager()
@@ -215,23 +209,32 @@ func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
 	fmt.Fprintf(os.Stderr, "\nDone. Pushed '%s'\n", pushImage)
 
 	if b.Apply {
-		targetFile := profile.FindProfileSource(b.ProfileName)
-		if targetFile == "" {
-			cfg, err := profile.Load()
-			if err == nil && cfg.Source.FilePath != "" {
-				targetFile = cfg.Source.FilePath
-			}
+		targetFile, err := applyTargetFile(b.ProfileName)
+		if err != nil {
+			return err
 		}
-		if targetFile != "" {
-			pkgMgr := p.EffectivePackageManager()
-			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, pkgMgr, false); err != nil {
-				return fmt.Errorf("applying build result: %w", err)
-			}
-			fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
+		pkgMgr := p.EffectivePackageManager()
+		if err := applyBuildResult(targetFile, b.ProfileName, pushImage, pkgMgr, false); err != nil {
+			return fmt.Errorf("applying build result: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
 	}
 
 	return nil
+}
+
+func applyTargetFile(profileName string) (string, error) {
+	targetFile := profile.FindProfileSource(profileName)
+	if targetFile == "" {
+		cfg, err := profile.Load()
+		if err == nil && cfg.Source.FilePath != "" {
+			targetFile = cfg.Source.FilePath
+		}
+	}
+	if targetFile == "" {
+		return "", fmt.Errorf("--apply requires a config file. Run `aw init` first")
+	}
+	return targetFile, nil
 }
 
 var workspaceFileNames = []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"}

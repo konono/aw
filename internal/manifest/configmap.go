@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -50,7 +51,7 @@ func renderToolConfigMap(name, namespace, tool, homeDir string, p profile.Profil
 	}
 
 	srcDir := toolinfo.HomePath(tool, homeDir)
-	cmData := collectToolConfigData(srcDir, *spec, tool)
+	cmData := collectToolConfigData(srcDir, *spec)
 	if len(cmData) == 0 {
 		return nil, nil
 	}
@@ -93,26 +94,76 @@ func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
 	}
 }
 
-func collectToolConfigData(srcDir string, spec config.ToolSyncSpec, tool string) map[string]string {
+func collectToolConfigData(srcDir string, spec config.ToolSyncSpec) map[string]string {
 	data := make(map[string]string)
+
 	for _, f := range spec.Files {
-		path := filepath.Join(srcDir, f)
-		content, err := os.ReadFile(path)
-		if err != nil {
+		if content := readToolConfigFile(srcDir, f, spec); content != nil {
+			data[f] = string(content)
+		}
+	}
+
+	for _, f := range spec.SeedFiles {
+		// auth.json is injected via Secret in K8s, not ConfigMap.
+		if filepath.Base(f) == "auth.json" {
 			continue
 		}
-		if patcher, ok := spec.Patch[f]; ok {
-			patched, err := patcher(content)
-			if err == nil {
+		if content := readToolConfigFile(srcDir, f, spec); content != nil {
+			data[f] = string(content)
+		}
+	}
+
+	for _, d := range spec.Dirs {
+		collectToolConfigDir(data, filepath.Join(srcDir, d), d, spec)
+	}
+
+	return data
+}
+
+func readToolConfigFile(srcDir, relPath string, spec config.ToolSyncSpec) []byte {
+	path := filepath.Join(srcDir, relPath)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	if patcher, ok := spec.Patch[relPath]; ok {
+		if patched, err := patcher(content); err == nil {
+			content = patched
+		}
+	}
+	if relPath == "settings.json" {
+		content = stripHooksFromSettings(content)
+	}
+	return content
+}
+
+func collectToolConfigDir(data map[string]string, dirPath, dirKey string, spec config.ToolSyncSpec) {
+	info, err := os.Stat(dirPath)
+	if err != nil || !info.IsDir() {
+		return
+	}
+
+	_ = filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return nil
+		}
+		key := dirKey + "/" + filepath.ToSlash(rel)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if patcher, ok := spec.Patch[key]; ok {
+			if patched, err := patcher(content); err == nil {
 				content = patched
 			}
 		}
-		if f == "settings.json" {
-			content = stripHooksFromSettings(content)
-		}
-		data[f] = string(content)
-	}
-	return data
+		data[key] = string(content)
+		return nil
+	})
 }
 
 // stripHooksFromSettings removes hooks from settings.json for K8s.
