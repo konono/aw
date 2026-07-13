@@ -2,15 +2,18 @@ package manifest
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/konono/aw/internal/containerenv"
 	"github.com/konono/aw/internal/pathutil"
 	"github.com/konono/aw/internal/profile"
 )
@@ -189,6 +192,74 @@ type volumeMount struct {
 	readOnly  bool
 }
 
+type toolAuthResult struct {
+	path string // temp file path containing auth data
+	data []byte
+}
+
+// detectToolAuth tries to find auth credentials for the given tool.
+// For cursor: macOS Keychain → ~/.config/cursor/auth.json file fallback.
+// For codex: ~/.codex/auth.json.
+// Returns nil if no auth found. If Keychain data is found, it writes a temp file.
+func detectToolAuth(tool, homeDir string) *toolAuthResult {
+	switch tool {
+	case "cursor":
+		if data := cursorAuthFromKeychain(); data != nil {
+			tmpFile, err := os.CreateTemp("", "aw-cursor-auth-*.json")
+			if err != nil {
+				return nil
+			}
+			if _, err := tmpFile.Write(data); err != nil {
+				_ = tmpFile.Close()
+				_ = os.Remove(tmpFile.Name())
+				return nil
+			}
+			_ = tmpFile.Close()
+			return &toolAuthResult{path: tmpFile.Name(), data: data}
+		}
+		path := filepath.Join(homeDir, ".config", "cursor", "auth.json")
+		if _, err := os.Stat(path); err == nil {
+			return &toolAuthResult{path: path}
+		}
+	case "codex":
+		path := filepath.Join(homeDir, ".codex", "auth.json")
+		if _, err := os.Stat(path); err == nil {
+			return &toolAuthResult{path: path}
+		}
+	}
+	return nil
+}
+
+func cursorAuthFromKeychain() []byte {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	access, err := readKeychainPassword("cursor-access-token", "cursor-user")
+	if err != nil || access == "" {
+		return nil
+	}
+	refresh, err := readKeychainPassword("cursor-refresh-token", "cursor-user")
+	if err != nil || refresh == "" {
+		return nil
+	}
+	data, err := json.MarshalIndent(struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+	}{access, refresh}, "", "  ")
+	if err != nil {
+		return nil
+	}
+	return append(data, '\n')
+}
+
+func readKeychainPassword(service, account string) (string, error) {
+	out, err := exec.Command("security", "find-generic-password", "-s", service, "-a", account, "-w").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // HasSecretFiles returns true if the secrets config has files to mount.
 func HasSecretFiles(sc *profile.SecretsConfig) bool {
 	return sc != nil && len(sc.Files) > 0
@@ -228,6 +299,15 @@ func autoDetectSecrets(p profile.Profile, homeDir string) *profile.SecretsConfig
 			Source:    adcPath,
 			MountPath: "/run/secrets/aw/gcloud/application_default_credentials.json",
 			Env:       "GOOGLE_APPLICATION_CREDENTIALS",
+		})
+	}
+
+	tool := p.EffectiveTool()
+	cenv := containerenv.FromUser(p.EffectiveContainerUser())
+	if authData := detectToolAuth(tool, homeDir); authData != nil {
+		files = append(files, profile.SecretFile{
+			Source:    authData.path,
+			MountPath: cenv.ToolDir(tool) + "/auth.json",
 		})
 	}
 
