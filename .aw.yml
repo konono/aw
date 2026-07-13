@@ -95,7 +95,7 @@ profiles:
           - GCP_REGION
         files:
           - source: ~/.config/gcloud/application_default_credentials.json
-            mountPath: /home/agent/.config/gcloud/application_default_credentials.json
+            mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
             env: GOOGLE_APPLICATION_CREDENTIALS
 
 teams:

@@ -226,7 +226,7 @@ func autoDetectSecrets(p profile.Profile, homeDir string) *profile.SecretsConfig
 	if _, err := os.Stat(adcPath); err == nil {
 		files = append(files, profile.SecretFile{
 			Source:    adcPath,
-			MountPath: fmt.Sprintf("/home/%s/.config/gcloud/application_default_credentials.json", p.EffectiveContainerUser()),
+			MountPath: "/run/secrets/aw/gcloud/application_default_credentials.json",
 			Env:       "GOOGLE_APPLICATION_CREDENTIALS",
 		})
 	}
