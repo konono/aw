@@ -114,14 +114,18 @@ func collectEnvSecrets(sc *profile.SecretsConfig, p profile.Profile) map[string]
 	}
 
 	if sc != nil {
-		for _, envVar := range sc.Env {
-			if val := os.Getenv(envVar); val != "" {
+		for _, entry := range sc.Env {
+			key, val, hasValue := strings.Cut(entry, "=")
+			if !hasValue {
+				val = os.Getenv(key)
+			}
+			if val != "" {
 				if result == nil {
 					result = make(map[string]string)
 				}
-				result[envVar] = val
+				result[key] = val
 			} else {
-				fmt.Fprintf(os.Stderr, "Warning: secrets.env: %s is not set\n", envVar)
+				fmt.Fprintf(os.Stderr, "Warning: secrets.env: %s is not set\n", key)
 			}
 		}
 	}
