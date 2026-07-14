@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/distribution/reference"
-	"github.com/konono/aw/internal/manifest"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/stage"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/manifest"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/stage"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 // Run generates Kubernetes manifests for a profile.

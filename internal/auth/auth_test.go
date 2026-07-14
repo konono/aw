@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func TestResolveActionCommand_DefaultCodexLogin(t *testing.T) {

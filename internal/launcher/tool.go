@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"sort"
 
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/reaper"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/reaper"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 // toolContainerCommands maps tool names to the command used in container mode.

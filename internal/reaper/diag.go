@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/v4/internal/docker"
 )
 
 func diagnoseContainer(runtime, name string) *ContainerDiag {

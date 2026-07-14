@@ -3,8 +3,8 @@ package pipeline
 import (
 	"strings"
 
-	"github.com/konono/aw/internal/mount"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/mount"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // ContainerEnvVars builds the environment variables passed into a container run.

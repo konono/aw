@@ -3,8 +3,8 @@ package completion
 import (
 	"sort"
 
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/toolinfo"
 	"github.com/posener/complete"
 )
 

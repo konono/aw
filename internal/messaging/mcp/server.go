@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 // Server implements a minimal MCP server over stdin/stdout.

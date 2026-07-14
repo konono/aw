@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func TestContainerEnvVars_IncludesAWUserAndHome(t *testing.T) {

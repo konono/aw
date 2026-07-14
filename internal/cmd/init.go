@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // Run handles the init command.

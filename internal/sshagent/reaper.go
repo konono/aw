@@ -1,6 +1,6 @@
 package sshagent
 
-import "github.com/konono/aw/internal/pipeline"
+import "github.com/konono/aw/v4/internal/pipeline"
 
 var _ pipeline.SSHReaperInfo = (*ForwardedAgent)(nil)
 

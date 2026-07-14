@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/v4/internal/pipeline"
 )
 
 func TestVMSocketPath(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/konono/aw
+module github.com/konono/aw/v4
 
 go 1.25
 

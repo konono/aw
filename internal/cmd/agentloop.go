@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/konono/aw/internal/launcher"
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/launcher"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 // Run handles internal agent loop.

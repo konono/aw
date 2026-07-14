@@ -1,6 +1,6 @@
 package docker
 
-import "github.com/konono/aw/internal/platform"
+import "github.com/konono/aw/v4/internal/platform"
 
 // PodmanUserns returns "keep-id" for rootless Podman so that the host UID
 // maps to the same UID inside the container.

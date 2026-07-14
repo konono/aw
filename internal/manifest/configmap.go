@@ -7,10 +7,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/konono/aw/internal/config"
-	"github.com/konono/aw/internal/image"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/config"
+	"github.com/konono/aw/v4/internal/image"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 func renderInitConfigMap(name, namespace string) (Resource, error) {

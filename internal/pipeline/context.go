@@ -1,9 +1,9 @@
 package pipeline
 
 import (
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // ExecutionContext carries mutable state through pipeline stages.

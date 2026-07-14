@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/konono/aw/internal/messaging"
-	"github.com/konono/aw/internal/messaging/inject"
-	"github.com/konono/aw/internal/messaging/roles"
-	"github.com/konono/aw/internal/team"
+	"github.com/konono/aw/v4/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging/inject"
+	"github.com/konono/aw/v4/internal/messaging/roles"
+	"github.com/konono/aw/v4/internal/team"
 )
 
 // runCheckInbox is a test helper that runs InternalCheckInboxCmd.Run()

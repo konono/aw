@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/launcher"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/launcher"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 var allOSTemplates = []profile.OSTemplate{

@@ -6,10 +6,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/launcher"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/launcher"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv containerenv.Config, sc *profile.SecretsConfig, hasToolConfig bool, labels map[string]string) (Resource, error) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/konono/aw/internal/containerenv"
+	"github.com/konono/aw/v4/internal/containerenv"
 )
 
 // ToolSpec holds static per-tool metadata.

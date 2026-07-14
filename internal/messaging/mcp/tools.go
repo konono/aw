@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 func toolDefinitions() []map[string]interface{} {

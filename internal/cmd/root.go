@@ -6,15 +6,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/konono/aw/internal/doctor"
-	"github.com/konono/aw/internal/image"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/reaper"
-	"github.com/konono/aw/internal/stage"
-	"github.com/konono/aw/internal/update"
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/doctor"
+	"github.com/konono/aw/v4/internal/image"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/reaper"
+	"github.com/konono/aw/v4/internal/stage"
+	"github.com/konono/aw/v4/internal/update"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 // Run method for RunCmd — the default command that launches a profile.

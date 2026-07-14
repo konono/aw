@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 // Run is the entry point for the reaper subprocess.

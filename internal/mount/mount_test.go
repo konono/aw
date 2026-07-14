@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 func containerPath(hostPath string) string {

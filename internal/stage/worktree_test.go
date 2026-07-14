@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // realPath resolves symlinks so that pwd comparisons work on macOS

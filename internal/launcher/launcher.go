@@ -3,7 +3,7 @@ package launcher
 import (
 	"context"
 
-	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/v4/internal/pipeline"
 )
 
 // Launcher executes the final "run something" step of the pipeline.

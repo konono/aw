@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 func TestWalkUpForGoMod(t *testing.T) {

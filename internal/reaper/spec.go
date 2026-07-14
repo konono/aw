@@ -3,7 +3,7 @@ package reaper
 import (
 	"encoding/json"
 
-	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/v4/internal/pipeline"
 )
 
 // BuildSpec constructs a ReaperSpec from the current execution context.

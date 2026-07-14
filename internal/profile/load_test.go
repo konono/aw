@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/konono/aw/internal/gitroot"
+	"github.com/konono/aw/v4/internal/gitroot"
 )
 
 func TestParse(t *testing.T) {
