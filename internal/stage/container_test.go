@@ -1319,6 +1319,30 @@ func TestResolveOfficialImage_ShellPullFail(t *testing.T) {
 	}
 }
 
+func TestHasBuildCustomizations_SessionLog(t *testing.T) {
+	tests := []struct {
+		name   string
+		k      *profile.KubernetesConfig
+		want   bool
+	}{
+		{"nil kubernetes", nil, false},
+		{"session_log false", &profile.KubernetesConfig{SessionLog: false}, false},
+		{"session_log true", &profile.KubernetesConfig{SessionLog: true}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ec := &pipeline.ExecutionContext{
+				Profile:    profile.Profile{Kubernetes: tt.k},
+				OrigWorkDir: t.TempDir(),
+			}
+			got := HasBuildCustomizations(ec)
+			if got != tt.want {
+				t.Errorf("HasBuildCustomizations() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func setupToolConfig(t *testing.T, homeDir, tool string) {
 	t.Helper()
 	toolDir := filepath.Join(homeDir, ".agent-workspace", tool)

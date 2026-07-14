@@ -111,8 +111,13 @@ func buildMainContainer(imageName, name, tool, toolDir string, mode profile.Kube
 			cmd = []string{"/bin/bash"}
 		}
 		container["args"] = cmd
-		container["stdin"] = true
-		container["tty"] = true
+		if cenv.SessionLog {
+			container["stdin"] = false
+			container["tty"] = false
+		} else {
+			container["stdin"] = true
+			container["tty"] = true
+		}
 	}
 
 	// Env vars: core + tool-specific + profile env + secret file env
@@ -120,6 +125,9 @@ func buildMainContainer(imageName, name, tool, toolDir string, mode profile.Kube
 		{"name": "AW_USER", "value": cenv.User},
 		{"name": "AW_HOME", "value": cenv.Home},
 		{"name": "HOST_WORKSPACE", "value": cenv.Workspace},
+	}
+	if cenv.SessionLog {
+		envVars = append(envVars, map[string]string{"name": "AW_SESSION_LOG", "value": "1"})
 	}
 
 	// Tool-specific env vars (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS)

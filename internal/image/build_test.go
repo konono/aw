@@ -444,6 +444,51 @@ func TestRenderDockerfile_GID0Pattern(t *testing.T) {
 	}
 }
 
+func TestRenderDockerfile_SessionLog(t *testing.T) {
+	allOS := []profile.OSTemplate{
+		profile.OSDebian12,
+		profile.OSUBI9,
+		profile.OSUBI10,
+		profile.OSUbuntu2604,
+	}
+	allPkgMgr := []profile.PackageManager{
+		profile.PackageManagerApt,
+		profile.PackageManagerDevbox,
+	}
+	for _, osTemplate := range allOS {
+		for _, pkgMgr := range allPkgMgr {
+			name := string(osTemplate) + "/" + string(pkgMgr)
+			t.Run(name, func(t *testing.T) {
+			cenvOff := containerenv.Default()
+			dfOff, err := RenderDockerfile(osTemplate, pkgMgr, cenvOff)
+			if err != nil {
+				t.Fatalf("RenderDockerfile(SessionLog=false) error: %v", err)
+			}
+			if strings.Contains(string(dfOff), "pty-logger") {
+				t.Error("Dockerfile with SessionLog=false should not contain pty-logger")
+			}
+
+			cenvOn := containerenv.Default()
+			cenvOn.SessionLog = true
+			dfOn, err := RenderDockerfile(osTemplate, pkgMgr, cenvOn)
+			if err != nil {
+				t.Fatalf("RenderDockerfile(SessionLog=true) error: %v", err)
+			}
+			content := string(dfOn)
+			if !strings.Contains(content, "pty-logger-amd64") {
+				t.Error("Dockerfile with SessionLog=true should COPY pty-logger-amd64")
+			}
+			if !strings.Contains(content, "pty-logger-arm64") {
+				t.Error("Dockerfile with SessionLog=true should COPY pty-logger-arm64")
+			}
+			if !strings.Contains(content, "Unsupported architecture") {
+				t.Error("Dockerfile with SessionLog=true should have arch fallback error")
+			}
+		})
+		}
+	}
+}
+
 func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 	cenv := containerenv.Default()
 	for _, osTemplate := range []profile.OSTemplate{

@@ -40,6 +40,9 @@ func Generate(opts Options) ([]Resource, error) {
 
 	tool := opts.Profile.EffectiveTool()
 	cenv := containerenv.FromUser(opts.Profile.EffectiveContainerUser())
+	if k != nil && k.SessionLog {
+		cenv.SessionLog = true
+	}
 	sc, inMemoryFiles := effectiveSecretsConfig(opts.Profile, opts.HomeDir)
 
 	labels := standardLabels(name, opts.ProfileName, tool, string(mode))

@@ -11,9 +11,10 @@ const (
 )
 
 type Config struct {
-	User      string
-	Home      string
-	Workspace string
+	User       string
+	Home       string
+	Workspace  string
+	SessionLog bool
 }
 
 func Default() Config {
