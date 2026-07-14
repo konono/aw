@@ -224,6 +224,22 @@ BASH_PROFILE
 # ---------------------------------------------------------------------------
 aw_exec() {
   aw_log "Launching: $*"
+  if [ "${AW_SESSION_LOG}" = "1" ]; then
+    if ! command -v pty-logger >/dev/null 2>&1; then
+      aw_log "ERROR: AW_SESSION_LOG=1 but pty-logger is not installed."
+      aw_log "Build the image with 'aw build --from-template' and session_log: true."
+      exit 1
+    fi
+    aw_log "Session logging enabled — wrapping with script + pty-logger"
+    local typescript=/tmp/aw-typescript
+    local pty_cols=${PTY_LOGGER_COLS:-120}
+    local pty_rows=${PTY_LOGGER_ROWS:-40}
+    : > "$typescript"
+    PTY_LOGGER_COLS=$pty_cols PTY_LOGGER_ROWS=$pty_rows pty-logger "$typescript" &
+    sleep 0.3
+    exec env HOME="$AW_HOME" BASH_ENV="$AW_ENV_FILE" \
+      script -qf "$typescript" -c "stty cols $pty_cols rows $pty_rows 2>/dev/null; bash -lc \"$*\"" >/dev/null 2>&1
+  fi
   exec env HOME="$AW_HOME" BASH_ENV="$AW_ENV_FILE" \
     bash -lc "$*"
 }

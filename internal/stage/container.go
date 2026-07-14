@@ -59,6 +59,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	cenv := containerenv.FromUser(ec.Profile.EffectiveContainerUser())
+	if ec.Profile.Kubernetes != nil && ec.Profile.Kubernetes.SessionLog {
+		cenv.SessionLog = true
+	}
 	ec.ContainerEnv = cenv
 
 	imageName, err := s.resolveImage(ctx, ec, cenv)
@@ -149,6 +152,9 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox ||
 		(p.ContainerUser != "" && p.ContainerUser != "agent") {
+		return true
+	}
+	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
 		return true
 	}
 	if pkgs := pipeline.CollectPackages(nil, ec.OrigWorkDir); len(pkgs) > 0 {

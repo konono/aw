@@ -155,6 +155,7 @@ type KubernetesConfig struct {
 	WorkspaceSize    string            `yaml:"workspace_size,omitempty"`
 	StorageClass     string            `yaml:"storage_class,omitempty"`
 	Secrets          *SecretsConfig    `yaml:"secrets,omitempty"`
+	SessionLog       bool              `yaml:"session_log,omitempty"`
 }
 
 // SecretsConfig defines credentials to inject into the K8s Secret.

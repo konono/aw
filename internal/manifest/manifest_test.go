@@ -329,6 +329,63 @@ func TestGenerate_CustomSASkipsGeneration(t *testing.T) {
 	assertContains(t, yaml, "serviceAccountName: existing-sa")
 }
 
+func TestGenerate_SessionLog(t *testing.T) {
+	p := profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchClaude,
+		Kubernetes: &profile.KubernetesConfig{
+			Mode:       profile.KubernetesModeInteractive,
+			Namespace:  "test-ns",
+			SessionLog: true,
+		},
+	}
+
+	resources, err := Generate(Options{
+		Profile:      p,
+		ProfileName:  "claude",
+		InstanceName: "slog",
+		ImageName:    "ghcr.io/test/aw-claude:latest",
+		HomeDir:      "/tmp/test-home",
+	})
+	if err != nil {
+		t.Fatalf("Generate returned error: %v", err)
+	}
+
+	yaml := string(RenderAll(resources))
+
+	assertContains(t, yaml, "name: AW_SESSION_LOG")
+	assertContains(t, yaml, "stdin: false")
+	assertContains(t, yaml, "tty: false")
+}
+
+func TestGenerate_SessionLogDisabled(t *testing.T) {
+	p := profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchClaude,
+		Kubernetes: &profile.KubernetesConfig{
+			Mode:      profile.KubernetesModeInteractive,
+			Namespace: "test-ns",
+		},
+	}
+
+	resources, err := Generate(Options{
+		Profile:      p,
+		ProfileName:  "claude",
+		InstanceName: "no-slog",
+		ImageName:    "ghcr.io/test/aw-claude:latest",
+		HomeDir:      "/tmp/test-home",
+	})
+	if err != nil {
+		t.Fatalf("Generate returned error: %v", err)
+	}
+
+	yaml := string(RenderAll(resources))
+
+	assertNotContains(t, yaml, "name: AW_SESSION_LOG")
+	assertContains(t, yaml, "stdin: true")
+	assertContains(t, yaml, "tty: true")
+}
+
 func assertContains(t *testing.T, haystack, needle string) {
 	t.Helper()
 	if !strings.Contains(haystack, needle) {

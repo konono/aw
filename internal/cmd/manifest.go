@@ -36,7 +36,11 @@ func (m *ManifestCmd) Run() error {
 
 	imageName := m.Image
 	if imageName == "" {
-		imageName = resolveImageName(p)
+		var err error
+		imageName, err = resolveImageName(p)
+		if err != nil {
+			return err
+		}
 	}
 
 	opts := manifest.Options{
@@ -85,19 +89,25 @@ func (m *ManifestCmd) Run() error {
 	return err
 }
 
-func resolveImageName(p profile.Profile) string {
+func resolveImageName(p profile.Profile) (string, error) {
 	if p.Image != "" {
-		return p.Image
+		return p.Image, nil
 	}
 
 	tool := toolinfo.ImageTool(p.EffectiveTool())
 	official := stage.OfficialImageName(tool, p.EffectiveOS())
 
-	if p.Kubernetes != nil && p.Kubernetes.Registry != "" {
-		return replaceImageRegistry(official, p.Kubernetes.Registry)
+	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
+		return "", fmt.Errorf("session_log is enabled but no custom image is set.\n" +
+			"  The official image does not include pty-logger.\n" +
+			"  Run 'aw build --from-template' first, then set 'image:' in the profile or use '--image'")
 	}
 
-	return official
+	if p.Kubernetes != nil && p.Kubernetes.Registry != "" {
+		return replaceImageRegistry(official, p.Kubernetes.Registry), nil
+	}
+
+	return official, nil
 }
 
 // replaceImageRegistry replaces the registry prefix of an image reference.

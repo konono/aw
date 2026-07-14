@@ -44,6 +44,17 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
 
 COPY aw-init.sh /aw-init.sh
 COPY entrypoint.sh /entrypoint.sh
+{{if .SessionLog}}
+COPY pty-logger-amd64 /tmp/pty-logger-amd64
+COPY pty-logger-arm64 /tmp/pty-logger-arm64
+RUN ARCH=$(uname -m); \
+    case $ARCH in \
+      x86_64) cp /tmp/pty-logger-amd64 /usr/local/bin/pty-logger;; \
+      aarch64) cp /tmp/pty-logger-arm64 /usr/local/bin/pty-logger;; \
+      *) echo "Unsupported architecture for pty-logger: $ARCH" >&2; exit 1;; \
+    esac && \
+    rm -f /tmp/pty-logger-* && chmod +x /usr/local/bin/pty-logger
+{{end}}
 RUN chmod +x /aw-init.sh /entrypoint.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 

@@ -86,6 +86,9 @@ func (b *BuildCmd) Run() error {
 	client := docker.NewShellClient(runtime)
 
 	cenv := containerenv.FromUser(p.EffectiveContainerUser())
+	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
+		cenv.SessionLog = true
+	}
 
 	snapshot := !b.skipSnapshot
 	resultImage := ec.DockerImage
@@ -253,6 +256,9 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 		return true
 	}
 	if len(p.Packages) > 0 {
+		return true
+	}
+	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
 		return true
 	}
 	return false

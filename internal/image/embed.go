@@ -2,8 +2,9 @@ package image
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"fmt"
+	"io/fs"
 	"text/template"
 
 	"github.com/konono/aw/v4/internal/containerenv"
@@ -46,6 +47,9 @@ var entrypointShDevbox []byte
 
 //go:embed embed/aw-init.sh
 var awInitSh []byte
+
+//go:embed all:embed/pty-logger
+var ptyLoggerFS embed.FS
 
 var dockerfileTmpls = map[profile.OSTemplate]string{
 	profile.OSDebian12:   dockerfileDebian12Tmpl,
@@ -92,6 +96,15 @@ func DefaultDockerfile() []byte {
 		panic(fmt.Sprintf("rendering default Dockerfile: %v", err))
 	}
 	return b
+}
+
+// PtyLoggerFS returns the embedded pty-logger source tree for session logging.
+func PtyLoggerFS() fs.FS {
+	sub, err := fs.Sub(ptyLoggerFS, "embed/pty-logger")
+	if err != nil {
+		panic(fmt.Sprintf("embedded pty-logger source not found: %v", err))
+	}
+	return sub
 }
 
 func renderTemplate(name, tmplStr string, data interface{}) ([]byte, error) {
