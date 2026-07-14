@@ -7,7 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	kongcompletion "github.com/jotaen/kong-completion"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // ExitError signals a non-zero exit code without printing an extra message.

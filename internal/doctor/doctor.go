@@ -9,15 +9,15 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/mount"
-	"github.com/konono/aw/internal/pathutil"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/reaper"
-	"github.com/konono/aw/internal/stage"
-	"github.com/konono/aw/internal/toolinfo"
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/mount"
+	"github.com/konono/aw/v4/internal/pathutil"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/reaper"
+	"github.com/konono/aw/v4/internal/stage"
+	"github.com/konono/aw/v4/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 type result struct {

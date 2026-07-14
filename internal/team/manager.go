@@ -1,6 +1,6 @@
 package team
 
-import "github.com/konono/aw/internal/profile"
+import "github.com/konono/aw/v4/internal/profile"
 
 // ResolvedMember is a team member with its assigned agent name ready for launch.
 type ResolvedMember struct {

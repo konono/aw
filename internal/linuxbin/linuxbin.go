@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/update"
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/update"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 // Resolve returns the path to a Linux aw binary for the given architecture.

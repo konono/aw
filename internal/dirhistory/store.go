@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/konono/aw/internal/gitroot"
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/gitroot"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 const (

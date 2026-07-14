@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/konono/aw/internal/gitroot"
-	"github.com/konono/aw/internal/pathutil"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/worktree"
+	"github.com/konono/aw/v4/internal/gitroot"
+	"github.com/konono/aw/v4/internal/pathutil"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/worktree"
 )
 
 // WorktreeStage creates a git worktree for the workspace.

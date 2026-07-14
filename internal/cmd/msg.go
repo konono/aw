@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 func openMsgStore() (*messaging.Store, error) {

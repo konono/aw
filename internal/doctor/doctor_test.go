@@ -3,7 +3,7 @@ package doctor
 import (
 	"testing"
 
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func boolPtr(b bool) *bool { return &b }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 const testTeam = "test-team-abc123"

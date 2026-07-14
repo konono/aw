@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/konono/aw/internal/messaging"
+	"github.com/konono/aw/v4/internal/messaging"
 )
 
 // Run handles internal watch.

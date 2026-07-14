@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 type Action string

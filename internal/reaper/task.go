@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 func executeTask(ctx context.Context, task ReaperTask, spec *ReaperSpec) error {

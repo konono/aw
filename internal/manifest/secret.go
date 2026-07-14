@@ -10,10 +10,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/pathutil"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/stage"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/pathutil"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/stage"
 )
 
 func renderEnvSecret(name, namespace string, sc *profile.SecretsConfig, p profile.Profile) (Resource, error) {

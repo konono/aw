@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/konono/aw/internal/dirhistory"
-	"github.com/konono/aw/internal/pathutil"
-	"github.com/konono/aw/internal/picker"
+	"github.com/konono/aw/v4/internal/dirhistory"
+	"github.com/konono/aw/v4/internal/pathutil"
+	"github.com/konono/aw/v4/internal/picker"
 )
 
 func expandTilde(path string) string {

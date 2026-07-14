@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func sanitizeLF(b []byte) []byte {

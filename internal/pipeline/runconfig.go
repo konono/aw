@@ -1,10 +1,10 @@
 package pipeline
 
 import (
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/platform"
-	"github.com/konono/aw/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/platform"
+	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 // BuildRunConfig constructs a docker.RunConfig from pipeline state.

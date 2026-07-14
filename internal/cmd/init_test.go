@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func setTestHome(t *testing.T, home string) {

@@ -3,8 +3,8 @@ package cmd
 import (
 	"testing"
 
-	awauth "github.com/konono/aw/internal/auth"
-	"github.com/konono/aw/internal/profile"
+	awauth "github.com/konono/aw/v4/internal/auth"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func TestBuildAuthStages_ContainerProfile(t *testing.T) {

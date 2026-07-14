@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/konono/aw/internal/launcher"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/launcher"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // LaunchStage selects and executes the appropriate launcher.

@@ -3,8 +3,8 @@ package stage
 import (
 	"context"
 
-	awauth "github.com/konono/aw/internal/auth"
-	"github.com/konono/aw/internal/pipeline"
+	awauth "github.com/konono/aw/v4/internal/auth"
+	"github.com/konono/aw/v4/internal/pipeline"
 )
 
 // AuthStage runs an explicit `aw auth ...` action.

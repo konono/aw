@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // PrepareBuildContext prepares a build context directory for docker build.

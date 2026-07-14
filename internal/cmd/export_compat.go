@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // Run handles the deprecated export command by delegating to BuildCmd.

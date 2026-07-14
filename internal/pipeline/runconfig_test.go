@@ -3,7 +3,7 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/v4/internal/docker"
 )
 
 func TestBuildRunConfig_IncludesGroupAdd(t *testing.T) {

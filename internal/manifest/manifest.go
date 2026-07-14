@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // Options configures manifest generation.

@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func buildExecutionContext(profileName string, p profile.Profile) (*pipeline.ExecutionContext, error) {

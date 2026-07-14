@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/konono/aw/internal/envfile"
-	"github.com/konono/aw/internal/pipeline"
+	"github.com/konono/aw/v4/internal/envfile"
+	"github.com/konono/aw/v4/internal/pipeline"
 )
 
 const (

@@ -3,7 +3,7 @@ package mount
 import (
 	"fmt"
 
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 // ContainerSockContainerPath is the fixed path where the container runtime socket

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	awauth "github.com/konono/aw/internal/auth"
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
+	awauth "github.com/konono/aw/v4/internal/auth"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 // AuthCheckStage optionally checks auth state before a normal launch.

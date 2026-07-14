@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/konono/aw/internal/docker"
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 // SSHAgentContainerPath is the fixed path where the SSH agent socket is mounted inside the container.

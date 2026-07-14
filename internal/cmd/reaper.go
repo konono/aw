@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/konono/aw/internal/reaper"
+	"github.com/konono/aw/v4/internal/reaper"
 )
 
 // Run handles reaper show (default subcommand).

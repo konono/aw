@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/konono/aw/internal/pipeline"
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/pipeline"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func TestEnvStage_Name(t *testing.T) {

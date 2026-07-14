@@ -3,7 +3,7 @@ package team
 import (
 	"testing"
 
-	"github.com/konono/aw/internal/profile"
+	"github.com/konono/aw/v4/internal/profile"
 )
 
 func TestResolveMembers(t *testing.T) {

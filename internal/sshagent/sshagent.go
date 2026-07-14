@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 // VMSocketPath returns the session-specific socket path for SSH agent forwarding

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/konono/aw/internal/docker"
+	"github.com/konono/aw/v4/internal/docker"
 )
 
 func TestReaperSpecJSON(t *testing.T) {

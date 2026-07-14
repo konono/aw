@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/konono/aw/internal/platform"
+	"github.com/konono/aw/v4/internal/platform"
 )
 
 // Handle holds the pipe write side kept by the ExecRun wrapper.

@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/konono/aw/internal/containerenv"
-	"github.com/konono/aw/internal/image"
-	"github.com/konono/aw/internal/profile"
-	"github.com/konono/aw/internal/toolinfo"
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/image"
+	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/toolinfo"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 func main() {

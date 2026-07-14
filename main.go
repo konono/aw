@@ -7,10 +7,10 @@ import (
 
 	"github.com/alecthomas/kong"
 	kongcompletion "github.com/jotaen/kong-completion"
-	"github.com/konono/aw/internal/cmd"
-	"github.com/konono/aw/internal/completion"
-	"github.com/konono/aw/internal/reaper"
-	"github.com/konono/aw/internal/version"
+	"github.com/konono/aw/v4/internal/cmd"
+	"github.com/konono/aw/v4/internal/completion"
+	"github.com/konono/aw/v4/internal/reaper"
+	"github.com/konono/aw/v4/internal/version"
 )
 
 func main() {
