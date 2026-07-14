@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.6.0](https://github.com/konono/aw/compare/v4.5.0...v4.6.0) (2026-07-14)
+
+
+### Features
+
+* add session logging for kubectl logs visibility ([#142](https://github.com/konono/aw/issues/142)) ([61ef760](https://github.com/konono/aw/commit/61ef760bc975572f85e3066d6494d70564569d31))
+
 ## [4.5.0](https://github.com/konono/aw/compare/v4.4.0...v4.5.0) (2026-07-14)
 
 
