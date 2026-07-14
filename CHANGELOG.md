@@ -6,6 +6,18 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.5.0](https://github.com/konono/aw/compare/v4.4.0...v4.5.0) (2026-07-14)
+
+
+### Features
+
+* **manifest:** support KEY=VALUE format in kubernetes.secrets.env ([#141](https://github.com/konono/aw/issues/141)) ([4b6ca7b](https://github.com/konono/aw/commit/4b6ca7bd93dffe8262068fe78be0e672e5a66846))
+
+
+### Bug Fixes
+
+* add /v4 major version suffix to Go module path ([#139](https://github.com/konono/aw/issues/139)) ([59c51fd](https://github.com/konono/aw/commit/59c51fd2ade428e485176280fdd7baf50bc72a07))
+
 ## [4.4.0](https://github.com/konono/aw/compare/v4.3.1...v4.4.0) (2026-07-13)
 
 
