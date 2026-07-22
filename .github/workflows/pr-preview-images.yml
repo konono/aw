@@ -24,8 +24,13 @@ permissions:
 jobs:
   build-preview:
     if: github.event.action != 'closed'
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [base, claude, codex, opencode, cursor]
+        os: [debian12]
     steps:
       - uses: actions/checkout@v5
 
@@ -43,42 +48,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Render build contexts
-        run: go run ./cmd/render-image --all --os all
+      - name: Render build context
+        run: go run ./cmd/render-image --tool ${{ matrix.tool }} --os ${{ matrix.os }}
 
-      - name: Build and push preview images
+      - name: Build and push preview image
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REGISTRY: ghcr.io/konono
+          TOOL: ${{ matrix.tool }}
+          OS: ${{ matrix.os }}
         run: |
           TAG="pr-${PR_NUMBER}"
-          for tool in base claude codex opencode cursor; do
-            for os in debian12; do
-              IMAGE="${REGISTRY}/aw-${tool}:${TAG}-${os}"
-              ENV_FILE="build/${tool}-${os}/build-args.env"
-              INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
-              GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-              MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
-              if [ -z "$INSTALL_SCRIPT" ] && [ "$tool" != "base" ]; then
-                echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${tool}-${os}"
-                exit 1
-              fi
-              echo "Building ${IMAGE}..."
-              docker buildx build \
-                --platform linux/arm64,linux/amd64 \
-                --build-arg "AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
-                --build-arg "AW_GH_VERSION=${GH_VERSION}" \
-                --build-arg "AW_MISE_VERSION=${MISE_VERSION}" \
-                --build-arg "AW_OCI_SOURCE=https://github.com/konono/aw" \
-                --build-arg "AW_OCI_VERSION=${TAG}" \
-                --build-arg "AW_OCI_OS=${os}" \
-                --build-arg "AW_OCI_TOOL=${tool}" \
-                --tag "${IMAGE}" \
-                --push \
-                "build/${tool}-${os}"
-            done
-          done
+          ENV_FILE="build/${TOOL}-${OS}/build-args.env"
+          INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
+          GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          if [ -z "$INSTALL_SCRIPT" ] && [ "$TOOL" != "base" ]; then
+            echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${TOOL}-${OS}"
+            exit 1
+          fi
+          docker buildx bake -f docker-bake.hcl "aw-${TOOL}-${OS}" --push \
+            --set "aw-${TOOL}-${OS}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
+            --set "aw-${TOOL}-${OS}.args.AW_GH_VERSION=${GH_VERSION}" \
+            --set "aw-${TOOL}-${OS}.args.AW_MISE_VERSION=${MISE_VERSION}" \
+            --set "aw-${TOOL}-${OS}.tags=${REGISTRY}/aw-${TOOL}:${TAG}-${OS}"
 
+  comment-preview:
+    needs: build-preview
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
