@@ -73,6 +73,32 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(path, data, perm)
 }
 
+// injectMCPServer merges the aw-msg MCP server entry into a JSON config
+// file. serversKey is the top-level key holding the server map
+// ("mcpServers" for Claude/Cursor, "mcp" for OpenCode).
+func injectMCPServer(filePath, serversKey string, cfg InjectorConfig) error {
+	var root map[string]interface{}
+	if err := readJSONFile(filePath, &root); err != nil {
+		return fmt.Errorf("reading %s: %w", filepath.Base(filePath), err)
+	}
+	if root == nil {
+		root = make(map[string]interface{})
+	}
+
+	servers, _ := root[serversKey].(map[string]interface{})
+	if servers == nil {
+		servers = make(map[string]interface{})
+	}
+
+	servers["aw-msg"] = map[string]interface{}{
+		"command": cfg.MCPBinary,
+		"args":    []string{"internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
+	}
+	root[serversKey] = servers
+
+	return writeJSONFile(filePath, root)
+}
+
 // readJSONFile reads a JSON file into dst. If the file does not exist,
 // dst is left untouched and nil is returned.
 func readJSONFile(path string, dst interface{}) error {
@@ -82,6 +108,9 @@ func readJSONFile(path string, dst interface{}) error {
 	}
 	if err != nil {
 		return err
+	}
+	if len(data) == 0 {
+		return nil
 	}
 	return json.Unmarshal(data, dst)
 }

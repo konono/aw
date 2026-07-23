@@ -102,7 +102,7 @@ func TestRemoveState(t *testing.T) {
 		t.Fatalf("RemoveState: %v", err)
 	}
 
-	statePath := filepath.Join(StateDir(), "rm-test.state.json")
+	statePath := filepath.Join(stateDir(), "rm-test.state.json")
 	if _, err := LoadState("rm-test"); err == nil {
 		t.Fatalf("expected LoadState to fail after removal, file still exists at %s", statePath)
 	}

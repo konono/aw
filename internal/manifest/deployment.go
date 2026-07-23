@@ -1,7 +1,8 @@
 package manifest
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -90,16 +91,18 @@ func renderDeployment(name, namespace, imageName string, p profile.Profile, cenv
 	return Resource{Kind: "Deployment", Name: name, YAML: data}, nil
 }
 
-func buildMainContainer(imageName, name, tool, toolDir string, mode profile.KubernetesMode, cenv containerenv.Config, p profile.Profile, hasSecretFiles, hasToolConfig bool, sc *profile.SecretsConfig, k *profile.KubernetesConfig) map[string]interface{} {
-	pullPolicy := "IfNotPresent"
+func imagePullPolicy(imageName string) string {
 	if strings.HasSuffix(imageName, ":latest") {
-		pullPolicy = "Always"
+		return "Always"
 	}
+	return "IfNotPresent"
+}
 
+func buildMainContainer(imageName, name, tool, toolDir string, mode profile.KubernetesMode, cenv containerenv.Config, p profile.Profile, hasSecretFiles, hasToolConfig bool, sc *profile.SecretsConfig, k *profile.KubernetesConfig) map[string]interface{} {
 	container := map[string]interface{}{
 		"name":            "agent",
 		"image":           imageName,
-		"imagePullPolicy": pullPolicy,
+		"imagePullPolicy": imagePullPolicy(imageName),
 		"command":         []string{"/entrypoint.sh"},
 	}
 
@@ -132,25 +135,13 @@ func buildMainContainer(imageName, name, tool, toolDir string, mode profile.Kube
 
 	// Tool-specific env vars (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS)
 	toolEnv := toolinfo.ContainerEnvVarsFor(nil, tool, cenv)
-	keys := make([]string, 0, len(toolEnv))
-	for k := range toolEnv {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(toolEnv)) {
 		envVars = append(envVars, map[string]string{"name": k, "value": toolEnv[k]})
 	}
 
 	// Profile-level env vars
-	if len(p.Env) > 0 {
-		profileKeys := make([]string, 0, len(p.Env))
-		for k := range p.Env {
-			profileKeys = append(profileKeys, k)
-		}
-		sort.Strings(profileKeys)
-		for _, k := range profileKeys {
-			envVars = append(envVars, map[string]string{"name": k, "value": p.Env[k]})
-		}
+	for _, k := range slices.Sorted(maps.Keys(p.Env)) {
+		envVars = append(envVars, map[string]string{"name": k, "value": p.Env[k]})
 	}
 
 	// Secret file env vars (e.g. GOOGLE_APPLICATION_CREDENTIALS -> mountPath)
@@ -185,14 +176,10 @@ func buildMainContainer(imageName, name, tool, toolDir string, mode profile.Kube
 }
 
 func buildInitContainer(imageName, toolDir string) map[string]interface{} {
-	pullPolicy := "IfNotPresent"
-	if strings.HasSuffix(imageName, ":latest") {
-		pullPolicy = "Always"
-	}
 	return map[string]interface{}{
 		"name":            "init-tool-config",
 		"image":           imageName,
-		"imagePullPolicy": pullPolicy,
+		"imagePullPolicy": imagePullPolicy(imageName),
 		"command":         []string{"cp", "-rL", "/tool-config-ro/.", toolDir + "/"},
 		"volumeMounts": []map[string]interface{}{
 			{

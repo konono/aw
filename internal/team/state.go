@@ -31,6 +31,14 @@ type MemberState struct {
 	BranchName    string `json:"branch_name,omitempty"`
 }
 
+// EffectiveRuntime returns the container runtime, defaulting to "docker".
+func (m *MemberState) EffectiveRuntime() string {
+	if m.Runtime != "" {
+		return m.Runtime
+	}
+	return "docker"
+}
+
 // stateDir is a function variable so tests can override it without touching
 // production code. The default resolves to ~/.config/aw/teams/ (macOS:
 // ~/Library/Application Support/aw/teams/).
@@ -45,18 +53,13 @@ func defaultStateDir() string {
 	return filepath.Join(configDir, "aw", "teams")
 }
 
-// StateDir returns the directory used for team state files.
-func StateDir() string {
-	return stateDir()
-}
-
 func stateFilePath(teamName string) string {
-	return filepath.Join(StateDir(), teamName+".state.json")
+	return filepath.Join(stateDir(), teamName+".state.json")
 }
 
 // SaveState persists a TeamState to disk.
 func SaveState(state TeamState) error {
-	dir := StateDir()
+	dir := stateDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating state directory: %w", err)
 	}
@@ -96,7 +99,7 @@ func RemoveState(teamName string) error {
 
 // ListStates returns all persisted team states.
 func ListStates() ([]TeamState, error) {
-	dir := StateDir()
+	dir := stateDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {

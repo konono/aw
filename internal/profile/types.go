@@ -451,6 +451,16 @@ const (
 	CodexLoginModeAccessToken CodexLoginMode = "access-token"
 )
 
+// CodexSyncOptions returns the credentials store and seed-from-host mode
+// for codex tool sync, as plain strings suitable for config.ToolSyncSpecFor.
+func (p *Profile) CodexSyncOptions() (credentialsStore, seedFromHost string) {
+	if p.Auth != nil && p.Auth.Codex != nil {
+		credentialsStore = string(p.Auth.Codex.CredentialsStore)
+		seedFromHost = string(p.Auth.Codex.SeedFromHost)
+	}
+	return
+}
+
 type CodexCredentialsStore string
 
 const (

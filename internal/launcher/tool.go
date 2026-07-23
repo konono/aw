@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sort"
 
 	"github.com/konono/aw/v4/internal/docker"
 	"github.com/konono/aw/v4/internal/pipeline"
@@ -34,16 +33,6 @@ func ToolContainerCommand(tool string) []string {
 	cp := make([]string, len(cmd))
 	copy(cp, cmd)
 	return cp
-}
-
-// ToolContainerCommandNames returns all tool names that have container commands registered.
-func ToolContainerCommandNames() []string {
-	names := make([]string, 0, len(toolContainerCommands))
-	for name := range toolContainerCommands {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // toolPrintCommands maps tool names to the non-interactive (print mode) command

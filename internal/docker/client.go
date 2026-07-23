@@ -537,9 +537,3 @@ func (c *ShellClient) StartDetached(containerName string, config RunConfig) erro
 	return cmd.Run()
 }
 
-// StopContainer stops a running container.
-func (c *ShellClient) StopContainer(containerName string) error {
-	cmd := exec.Command(c.dockerCmd(), "stop", containerName)
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}

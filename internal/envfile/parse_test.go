@@ -9,7 +9,7 @@ import (
 
 func TestParse_ValidKeyValue(t *testing.T) {
 	input := "FOO=bar\nBAZ=qux"
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestParse_ValidKeyValue(t *testing.T) {
 
 func TestParse_SkipsComments(t *testing.T) {
 	input := "# this is a comment\nFOO=bar\n# another comment"
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestParse_SkipsComments(t *testing.T) {
 
 func TestParse_SkipsEmptyLines(t *testing.T) {
 	input := "\nFOO=bar\n\n\nBAZ=qux\n"
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestParse_SkipsEmptyLines(t *testing.T) {
 
 func TestParse_StripsDoubleQuotes(t *testing.T) {
 	input := `FOO="bar baz"`
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestParse_StripsDoubleQuotes(t *testing.T) {
 
 func TestParse_ErrorOnMissingEquals(t *testing.T) {
 	input := "INVALID_LINE"
-	_, err := Parse(strings.NewReader(input))
+	_, err := parse(strings.NewReader(input))
 	if err == nil {
 		t.Fatal("expected error for line without =")
 	}
@@ -67,7 +67,7 @@ func TestParse_ErrorOnMissingEquals(t *testing.T) {
 
 func TestParse_ErrorOnEmptyKey(t *testing.T) {
 	input := "=value"
-	_, err := Parse(strings.NewReader(input))
+	_, err := parse(strings.NewReader(input))
 	if err == nil {
 		t.Fatal("expected error for empty key")
 	}
@@ -75,7 +75,7 @@ func TestParse_ErrorOnEmptyKey(t *testing.T) {
 
 func TestParse_ValueContainsEquals(t *testing.T) {
 	input := "URL=http://host:1234?a=b"
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestParse_ValueContainsEquals(t *testing.T) {
 
 func TestParse_EmptyValue(t *testing.T) {
 	input := "EMPTY="
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestParse_EmptyValue(t *testing.T) {
 
 func TestParse_WhitespaceAroundKeyValue(t *testing.T) {
 	input := "  FOO  =  bar  "
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestParse_WhitespaceAroundKeyValue(t *testing.T) {
 
 func TestParse_DuplicateKeyLastWins(t *testing.T) {
 	input := "FOO=first\nFOO=second"
-	env, err := Parse(strings.NewReader(input))
+	env, err := parse(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

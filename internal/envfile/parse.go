@@ -8,11 +8,7 @@ import (
 	"strings"
 )
 
-// Parse reads KEY=VALUE pairs from the given reader.
-// Lines starting with # are comments. Empty lines are ignored.
-// Values may optionally be wrapped in double quotes (quotes are stripped).
-// No shell variable expansion is performed.
-func Parse(r io.Reader) (map[string]string, error) {
+func parse(r io.Reader) (map[string]string, error) {
 	env := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	lineNum := 0
@@ -64,5 +60,5 @@ func ParseFile(path string) (map[string]string, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	return Parse(f)
+	return parse(f)
 }

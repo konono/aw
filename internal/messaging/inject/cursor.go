@@ -1,11 +1,6 @@
 package inject
 
-import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-)
+import "path/filepath"
 
 // CursorInjector injects MCP configuration for Cursor.
 //
@@ -18,35 +13,7 @@ type CursorInjector struct{}
 // InjectMCP writes or merges the aw-msg MCP server into mcp.json in
 // the staging directory.
 func (c *CursorInjector) InjectMCP(cfg InjectorConfig) error {
-	mcpPath := filepath.Join(cfg.StagingDir, "mcp.json")
-
-	data, err := os.ReadFile(mcpPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("reading cursor mcp.json: %w", err)
-	}
-
-	var root map[string]interface{}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &root); err != nil {
-			return fmt.Errorf("parsing cursor mcp.json: %w", err)
-		}
-	}
-	if root == nil {
-		root = make(map[string]interface{})
-	}
-
-	servers, _ := root["mcpServers"].(map[string]interface{})
-	if servers == nil {
-		servers = make(map[string]interface{})
-	}
-
-	servers["aw-msg"] = map[string]interface{}{
-		"command": cfg.MCPBinary,
-		"args":    []string{"internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
-	}
-	root["mcpServers"] = servers
-
-	return writeJSONFile(mcpPath, root)
+	return injectMCPServer(filepath.Join(cfg.StagingDir, "mcp.json"), "mcpServers", cfg)
 }
 
 // InjectHook is a no-op for Cursor (hooks are not supported).

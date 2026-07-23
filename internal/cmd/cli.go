@@ -321,33 +321,31 @@ func (c *MsgClearCmd) Validate() error {
 	return nil
 }
 
-// InternalMCPMsgCmd runs the MCP message server.
-type InternalMCPMsgCmd struct {
+type internalMsgFlags struct {
 	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
 	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
 	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
+}
+
+// InternalMCPMsgCmd runs the MCP message server.
+type InternalMCPMsgCmd struct {
+	internalMsgFlags
 }
 
 // InternalCheckInboxCmd checks inbox for unread messages.
 type InternalCheckInboxCmd struct {
-	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
-	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
-	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
+	internalMsgFlags
 }
 
 // InternalWatchCmd watches for messages.
 type InternalWatchCmd struct {
-	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
-	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
-	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
+	internalMsgFlags
 }
 
 // InternalAgentLoopCmd runs agent loop.
 type InternalAgentLoopCmd struct {
-	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
-	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
-	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
-	Tool  string `name:"tool" env:"AW_TOOL" help:"Tool name."`
+	internalMsgFlags
+	Tool string `name:"tool" env:"AW_TOOL" help:"Tool name."`
 }
 
 // IsSubcommand returns true if the first non-flag argument matches a known
