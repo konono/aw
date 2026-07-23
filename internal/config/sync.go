@@ -231,6 +231,25 @@ func CodexSyncSpecWithOptions(credentialsStore, seedFromHost string) ToolSyncSpe
 	return spec
 }
 
+// ToolSyncSpecFor returns the sync spec for the given tool, applying
+// codex-specific auth options when tool is "codex". Empty option strings
+// fall back to defaults ("file" / "if_missing").
+func ToolSyncSpecFor(tool, codexCredentialsStore, codexSeedFromHost string) *ToolSyncSpec {
+	switch tool {
+	case "claude":
+		return &ClaudeSyncSpec
+	case "codex":
+		spec := CodexSyncSpecWithOptions(codexCredentialsStore, codexSeedFromHost)
+		return &spec
+	case "opencode":
+		return &OpenCodeSyncSpec
+	case "cursor":
+		return &CursorSyncSpec
+	default:
+		return nil
+	}
+}
+
 func patchCodexConfigForContainer(credentialsStore string) Patcher {
 	return func(data []byte) ([]byte, error) {
 		if credentialsStore == "" {

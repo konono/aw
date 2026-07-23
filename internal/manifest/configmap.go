@@ -78,19 +78,16 @@ func renderToolConfigMap(name, namespace, tool, homeDir string, p profile.Profil
 }
 
 func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
-	switch tool {
-	case "claude":
-		return &config.ClaudeSyncSpec
-	case "codex":
-		spec := config.CodexSyncSpecWithOptions("file", "if_missing")
-		return &spec
-	case "opencode":
-		return &config.OpenCodeSyncSpec
-	case "cursor":
-		return &config.CursorSyncSpec
-	default:
-		return nil
+	credStore, seedHost := p.CodexSyncOptions()
+	// Only file-based credential storage works inside a K8s pod.
+	if credStore != "" && credStore != "file" {
+		credStore = "file"
 	}
+	// "always" would embed auth.json (with tokens) into a plaintext ConfigMap.
+	if seedHost == "always" {
+		seedHost = "if_missing"
+	}
+	return config.ToolSyncSpecFor(tool, credStore, seedHost)
 }
 
 func collectToolConfigData(srcDir string, spec config.ToolSyncSpec, tool string) map[string]string {

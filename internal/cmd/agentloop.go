@@ -27,10 +27,7 @@ func (a *InternalAgentLoopCmd) Run() error {
 		return fmt.Errorf("tool %q does not support agent loop (print mode)", tool)
 	}
 
-	contextFile := "CLAUDE.md"
-	if tool == "codex" || tool == "opencode" {
-		contextFile = "AGENTS.md"
-	}
+	contextFile := toolContextFile(tool)
 
 	// Process any unread messages from previous sessions as a single summary
 	lastID := processUnreadSummary(dbPath, teamName, agentName, tool, printCmd, contextFile)

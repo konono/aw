@@ -1,11 +1,6 @@
 package inject
 
-import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-)
+import "path/filepath"
 
 // OpenCodeInjector injects MCP configuration for OpenCode.
 //
@@ -19,35 +14,7 @@ type OpenCodeInjector struct{}
 // InjectMCP merges the aw-msg MCP server into opencode.json in the
 // staging directory.
 func (o *OpenCodeInjector) InjectMCP(cfg InjectorConfig) error {
-	configPath := filepath.Join(cfg.StagingDir, "opencode.json")
-
-	data, err := os.ReadFile(configPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("reading opencode.json: %w", err)
-	}
-
-	var root map[string]interface{}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &root); err != nil {
-			return fmt.Errorf("parsing opencode.json: %w", err)
-		}
-	}
-	if root == nil {
-		root = make(map[string]interface{})
-	}
-
-	mcpServers, _ := root["mcp"].(map[string]interface{})
-	if mcpServers == nil {
-		mcpServers = make(map[string]interface{})
-	}
-
-	mcpServers["aw-msg"] = map[string]interface{}{
-		"command": cfg.MCPBinary,
-		"args":    []string{"internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
-	}
-	root["mcp"] = mcpServers
-
-	return writeJSONFile(configPath, root)
+	return injectMCPServer(filepath.Join(cfg.StagingDir, "opencode.json"), "mcp", cfg)
 }
 
 // InjectHook is a no-op for OpenCode (hooks are not supported).

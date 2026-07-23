@@ -18,9 +18,11 @@ import (
 // with the given db/agent/team values (falls back to env vars).
 func runCheckInbox(db, agent, teamName string) error {
 	cmd := &InternalCheckInboxCmd{
-		DB:    db,
-		Agent: agent,
-		Team:  teamName,
+		internalMsgFlags: internalMsgFlags{
+			DB:    db,
+			Agent: agent,
+			Team:  teamName,
+		},
 	}
 	return cmd.Run()
 }

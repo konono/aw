@@ -281,3 +281,44 @@ func TestEffectiveDelivery(t *testing.T) {
 		})
 	}
 }
+
+func TestProfile_CodexSyncOptions(t *testing.T) {
+	tests := []struct {
+		name          string
+		auth          *AuthConfig
+		wantCredStore string
+		wantSeedHost  string
+	}{
+		{"nil auth", nil, "", ""},
+		{"nil codex", &AuthConfig{}, "", ""},
+		{"empty codex", &AuthConfig{Codex: &CodexAuthConfig{}}, "", ""},
+		{
+			"keyring + always",
+			&AuthConfig{Codex: &CodexAuthConfig{
+				CredentialsStore: CodexCredentialsStoreKeyring,
+				SeedFromHost:     AuthSeedFromHostAlways,
+			}},
+			"keyring", "always",
+		},
+		{
+			"file + never",
+			&AuthConfig{Codex: &CodexAuthConfig{
+				CredentialsStore: CodexCredentialsStoreFile,
+				SeedFromHost:     AuthSeedFromHostNever,
+			}},
+			"file", "never",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Profile{Auth: tt.auth}
+			credStore, seedHost := p.CodexSyncOptions()
+			if credStore != tt.wantCredStore {
+				t.Errorf("credentialsStore = %q, want %q", credStore, tt.wantCredStore)
+			}
+			if seedHost != tt.wantSeedHost {
+				t.Errorf("seedFromHost = %q, want %q", seedHost, tt.wantSeedHost)
+			}
+		})
+	}
+}

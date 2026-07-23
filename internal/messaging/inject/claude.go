@@ -18,29 +18,7 @@ type ClaudeInjector struct{}
 
 // InjectMCP writes .mcp.json to cfg.WorkDir with the aw-msg MCP server.
 func (c *ClaudeInjector) InjectMCP(cfg InjectorConfig) error {
-	mcpPath := filepath.Join(cfg.WorkDir, ".mcp.json")
-
-	// Load existing .mcp.json if present.
-	var root map[string]interface{}
-	if err := readJSONFile(mcpPath, &root); err != nil {
-		return fmt.Errorf("reading existing .mcp.json: %w", err)
-	}
-	if root == nil {
-		root = make(map[string]interface{})
-	}
-
-	servers, _ := root["mcpServers"].(map[string]interface{})
-	if servers == nil {
-		servers = make(map[string]interface{})
-	}
-
-	servers["aw-msg"] = map[string]interface{}{
-		"command": cfg.MCPBinary,
-		"args":    []string{"internal-mcp-msg", "--db", cfg.DBPath, "--agent", cfg.AgentName, "--team", cfg.TeamName},
-	}
-	root["mcpServers"] = servers
-
-	return writeJSONFile(mcpPath, root)
+	return injectMCPServer(filepath.Join(cfg.WorkDir, ".mcp.json"), "mcpServers", cfg)
 }
 
 // InjectHook patches settings.json in StagingDir to include delivery hooks.

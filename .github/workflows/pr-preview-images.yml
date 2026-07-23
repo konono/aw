@@ -71,6 +71,7 @@ jobs:
             --set "aw-${TOOL}-${OS}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
             --set "aw-${TOOL}-${OS}.args.AW_GH_VERSION=${GH_VERSION}" \
             --set "aw-${TOOL}-${OS}.args.AW_MISE_VERSION=${MISE_VERSION}" \
+            --set "aw-${TOOL}-${OS}.args.AW_OCI_VERSION=${TAG}" \
             --set "aw-${TOOL}-${OS}.tags=${REGISTRY}/aw-${TOOL}:${TAG}-${OS}"
 
   comment-preview:

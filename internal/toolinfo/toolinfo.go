@@ -1,9 +1,10 @@
 package toolinfo
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"github.com/konono/aw/v4/internal/containerenv"
 )
@@ -62,12 +63,7 @@ var tools = map[string]ToolSpec{
 
 // Names returns the sorted list of all registered tool names.
 func Names() []string {
-	names := make([]string, 0, len(tools))
-	for name := range tools {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(tools))
 }
 
 // Lookup returns the ToolSpec for the given tool name.
