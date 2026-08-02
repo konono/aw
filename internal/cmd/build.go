@@ -264,6 +264,11 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 	return false
 }
 
+var commitBaseChanges = []string{
+	`ENTRYPOINT ["/entrypoint.sh"]`,
+	`CMD ["bash"]`,
+}
+
 var tagUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
 func computeBuildImageName(profileName, baseImage string, includes []profile.BuildInclude, envVars map[string]string, workDir string) string {
@@ -341,10 +346,7 @@ func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.
 		return fmt.Errorf("snapshot container failed: %w", err)
 	}
 
-	changes := []string{
-		`ENTRYPOINT ["/entrypoint.sh"]`,
-		`CMD ["bash"]`,
-	}
+	changes := append([]string{}, commitBaseChanges...)
 	for _, k := range slices.Sorted(maps.Keys(envVars)) {
 		changes = append(changes, fmt.Sprintf("ENV %s=%s", k, envVars[k]))
 	}

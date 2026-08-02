@@ -211,11 +211,11 @@ mount_container_sock: true    # docker-compose up/down
 | セッション履歴（`/resume`） | ✓ | `~/.agent-workspace/<tool>/` |
 | ツール設定・プラグイン | ✓ | `~/.agent-workspace/<tool>/` |
 | git worktree | ✓ | ホスト上（手動で削除するまで残る） |
-| mise / devbox でインストールしたツール | ✗ | コンテナ破棄時に消失 |
-| コンテナ内で apt install したもの | ✗ | コンテナ破棄時に消失 |
+| mise / devbox でインストールしたツール | ✗ | コンテナ破棄時に消失（`aw build --apply` で焼き込み可） |
+| コンテナ内で apt install したもの | ✗ | コンテナ破棄時に消失（`aw save` で保存可） |
 | コンテナ内の一時ファイル | ✗ | コンテナ破棄時に消失 |
 
-コンテナ内で `apt install` したパッケージを永続化したい場合は、`mise.toml` や `devbox.json` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。
+コンテナ内で `apt install` したパッケージを永続化するには、`mise.toml` や `devbox.json` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。対話的なカスタマイズ（`apt install` や設定変更）をそのまま保存したい場合は `aw save` が使えます。
 
 ### Reaper（後処理）
 
@@ -369,7 +369,31 @@ mise / devbox でインストールしたツールはコンテナ内に保存さ
 
 > **モノレポでの注意**: `aw build --apply` はカレントディレクトリのワークスペースファイルを検出しますが、`.aw.yml` は git リポジトリルートに書き込まれます。モノレポのサブディレクトリごとに異なる `mise.toml` がある場合、最後に `aw build --apply` を実行したサブディレクトリの snapshot が `.aw.yml` に反映されます。サブディレクトリごとに異なる snapshot が必要な場合は、プロファイル名を分けて管理してください。
 
-詳細は [パッケージ管理ガイド](docs/mise.md) を参照してください。
+### コンテナ内の変更を保存する
+
+コンテナ内で `apt install` や設定変更を行った後、その状態をイメージとして保存できます:
+
+```bash
+aw claude                  # コンテナを起動
+# ... コンテナ内でカスタマイズ（apt install、設定変更など）...
+# コンテナ終了後（または別ターミナルから）:
+aw save                    # fzf でコンテナを選択 → commit → .aw.yml を更新
+```
+
+次回同じディレクトリから `aw claude` を起動すると、保存したイメージが使われます。
+
+`aw save` と `aw build --apply` の使い分け:
+
+| コマンド | 用途 | 入力 |
+|---------|------|------|
+| `aw build --apply` | mise.toml / devbox.json / packages.txt の焼き込み | 宣言的な設定ファイル |
+| `aw save` | 対話的なカスタマイズの保存 | コンテナ内の手作業 |
+
+`aw save` は `--image` でイメージ名を指定でき、`--runtime` で docker / podman を明示できます（省略時は両方を検索）。
+
+> **`aw build --save` との違い**: `aw build --save file.tar` はビルド済みイメージを tar にエクスポートする機能です。`aw save` はコンテナの現在の状態を commit して次回から再利用する、別の機能です。
+
+詳細は [Build & Snapshot](docs/build-snapshot.md) を参照してください。
 
 ### プロジェクト設定の信頼
 
@@ -414,6 +438,7 @@ aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
 aw init                        # スターター設定を書き出す
 aw build <profile> [options]    # イメージをビルド（snapshot 込み）
+aw save                        # コンテナの状態を保存して .aw.yml を更新
 aw default-dockerfile          # デフォルト Dockerfile を出力
 aw default-init-script         # aw-init.sh（共通初期化スクリプト）を出力
 aw doctor                      # 環境・設定の診断
@@ -610,7 +635,7 @@ profiles:
 | [パッケージ管理](docs/mise.md) | mise / devbox によるコンテナ内ツール管理 |
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
-| [Build & Snapshot](docs/build-snapshot.md) | `aw build` のビルド・焼き込み・起動時の動作詳細 |
+| [Build & Snapshot](docs/build-snapshot.md) | `aw build` のビルド・焼き込み、`aw save` の対話的保存 |
 | [チーム & メッセージング](docs/teams.md) | マルチエージェント起動、自動レビュー、ブランチ分離 |
 
 ## 企業プロキシ・CA 証明書

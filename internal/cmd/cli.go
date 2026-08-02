@@ -57,6 +57,7 @@ type CLI struct {
 	Auth             AuthCmd             `cmd:"" help:"Run auth login/logout/status for a tool."`
 	Login            LoginCmd            `cmd:"" help:"Alias for 'auth login'."`
 	Build            BuildCmd            `cmd:"" help:"Build a profile's container image."`
+	Save             SaveCmd             `cmd:"" help:"Save a container's state as a reusable image and update .aw.yml."`
 	Manifest         ManifestCmd         `cmd:"" help:"Generate Kubernetes manifests for a profile."`
 	Export           ExportCmd           `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
 	Doctor           DoctorCmd           `cmd:"" help:"Check system environment and configuration."`
@@ -165,6 +166,12 @@ func (b *BuildCmd) Validate() error {
 		return fmt.Errorf("--registry requires --push")
 	}
 	return nil
+}
+
+// SaveCmd commits a container's filesystem state to an image and updates .aw.yml.
+type SaveCmd struct {
+	Runtime   string `name:"runtime" help:"Container runtime (docker or podman). When omitted, queries all installed runtimes."`
+	ImageName string `name:"image" help:"Override the saved image name (default: aw-save:<profile>-<timestamp>)."`
 }
 
 // ExportCmd is a deprecated alias for BuildCmd.

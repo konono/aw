@@ -5,7 +5,8 @@ import "errors"
 var ErrCancelled = errors.New("selection cancelled")
 
 type Options struct {
-	Query string
+	Query  string
+	Prompt string
 }
 
 var pickFunc func(items []string, opts Options) (string, error) = fzfPick

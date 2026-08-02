@@ -36,6 +36,71 @@ func TestWindowsToContainerPath(t *testing.T) {
 	}
 }
 
+func TestContainerPathToWindows(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"standard path", "/c/Users/foo/project", `C:\Users\foo\project`},
+		{"different drive", "/d/work", `D:\work`},
+		{"drive root", "/c/", `C:\`},
+		{"linux path no drive", "/home/user/project", `\home\user\project`},
+		{"empty string", "", ""},
+		{"single slash", "/", `\`},
+		{"short path", "/c", `\c`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containerPathToWindows(tt.input)
+			if got != tt.want {
+				t.Errorf("containerPathToWindows(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromContainerPath_NoopOnUnix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only test")
+	}
+	paths := []string{
+		"/home/user/project",
+		"/c/Users/foo",
+		"/tmp/foo",
+	}
+	for _, path := range paths {
+		got := FromContainerPath(path)
+		if got != path {
+			t.Errorf("FromContainerPath(%q) = %q, want unchanged on unix", path, got)
+		}
+	}
+}
+
+func TestRoundTrip_WindowsPaths(t *testing.T) {
+	paths := []struct {
+		windows   string
+		container string
+	}{
+		{`C:\Users\foo\project`, "/c/Users/foo/project"},
+		{`D:\work`, "/d/work"},
+		{`C:\`, "/c/"},
+	}
+	for _, tt := range paths {
+		t.Run(tt.windows, func(t *testing.T) {
+			got := windowsToContainerPath(tt.windows)
+			if got != tt.container {
+				t.Errorf("windowsToContainerPath(%q) = %q, want %q", tt.windows, got, tt.container)
+			}
+			back := containerPathToWindows(got)
+			if back != tt.windows {
+				t.Errorf("containerPathToWindows(%q) = %q, want roundtrip to %q", got, back, tt.windows)
+			}
+		})
+	}
+}
+
 func TestToContainerPath_NoopOnUnix(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix-only test")
