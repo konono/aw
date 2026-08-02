@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.7.0](https://github.com/konono/aw/compare/v4.6.0...v4.7.0) (2026-08-02)
+
+
+### Features
+
+* **cmd:** add aw save command to persist container customizations ([#146](https://github.com/konono/aw/issues/146)) ([3713692](https://github.com/konono/aw/commit/37136921b2fddbac0a5ec6a7e542deae0aed3a50))
+
 ## [4.6.0](https://github.com/konono/aw/compare/v4.5.0...v4.6.0) (2026-07-14)
 
 
