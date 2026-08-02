@@ -11,9 +11,13 @@ func fzfPick(items []string, opts Options) (string, error) {
 		return "", fmt.Errorf("no items to pick from")
 	}
 
+	prompt := opts.Prompt
+	if prompt == "" {
+		prompt = "directory> "
+	}
 	fzfArgs := []string{
 		"--layout=reverse",
-		"--prompt", "directory> ",
+		"--prompt", prompt,
 		"--no-multi",
 	}
 	if opts.Query != "" {

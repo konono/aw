@@ -529,6 +529,57 @@ func (c *ShellClient) Push(ctx context.Context, imageName string) error {
 	return cmd.Run()
 }
 
+// ContainerInfo holds metadata about a container for listing/selection.
+type ContainerInfo struct {
+	Name   string
+	Status string
+	Image  string
+}
+
+// ListAwContainers lists all running and exited containers matching the aw naming pattern.
+func (c *ShellClient) ListAwContainers(ctx context.Context) ([]ContainerInfo, error) {
+	cmd := exec.CommandContext(ctx, c.dockerCmd(), "ps", "-a",
+		"--filter", "name=^aw-.*-[0-9]+$",
+		"--format", "{{.Names}}\t{{.Status}}\t{{.Image}}")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("%s ps: %w", c.dockerCmd(), err)
+	}
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return nil, nil
+	}
+	var result []ContainerInfo
+	for _, line := range strings.Split(text, "\n") {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		result = append(result, ContainerInfo{
+			Name:   parts[0],
+			Status: parts[1],
+			Image:  parts[2],
+		})
+	}
+	return result, nil
+}
+
+// InspectContainerEnv returns the value of a named environment variable from a container's config.
+func (c *ShellClient) InspectContainerEnv(ctx context.Context, containerName, envKey string) (string, error) {
+	out, err := exec.CommandContext(ctx, c.dockerCmd(), "inspect",
+		"--format", `{{range .Config.Env}}{{println .}}{{end}}`, containerName).Output()
+	if err != nil {
+		return "", fmt.Errorf("inspecting container %q: %w", containerName, err)
+	}
+	prefix := envKey + "="
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimPrefix(line, prefix), nil
+		}
+	}
+	return "", fmt.Errorf("env %q not found in container %q", envKey, containerName)
+}
+
 // StartDetached starts a container in detached mode without attaching.
 func (c *ShellClient) StartDetached(containerName string, config RunConfig) error {
 	args := BuildDetachedRunArgs(containerName, config)

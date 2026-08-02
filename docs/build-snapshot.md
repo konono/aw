@@ -49,6 +49,41 @@ aw build claude --push --registry ghcr.io/myorg --apply
 | カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, workspace mise.toml |
 | ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
 
+## aw save — 対話的なカスタマイズの保存
+
+`aw build` がワークスペースの設定ファイル（mise.toml 等）を元にイメージを焼き込むのに対し、`aw save` はコンテナ内で対話的に行った変更（`apt install`、設定変更など）をそのまま保存します。
+
+```bash
+aw claude                  # コンテナを起動
+# ... コンテナ内でカスタマイズ ...
+aw save                    # fzf でコンテナを選択 → commit → .aw.yml を更新
+```
+
+### 動作の流れ
+
+1. docker / podman 両方からコンテナを検索（`--runtime` で限定可能）
+2. `aw-<profile>-<timestamp>` パターンに合致するコンテナを fzf ピッカーで一覧表示（snapshot / team コンテナは除外）
+3. 選択したコンテナに対して `docker commit` を実行（ENTRYPOINT/CMD を `aw build` と同じ設定にリセット）
+4. コンテナの `HOST_WORKSPACE` 環境変数からワークスペースを特定し、git root のプロジェクト config（`.aw.yml` / `.aw.yaml` / `.agent-workspace.yml`）に `image` と `skip_mise_install: true` を書き込む（devbox プロファイルの場合は `skip_devbox_install: true` も設定）
+
+### aw build との比較
+
+| 観点 | `aw build --apply` | `aw save` |
+|------|-------------------|-----------|
+| 入力 | mise.toml / devbox.json / packages.txt | コンテナ内の手作業 |
+| 再現性 | 高（宣言的。同じ設定から同じイメージ） | 低（手動操作の結果） |
+| ユースケース | 構成が固まった環境の高速化 | 試行錯誤中の環境保存 |
+| イメージ名 | `aw-build:<profile>-<hash>` | `aw-save:<profile>-<timestamp>` |
+
+### `aw build --save` との違い
+
+`aw build --save file.tar` はビルド済みイメージを tar ファイルにエクスポートする機能です。`aw save` とは別のコマンドです。
+
+| コマンド | 動作 |
+|---------|------|
+| `aw build --save file.tar` | ビルドしたイメージを tar にエクスポート |
+| `aw save` | 実行済みコンテナを commit して .aw.yml を更新 |
+
 ## イメージビルド（Dockerfile）
 
 `internal/image/embed/Dockerfile.debian12.tmpl` がベースイメージを定義しています（`package_manager: apt` の場合）。

@@ -24,3 +24,24 @@ func windowsToContainerPath(p string) string {
 	}
 	return p
 }
+
+// FromContainerPath converts a Linux container path back to a host path.
+// On Unix, the path is returned as-is.
+// On Windows, the /c/Users/foo form is converted back to C:\Users\foo.
+func FromContainerPath(containerPath string) string {
+	if runtime.GOOS != "windows" {
+		return containerPath
+	}
+	return containerPathToWindows(containerPath)
+}
+
+func containerPathToWindows(p string) string {
+	if len(p) >= 3 && p[0] == '/' && p[2] == '/' {
+		drive := strings.ToUpper(string(p[1]))
+		if drive[0] >= 'A' && drive[0] <= 'Z' {
+			p = drive + ":" + p[2:]
+		}
+	}
+	p = strings.ReplaceAll(p, "/", `\`)
+	return p
+}
