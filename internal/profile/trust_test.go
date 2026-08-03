@@ -287,42 +287,47 @@ func TestCheckProjectTrust_ApprovedSavesTrust(t *testing.T) {
 }
 
 func TestCheckProjectTrust_EnvVarAutoTrusts(t *testing.T) {
-	tmpDir := t.TempDir()
-	origDir := globalConfigDir
-	globalConfigDir = func() (string, error) { return tmpDir, nil }
-	defer func() { globalConfigDir = origDir }()
+	for _, val := range []string{"1", "true", "yes", "TRUE", "Yes"} {
+		t.Run("AW_TRUST_PROJECT="+val, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			origDir := globalConfigDir
+			globalConfigDir = func() (string, error) { return tmpDir, nil }
+			defer func() { globalConfigDir = origDir }()
 
-	promptCalled := false
-	origPrompt := promptTrust
-	promptTrust = func(_ string, _ []string) bool {
-		promptCalled = true
-		return false
-	}
-	defer func() { promptTrust = origPrompt }()
+			promptCalled := false
+			origPrompt := promptTrust
+			promptTrust = func(_ string, _ []string) bool {
+				promptCalled = true
+				return false
+			}
+			defer func() { promptTrust = origPrompt }()
 
-	t.Setenv("AW_TRUST_PROJECT", "1")
+			t.Setenv("AW_TRUST_PROJECT", val)
 
-	cfg := &Config{
-		Profiles: map[string]Profile{
-			"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
-		},
-	}
+			cfg := &Config{
+				Profiles: map[string]Profile{
+					"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
+				},
+			}
 
-	data := []byte("env trust data")
-	result, err := CheckProjectTrust("/fake/env-path", data, cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if promptCalled {
-		t.Error("should not prompt when AW_TRUST_PROJECT is set")
-	}
-	if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
-		t.Error("auto-trusted config should preserve all fields")
-	}
+			fakePath := "/fake/env-path-" + val
+			data := []byte("env trust data " + val)
+			result, err := CheckProjectTrust(fakePath, data, cfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if promptCalled {
+				t.Errorf("AW_TRUST_PROJECT=%q should not trigger prompt", val)
+			}
+			if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
+				t.Error("auto-trusted config should preserve all fields")
+			}
 
-	trusted, _ := isTrusted("/fake/env-path", data)
-	if !trusted {
-		t.Error("config should be persisted as trusted after AW_TRUST_PROJECT")
+			trusted, _ := isTrusted(fakePath, data)
+			if !trusted {
+				t.Error("config should be persisted as trusted after AW_TRUST_PROJECT")
+			}
+		})
 	}
 }
 

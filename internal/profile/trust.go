@@ -203,6 +203,7 @@ func stripProfileSensitive(p Profile) Profile {
 // before its sensitive fields take effect. If the config has no sensitive
 // fields, it is returned as-is. If not yet trusted, the user is prompted;
 // if they decline, sensitive fields are stripped.
+// Setting AW_TRUST_PROJECT=1|true|yes auto-approves without prompting.
 func CheckProjectTrust(configPath string, data []byte, cfg *Config) (*Config, error) {
 	fields := hasSensitiveFields(cfg)
 	if len(fields) == 0 {

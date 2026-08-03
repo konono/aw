@@ -658,7 +658,7 @@ defaults:
 
 ## 非対話環境での trust プロンプト
 
-プロジェクトの `.aw.yml` にセキュリティセンシティブなフィールド（`mounts`, `env`, `worktree.on-create` 等）が含まれる場合、初回実行時に対話的な trust プロンプトが表示されます。CI/CD パイプラインや LLM エージェント経由で実行する場合は、環境変数で自動承認できます:
+プロジェクトの `.aw.yml` にセキュリティ上重要なフィールド（`mounts`, `env`, `worktree.on-create` 等）が含まれる場合、初回実行時に対話的な trust プロンプトが表示されます。CI/CD パイプラインや LLM エージェント経由で実行する場合は、環境変数で自動承認できます:
 
 ```bash
 AW_TRUST_PROJECT=1 aw claude
