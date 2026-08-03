@@ -212,6 +212,13 @@ func CheckProjectTrust(configPath string, data []byte, cfg *Config) (*Config, er
 		return cfg, nil
 	}
 
+	if os.Getenv("AW_TRUST_PROJECT") != "" {
+		if err := saveTrust(configPath, data); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not save trust state: %v\n", err)
+		}
+		return cfg, nil
+	}
+
 	if promptTrust(configPath, fields) {
 		if err := saveTrust(configPath, data); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save trust state: %v\n", err)

@@ -282,6 +282,46 @@ func TestCheckProjectTrust_ApprovedSavesTrust(t *testing.T) {
 	}
 }
 
+func TestCheckProjectTrust_EnvVarAutoTrusts(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir := globalConfigDir
+	globalConfigDir = func() (string, error) { return tmpDir, nil }
+	defer func() { globalConfigDir = origDir }()
+
+	promptCalled := false
+	origPrompt := promptTrust
+	promptTrust = func(_ string, _ []string) bool {
+		promptCalled = true
+		return false
+	}
+	defer func() { promptTrust = origPrompt }()
+
+	t.Setenv("AW_TRUST_PROJECT", "1")
+
+	cfg := &Config{
+		Profiles: map[string]Profile{
+			"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
+		},
+	}
+
+	data := []byte("env trust data")
+	result, err := CheckProjectTrust("/fake/env-path", data, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if promptCalled {
+		t.Error("should not prompt when AW_TRUST_PROJECT is set")
+	}
+	if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
+		t.Error("auto-trusted config should preserve all fields")
+	}
+
+	trusted, _ := isTrusted("/fake/env-path", data)
+	if !trusted {
+		t.Error("config should be persisted as trusted after AW_TRUST_PROJECT")
+	}
+}
+
 func TestCheckProjectTrust_AlreadyTrustedSkipsPrompt(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir := globalConfigDir
