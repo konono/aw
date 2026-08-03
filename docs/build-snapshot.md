@@ -46,7 +46,7 @@ aw build claude --push --registry ghcr.io/myorg --apply
 |------|------|------|
 | ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
 | ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
-| カスタマイズ | include, env, workspace mise.toml | packages, build_env, ca_cert, workspace mise.toml |
+| カスタマイズ | include, env, workspace mise.toml | packages, build_env / --build-arg, ca_cert, workspace mise.toml |
 | ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
 
 ## aw save — 対話的なカスタマイズの保存
