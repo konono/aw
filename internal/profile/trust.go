@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+func isTrustEnvSet() bool {
+	v := strings.ToLower(os.Getenv("AW_TRUST_PROJECT"))
+	return v == "1" || v == "true" || v == "yes"
+}
+
 // sensitiveFieldDescriptions maps field names to human-readable risk descriptions
 // displayed in the trust prompt.
 var sensitiveFieldDescriptions = map[string]string{
@@ -198,6 +203,7 @@ func stripProfileSensitive(p Profile) Profile {
 // before its sensitive fields take effect. If the config has no sensitive
 // fields, it is returned as-is. If not yet trusted, the user is prompted;
 // if they decline, sensitive fields are stripped.
+// Setting AW_TRUST_PROJECT=1|true|yes auto-approves without prompting.
 func CheckProjectTrust(configPath string, data []byte, cfg *Config) (*Config, error) {
 	fields := hasSensitiveFields(cfg)
 	if len(fields) == 0 {
@@ -209,6 +215,13 @@ func CheckProjectTrust(configPath string, data []byte, cfg *Config) (*Config, er
 		return nil, fmt.Errorf("checking trust status: %w", err)
 	}
 	if trusted {
+		return cfg, nil
+	}
+
+	if isTrustEnvSet() {
+		if err := saveTrust(configPath, data); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not save trust state: %v\n", err)
+		}
 		return cfg, nil
 	}
 
