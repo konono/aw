@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.9.0](https://github.com/konono/aw/compare/v4.8.0...v4.9.0) (2026-08-03)
+
+
+### Features
+
+* **profile:** add AW_TRUST_PROJECT env var to skip trust prompt ([#150](https://github.com/konono/aw/issues/150)) ([5fee826](https://github.com/konono/aw/commit/5fee8265d794c17c602440fe0dd6bc2dc8aff1eb))
+
 ## [4.8.0](https://github.com/konono/aw/compare/v4.7.0...v4.8.0) (2026-08-03)
 
 
