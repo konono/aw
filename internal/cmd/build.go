@@ -62,6 +62,11 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
+	for k := range b.BuildArg {
+		if strings.HasPrefix(k, "AW_") {
+			return fmt.Errorf("--build-arg key %q conflicts with reserved AW_* prefix", k)
+		}
+	}
 	if len(b.BuildArg) > 0 {
 		if ec.Profile.BuildEnv == nil {
 			ec.Profile.BuildEnv = make(map[string]string)
@@ -74,14 +79,14 @@ func (b *BuildCmd) Run() error {
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
 	workDir := ec.OrigWorkDir
 
-	if !hasBuildInputs(workDir, incl, envVars, p) {
+	if !hasBuildInputs(workDir, incl, envVars, ec.Profile) {
 		if b.Push {
 			return b.pushOfficialImage(p)
 		}
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
-		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
 		return nil
 	}

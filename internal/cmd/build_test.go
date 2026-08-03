@@ -251,6 +251,15 @@ func TestHasBuildInputs(t *testing.T) {
 			t.Error("should return true with build_env")
 		}
 	})
+
+	t.Run("build_env from cli build-arg merge", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{}
+		p.BuildEnv = map[string]string{"HTTP_PROXY": "http://proxy:8080"}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true when BuildEnv is set via CLI --build-arg merge")
+		}
+	})
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {
