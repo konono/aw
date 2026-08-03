@@ -166,6 +166,11 @@ func (b *BuildCmd) Validate() error {
 	if b.Registry != "" && !b.Push {
 		return fmt.Errorf("--registry requires --push")
 	}
+	for k := range b.BuildArg {
+		if strings.HasPrefix(k, "AW_") {
+			return fmt.Errorf("--build-arg key %q conflicts with reserved AW_* prefix", k)
+		}
+	}
 	return nil
 }
 

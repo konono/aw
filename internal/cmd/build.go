@@ -62,11 +62,6 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
-	for k := range b.BuildArg {
-		if strings.HasPrefix(k, "AW_") {
-			return fmt.Errorf("--build-arg key %q conflicts with reserved AW_* prefix", k)
-		}
-	}
 	if len(b.BuildArg) > 0 {
 		if ec.Profile.BuildEnv == nil {
 			ec.Profile.BuildEnv = make(map[string]string)
@@ -183,7 +178,7 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
 	if err := client.Pull(context.Background(), imageName); err != nil {
 		return fmt.Errorf("pulling official image: %w", err)

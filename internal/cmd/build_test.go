@@ -262,6 +262,26 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
+func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
+	b := BuildCmd{
+		ProfileName:  "test",
+		FromTemplate: true,
+		BuildArg:     map[string]string{"AW_FOO": "bar"},
+	}
+	err := b.Validate()
+	if err == nil {
+		t.Fatal("expected error for AW_* prefix build arg")
+	}
+	if !strings.Contains(err.Error(), "AW_FOO") {
+		t.Errorf("error should mention the key, got: %v", err)
+	}
+
+	b.BuildArg = map[string]string{"GITHUB_TOKEN": "xxx"}
+	if err := b.Validate(); err != nil {
+		t.Errorf("non-AW_ key should pass validation: %v", err)
+	}
+}
+
 func TestExportNeedsSnapshot(t *testing.T) {
 	t.Run("no flags no config", func(t *testing.T) {
 		if exportNeedsSnapshot(false, nil, nil, nil) {
