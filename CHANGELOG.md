@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.8.0](https://github.com/konono/aw/compare/v4.7.0...v4.8.0) (2026-08-03)
+
+
+### Features
+
+* **cmd:** add --build-arg flag to aw build ([#148](https://github.com/konono/aw/issues/148)) ([751e17c](https://github.com/konono/aw/commit/751e17ceba4e0757ded79e269d07411f79661aac))
+
 ## [4.7.0](https://github.com/konono/aw/compare/v4.6.0...v4.7.0) (2026-08-02)
 
 
