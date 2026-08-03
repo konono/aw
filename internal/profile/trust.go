@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+func isTrustEnvSet() bool {
+	v := strings.ToLower(os.Getenv("AW_TRUST_PROJECT"))
+	return v == "1" || v == "true" || v == "yes"
+}
+
 // sensitiveFieldDescriptions maps field names to human-readable risk descriptions
 // displayed in the trust prompt.
 var sensitiveFieldDescriptions = map[string]string{
@@ -212,7 +217,7 @@ func CheckProjectTrust(configPath string, data []byte, cfg *Config) (*Config, er
 		return cfg, nil
 	}
 
-	if os.Getenv("AW_TRUST_PROJECT") != "" {
+	if isTrustEnvSet() {
 		if err := saveTrust(configPath, data); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save trust state: %v\n", err)
 		}

@@ -99,6 +99,8 @@ func TestProjectConfig_SensitiveFieldsRequireTrust(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("AW_TRUST_PROJECT", "")
+
 			tmpDir := t.TempDir()
 			origDir := globalConfigDir
 			globalConfigDir = func() (string, error) { return tmpDir, nil }
@@ -127,6 +129,8 @@ func TestProjectConfig_SensitiveFieldsRequireTrust(t *testing.T) {
 // TestProjectConfig_DeniedStripsUnsafePreservesSafe verifies that when a user
 // denies trust, all sensitive fields are stripped but safe fields remain.
 func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
+	t.Setenv("AW_TRUST_PROJECT", "")
+
 	tmpDir := t.TempDir()
 	origDir := globalConfigDir
 	globalConfigDir = func() (string, error) { return tmpDir, nil }
@@ -319,6 +323,38 @@ func TestCheckProjectTrust_EnvVarAutoTrusts(t *testing.T) {
 	trusted, _ := isTrusted("/fake/env-path", data)
 	if !trusted {
 		t.Error("config should be persisted as trusted after AW_TRUST_PROJECT")
+	}
+}
+
+func TestCheckProjectTrust_EnvVarFalseValuesDoNotTrust(t *testing.T) {
+	for _, val := range []string{"0", "false", "no", ""} {
+		t.Run("AW_TRUST_PROJECT="+val, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			origDir := globalConfigDir
+			globalConfigDir = func() (string, error) { return tmpDir, nil }
+			defer func() { globalConfigDir = origDir }()
+
+			promptCalled := false
+			origPrompt := promptTrust
+			promptTrust = func(_ string, _ []string) bool {
+				promptCalled = true
+				return false
+			}
+			defer func() { promptTrust = origPrompt }()
+
+			t.Setenv("AW_TRUST_PROJECT", val)
+
+			cfg := &Config{
+				Profiles: map[string]Profile{
+					"test": {Worktree: &WorktreeConfig{OnCreate: "echo hi"}},
+				},
+			}
+
+			_, _ = CheckProjectTrust("/fake/false-path", []byte("false test"), cfg)
+			if !promptCalled {
+				t.Errorf("AW_TRUST_PROJECT=%q should still trigger prompt", val)
+			}
+		})
 	}
 }
 
