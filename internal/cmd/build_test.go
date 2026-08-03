@@ -243,6 +243,14 @@ func TestHasBuildInputs(t *testing.T) {
 			t.Error("should return true with merged build config includes and env")
 		}
 	})
+
+	t.Run("build_env", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{BuildEnv: map[string]string{"GITHUB_TOKEN": "xxx"}}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true with build_env")
+		}
+	})
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {

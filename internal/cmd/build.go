@@ -62,6 +62,15 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
+	if len(b.BuildArg) > 0 {
+		if ec.Profile.BuildEnv == nil {
+			ec.Profile.BuildEnv = make(map[string]string)
+		}
+		for k, v := range b.BuildArg {
+			ec.Profile.BuildEnv[k] = v
+		}
+	}
+
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
 	workDir := ec.OrigWorkDir
 
@@ -256,6 +265,9 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 		return true
 	}
 	if len(p.Packages) > 0 {
+		return true
+	}
+	if len(p.BuildEnv) > 0 {
 		return true
 	}
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
