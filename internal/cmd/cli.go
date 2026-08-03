@@ -150,6 +150,7 @@ type BuildCmd struct {
 	Registry     string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`
 	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
 	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
+	BuildArg     map[string]string `name:"build-arg" help:"Pass a build arg to docker build (KEY=VAL, repeatable)." placeholder:"KEY=VAL"`
 
 	skipSnapshot    bool            // internal: used by deprecated export compat shim
 	preloadedConfig *profile.Config // internal: avoids double profile.Load() in export compat
@@ -164,6 +165,11 @@ func (b *BuildCmd) Validate() error {
 	}
 	if b.Registry != "" && !b.Push {
 		return fmt.Errorf("--registry requires --push")
+	}
+	for k := range b.BuildArg {
+		if strings.HasPrefix(k, "AW_") {
+			return fmt.Errorf("--build-arg key %q conflicts with reserved AW_* prefix", k)
+		}
 	}
 	return nil
 }

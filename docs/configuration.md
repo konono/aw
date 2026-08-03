@@ -513,6 +513,28 @@ profiles:
 
 CLI フラグ（`--include`, `--env`）でも指定でき、設定ファイルの値とマージされます。
 
+### `build_env`（任意）
+
+`docker build` / `podman build` に `--build-arg` として渡されるキー・バリューのマップ。ビルド時のみ有効で、イメージの `ENV` には焼き込まれません。`environment: container` の場合のみ有効。
+
+```yaml
+profiles:
+  claude:
+    environment: container
+    launch: claude
+    build_env:
+      HTTP_PROXY: "http://proxy.corp:8080"
+      HTTPS_PROXY: "http://proxy.corp:8080"
+```
+
+CLI フラグ `--build-arg KEY=VAL` でも指定でき、設定ファイルの値とマージされます（同一キーは CLI が優先）。
+
+```bash
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+```
+
+> **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
+
 ## 組み込みスターター設定
 
 設定ファイルがない場合、`aw` は組み込みスターター設定が読み込まれたかのように動作します。スターター設定は現在以下を提供します:

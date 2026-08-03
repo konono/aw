@@ -592,6 +592,9 @@ aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-ima
 # --env: 環境変数をイメージに焼き込み
 aw build claude --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
 
+# --build-arg: ビルド時のみ使われる引数を渡す（イメージには焼き込まない）
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+
 # USB 等で転送
 docker load -i my-image.tar             # オフライン環境でロード
 ```
@@ -651,10 +654,10 @@ defaults:
   ca_cert: "C:/certs/corporate-ca.pem"  # または ~/certs/corp.pem
 ```
 
-- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します
+- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します。CLI の `--build-arg` フラグでも同等の指定が可能です（例: `aw build claude --build-arg HTTP_PROXY=http://proxy.corp:8080 --from-template`）
 - `ca_cert`: 証明書ファイルをビルドコンテキストにコピーし、ツールインストール前に `update-ca-certificates`（Debian/Ubuntu）または `update-ca-trust`（UBI）を実行します
 
-> **Note:** `build_env` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
+> **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
 
 ## Windows でのパスの書き方
 

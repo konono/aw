@@ -243,6 +243,43 @@ func TestHasBuildInputs(t *testing.T) {
 			t.Error("should return true with merged build config includes and env")
 		}
 	})
+
+	t.Run("build_env", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{BuildEnv: map[string]string{"GITHUB_TOKEN": "xxx"}}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true with build_env")
+		}
+	})
+
+	t.Run("build_env from cli build-arg merge", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{}
+		p.BuildEnv = map[string]string{"HTTP_PROXY": "http://proxy:8080"}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true when BuildEnv is set via CLI --build-arg merge")
+		}
+	})
+}
+
+func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
+	b := BuildCmd{
+		ProfileName:  "test",
+		FromTemplate: true,
+		BuildArg:     map[string]string{"AW_FOO": "bar"},
+	}
+	err := b.Validate()
+	if err == nil {
+		t.Fatal("expected error for AW_* prefix build arg")
+	}
+	if !strings.Contains(err.Error(), "AW_FOO") {
+		t.Errorf("error should mention the key, got: %v", err)
+	}
+
+	b.BuildArg = map[string]string{"GITHUB_TOKEN": "xxx"}
+	if err := b.Validate(); err != nil {
+		t.Errorf("non-AW_ key should pass validation: %v", err)
+	}
 }
 
 func TestExportNeedsSnapshot(t *testing.T) {

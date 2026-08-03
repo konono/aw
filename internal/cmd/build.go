@@ -62,17 +62,26 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
+	if len(b.BuildArg) > 0 {
+		if ec.Profile.BuildEnv == nil {
+			ec.Profile.BuildEnv = make(map[string]string)
+		}
+		for k, v := range b.BuildArg {
+			ec.Profile.BuildEnv[k] = v
+		}
+	}
+
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
 	workDir := ec.OrigWorkDir
 
-	if !hasBuildInputs(workDir, incl, envVars, p) {
+	if !hasBuildInputs(workDir, incl, envVars, ec.Profile) {
 		if b.Push {
 			return b.pushOfficialImage(p)
 		}
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
-		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
 		return nil
 	}
@@ -169,7 +178,7 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, or --env).")
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
 	if err := client.Pull(context.Background(), imageName); err != nil {
 		return fmt.Errorf("pulling official image: %w", err)
@@ -256,6 +265,9 @@ func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[str
 		return true
 	}
 	if len(p.Packages) > 0 {
+		return true
+	}
+	if len(p.BuildEnv) > 0 {
 		return true
 	}
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
