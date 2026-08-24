@@ -52,6 +52,8 @@ func (b *BuildCmd) Run() error {
 	}
 
 	p.Image = ""
+	p.SkipMiseInstall = nil
+	p.SkipDevboxInstall = nil
 	if b.FromTemplate {
 		p.ImagePullPolicy = profile.ImagePullPolicyBuild
 	}
@@ -258,6 +260,9 @@ func hasWorkspaceFiles(dir string) bool {
 }
 
 func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[string]string, p profile.Profile) bool {
+	if p.Dockerfile != "" {
+		return true
+	}
 	if hasWorkspaceFiles(dir) {
 		return true
 	}
