@@ -128,6 +128,31 @@ aw build ml-dev --apply
 
 > **packages / ca_cert / build_env との関係:** `image` が設定されていても、`packages`、`packages.txt`、`ca_cert`、`build_env` などテンプレートビルドが必要なカスタマイズがある場合は、`image` は自動的に無視されてテンプレートからフルビルドされます。これらのカスタマイズは Dockerfile レイヤーで処理する必要があるためです。
 
+### カスタマイズ逆引きリファレンス
+
+「やりたいこと」からどの設定を使えばよいかを引けます。
+
+| やりたいこと | 使う設定 | ビルド方式 | 例 |
+|---|---|---|---|
+| Go, Python, Node 等のランタイムを追加 | `mise.toml` | どの方式でも可 | `[tools]` に `go = "1.23"` |
+| jq, ripgrep 等の OS パッケージを追加 | `packages:` or `packages.txt` | テンプレートビルド（自動） | `packages: [jq, ripgrep]` |
+| 社内 CA 証明書を組み込む | `ca_cert:` | テンプレートビルド（自動） | `ca_cert: certs/corp-ca.pem` |
+| Docker ビルド時に変数を渡す | `build_env:` or `--build-arg` | テンプレートビルド（自動） | `build_env: {GITHUB_TOKEN: xxx}` |
+| ホストのファイルをイメージに焼き込む | `--include src:dst` | snapshot で処理 | `--include ./certs:/usr/local/share/ca-certificates` |
+| イメージに環境変数を焼き込む | `--env KEY=VAL` | snapshot で処理 | `--env HTTP_PROXY=http://proxy:8080` |
+| ベースイメージから完全に制御したい | `dockerfile:` | カスタム Dockerfile | `dockerfile: docker/Dockerfile.dev` |
+| 既存イメージにツールだけ追加したい | `image:` + `mise.toml` | 既存イメージ + snapshot | `image: aw-build:base-xxxx` |
+
+**ビルド方式の自動選択ルール:**
+
+`packages`、`packages.txt`、`ca_cert`、`build_env` のいずれかが設定されている場合、Dockerfile のレイヤーで処理する必要があるため、`image:` が設定されていても自動的にテンプレートビルドにフォールバックします。これらの設定と既存イメージ + snapshot を同時に使うことはできません。
+
+```
+mise.toml のみ          → 公式イメージ or 既存イメージ + snapshot（高速）
+packages / ca_cert あり → テンプレートビルド + snapshot（image: は無視される）
+dockerfile あり          → カスタム Dockerfile（image: は aw run 用）
+```
+
 ### フラグの組み合わせと動作
 
 | コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
