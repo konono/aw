@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.11.0](https://github.com/konono/aw/compare/v4.10.0...v4.11.0) (2026-08-24)
+
+
+### Features
+
+* **cmd:** make --no-cache imply --from-template in aw build ([#154](https://github.com/konono/aw/issues/154)) ([0c16026](https://github.com/konono/aw/commit/0c1602614244cdaca3c7d22c54ae845f157e7730))
+
 ## [4.10.0](https://github.com/konono/aw/compare/v4.9.0...v4.10.0) (2026-08-24)
 
 
