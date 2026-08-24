@@ -14,6 +14,114 @@ aw build dev --save image.tar
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
 3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
 
+## ビルド方式の選び方
+
+`aw build` には 4 つのビルド方式があります。プロファイルの設定とフラグの組み合わせで決まります。
+
+### 一覧
+
+| 方式 | 設定 | ベースイメージ | カスタマイズ手段 | ビルド速度 |
+|------|------|---------------|-----------------|-----------|
+| **公式イメージ + snapshot** | （デフォルト） | 公式プリビルトイメージ (GHCR) | mise.toml, include, env | 高速 |
+| **テンプレートビルド + snapshot** | `--from-template` or `packages` | OS テンプレート Dockerfile | packages, build_env, ca_cert, mise.toml | 遅い |
+| **カスタム Dockerfile** | `dockerfile:` | 自分で書いた Dockerfile | Dockerfile 内で自由 | Dockerfile 次第 |
+| **既存イメージ + snapshot** | `image:` (dockerfile なし) | 指定したイメージ | mise.toml, include, env | 高速 |
+
+### どれを使うべきか
+
+**「mise.toml にツールを書くだけで十分」→ 公式イメージ + snapshot（デフォルト）**
+
+最もシンプル。mise.toml に必要なツール（go, python, node 等）を書いて `aw build` するだけ。
+
+```yaml
+# .aw.yml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+```
+
+```toml
+# mise.toml
+[tools]
+go = "1.23"
+node = "22"
+```
+
+```bash
+aw build dev --apply
+```
+
+**「apt パッケージや CA 証明書が必要」→ テンプレートビルド**
+
+`packages` フィールドや `ca_cert` が必要な場合、テンプレートから Dockerfile をビルドします。`packages` を設定すると自動的にこの方式になります。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    packages:
+      - postgresql-client
+      - libpq-dev
+    ca_cert: certs/corporate-ca.pem
+```
+
+```bash
+aw build dev --apply
+```
+
+**「Dockerfile を完全にコントロールしたい」→ カスタム Dockerfile**
+
+ベースイメージの選択、マルチステージビルド、独自のレイヤー構成など、Dockerfile レベルの制御が必要な場合。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.dev
+```
+
+```bash
+aw build dev --apply
+```
+
+`image` と `dockerfile` を併用すると、`aw run` は `image` を使い、`aw build` は `dockerfile` でビルドします。ビルド済みイメージで普段は高速起動し、Dockerfile を変更したときだけ再ビルドするワークフローに便利です。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.dev
+    image: 'aw-build:dev-xxxx'  # aw build --apply で書き戻された値
+```
+
+**「既存イメージにツールを追加したい」→ 既存イメージ + snapshot**
+
+チームで共有するベースイメージや、別リポジトリでビルドしたイメージの上に、リポジトリ固有のツールを mise.toml で追加する場合。
+
+```yaml
+profiles:
+  ml-dev:
+    environment: container
+    launch: claude
+    image: 'aw-build:golang-xxxx'  # 別リポでビルドした Go 入りイメージ
+```
+
+```toml
+# mise.toml
+[tools]
+python = "3.12"
+uv = "latest"
+```
+
+```bash
+aw build ml-dev --apply
+# → golang イメージの上に python + uv を追加した新イメージが作られる
+```
+
 ### フラグの組み合わせと動作
 
 | コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
@@ -41,79 +149,9 @@ aw build claude --push --registry ghcr.io/myorg --apply
 
 イメージ名のレジストリプレフィックスは `distribution/reference` で正規に解析されるため、`ghcr.io`、`localhost:5000`、ECR/GCR 等のレジストリに対応しています。
 
-### デフォルトと --from-template の使い分け
+### --from-template と --no-cache
 
-| 観点 | default（公式イメージベース） | --from-template |
-|------|------|------|
-| ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
-| ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
-| カスタマイズ | include, env, workspace mise.toml | packages, build_env / --build-arg, ca_cert, workspace mise.toml |
-| ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
-
-## カスタムイメージベースの増分ビルド
-
-`image` が設定されていて `dockerfile` がない場合、`aw build` はそのイメージをベースに snapshot で増分ビルドを実行します。既存のカスタムイメージにワークスペースの mise.toml 等のツールを追加したイメージを作れます。
-
-### ユースケース: 言語別ベースイメージの使い回し
-
-たとえば、Go 開発用のベースイメージを一度ビルドし、それを別リポジトリで Python ツールを追加して使うケースです。
-
-**Step 1: Go ベースイメージをビルド（リポジトリ A）**
-
-```yaml
-# リポジトリ A の .aw.yml
-profiles:
-  golang:
-    environment: container
-    launch: claude
-```
-
-```toml
-# リポジトリ A の mise.toml
-[tools]
-go = "1.23"
-```
-
-```bash
-aw build golang --apply
-# → aw-build:golang-xxxx イメージが作成され、.aw.yml の image に書き戻される
-```
-
-**Step 2: Go イメージをベースに Python を追加（リポジトリ B）**
-
-```yaml
-# リポジトリ B の .aw.yml
-profiles:
-  ml-dev:
-    environment: container
-    launch: claude
-    image: 'aw-build:golang-xxxx'  # Step 1 で作ったイメージ
-```
-
-```toml
-# リポジトリ B の mise.toml
-[tools]
-python = "3.12"
-uv = "latest"
-```
-
-```bash
-aw build ml-dev --apply
-# → aw-build:golang-xxxx をベースに python + uv を snapshot で追加
-# → aw-build:ml-dev-yyyy イメージが作成され、.aw.yml の image に書き戻される
-```
-
-結果として `ml-dev` プロファイルのイメージには Go + Python + uv がすべて入った状態になります。`aw run ml-dev` はこのイメージをそのまま使うため、起動時の mise install が不要で高速です。
-
-### 動作の仕組み
-
-1. `resolveImage()` が `image` に指定されたイメージをそのまま返す（ビルドしない）
-2. `runSnapshot()` がそのイメージで一時コンテナを起動し、ワークスペースの mise.toml をコピーして `mise install` を実行
-3. `docker commit` で新しいイメージとして保存
-
-### --from-template / --no-cache との関係
-
-`--from-template` または `--no-cache` を指定すると、`image` は無視されてテンプレートからフルビルドされます。カスタムイメージベースの増分ビルドではなく、ゼロからビルドし直したい場合に使います。
+`--from-template` はテンプレートビルドを強制します。`--no-cache` は `--from-template` を暗黙的に有効にし、Docker のビルドキャッシュも無効にします。`image` が設定されている場合、どちらのフラグも `image` を無視してテンプレートからフルビルドします。
 
 ## aw save — 対話的なカスタマイズの保存
 
