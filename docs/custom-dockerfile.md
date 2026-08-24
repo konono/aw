@@ -138,6 +138,7 @@ profiles:
 ## 注意事項
 
 - `os` と `dockerfile` は排他的です。`dockerfile` を指定すると `os` は無視されます
+- `image` と `dockerfile` は共存可能です。`aw run` 時は `image` が優先され、`aw build` 時は `dockerfile` からビルドされます
 - ビルドコンテキストは Dockerfile が置かれたディレクトリ全体です
 - `COPY` で同じディレクトリ内のファイルを参照できます
 - sudoers は `ALL ALL=(ALL) NOPASSWD:ALL` を推奨します。`aw` はコンテナをホストの UID で実行するため（`--user`）、ユーザー名ベースの sudoers ではイメージを異なる UID の環境で使い回す際に sudo が動作しません

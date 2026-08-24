@@ -71,7 +71,7 @@
 - `gh_token` は `mount_gh` と同じ三値動作
 - `skip_devbox_install` は `mount_gh` と同じ三値動作
 - `skip_mise_install` は `mount_gh` と同じ三値動作
-- `os`、`dockerfile`、`image` は最終的なプロファイルレベルで排他的。いずれかが継承され、別のものが後から指定された場合、継承された側はクリアされる
+- `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能（`aw run` 時は `image` を使い、`aw build` 時は `dockerfile` でビルドする）
 
 ## YAML の構造
 
@@ -326,17 +326,17 @@ profiles:
 - `ubi10`
 - `ubuntu2604`
 
-`environment: container` の場合のみ有効。`dockerfile`、`image` と排他的です。
+`environment: container` の場合のみ有効。`dockerfile` と排他的です。
 
 ### `image`（任意）
 
-事前にビルド済みのコンテナイメージ名。`environment: container` の場合のみ有効。`os`、`dockerfile` と排他的です。
+事前にビルド済みのコンテナイメージ名。`environment: container` の場合のみ有効。
 
-指定した場合、`aw` はビルドをスキップし、このイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`aw build --save` でイメージを tar に書き出し、`docker load` で持ち込む使い方を想定しています。
+`aw run` 時はこのイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`dockerfile` と併用した場合、`aw run` では `image` が優先され、`aw build` では `dockerfile` からビルドされます。`aw build --apply` でビルド結果を `image` に書き戻せます。
 
 ### `dockerfile`（任意）
 
-カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os`、`image` と排他的です。
+カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os` と排他的です。`image` と併用可能（`aw run` は `image` を使い、`aw build` は `dockerfile` でビルド）。
 
 ### `skip_devbox_install`（任意）
 
@@ -569,7 +569,7 @@ aw init
 6. `os` は `environment: container` の場合のみ有効
 7. `dockerfile` は `environment: container` の場合のみ有効
 8. `image` は `environment: container` の場合のみ有効
-9. `os`、`dockerfile`、`image` は排他的（同時に1つのみ指定可能）
+9. `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能
 10. `container_runtime` は `docker` または `podman` であること
 11. `package_manager` は `apt` または `devbox` であること
 12. `package_manager` は `environment: container` の場合のみ有効
