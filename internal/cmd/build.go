@@ -51,7 +51,9 @@ func (b *BuildCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
 	}
 
-	p.Image = ""
+	if p.Dockerfile != "" || b.FromTemplate {
+		p.Image = ""
+	}
 	p.SkipMiseInstall = nil
 	p.SkipDevboxInstall = nil
 	if b.FromTemplate {

@@ -145,7 +145,7 @@ type BuildCmd struct {
 	Save         *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
 	FromTemplate bool              `name:"from-template" help:"Build from Dockerfile template instead of official image."`
 	Apply        bool              `name:"apply" help:"Write image name back to config file."`
-	NoCache      bool              `name:"no-cache" help:"Rebuild without cache (requires --from-template)."`
+	NoCache      bool              `name:"no-cache" help:"Rebuild without cache (implies --from-template)."`
 	Push         bool              `name:"push" help:"Push the image to a container registry."`
 	Registry     string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`
 	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
@@ -157,8 +157,8 @@ type BuildCmd struct {
 }
 
 func (b *BuildCmd) Validate() error {
-	if b.NoCache && !b.FromTemplate {
-		return fmt.Errorf("--no-cache requires --from-template")
+	if b.NoCache {
+		b.FromTemplate = true
 	}
 	if b.Push && b.Registry == "" {
 		return fmt.Errorf("--push requires --registry")
