@@ -332,7 +332,16 @@ profiles:
 
 事前にビルド済みのコンテナイメージ名。`environment: container` の場合のみ有効。
 
-`aw run` 時はこのイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。`dockerfile` と併用した場合、`aw run` では `image` が優先され、`aw build` では `dockerfile` からビルドされます。`aw build --apply` でビルド結果を `image` に書き戻せます。
+`aw run` 時はこのイメージを直接使用します。イメージがローカルに存在しない場合はエラーになります。
+
+`aw build` 時の動作は他のフィールドとの組み合わせで変わります:
+
+- `image` + `dockerfile`: `dockerfile` でビルド（`image` は無視）
+- `image` のみ + ワークスペースファイル（mise.toml 等）: `image` をベースに snapshot で増分ビルド（mise install → docker commit）
+- `image` + `packages` / `ca_cert` / `build_env` / `packages.txt`: `image` を無視してテンプレートからフルビルド（これらは Dockerfile レイヤーで処理が必要なため）
+- `image` + `--from-template` / `--no-cache`: `image` を無視してテンプレートからフルビルド
+
+`aw build --apply` でビルド結果を `image` に書き戻せます。
 
 ### `dockerfile`（任意）
 

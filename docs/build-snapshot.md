@@ -10,9 +10,148 @@
 aw build dev --save image.tar
 ```
 
-1. **イメージ取得** — 公式イメージを pull（または `--from-template` でテンプレートからビルド）
+1. **イメージ取得** — 公式イメージを pull、`--from-template` でテンプレートからビルド、`image:` 設定時は既存イメージを使用、`dockerfile:` 設定時はカスタム Dockerfile でビルド
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
 3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
+
+## ビルド方式の選び方
+
+`aw build` には 4 つのビルド方式があります。プロファイルの設定とフラグの組み合わせで決まります。
+
+### 一覧
+
+| 方式 | 設定 | ベースイメージ | カスタマイズ手段 | ビルド速度 |
+|------|------|---------------|-----------------|-----------|
+| **公式イメージ + snapshot** | （デフォルト） | 公式プリビルトイメージ (GHCR) | mise.toml, include, env | 高速 |
+| **テンプレートビルド + snapshot** | `--from-template` or `packages` | OS テンプレート Dockerfile | packages, build_env, ca_cert, mise.toml | 遅い |
+| **カスタム Dockerfile** | `dockerfile:` | 自分で書いた Dockerfile | Dockerfile 内で自由 | Dockerfile 次第 |
+| **既存イメージ + snapshot** | `image:` (dockerfile なし) | 指定したイメージ | mise.toml, include, env | 高速 |
+
+> **Note:** `image:` が設定されていても、`packages` / `ca_cert` / `build_env` などテンプレートビルドが必要なカスタマイズがある場合は、自動的にテンプレートビルドにフォールバックします。
+
+### どれを使うべきか
+
+**「mise.toml にツールを書くだけで十分」→ 公式イメージ + snapshot（デフォルト）**
+
+最もシンプル。mise.toml に必要なツール（go, python, node 等）を書いて `aw build` するだけ。
+
+```yaml
+# .aw.yml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+```
+
+```toml
+# mise.toml
+[tools]
+go = "1.23"
+node = "22"
+```
+
+```bash
+aw build dev --apply
+```
+
+**「apt パッケージや CA 証明書が必要」→ テンプレートビルド**
+
+`packages` フィールドや `ca_cert` が必要な場合、テンプレートから Dockerfile をビルドします。`packages` を設定すると自動的にこの方式になります。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    packages:
+      - postgresql-client
+      - libpq-dev
+    ca_cert: certs/corporate-ca.pem
+```
+
+```bash
+aw build dev --apply
+```
+
+**「Dockerfile を完全にコントロールしたい」→ カスタム Dockerfile**
+
+ベースイメージの選択、マルチステージビルド、独自のレイヤー構成など、Dockerfile レベルの制御が必要な場合。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.dev
+```
+
+```bash
+aw build dev --apply
+```
+
+`image` と `dockerfile` を併用すると、`aw run` は `image` を使い、`aw build` は `dockerfile` でビルドします。ビルド済みイメージで普段は高速起動し、Dockerfile を変更したときだけ再ビルドするワークフローに便利です。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    dockerfile: docker/Dockerfile.dev
+    image: 'aw-build:dev-xxxx'  # aw build --apply で書き戻された値
+```
+
+**「既存イメージにツールを追加したい」→ 既存イメージ + snapshot**
+
+チームで共有するベースイメージや、別リポジトリでビルドしたイメージの上に、リポジトリ固有のツールを mise.toml で追加する場合。
+
+```yaml
+profiles:
+  ml-dev:
+    environment: container
+    launch: claude
+    image: 'aw-build:golang-xxxx'  # 別リポでビルドした Go 入りイメージ
+```
+
+```toml
+# mise.toml
+[tools]
+python = "3.12"
+uv = "latest"
+```
+
+```bash
+aw build ml-dev --apply
+# → golang イメージの上に python + uv を追加した新イメージが作られる
+```
+
+> **ベースイメージの要件:** snapshot は `sudo` が使える環境を前提とし、commit 時に `ENTRYPOINT ["/entrypoint.sh"]` を設定します。`aw build` で作成したイメージや aw 公式イメージをベースにすることを推奨します。外部の素の Docker イメージでは snapshot が失敗する可能性があります。
+
+> **packages / ca_cert / build_env との関係:** `image` が設定されていても、`packages`、`packages.txt`、`ca_cert`、`build_env` などテンプレートビルドが必要なカスタマイズがある場合は、`image` は自動的に無視されてテンプレートからフルビルドされます。これらのカスタマイズは Dockerfile レイヤーで処理する必要があるためです。
+
+### カスタマイズ逆引きリファレンス
+
+「やりたいこと」からどの設定を使えばよいかを引けます。
+
+| やりたいこと | 使う設定 | ビルド方式 | 例 |
+|---|---|---|---|
+| Go, Python, Node 等のランタイムを追加 | `mise.toml` | どの方式でも可 | `[tools]` に `go = "1.23"` |
+| jq, ripgrep 等の OS パッケージを追加 | `packages:` or `packages.txt` | テンプレートビルド（自動） | `packages: [jq, ripgrep]` |
+| 社内 CA 証明書を組み込む | `ca_cert:` | テンプレートビルド（自動） | `ca_cert: certs/corp-ca.pem` |
+| Docker ビルド時に変数を渡す | `build_env:` or `--build-arg` | テンプレートビルド（自動） | `build_env: {GITHUB_TOKEN: xxx}` |
+| ホストのファイルをイメージに焼き込む | `--include src:dst` | snapshot で処理 | `--include ./certs:/usr/local/share/ca-certificates` |
+| イメージに環境変数を焼き込む | `--env KEY=VAL` | snapshot で処理 | `--env HTTP_PROXY=http://proxy:8080` |
+| ベースイメージから完全に制御したい | `dockerfile:` | カスタム Dockerfile | `dockerfile: docker/Dockerfile.dev` |
+| 既存イメージにツールだけ追加したい | `image:` + `mise.toml` | 既存イメージ + snapshot | `image: aw-build:base-xxxx` |
+
+**ビルド方式の自動選択ルール:**
+
+`packages`、`packages.txt`、`ca_cert`、`build_env` のいずれかが設定されている場合、Dockerfile のレイヤーで処理する必要があるため、`image:` が設定されていても自動的にテンプレートビルドにフォールバックします。これらの設定と既存イメージ + snapshot を同時に使うことはできません。
+
+```
+mise.toml のみ          → 公式イメージ or 既存イメージ + snapshot（高速）
+packages / ca_cert あり → テンプレートビルド + snapshot（image: は無視される）
+dockerfile あり          → カスタム Dockerfile（image: は aw run 用）
+```
 
 ### フラグの組み合わせと動作
 
@@ -22,6 +161,8 @@ aw build dev --save image.tar
 | `aw build <profile> --save file.tar` | o | o | o | - |
 | `aw build <profile> --apply` | o | o | - | o |
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
+| `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
+| `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | - |
 | `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
 | `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
 | `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
@@ -40,14 +181,9 @@ aw build claude --push --registry ghcr.io/myorg --apply
 
 イメージ名のレジストリプレフィックスは `distribution/reference` で正規に解析されるため、`ghcr.io`、`localhost:5000`、ECR/GCR 等のレジストリに対応しています。
 
-### デフォルトと --from-template の使い分け
+### --from-template と --no-cache
 
-| 観点 | default（公式イメージベース） | --from-template |
-|------|------|------|
-| ベースイメージ | ghcr.io/konono/aw-claude:X.Y.Z-osN | テンプレートからビルド |
-| ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
-| カスタマイズ | include, env, workspace mise.toml | packages, build_env / --build-arg, ca_cert, workspace mise.toml |
-| ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
+`--from-template` はテンプレートビルドを強制します。`--no-cache` は `--from-template` を暗黙的に有効にし、Docker のビルドキャッシュも無効にします。`image` が設定されている場合、どちらのフラグも `image` を無視してテンプレートからフルビルドします。
 
 ## aw save — 対話的なカスタマイズの保存
 
