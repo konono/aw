@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.12.0](https://github.com/konono/aw/compare/v4.11.0...v4.12.0) (2026-08-24)
+
+
+### Features
+
+* **cmd:** support incremental build on custom image via snapshot ([#156](https://github.com/konono/aw/issues/156)) ([74c7d9e](https://github.com/konono/aw/commit/74c7d9ec00b296af8f1e054afd39393bcf04eca7))
+
 ## [4.11.0](https://github.com/konono/aw/compare/v4.10.0...v4.11.0) (2026-08-24)
 
 
