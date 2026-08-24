@@ -52,6 +52,8 @@ func (b *BuildCmd) Run() error {
 	}
 
 	p.Image = ""
+	p.SkipMiseInstall = nil
+	p.SkipDevboxInstall = nil
 	if b.FromTemplate {
 		p.ImagePullPolicy = profile.ImagePullPolicyBuild
 	}
@@ -81,7 +83,7 @@ func (b *BuildCmd) Run() error {
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
-		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
+		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
 		return nil
 	}
@@ -178,7 +180,7 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
 	if err := client.Pull(context.Background(), imageName); err != nil {
 		return fmt.Errorf("pulling official image: %w", err)
@@ -258,6 +260,9 @@ func hasWorkspaceFiles(dir string) bool {
 }
 
 func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[string]string, p profile.Profile) bool {
+	if p.Dockerfile != "" {
+		return true
+	}
 	if hasWorkspaceFiles(dir) {
 		return true
 	}

@@ -252,6 +252,14 @@ func TestHasBuildInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("profile dockerfile", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{Dockerfile: "docker/Dockerfile.custom"}
+		if !hasBuildInputs(dir, nil, nil, p) {
+			t.Error("should return true with profile dockerfile")
+		}
+	})
+
 	t.Run("build_env from cli build-arg merge", func(t *testing.T) {
 		dir := t.TempDir()
 		p := profile.Profile{}
