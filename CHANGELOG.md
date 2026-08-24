@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.10.0](https://github.com/konono/aw/compare/v4.9.0...v4.10.0) (2026-08-24)
+
+
+### Features
+
+* **cmd:** allow aw build to use dockerfile when image is also set ([#152](https://github.com/konono/aw/issues/152)) ([9fe61d4](https://github.com/konono/aw/commit/9fe61d4110aba4282003a4ab77b81d6b3430c566))
+
 ## [4.9.0](https://github.com/konono/aw/compare/v4.8.0...v4.9.0) (2026-08-03)
 
 
