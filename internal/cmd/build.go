@@ -66,6 +66,10 @@ func (b *BuildCmd) Run() error {
 	}
 	ec.NoCache = b.NoCache
 
+	if ec.Profile.Image != "" && stage.HasBuildCustomizations(ec) {
+		ec.Profile.Image = ""
+	}
+
 	if len(b.BuildArg) > 0 {
 		if ec.Profile.BuildEnv == nil {
 			ec.Profile.BuildEnv = make(map[string]string)

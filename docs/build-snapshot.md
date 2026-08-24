@@ -10,7 +10,7 @@
 aw build dev --save image.tar
 ```
 
-1. **イメージ取得** — 公式イメージを pull（または `--from-template` でテンプレートからビルド）
+1. **イメージ取得** — 公式イメージを pull、`--from-template` でテンプレートからビルド、`image:` 設定時は既存イメージを使用、`dockerfile:` 設定時はカスタム Dockerfile でビルド
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
 3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
 
@@ -26,6 +26,8 @@ aw build dev --save image.tar
 | **テンプレートビルド + snapshot** | `--from-template` or `packages` | OS テンプレート Dockerfile | packages, build_env, ca_cert, mise.toml | 遅い |
 | **カスタム Dockerfile** | `dockerfile:` | 自分で書いた Dockerfile | Dockerfile 内で自由 | Dockerfile 次第 |
 | **既存イメージ + snapshot** | `image:` (dockerfile なし) | 指定したイメージ | mise.toml, include, env | 高速 |
+
+> **Note:** `image:` が設定されていても、`packages` / `ca_cert` / `build_env` などテンプレートビルドが必要なカスタマイズがある場合は、自動的にテンプレートビルドにフォールバックします。
 
 ### どれを使うべきか
 
@@ -122,6 +124,10 @@ aw build ml-dev --apply
 # → golang イメージの上に python + uv を追加した新イメージが作られる
 ```
 
+> **ベースイメージの要件:** snapshot は `sudo` が使える環境を前提とし、commit 時に `ENTRYPOINT ["/entrypoint.sh"]` を設定します。`aw build` で作成したイメージや aw 公式イメージをベースにすることを推奨します。外部の素の Docker イメージでは snapshot が失敗する可能性があります。
+
+> **packages / ca_cert / build_env との関係:** `image` が設定されていても、`packages`、`packages.txt`、`ca_cert`、`build_env` などテンプレートビルドが必要なカスタマイズがある場合は、`image` は自動的に無視されてテンプレートからフルビルドされます。これらのカスタマイズは Dockerfile レイヤーで処理する必要があるためです。
+
 ### フラグの組み合わせと動作
 
 | コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
@@ -131,6 +137,7 @@ aw build ml-dev --apply
 | `aw build <profile> --apply` | o | o | - | o |
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
 | `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
+| `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | - |
 | `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
 | `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
 | `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |

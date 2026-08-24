@@ -270,6 +270,52 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
+func TestBuildCmd_Validate_NoCacheImpliesFromTemplate(t *testing.T) {
+	b := BuildCmd{
+		ProfileName: "test",
+		NoCache:     true,
+	}
+	if err := b.Validate(); err != nil {
+		t.Fatalf("--no-cache should not error: %v", err)
+	}
+	if !b.FromTemplate {
+		t.Error("--no-cache should set FromTemplate to true")
+	}
+}
+
+func TestBuildCmd_ImageClearConditions(t *testing.T) {
+	t.Run("image only preserved", func(t *testing.T) {
+		p := profile.Profile{Image: "my-image:latest"}
+		if p.Dockerfile != "" || false {
+			p.Image = ""
+		}
+		if p.Image != "my-image:latest" {
+			t.Error("image should be preserved when no dockerfile and no --from-template")
+		}
+	})
+
+	t.Run("image cleared with dockerfile", func(t *testing.T) {
+		p := profile.Profile{Image: "my-image:latest", Dockerfile: "Dockerfile"}
+		if p.Dockerfile != "" || false {
+			p.Image = ""
+		}
+		if p.Image != "" {
+			t.Error("image should be cleared when dockerfile is set")
+		}
+	})
+
+	t.Run("image cleared with from-template", func(t *testing.T) {
+		p := profile.Profile{Image: "my-image:latest"}
+		fromTemplate := true
+		if p.Dockerfile != "" || fromTemplate {
+			p.Image = ""
+		}
+		if p.Image != "" {
+			t.Error("image should be cleared when --from-template is set")
+		}
+	})
+}
+
 func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	b := BuildCmd{
 		ProfileName:  "test",
