@@ -22,6 +22,7 @@ aw build dev --save image.tar
 | `aw build <profile> --save file.tar` | o | o | o | - |
 | `aw build <profile> --apply` | o | o | - | o |
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
+| `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
 | `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
 | `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
 | `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
@@ -48,6 +49,71 @@ aw build claude --push --registry ghcr.io/myorg --apply
 | ビルド速度 | 高速（pull + commit のみ） | 遅い（Dockerfile ビルド + commit） |
 | カスタマイズ | include, env, workspace mise.toml | packages, build_env / --build-arg, ca_cert, workspace mise.toml |
 | ユースケース | 一般ユーザー | packages や ca_cert があるパワーユーザー |
+
+## カスタムイメージベースの増分ビルド
+
+`image` が設定されていて `dockerfile` がない場合、`aw build` はそのイメージをベースに snapshot で増分ビルドを実行します。既存のカスタムイメージにワークスペースの mise.toml 等のツールを追加したイメージを作れます。
+
+### ユースケース: 言語別ベースイメージの使い回し
+
+たとえば、Go 開発用のベースイメージを一度ビルドし、それを別リポジトリで Python ツールを追加して使うケースです。
+
+**Step 1: Go ベースイメージをビルド（リポジトリ A）**
+
+```yaml
+# リポジトリ A の .aw.yml
+profiles:
+  golang:
+    environment: container
+    launch: claude
+```
+
+```toml
+# リポジトリ A の mise.toml
+[tools]
+go = "1.23"
+```
+
+```bash
+aw build golang --apply
+# → aw-build:golang-xxxx イメージが作成され、.aw.yml の image に書き戻される
+```
+
+**Step 2: Go イメージをベースに Python を追加（リポジトリ B）**
+
+```yaml
+# リポジトリ B の .aw.yml
+profiles:
+  ml-dev:
+    environment: container
+    launch: claude
+    image: 'aw-build:golang-xxxx'  # Step 1 で作ったイメージ
+```
+
+```toml
+# リポジトリ B の mise.toml
+[tools]
+python = "3.12"
+uv = "latest"
+```
+
+```bash
+aw build ml-dev --apply
+# → aw-build:golang-xxxx をベースに python + uv を snapshot で追加
+# → aw-build:ml-dev-yyyy イメージが作成され、.aw.yml の image に書き戻される
+```
+
+結果として `ml-dev` プロファイルのイメージには Go + Python + uv がすべて入った状態になります。`aw run ml-dev` はこのイメージをそのまま使うため、起動時の mise install が不要で高速です。
+
+### 動作の仕組み
+
+1. `resolveImage()` が `image` に指定されたイメージをそのまま返す（ビルドしない）
+2. `runSnapshot()` がそのイメージで一時コンテナを起動し、ワークスペースの mise.toml をコピーして `mise install` を実行
+3. `docker commit` で新しいイメージとして保存
+
+### --from-template / --no-cache との関係
+
+`--from-template` または `--no-cache` を指定すると、`image` は無視されてテンプレートからフルビルドされます。カスタムイメージベースの増分ビルドではなく、ゼロからビルドし直したい場合に使います。
 
 ## aw save — 対話的なカスタマイズの保存
 
