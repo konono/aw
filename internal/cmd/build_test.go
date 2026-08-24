@@ -283,22 +283,18 @@ func TestBuildCmd_Validate_NoCacheImpliesFromTemplate(t *testing.T) {
 	}
 }
 
-func TestBuildCmd_ImageClearConditions(t *testing.T) {
-	t.Run("image only preserved", func(t *testing.T) {
+func TestPrepareBuildProfile(t *testing.T) {
+	t.Run("image preserved when no dockerfile and no from-template", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
-		if p.Dockerfile != "" || false {
-			p.Image = ""
-		}
+		prepareBuildProfile(&p, false)
 		if p.Image != "my-image:latest" {
-			t.Error("image should be preserved when no dockerfile and no --from-template")
+			t.Error("image should be preserved")
 		}
 	})
 
 	t.Run("image cleared with dockerfile", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest", Dockerfile: "Dockerfile"}
-		if p.Dockerfile != "" || false {
-			p.Image = ""
-		}
+		prepareBuildProfile(&p, false)
 		if p.Image != "" {
 			t.Error("image should be cleared when dockerfile is set")
 		}
@@ -306,12 +302,29 @@ func TestBuildCmd_ImageClearConditions(t *testing.T) {
 
 	t.Run("image cleared with from-template", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
-		fromTemplate := true
-		if p.Dockerfile != "" || fromTemplate {
-			p.Image = ""
-		}
+		prepareBuildProfile(&p, true)
 		if p.Image != "" {
-			t.Error("image should be cleared when --from-template is set")
+			t.Error("image should be cleared when from-template is true")
+		}
+	})
+
+	t.Run("skip flags cleared", func(t *testing.T) {
+		tr := true
+		p := profile.Profile{SkipMiseInstall: &tr, SkipDevboxInstall: &tr}
+		prepareBuildProfile(&p, false)
+		if p.SkipMiseInstall != nil {
+			t.Error("SkipMiseInstall should be nil")
+		}
+		if p.SkipDevboxInstall != nil {
+			t.Error("SkipDevboxInstall should be nil")
+		}
+	})
+
+	t.Run("from-template sets image pull policy to build", func(t *testing.T) {
+		p := profile.Profile{}
+		prepareBuildProfile(&p, true)
+		if p.ImagePullPolicy != profile.ImagePullPolicyBuild {
+			t.Errorf("ImagePullPolicy should be 'build', got %q", p.ImagePullPolicy)
 		}
 	})
 }

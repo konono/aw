@@ -51,24 +51,13 @@ func (b *BuildCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
 	}
 
-	if p.Dockerfile != "" || b.FromTemplate {
-		p.Image = ""
-	}
-	p.SkipMiseInstall = nil
-	p.SkipDevboxInstall = nil
-	if b.FromTemplate {
-		p.ImagePullPolicy = profile.ImagePullPolicyBuild
-	}
+	prepareBuildProfile(&p, b.FromTemplate)
 
 	ec, err := buildExecutionContext(b.ProfileName, p)
 	if err != nil {
 		return err
 	}
 	ec.NoCache = b.NoCache
-
-	if ec.Profile.Image != "" && stage.HasBuildCustomizations(ec) {
-		ec.Profile.Image = ""
-	}
 
 	if len(b.BuildArg) > 0 {
 		if ec.Profile.BuildEnv == nil {
@@ -77,6 +66,10 @@ func (b *BuildCmd) Run() error {
 		for k, v := range b.BuildArg {
 			ec.Profile.BuildEnv[k] = v
 		}
+	}
+
+	if ec.Profile.Image != "" && stage.HasBuildCustomizations(ec) {
+		ec.Profile.Image = ""
 	}
 
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
@@ -263,6 +256,17 @@ func hasWorkspaceFiles(dir string) bool {
 		}
 	}
 	return false
+}
+
+func prepareBuildProfile(p *profile.Profile, fromTemplate bool) {
+	if p.Dockerfile != "" || fromTemplate {
+		p.Image = ""
+	}
+	p.SkipMiseInstall = nil
+	p.SkipDevboxInstall = nil
+	if fromTemplate {
+		p.ImagePullPolicy = profile.ImagePullPolicyBuild
+	}
 }
 
 func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[string]string, p profile.Profile) bool {

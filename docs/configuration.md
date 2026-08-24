@@ -338,6 +338,7 @@ profiles:
 
 - `image` + `dockerfile`: `dockerfile` でビルド（`image` は無視）
 - `image` のみ + ワークスペースファイル（mise.toml 等）: `image` をベースに snapshot で増分ビルド（mise install → docker commit）
+- `image` + `packages` / `ca_cert` / `build_env` / `packages.txt`: `image` を無視してテンプレートからフルビルド（これらは Dockerfile レイヤーで処理が必要なため）
 - `image` + `--from-template` / `--no-cache`: `image` を無視してテンプレートからフルビルド
 
 `aw build --apply` でビルド結果を `image` に書き戻せます。
