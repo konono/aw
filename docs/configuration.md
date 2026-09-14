@@ -71,6 +71,7 @@
 - `gh_token` は `mount_gh` と同じ三値動作
 - `skip_devbox_install` は `mount_gh` と同じ三値動作
 - `skip_mise_install` は `mount_gh` と同じ三値動作
+- `auto_deps_install` は `mount_gh` と同じ三値動作
 - `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能（`aw run` 時は `image` を使い、`aw build` 時は `dockerfile` でビルドする）
 
 ## YAML の構造
@@ -359,6 +360,16 @@ profiles:
 
 省略した場合、トップレベルのデフォルトから継承します。
 
+### `auto_deps_install`（任意）
+
+コンテナ起動時にワークスペースの言語パッケージファイル（`requirements.txt`、`package.json`、`go.mod`、`Gemfile`、`Cargo.toml` 等）を検出し、依存関係を自動インストールするかどうか。`environment: container` の場合のみ有効。
+
+対応ランタイムが mise.toml や PATH に存在しない場合、インストールはスキップされ警告ログが出力されます（ランタイムの自動インストールは行いません）。
+
+毎起動インストールが走ります（`mise install` と同じパターン）。起動を高速化するには `aw build` でイメージに焼き込んでください。
+
+省略した場合、トップレベルのデフォルトから継承します。
+
 ### `container_runtime`（任意）
 
 使用するコンテナ CLI:
@@ -584,20 +595,21 @@ aw init
 12. `package_manager` は `environment: container` の場合のみ有効
 13. `skip_devbox_install` は `environment: container` の場合のみ有効
 14. `skip_mise_install` は `environment: container` の場合のみ有効
-15. `mounts` は `environment: container` の場合のみ有効
-16. すべてのマウントに `source` と `target` の両方が必要
-17. `container_user` は `environment: container` の場合のみ有効
-18. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
-19. `gh_token` は `environment: container` の場合のみ有効
-20. `mount_gh` と `gh_token` は排他的
-21. `mount_container_sock` は `environment: container` の場合のみ有効
-22. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
-23. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
-24. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
-25. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
-26. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
-27. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
-28. `reaper` は `environment: container` の場合のみ有効
+15. `auto_deps_install` は `environment: container` の場合のみ有効
+16. `mounts` は `environment: container` の場合のみ有効
+17. すべてのマウントに `source` と `target` の両方が必要
+18. `container_user` は `environment: container` の場合のみ有効
+19. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+20. `gh_token` は `environment: container` の場合のみ有効
+21. `mount_gh` と `gh_token` は排他的
+22. `mount_container_sock` は `environment: container` の場合のみ有効
+23. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+24. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+25. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+26. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+27. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+28. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+29. `reaper` は `environment: container` の場合のみ有効
 29. `reaper.timeout` は 0〜3600 の範囲であること
 30. `reaper.report-retention` は 0〜100 の範囲であること
 31. `packages` は `environment: container` の場合のみ有効
