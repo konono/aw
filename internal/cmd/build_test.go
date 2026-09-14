@@ -270,21 +270,21 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
-func TestBuildCmd_Validate_NoCacheImpliesFromTemplate(t *testing.T) {
+func TestBuildCmd_Validate_FromTemplateImpliesNoCache(t *testing.T) {
 	b := BuildCmd{
-		ProfileName: "test",
-		NoCache:     true,
+		ProfileName:  "test",
+		FromTemplate: true,
 	}
 	if err := b.Validate(); err != nil {
-		t.Fatalf("--no-cache should not error: %v", err)
+		t.Fatalf("--from-template should not error: %v", err)
 	}
-	if !b.FromTemplate {
-		t.Error("--no-cache should set FromTemplate to true")
+	if !b.NoCache {
+		t.Error("--from-template should set NoCache to true")
 	}
 }
 
 func TestPrepareBuildProfile(t *testing.T) {
-	t.Run("image preserved when no dockerfile and no from-template", func(t *testing.T) {
+	t.Run("image preserved when no dockerfile and no no-cache", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
 		prepareBuildProfile(&p, false)
 		if p.Image != "my-image:latest" {
@@ -300,11 +300,11 @@ func TestPrepareBuildProfile(t *testing.T) {
 		}
 	})
 
-	t.Run("image cleared with from-template", func(t *testing.T) {
+	t.Run("image cleared with no-cache", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
 		prepareBuildProfile(&p, true)
 		if p.Image != "" {
-			t.Error("image should be cleared when from-template is true")
+			t.Error("image should be cleared when no-cache is true")
 		}
 	})
 
@@ -320,7 +320,7 @@ func TestPrepareBuildProfile(t *testing.T) {
 		}
 	})
 
-	t.Run("from-template sets image pull policy to build", func(t *testing.T) {
+	t.Run("no-cache sets image pull policy to build", func(t *testing.T) {
 		p := profile.Profile{}
 		prepareBuildProfile(&p, true)
 		if p.ImagePullPolicy != profile.ImagePullPolicyBuild {
@@ -332,8 +332,8 @@ func TestPrepareBuildProfile(t *testing.T) {
 func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	b := BuildCmd{
 		ProfileName:  "test",
-		FromTemplate: true,
-		BuildArg:     map[string]string{"AW_FOO": "bar"},
+		NoCache:  true,
+		BuildArg: map[string]string{"AW_FOO": "bar"},
 	}
 	err := b.Validate()
 	if err == nil {
