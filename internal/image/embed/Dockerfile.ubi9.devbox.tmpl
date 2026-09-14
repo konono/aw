@@ -56,6 +56,7 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
 
 COPY aw-init.sh /aw-init.sh
 COPY entrypoint.sh /entrypoint.sh
+COPY aw-deps.sh /aw-deps.sh
 {{if .SessionLog}}
 COPY pty-logger-amd64 /tmp/pty-logger-amd64
 COPY pty-logger-arm64 /tmp/pty-logger-arm64
@@ -67,7 +68,7 @@ RUN ARCH=$(uname -m); \
     esac && \
     rm -f /tmp/pty-logger-* && chmod +x /usr/local/bin/pty-logger
 {{end}}
-RUN chmod +x /aw-init.sh /entrypoint.sh && \
+RUN chmod +x /aw-init.sh /entrypoint.sh /aw-deps.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 
 USER {{.User}}

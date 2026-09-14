@@ -124,6 +124,9 @@ func validateContainerFlags(p Profile) error {
 	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("skip_mise_install is only valid with environment: container")
 	}
+	if p.EffectiveAutoDepsInstall() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("auto_deps_install is only valid with environment: container")
+	}
 	if p.ContainerUser != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("container_user is only valid with environment: container")
 	}

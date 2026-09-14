@@ -101,12 +101,14 @@ Host gh configuration is mounted (read-only). gh commands (gh pr, gh issue, etc.
 SSH agent is forwarded. Git SSH operations (push, clone, fetch) work without additional setup.`)
 	}
 
-	sections = append(sections, `## Language Dependencies
+	if ec.Profile.EffectiveAutoDepsInstall() {
+		sections = append(sections, `## Language Dependencies
 
-aw auto-detects and installs language dependencies at container startup.
-Supported files: requirements.txt, pyproject.toml, uv.lock, package.json, go.mod, Gemfile, Cargo.toml, composer.json, pom.xml, build.gradle, mix.exs, cpanfile, requirements.yml (Ansible).
-If the required runtime is not in mise.toml, it is auto-installed via mise.
-Set AW_SKIP_DEPS_INSTALL=1 to disable.`)
+auto_deps_install is enabled. aw auto-detects and installs language dependencies at container startup.
+Supported files: requirements.txt, pyproject.toml, uv.lock, package.json, go.mod, Gemfile, Cargo.toml.
+The runtime must already be available via mise.toml — missing runtimes are not auto-installed.
+To speed up startup, use "aw build" to bake dependencies into the image.`)
+	}
 
 	suffix := "\n# aw Container Environment\n\nThis session runs inside an aw container.\n\n" +
 		strings.Join(sections, "\n\n") + "\n"

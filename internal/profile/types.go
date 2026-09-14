@@ -107,6 +107,7 @@ type Profile struct {
 	ContainerUser      string            `yaml:"container_user,omitempty"`
 	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
 	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`
+	AutoDepsInstall   *bool             `yaml:"auto_deps_install,omitempty"`
 	PackageManager    PackageManager    `yaml:"package_manager,omitempty"`
 	GhToken          *bool             `yaml:"gh_token,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
@@ -376,6 +377,11 @@ func (p *Profile) EffectiveSkipDevboxInstall() bool {
 // EffectiveSkipMiseInstall returns whether mise install should be skipped in the entrypoint.
 func (p *Profile) EffectiveSkipMiseInstall() bool {
 	return p != nil && p.SkipMiseInstall != nil && *p.SkipMiseInstall
+}
+
+// EffectiveAutoDepsInstall returns whether language dependency auto-install is enabled.
+func (p *Profile) EffectiveAutoDepsInstall() bool {
+	return p != nil && p.AutoDepsInstall != nil && *p.AutoDepsInstall
 }
 
 // EffectivePackageManager returns the package manager, defaulting to "apt" if empty.
