@@ -294,6 +294,21 @@ func TestPrepareBuildContext(t *testing.T) {
 	if runtime.GOOS != "windows" && initInfo.Mode().Perm()&0111 == 0 {
 		t.Error("aw-init.sh should be executable")
 	}
+
+	depsContent, err := os.ReadFile(filepath.Join(dir, "aw-deps.sh"))
+	if err != nil {
+		t.Fatalf("reading aw-deps.sh: %v", err)
+	}
+	if string(depsContent) != string(DepsScript()) {
+		t.Error("aw-deps.sh content does not match embedded content")
+	}
+	depsInfo, err := os.Stat(filepath.Join(dir, "aw-deps.sh"))
+	if err != nil {
+		t.Fatalf("stat aw-deps.sh: %v", err)
+	}
+	if runtime.GOOS != "windows" && depsInfo.Mode().Perm()&0111 == 0 {
+		t.Error("aw-deps.sh should be executable")
+	}
 }
 
 func TestPrepareBuildContext_WithOS(t *testing.T) {

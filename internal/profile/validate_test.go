@@ -257,6 +257,15 @@ func TestValidate(t *testing.T) {
 			wantErr: "skip_mise_install is only valid with environment: container",
 		},
 		{
+			name:    "valid container + auto_deps_install",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, AutoDepsInstall: &v} }(),
+		},
+		{
+			name:    "auto_deps_install with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, AutoDepsInstall: &v} }(),
+			wantErr: "auto_deps_install is only valid with environment: container",
+		},
+		{
 			name:    "valid container + ssh_agent_forwarding",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
 		},

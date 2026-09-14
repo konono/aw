@@ -1,15 +1,19 @@
 #!/bin/bash
 # aw-deps.sh — auto-detect and install language dependencies.
 # Sourced by entrypoint scripts when AW_AUTO_DEPS_INSTALL=1.
-# Requires: AW_WORKSPACE, MISE_CMD, run_as_user (from aw-init.sh / entrypoint)
+# Requires: AW_WORKSPACE, MISE_CMD, run_as_user, aw_log (from aw-init.sh / entrypoint)
 
 aw_install_deps() {
   cd "$AW_WORKSPACE" || return
 
   # --- Python ---
-  if [ -f "uv.lock" ] && run_as_user "$MISE_CMD && command -v uv" &>/dev/null; then
-    echo "Installing Python dependencies from uv.lock..."
-    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && uv sync" || true
+  if [ -f "uv.lock" ]; then
+    if run_as_user "$MISE_CMD && command -v uv" &>/dev/null; then
+      echo "Installing Python dependencies from uv.lock..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && uv sync" || true
+    else
+      aw_log "WARN: uv.lock found but uv is not available. Add ubi to mise.toml."
+    fi
   elif [ -f "requirements.txt" ]; then
     if run_as_user "$MISE_CMD && command -v python3" &>/dev/null; then
       echo "Installing Python dependencies from requirements.txt..."
@@ -28,22 +32,28 @@ aw_install_deps() {
 
   # --- Node.js ---
   if [ -f "package.json" ]; then
-    if run_as_user "$MISE_CMD && command -v node" &>/dev/null; then
-      if [ -f "pnpm-lock.yaml" ] && run_as_user "$MISE_CMD && command -v pnpm" &>/dev/null; then
+    if ! run_as_user "$MISE_CMD && command -v node" &>/dev/null; then
+      aw_log "WARN: package.json found but node is not available. Add node to mise.toml."
+    elif [ -f "pnpm-lock.yaml" ]; then
+      if run_as_user "$MISE_CMD && command -v pnpm" &>/dev/null; then
         echo "Installing Node.js dependencies with pnpm..."
         run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pnpm install --frozen-lockfile" || true
-      elif [ -f "yarn.lock" ] && run_as_user "$MISE_CMD && command -v yarn" &>/dev/null; then
+      else
+        aw_log "WARN: pnpm-lock.yaml found but pnpm is not available. Add pnpm via npm or mise.toml."
+      fi
+    elif [ -f "yarn.lock" ]; then
+      if run_as_user "$MISE_CMD && command -v yarn" &>/dev/null; then
         echo "Installing Node.js dependencies with yarn..."
         run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && yarn install --frozen-lockfile" || true
-      elif [ -f "package-lock.json" ]; then
-        echo "Installing Node.js dependencies with npm ci..."
-        run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm ci" || true
       else
-        echo "Installing Node.js dependencies with npm install..."
-        run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm install" || true
+        aw_log "WARN: yarn.lock found but yarn is not available. Add yarn via npm or mise.toml."
       fi
+    elif [ -f "package-lock.json" ]; then
+      echo "Installing Node.js dependencies with npm ci..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm ci" || true
     else
-      aw_log "WARN: package.json found but node is not available. Add node to mise.toml."
+      echo "Installing Node.js dependencies with npm install..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm install" || true
     fi
   fi
 
