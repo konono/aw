@@ -3,17 +3,139 @@ set -e
 
 . /aw-init.sh
 
+MISE_CMD="export HOME=$AW_HOME && export MISE_DATA_DIR=$AW_HOME/.local/share/mise && export MISE_CONFIG_DIR=$AW_HOME/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$AW_WORKSPACE && export MISE_YES=1"
+
+aw_ensure_mise() {
+  if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
+    echo "Installing mise..."
+    run_as_user 'export MISE_INSTALL_MUSL=1 && curl -fsSL https://mise.jdx.dev/install.sh | sh'
+    mkdir -p "$AW_HOME/.config/mise"
+  fi
+}
+
+aw_ensure_runtime() {
+  local runtime="$1"
+  local cmd
+  case "$runtime" in
+    python) cmd="python3" ;;
+    node)   cmd="node" ;;
+    go)     cmd="go" ;;
+    ruby)   cmd="ruby" ;;
+    rust)   cmd="cargo" ;;
+    erlang) cmd="erl" ;;
+    elixir) cmd="elixir" ;;
+    *)      cmd="$runtime" ;;
+  esac
+
+  if ! run_as_user "$MISE_CMD && command -v $cmd" &>/dev/null; then
+    aw_ensure_mise
+    echo "Runtime '$runtime' not found, installing via mise..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mise use $runtime@latest && mise install" || true
+    aw_fix_mise_shims "$MISE_CMD"
+  fi
+}
+
+aw_install_deps() {
+  cd "$AW_WORKSPACE" || return
+
+  # --- Python ---
+  if [ -f "uv.lock" ] && run_as_user "$MISE_CMD && command -v uv" &>/dev/null; then
+    echo "Installing Python dependencies from uv.lock..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && uv sync" || true
+  elif [ -f "requirements.txt" ]; then
+    aw_ensure_runtime python
+    echo "Installing Python dependencies from requirements.txt..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pip install -q -r requirements.txt" || true
+  elif [ -f "pyproject.toml" ] && grep -q '\[project\]' pyproject.toml 2>/dev/null; then
+    aw_ensure_runtime python
+    echo "Installing Python dependencies from pyproject.toml..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pip install -q -e ." || true
+  fi
+
+  # --- Node.js ---
+  if [ -f "package.json" ]; then
+    aw_ensure_runtime node
+    if [ -f "pnpm-lock.yaml" ] && run_as_user "$MISE_CMD && command -v pnpm" &>/dev/null; then
+      echo "Installing Node.js dependencies with pnpm..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pnpm install --frozen-lockfile" || true
+    elif [ -f "yarn.lock" ] && run_as_user "$MISE_CMD && command -v yarn" &>/dev/null; then
+      echo "Installing Node.js dependencies with yarn..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && yarn install --frozen-lockfile" || true
+    elif [ -f "package-lock.json" ]; then
+      echo "Installing Node.js dependencies with npm ci..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm ci" || true
+    else
+      echo "Installing Node.js dependencies with npm install..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && npm install" || true
+    fi
+  fi
+
+  # --- Go ---
+  if [ -f "go.mod" ]; then
+    aw_ensure_runtime go
+    echo "Installing Go dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && go mod download" || true
+  fi
+
+  # --- Ruby ---
+  if [ -f "Gemfile" ]; then
+    aw_ensure_runtime ruby
+    echo "Installing Ruby dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && bundle install" || true
+  fi
+
+  # --- Rust ---
+  if [ -f "Cargo.toml" ]; then
+    aw_ensure_runtime rust
+    echo "Installing Rust dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && cargo fetch" || true
+  fi
+
+  # --- PHP ---
+  if [ -f "composer.json" ] && run_as_user "$MISE_CMD && command -v composer" &>/dev/null; then
+    echo "Installing PHP dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && composer install --no-interaction" || true
+  fi
+
+  # --- Java (Maven/Gradle) ---
+  if [ -f "pom.xml" ] && run_as_user "$MISE_CMD && command -v mvn" &>/dev/null; then
+    echo "Installing Java dependencies (Maven)..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mvn dependency:resolve -q" || true
+  elif [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then
+    if run_as_user "$MISE_CMD && command -v gradle" &>/dev/null; then
+      echo "Installing Java dependencies (Gradle)..."
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && gradle dependencies --quiet" || true
+    fi
+  fi
+
+  # --- Elixir ---
+  if [ -f "mix.exs" ]; then
+    aw_ensure_runtime erlang
+    aw_ensure_runtime elixir
+    echo "Installing Elixir dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mix deps.get" || true
+  fi
+
+  # --- Perl ---
+  if [ -f "cpanfile" ] && run_as_user "$MISE_CMD && command -v cpanm" &>/dev/null; then
+    echo "Installing Perl dependencies..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && cpanm --installdeps --notest ." || true
+  fi
+
+  # --- Ansible ---
+  if [ -f "requirements.yml" ] && run_as_user "$MISE_CMD && command -v ansible-galaxy" &>/dev/null; then
+    echo "Installing Ansible Galaxy requirements..."
+    run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && ansible-galaxy install -r requirements.yml" || true
+  fi
+}
+
 aw_log "Checking workspace packages..."
 AW_PKG_FOUND=0
 if [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
   if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
     echo "Skipping mise install (skip_mise_install is enabled)"
   else
-    if ! run_as_user 'command -v mise' > /dev/null 2>&1; then
-      echo "Installing mise..."
-      run_as_user 'export MISE_INSTALL_MUSL=1 && curl -fsSL https://mise.jdx.dev/install.sh | sh'
-    fi
-    MISE_CMD="export HOME=$AW_HOME && export MISE_DATA_DIR=$AW_HOME/.local/share/mise && export MISE_CONFIG_DIR=$AW_HOME/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$AW_WORKSPACE && export MISE_YES=1"
+    aw_ensure_mise
     mkdir -p "$AW_HOME/.config/mise"
     echo "Installing tools from mise.toml..."
     run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && mise install"
@@ -23,6 +145,10 @@ if [ -f "$AW_WORKSPACE/mise.toml" ] || [ -f "$AW_WORKSPACE/.mise.toml" ]; then
 fi
 if [ "$AW_PKG_FOUND" = "0" ]; then
   echo "No mise.toml found in workspace."
+fi
+
+if [ "${AW_SKIP_DEPS_INSTALL:-0}" != "1" ]; then
+  aw_install_deps
 fi
 
 aw_exec "$@"
