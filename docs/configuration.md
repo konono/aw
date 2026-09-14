@@ -614,10 +614,10 @@ aw init
 27. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
 28. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
 29. `reaper` は `environment: container` の場合のみ有効
-29. `reaper.timeout` は 0〜3600 の範囲であること
-30. `reaper.report-retention` は 0〜100 の範囲であること
-31. `packages` は `environment: container` の場合のみ有効
-32. `packages` の各パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチすること
+30. `reaper.timeout` は 0〜3600 の範囲であること
+31. `reaper.report-retention` は 0〜100 の範囲であること
+32. `packages` は `environment: container` の場合のみ有効
+33. `packages` の各パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチすること
 
 ## コンテナに同期されるホスト設定
 
