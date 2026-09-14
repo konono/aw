@@ -264,6 +264,8 @@ func prepareBuildProfile(p *profile.Profile, fromTemplate bool) {
 	}
 	p.SkipMiseInstall = nil
 	p.SkipDevboxInstall = nil
+	p.MiseInstall = nil
+	p.DevboxInstall = nil
 	if fromTemplate {
 		p.ImagePullPolicy = profile.ImagePullPolicyBuild
 	}

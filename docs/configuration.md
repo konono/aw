@@ -69,8 +69,8 @@
 - `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
 - `mount_container_sock` は `mount_gh` と同じ三値動作
 - `gh_token` は `mount_gh` と同じ三値動作
-- `skip_devbox_install` は `mount_gh` と同じ三値動作
-- `skip_mise_install` は `mount_gh` と同じ三値動作
+- `devbox_install` は `mount_gh` と同じ三値動作（`skip_devbox_install` は非推奨、両方指定不可）
+- `mise_install` は `mount_gh` と同じ三値動作（`skip_mise_install` は非推奨、両方指定不可）
 - `auto_deps_install` は `mount_gh` と同じ三値動作
 - `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能（`aw run` 時は `image` を使い、`aw build` 時は `dockerfile` でビルドする）
 
@@ -167,8 +167,8 @@ profiles:
   airgap:
     launch: claude
     image: 'aw-container:a1b2c3d4e5f6'
-    skip_devbox_install: true
-    skip_mise_install: true
+    devbox_install: false
+    mise_install: false
 ```
 
 ## トップレベルキー
@@ -348,17 +348,21 @@ profiles:
 
 カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os` と排他的です。`image` と併用可能（`aw run` は `image` を使い、`aw build` は `dockerfile` でビルド）。
 
-### `skip_devbox_install`（任意）
+### `devbox_install`（任意）
 
-コンテナ起動時のプロジェクト devbox.json のインストールをスキップするかどうか。`environment: container` の場合のみ有効。
+コンテナ起動時のプロジェクト devbox.json のインストールを実行するかどうか。デフォルトは `true`（インストール実行）。`false` に設定するとスキップします。`environment: container` の場合のみ有効。
+
+省略した場合、トップレベルのデフォルトから継承します。
+
+> **非推奨**: `skip_devbox_install` も引き続きサポートされますが、`devbox_install` の使用を推奨します。両方を同時に指定するとエラーになります。
+
+### `mise_install`（任意）
+
+コンテナ起動時のプロジェクト mise.toml のインストール（および mise 未インストール時の curl フォールバック）を実行するかどうか。デフォルトは `true`（インストール実行）。`false` に設定するとスキップします。`environment: container` の場合のみ有効。
 
 省略した場合、トップレベルのデフォルトから継承します。
 
-### `skip_mise_install`（任意）
-
-コンテナ起動時のプロジェクト mise.toml のインストール（および mise 未インストール時の curl フォールバック）をスキップするかどうか。`environment: container` の場合のみ有効。
-
-省略した場合、トップレベルのデフォルトから継承します。
+> **非推奨**: `skip_mise_install` も引き続きサポートされますが、`mise_install` の使用を推奨します。両方を同時に指定するとエラーになります。
 
 ### `auto_deps_install`（任意）
 
@@ -593,8 +597,8 @@ aw init
 10. `container_runtime` は `docker` または `podman` であること
 11. `package_manager` は `apt` または `devbox` であること
 12. `package_manager` は `environment: container` の場合のみ有効
-13. `skip_devbox_install` は `environment: container` の場合のみ有効
-14. `skip_mise_install` は `environment: container` の場合のみ有効
+13. `devbox_install` / `skip_devbox_install` は `environment: container` の場合のみ有効（両方同時指定不可）
+14. `mise_install` / `skip_mise_install` は `environment: container` の場合のみ有効（両方同時指定不可）
 15. `auto_deps_install` は `environment: container` の場合のみ有効
 16. `mounts` は `environment: container` の場合のみ有効
 17. すべてのマウントに `source` と `target` の両方が必要

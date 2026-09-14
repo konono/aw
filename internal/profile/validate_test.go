@@ -245,7 +245,24 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "skip_devbox_install with host environment",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipDevboxInstall: &v} }(),
-			wantErr: "skip_devbox_install is only valid with environment: container",
+			wantErr: "devbox_install/skip_devbox_install is only valid with environment: container",
+		},
+		{
+			name:    "valid container + devbox_install false",
+			profile: func() Profile { v := false; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, DevboxInstall: &v} }(),
+		},
+		{
+			name:    "devbox_install false with host environment",
+			profile: func() Profile { v := false; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, DevboxInstall: &v} }(),
+			wantErr: "devbox_install/skip_devbox_install is only valid with environment: container",
+		},
+		{
+			name: "devbox_install and skip_devbox_install conflict",
+			profile: func() Profile {
+				t, f := true, false
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, DevboxInstall: &f, SkipDevboxInstall: &t}
+			}(),
+			wantErr: "devbox_install and skip_devbox_install are mutually exclusive",
 		},
 		{
 			name:    "valid container + skip_mise_install",
@@ -254,7 +271,24 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "skip_mise_install with host environment",
 			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipMiseInstall: &v} }(),
-			wantErr: "skip_mise_install is only valid with environment: container",
+			wantErr: "mise_install/skip_mise_install is only valid with environment: container",
+		},
+		{
+			name:    "valid container + mise_install false",
+			profile: func() Profile { v := false; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MiseInstall: &v} }(),
+		},
+		{
+			name:    "mise_install false with host environment",
+			profile: func() Profile { v := false; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MiseInstall: &v} }(),
+			wantErr: "mise_install/skip_mise_install is only valid with environment: container",
+		},
+		{
+			name: "mise_install and skip_mise_install conflict",
+			profile: func() Profile {
+				t, f := true, false
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MiseInstall: &f, SkipMiseInstall: &t}
+			}(),
+			wantErr: "mise_install and skip_mise_install are mutually exclusive",
 		},
 		{
 			name:    "valid container + auto_deps_install",
