@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.13.0](https://github.com/konono/aw/compare/v4.12.0...v4.13.0) (2026-09-14)
+
+
+### Features
+
+* **entrypoint:** auto-detect and install language dependencies at startup ([#159](https://github.com/konono/aw/issues/159)) ([c5da229](https://github.com/konono/aw/commit/c5da2295fa138b0d39b974c60f6e1a7186587754))
+
 ## [4.12.0](https://github.com/konono/aw/compare/v4.11.0...v4.12.0) (2026-08-24)
 
 
