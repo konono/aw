@@ -51,7 +51,7 @@ func (b *BuildCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
 	}
 
-	prepareBuildProfile(&p, b.FromTemplate)
+	prepareBuildProfile(&p, b.NoCache || b.FromTemplate)
 
 	ec, err := buildExecutionContext(b.ProfileName, p)
 	if err != nil {

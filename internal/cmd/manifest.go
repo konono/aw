@@ -100,7 +100,7 @@ func resolveImageName(p profile.Profile) (string, error) {
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
 		return "", fmt.Errorf("session_log is enabled but no custom image is set.\n" +
 			"  The official image does not include pty-logger.\n" +
-			"  Run 'aw build --from-template' first, then set 'image:' in the profile or use '--image'")
+			"  Run 'aw build --no-cache' first, then set 'image:' in the profile or use '--image'")
 	}
 
 	if p.Kubernetes != nil && p.Kubernetes.Registry != "" {
