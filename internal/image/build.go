@@ -54,6 +54,11 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return "", nil, fmt.Errorf("writing aw-init.sh: %w", err)
 	}
 
+	if err := os.WriteFile(filepath.Join(tmpDir, "aw-deps.sh"), DepsScript(), 0755); err != nil {
+		cleanupFn()
+		return "", nil, fmt.Errorf("writing aw-deps.sh: %w", err)
+	}
+
 	if cenv.SessionLog {
 		if err := writePtyLoggerBinaries(tmpDir); err != nil {
 			cleanupFn()

@@ -48,6 +48,9 @@ var entrypointShDevbox []byte
 //go:embed embed/aw-init.sh
 var awInitSh []byte
 
+//go:embed embed/aw-deps.sh
+var awDepsSh []byte
+
 //go:embed all:embed/pty-logger
 var ptyLoggerFS embed.FS
 
@@ -88,6 +91,11 @@ func Entrypoint(pkgMgr profile.PackageManager) []byte {
 // InitScript returns the embedded aw-init.sh content.
 func InitScript() []byte {
 	return sanitizeLF(awInitSh)
+}
+
+// DepsScript returns the embedded aw-deps.sh content.
+func DepsScript() []byte {
+	return sanitizeLF(awDepsSh)
 }
 
 func DefaultDockerfile() []byte {

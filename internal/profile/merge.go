@@ -83,9 +83,21 @@ func mergeBoolPtrFields(merged *Profile, override Profile) {
 		v := *override.SkipDevboxInstall
 		merged.SkipDevboxInstall = &v
 	}
+	if override.DevboxInstall != nil {
+		v := *override.DevboxInstall
+		merged.DevboxInstall = &v
+	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
 		merged.SkipMiseInstall = &v
+	}
+	if override.MiseInstall != nil {
+		v := *override.MiseInstall
+		merged.MiseInstall = &v
+	}
+	if override.AutoDepsInstall != nil {
+		v := *override.AutoDepsInstall
+		merged.AutoDepsInstall = &v
 	}
 	if override.GhToken != nil {
 		v := *override.GhToken
@@ -235,9 +247,21 @@ func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
 		v := *effective.SkipDevboxInstall
 		relative.SkipDevboxInstall = &v
 	}
+	if !equalBoolPtr(effective.DevboxInstall, defaults.DevboxInstall) && effective.DevboxInstall != nil {
+		v := *effective.DevboxInstall
+		relative.DevboxInstall = &v
+	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall
 		relative.SkipMiseInstall = &v
+	}
+	if !equalBoolPtr(effective.MiseInstall, defaults.MiseInstall) && effective.MiseInstall != nil {
+		v := *effective.MiseInstall
+		relative.MiseInstall = &v
+	}
+	if !equalBoolPtr(effective.AutoDepsInstall, defaults.AutoDepsInstall) && effective.AutoDepsInstall != nil {
+		v := *effective.AutoDepsInstall
+		relative.AutoDepsInstall = &v
 	}
 	if !equalBoolPtr(effective.GhToken, defaults.GhToken) && effective.GhToken != nil {
 		v := *effective.GhToken

@@ -89,6 +89,7 @@ func renderContext(osName, tool, outputDir string) error {
 		"Dockerfile":    dockerfile,
 		"entrypoint.sh": entrypoint,
 		"aw-init.sh":    initScript,
+		"aw-deps.sh":    image.DepsScript(),
 	}
 
 	for name, content := range files {

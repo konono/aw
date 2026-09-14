@@ -118,11 +118,20 @@ func validateBasicFields(p Profile) error {
 }
 
 func validateContainerFlags(p Profile) error {
+	if p.DevboxInstall != nil && p.SkipDevboxInstall != nil {
+		return fmt.Errorf("devbox_install and skip_devbox_install are mutually exclusive; use devbox_install only")
+	}
+	if p.MiseInstall != nil && p.SkipMiseInstall != nil {
+		return fmt.Errorf("mise_install and skip_mise_install are mutually exclusive; use mise_install only")
+	}
 	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("skip_devbox_install is only valid with environment: container")
+		return fmt.Errorf("devbox_install/skip_devbox_install is only valid with environment: container")
 	}
 	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("skip_mise_install is only valid with environment: container")
+		return fmt.Errorf("mise_install/skip_mise_install is only valid with environment: container")
+	}
+	if p.EffectiveAutoDepsInstall() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("auto_deps_install is only valid with environment: container")
 	}
 	if p.ContainerUser != "" && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("container_user is only valid with environment: container")

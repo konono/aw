@@ -34,6 +34,13 @@ set -e
 # ここに独自のセットアップ処理を記述
 # 例: npm install, Playwright ブラウザインストール 等
 
+# auto_deps_install: true を使う場合は MISE_CMD を定義してから aw-deps.sh を source
+if [ "${AW_AUTO_DEPS_INSTALL:-}" = "1" ] && [ -f /aw-deps.sh ]; then
+  MISE_CMD="export HOME=$AW_HOME && export MISE_DATA_DIR=$AW_HOME/.local/share/mise && export MISE_CONFIG_DIR=$AW_HOME/.config/mise && export MISE_TRUSTED_CONFIG_PATHS=$AW_WORKSPACE && export MISE_YES=1"
+  . /aw-deps.sh
+  aw_install_deps
+fi
+
 # 最後に aw_exec で起動（HOME/BASH_ENV を正しく設定して exec）
 aw_exec "$@"
 ```

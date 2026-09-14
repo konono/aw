@@ -271,6 +271,54 @@ func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	}
 }
 
+func TestAppendContainerContext_AutoDepsInstall(t *testing.T) {
+	tmpDir := t.TempDir()
+	autoDeps := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			AutoDepsInstall: &autoDeps,
+		},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## Language Dependencies") {
+		t.Error("missing Language Dependencies section when auto_deps_install is enabled")
+	}
+	if !strings.Contains(content, "auto_deps_install is enabled") {
+		t.Error("Language Dependencies section should mention auto_deps_install")
+	}
+}
+
+func TestAppendContainerContext_NoAutoDepsInstall(t *testing.T) {
+	tmpDir := t.TempDir()
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{},
+	}
+
+	if err := appendContainerContext(tmpDir, ec); err != nil {
+		t.Fatalf("appendContainerContext() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	if strings.Contains(content, "## Language Dependencies") {
+		t.Error("Language Dependencies section should not appear when auto_deps_install is disabled")
+	}
+}
+
 func TestAppendContainerContext_ImageWithGhToken(t *testing.T) {
 	tmpDir := t.TempDir()
 	ghToken := true

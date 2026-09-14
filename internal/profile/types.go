@@ -105,8 +105,11 @@ type Profile struct {
 	ImagePullPolicy  ImagePullPolicy   `yaml:"image_pull_policy,omitempty"`
 	ContainerRuntime   ContainerRuntime  `yaml:"container_runtime,omitempty"`
 	ContainerUser      string            `yaml:"container_user,omitempty"`
-	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"`
-	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`
+	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"` // Deprecated: use devbox_install instead
+	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`   // Deprecated: use mise_install instead
+	DevboxInstall     *bool             `yaml:"devbox_install,omitempty"`
+	MiseInstall       *bool             `yaml:"mise_install,omitempty"`
+	AutoDepsInstall   *bool             `yaml:"auto_deps_install,omitempty"`
 	PackageManager    PackageManager    `yaml:"package_manager,omitempty"`
 	GhToken          *bool             `yaml:"gh_token,omitempty"`
 	MountGH          *bool             `yaml:"mount_gh,omitempty"`
@@ -369,13 +372,32 @@ func (p *Profile) EffectiveMountContainerSock() bool {
 }
 
 // EffectiveSkipDevboxInstall returns whether devbox install should be skipped in the entrypoint.
+// Supports both devbox_install (preferred) and skip_devbox_install (deprecated).
 func (p *Profile) EffectiveSkipDevboxInstall() bool {
-	return p != nil && p.SkipDevboxInstall != nil && *p.SkipDevboxInstall
+	if p == nil {
+		return false
+	}
+	if p.DevboxInstall != nil {
+		return !*p.DevboxInstall
+	}
+	return p.SkipDevboxInstall != nil && *p.SkipDevboxInstall
 }
 
 // EffectiveSkipMiseInstall returns whether mise install should be skipped in the entrypoint.
+// Supports both mise_install (preferred) and skip_mise_install (deprecated).
 func (p *Profile) EffectiveSkipMiseInstall() bool {
-	return p != nil && p.SkipMiseInstall != nil && *p.SkipMiseInstall
+	if p == nil {
+		return false
+	}
+	if p.MiseInstall != nil {
+		return !*p.MiseInstall
+	}
+	return p.SkipMiseInstall != nil && *p.SkipMiseInstall
+}
+
+// EffectiveAutoDepsInstall returns whether language dependency auto-install is enabled.
+func (p *Profile) EffectiveAutoDepsInstall() bool {
+	return p != nil && p.AutoDepsInstall != nil && *p.AutoDepsInstall
 }
 
 // EffectivePackageManager returns the package manager, defaulting to "apt" if empty.
