@@ -17,14 +17,14 @@ aw_install_deps() {
   elif [ -f "requirements.txt" ]; then
     if run_as_user "$MISE_CMD && command -v python3" &>/dev/null; then
       echo "Installing Python dependencies from requirements.txt..."
-      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pip install -q -r requirements.txt" || true
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && python3 -m pip install -q -r requirements.txt" || true
     else
       aw_log "WARN: requirements.txt found but python3 is not available. Add python to mise.toml."
     fi
   elif [ -f "pyproject.toml" ] && grep -q '\[project\]' pyproject.toml 2>/dev/null; then
     if run_as_user "$MISE_CMD && command -v python3" &>/dev/null; then
       echo "Installing Python dependencies from pyproject.toml..."
-      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && pip install -q -e ." || true
+      run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && python3 -m pip install -q -e ." || true
     else
       aw_log "WARN: pyproject.toml found but python3 is not available. Add python to mise.toml."
     fi

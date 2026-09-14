@@ -73,7 +73,7 @@ if [ -f "\${AW_WORKSPACE}/devbox.json" ] && command -v devbox >/dev/null 2>&1; t
 fi
 DEVBOXEOF
 
-if [ "${AW_AUTO_DEPS_INSTALL:-}" = "1" ]; then
+if [ "${AW_AUTO_DEPS_INSTALL:-}" = "1" ] && [ -f /aw-deps.sh ]; then
   . /aw-deps.sh
   aw_install_deps
 fi

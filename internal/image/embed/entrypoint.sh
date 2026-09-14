@@ -26,7 +26,7 @@ if [ "$AW_PKG_FOUND" = "0" ]; then
   echo "No mise.toml found in workspace."
 fi
 
-if [ "${AW_AUTO_DEPS_INSTALL:-}" = "1" ]; then
+if [ "${AW_AUTO_DEPS_INSTALL:-}" = "1" ] && [ -f /aw-deps.sh ]; then
   . /aw-deps.sh
   aw_install_deps
 fi
