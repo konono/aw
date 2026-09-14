@@ -12,7 +12,7 @@ aw_install_deps() {
       echo "Installing Python dependencies from uv.lock..."
       run_as_user "$MISE_CMD && cd \"$AW_WORKSPACE\" && uv sync" || true
     else
-      aw_log "WARN: uv.lock found but uv is not available. Add ubi to mise.toml."
+      aw_log "WARN: uv.lock found but uv is not available. Add uv to mise.toml."
     fi
   elif [ -f "requirements.txt" ]; then
     if run_as_user "$MISE_CMD && command -v python3" &>/dev/null; then
