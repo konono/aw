@@ -117,7 +117,7 @@ func ImageTool(tool string) string {
 }
 
 // GhCLIVersion is the pinned version of the GitHub CLI installed in all images.
-const GhCLIVersion = "2.96.0"
+const GhCLIVersion = "2.101.0"
 
 // MiseVersion is the pinned version of mise installed in all images.
 const MiseVersion = "2026.9.10"

@@ -1,0 +1,70 @@
+name: Update pinned tool versions
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Get current versions
+        id: current
+        run: |
+          mise=$(grep -oP 'const MiseVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
+          gh_cli=$(grep -oP 'const GhCLIVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
+          echo "mise=$mise" >> "$GITHUB_OUTPUT"
+          echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest versions
+        id: latest
+        run: |
+          mise=$(curl -fsSL https://api.github.com/repos/jdx/mise/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          gh_cli=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "mise=$mise" >> "$GITHUB_OUTPUT"
+          echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+
+      - name: Update mise
+        if: steps.current.outputs.mise != steps.latest.outputs.mise
+        run: |
+          sed -i 's/const MiseVersion = ".*"/const MiseVersion = "${{ steps.latest.outputs.mise }}"/' internal/toolinfo/toolinfo.go
+
+      - name: Update gh CLI
+        if: steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli
+        run: |
+          sed -i 's/const GhCLIVersion = ".*"/const GhCLIVersion = "${{ steps.latest.outputs.gh_cli }}"/' internal/toolinfo/toolinfo.go
+
+      - name: Build PR description
+        id: desc
+        run: |
+          body=""
+          if [ "${{ steps.current.outputs.mise }}" != "${{ steps.latest.outputs.mise }}" ]; then
+            body="${body}- **mise**: ${{ steps.current.outputs.mise }} → ${{ steps.latest.outputs.mise }} ([release notes](https://github.com/jdx/mise/releases/tag/v${{ steps.latest.outputs.mise }}))\n"
+          fi
+          if [ "${{ steps.current.outputs.gh_cli }}" != "${{ steps.latest.outputs.gh_cli }}" ]; then
+            body="${body}- **gh CLI**: ${{ steps.current.outputs.gh_cli }} → ${{ steps.latest.outputs.gh_cli }} ([release notes](https://github.com/cli/cli/releases/tag/v${{ steps.latest.outputs.gh_cli }}))\n"
+          fi
+          echo "body<<GHEOF" >> "$GITHUB_OUTPUT"
+          echo -e "$body" >> "$GITHUB_OUTPUT"
+          echo "GHEOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        if: steps.current.outputs.mise != steps.latest.outputs.mise || steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'chore(deps): bump pinned tool versions'
+          title: 'chore(deps): bump pinned tool versions'
+          body: |
+            Automated tool version bump.
+
+            ${{ steps.desc.outputs.body }}
+          branch: chore/update-deps
+          delete-branch: true
+          labels: dependencies
