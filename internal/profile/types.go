@@ -116,6 +116,7 @@ type Profile struct {
 	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
 	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
 	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
+	MountZellij        *bool          `yaml:"mount_zellij,omitempty"`
 	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
 	Packages         []string          `yaml:"packages,omitempty"`
 	BuildEnv         map[string]string `yaml:"build_env,omitempty"`
@@ -369,6 +370,11 @@ func (p *Profile) EffectiveSSHAgentForwarding() bool {
 // EffectiveMountContainerSock returns whether the container runtime socket should be mounted.
 func (p *Profile) EffectiveMountContainerSock() bool {
 	return p != nil && p.MountContainerSock != nil && *p.MountContainerSock
+}
+
+// EffectiveMountZellij returns whether the host zellij socket should be mounted.
+func (p *Profile) EffectiveMountZellij() bool {
+	return p != nil && p.MountZellij != nil && *p.MountZellij
 }
 
 // EffectiveSkipDevboxInstall returns whether devbox install should be skipped in the entrypoint.

@@ -119,6 +119,10 @@ func mergeBoolPtrFields(merged *Profile, override Profile) {
 		v := *override.MountContainerSock
 		merged.MountContainerSock = &v
 	}
+	if override.MountZellij != nil {
+		v := *override.MountZellij
+		merged.MountZellij = &v
+	}
 }
 
 func mergeCollectionFields(merged *Profile, base, override Profile) {
@@ -282,6 +286,10 @@ func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
 	if !equalBoolPtr(effective.MountContainerSock, defaults.MountContainerSock) && effective.MountContainerSock != nil {
 		v := *effective.MountContainerSock
 		relative.MountContainerSock = &v
+	}
+	if !equalBoolPtr(effective.MountZellij, defaults.MountZellij) && effective.MountZellij != nil {
+		v := *effective.MountZellij
+		relative.MountZellij = &v
 	}
 }
 

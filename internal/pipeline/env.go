@@ -19,6 +19,10 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["GITHUB_TOKEN"] = ec.GhTokenValue
 	}
 
+	if ec.ZellijReady {
+		envVars["ZELLIJ_SESSION_NAME"] = ec.ZellijSessionName
+	}
+
 	if ec.ContainerSockReady {
 		sockURL := "unix://" + mount.ContainerSockContainerPath
 		if _, ok := envVars["DOCKER_HOST"]; !ok {

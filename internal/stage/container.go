@@ -17,6 +17,7 @@ import (
 	"github.com/konono/aw/v4/internal/sshagent"
 	"github.com/konono/aw/v4/internal/toolinfo"
 	"github.com/konono/aw/v4/internal/version"
+	"github.com/konono/aw/v4/internal/zellij"
 )
 
 const (
@@ -68,7 +69,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	}
 
 	extraMounts := s.buildExtraMounts(ec)
-	sshAuthSock, containerSockPath := s.setupContainerFeatures(ec)
+	sshAuthSock, containerSockPath, zellijSocketPath := s.setupContainerFeatures(ec)
 
 	if err := appendContainerContext(toolStageDir, ec); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: appending container context: %v\n", err)
@@ -87,6 +88,8 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 		SSHAuthSock:        sshAuthSock,
 		MountContainerSock: ec.Profile.EffectiveMountContainerSock(),
 		ContainerSockPath:  containerSockPath,
+		MountZellij:        ec.Profile.EffectiveMountZellij(),
+		ZellijSocketPath:   zellijSocketPath,
 		ExtraMounts:        extraMounts,
 	})
 	if err != nil {
@@ -98,7 +101,7 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	// unconfined_t, and file access when :z can't be applied (home
 	// directory). label=disable is NOT used because it breaks overlay
 	// flock on RHEL10.
-	if ec.SSHAgentReady || ec.ContainerSockReady || filepath.Clean(ec.WorkDir) == filepath.Clean(ec.HomeDir) {
+	if ec.SSHAgentReady || ec.ContainerSockReady || ec.ZellijReady || filepath.Clean(ec.WorkDir) == filepath.Clean(ec.HomeDir) {
 		ec.DockerSecurityOpts = append(ec.DockerSecurityOpts, "label=type:spc_t")
 	}
 
@@ -143,7 +146,8 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox ||
-		(p.ContainerUser != "" && p.ContainerUser != "agent") {
+		(p.ContainerUser != "" && p.ContainerUser != "agent") ||
+		p.EffectiveMountZellij() {
 		return true
 	}
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
@@ -267,7 +271,7 @@ func (s *DockerStage) buildExtraMounts(ec *pipeline.ExecutionContext) []docker.M
 	return extraMounts
 }
 
-func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (sshAuthSock, containerSockPath string) {
+func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (sshAuthSock, containerSockPath, zellijSocketPath string) {
 	sshAgentFwd := ec.Profile.EffectiveSSHAgentForwarding()
 	if sshAgentFwd && !ec.Profile.EffectiveMountSSH() {
 		agent, err := sshagent.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
@@ -301,7 +305,19 @@ func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (ssh
 		}
 	}
 
-	return sshAuthSock, containerSockPath
+	if ec.Profile.EffectiveMountZellij() {
+		fwd, err := zellij.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mount_zellij: %v\n", err)
+		} else {
+			zellijSocketPath = fwd.SocketPath
+			ec.ZellijReady = true
+			ec.ZellijCleanup = fwd.Cleanup
+			ec.ZellijSessionName = fwd.SessionName
+		}
+	}
+
+	return sshAuthSock, containerSockPath, zellijSocketPath
 }
 
 func toolSyncSpec(tool string, p profile.Profile) *config.ToolSyncSpec {
