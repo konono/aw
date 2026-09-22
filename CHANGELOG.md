@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.14.1](https://github.com/konono/aw/compare/v4.14.0...v4.14.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **zellij:** embed sockrelay source to fix build from installed binary ([#165](https://github.com/konono/aw/issues/165)) ([a0b58e4](https://github.com/konono/aw/commit/a0b58e4504dd81f24841914698a5ba51d8acee49))
+
 ## [4.14.0](https://github.com/konono/aw/compare/v4.13.0...v4.14.0) (2026-09-22)
 
 
