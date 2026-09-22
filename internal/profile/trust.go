@@ -24,6 +24,7 @@ var sensitiveFieldDescriptions = map[string]string{
 	"image":              "use a pre-built container image",
 	"env":                "set environment variables inside the container",
 	"packages":           "install OS packages inside the container",
+	"mount_zellij":       "forward the host zellij session socket into the container",
 }
 
 // hasSensitiveFields checks whether a parsed project config contains any
@@ -78,6 +79,9 @@ func profileSensitiveFields(profileName string, p Profile) []string {
 	}
 	if len(p.Packages) > 0 {
 		found = append(found, fmt.Sprintf("%spackages: %s", prefix, strings.Join(p.Packages, ", ")))
+	}
+	if p.EffectiveMountZellij() {
+		found = append(found, fmt.Sprintf("%smount_zellij = true", prefix))
 	}
 
 	return found
@@ -151,7 +155,7 @@ var promptTrust = func(configPath string, fields []string) bool {
 	}
 	fmt.Fprintf(os.Stderr, "\nWhat these settings can do:\n")
 	seen := make(map[string]bool)
-	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "packages", "dockerfile", "image", "env"} {
+	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "packages", "dockerfile", "image", "env", "mount_zellij"} {
 		desc := sensitiveFieldDescriptions[key]
 		if !seen[desc] {
 			fmt.Fprintf(os.Stderr, "  %s: %s\n", key, desc)
@@ -196,6 +200,7 @@ func stripProfileSensitive(p Profile) Profile {
 	p.Dockerfile = ""
 	p.Image = ""
 	p.Env = nil
+	p.MountZellij = nil
 	return p
 }
 

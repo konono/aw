@@ -148,6 +148,9 @@ func validateContainerFlags(p Profile) error {
 	if p.EffectiveMountContainerSock() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mount_container_sock is only valid with environment: container")
 	}
+	if p.EffectiveMountZellij() && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("mount_zellij is only valid with environment: container")
+	}
 
 	if len(p.Packages) > 0 && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("packages is only valid with environment: container")

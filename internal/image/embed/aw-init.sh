@@ -181,8 +181,15 @@ if [ -n "${AW_ZELLIJ_RELAY_PORT:-}" ] && [ -n "${ZELLIJ_SESSION_NAME:-}" ] && co
   _zellij_socket_dir="$(dirname "$_zellij_sock_dir")"
   export ZELLIJ_SOCKET_DIR="$_zellij_socket_dir"
   aw-sockrelay --unix "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" --tcp "$_zellij_host:$AW_ZELLIJ_RELAY_PORT" &
-  sleep 0.5
-  aw_log "Zellij relay started: $ZELLIJ_SESSION_NAME -> $_zellij_host:$AW_ZELLIJ_RELAY_PORT"
+  for _i in 1 2 3 4 5; do
+    [ -S "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" ] && break
+    sleep 0.2
+  done
+  if [ -S "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" ]; then
+    aw_log "Zellij relay started: $ZELLIJ_SESSION_NAME -> $_zellij_host:$AW_ZELLIJ_RELAY_PORT"
+  else
+    aw_log "Warning: zellij relay socket not ready after 1s"
+  fi
   unset _zellij_sock_dir _zellij_host _zellij_socket_dir
 fi
 

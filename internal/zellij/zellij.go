@@ -37,7 +37,11 @@ func Setup(containerRuntime, containerName string) (*ForwardedZellij, error) {
 		return nil, fmt.Errorf("starting zellij relay: %w", err)
 	}
 
-	go func() { _ = relay.Serve() }()
+	go func() {
+		if err := relay.Serve(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: zellij relay stopped: %v\n", err)
+		}
+	}()
 
 	tcpAddr := relay.Addr().(*net.TCPAddr)
 
