@@ -1,0 +1,3 @@
+module aw-sockrelay
+
+go 1.22
