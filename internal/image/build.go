@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/konono/aw/v4/internal/containerenv"
 	"github.com/konono/aw/v4/internal/profile"
@@ -76,24 +77,55 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 	return tmpDir, cleanupFn, nil
 }
 
-// writePtyLoggerBinaries cross-compiles the pty-logger binary for both amd64
-// and arm64 on the host and writes them to the Docker build context. The
-// Dockerfile selects the correct binary at build time based on uname -m.
-// This avoids running the Go toolchain under QEMU emulation in Docker.
-func writePtyLoggerBinaries(buildDir string) error {
-	if _, err := exec.LookPath("go"); err != nil {
-		return fmt.Errorf("session_log requires the Go toolchain on the host: %w", err)
+// EmbeddedBinary describes an embedded Go source tree that gets cross-compiled
+// into the container image at build time.
+type EmbeddedBinary struct {
+	Name     string // human-readable name (e.g. "pty-logger", "aw-sockrelay")
+	SrcFS    fs.FS  // embedded source tree
+	BuildOpt string // extra go build flag (e.g. "-mod=vendor"), empty if none
+}
+
+// EmbeddedBinaries returns all registered embedded Go source trees.
+// Used by tests to verify that all embedded sources compile correctly.
+func EmbeddedBinaries() []EmbeddedBinary {
+	return []EmbeddedBinary{
+		{Name: "pty-logger", SrcFS: PtyLoggerFS(), BuildOpt: "-mod=vendor"},
+		{Name: "aw-sockrelay", SrcFS: SockRelayFS()},
 	}
+}
 
-	srcFS := PtyLoggerFS()
-
-	tmpSrc, err := os.MkdirTemp("", "pty-logger-src-*")
+// crossCompileEmbedded extracts an embedded Go source tree to a temp directory
+// and cross-compiles it for the given OS/arch. Returns the output binary path.
+func crossCompileEmbedded(srcFS fs.FS, name, buildOpt, outDir, goos, goarch string) (string, error) {
+	tmpSrc, err := os.MkdirTemp("", name+"-src-*")
 	if err != nil {
-		return fmt.Errorf("creating temp source dir: %w", err)
+		return "", fmt.Errorf("creating temp source dir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(tmpSrc) }()
 
-	if err := fs.WalkDir(srcFS, ".", func(p string, d fs.DirEntry, walkErr error) error {
+	if err := extractEmbeddedSource(srcFS, tmpSrc); err != nil {
+		return "", fmt.Errorf("extracting %s source: %w", name, err)
+	}
+
+	outPath := filepath.Join(outDir, name+"-"+goarch)
+	args := []string{"build", "-ldflags=-s -w", "-o", outPath}
+	if buildOpt != "" {
+		args = append(args[:1], append([]string{buildOpt}, args[1:]...)...)
+	}
+	args = append(args, ".")
+
+	cmd := exec.Command("go", args...)
+	cmd.Dir = tmpSrc
+	cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH="+goarch, "CGO_ENABLED=0")
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("compiling %s for %s/%s: %w", name, goos, goarch, err)
+	}
+	return outPath, nil
+}
+
+func extractEmbeddedSource(srcFS fs.FS, destDir string) error {
+	return fs.WalkDir(srcFS, ".", func(p string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -101,84 +133,46 @@ func writePtyLoggerBinaries(buildDir string) error {
 		if ext := filepath.Ext(p); ext == ".embed" {
 			outName = p[:len(p)-len(ext)]
 		}
-		target := filepath.Join(tmpSrc, outName)
+		target := filepath.Join(destDir, outName)
 		if d.IsDir() {
 			return os.MkdirAll(target, 0755)
 		}
-		data, readErr := fs.ReadFile(srcFS, p)
-		if readErr != nil {
-			return fmt.Errorf("reading embedded %s: %w", p, readErr)
+		data, err := fs.ReadFile(srcFS, p)
+		if err != nil {
+			return fmt.Errorf("reading embedded %s: %w", p, err)
 		}
 		if filepath.Ext(outName) == ".go" {
 			data = bytes.ReplaceAll(data, []byte("//go:build ignore\n\n"), nil)
 		}
 		return os.WriteFile(target, data, 0644)
-	}); err != nil {
-		return fmt.Errorf("extracting pty-logger source: %w", err)
-	}
+	})
+}
 
+func writePtyLoggerBinaries(buildDir string) error {
+	if _, err := exec.LookPath("go"); err != nil {
+		return fmt.Errorf("session_log requires the Go toolchain on the host: %w", err)
+	}
 	for _, arch := range []string{"amd64", "arm64"} {
-		outPath := filepath.Join(buildDir, "pty-logger-"+arch)
-		cmd := exec.Command("go", "build", "-mod=vendor", "-ldflags=-s -w", "-o", outPath, ".")
-		cmd.Dir = tmpSrc
-		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("compiling pty-logger for linux/%s: %w", arch, err)
+		if _, err := crossCompileEmbedded(PtyLoggerFS(), "pty-logger", "-mod=vendor", buildDir, "linux", arch); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-// writeSockRelayBinaries cross-compiles the aw-sockrelay binary for both
-// amd64 and arm64 on the host and writes them to the Docker build context.
-// Source is embedded in the aw binary so it works from any directory.
 func writeSockRelayBinaries(buildDir string) error {
 	if _, err := exec.LookPath("go"); err != nil {
 		return fmt.Errorf("mount_zellij requires the Go toolchain on the host: %w", err)
 	}
-
-	srcFS := SockRelayFS()
-
-	tmpSrc, err := os.MkdirTemp("", "aw-sockrelay-src-*")
-	if err != nil {
-		return fmt.Errorf("creating temp source dir: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpSrc) }()
-
-	if err := fs.WalkDir(srcFS, ".", func(p string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		outName := p
-		if ext := filepath.Ext(p); ext == ".embed" {
-			outName = p[:len(p)-len(ext)]
-		}
-		target := filepath.Join(tmpSrc, outName)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0755)
-		}
-		data, readErr := fs.ReadFile(srcFS, p)
-		if readErr != nil {
-			return fmt.Errorf("reading embedded %s: %w", p, readErr)
-		}
-		if filepath.Ext(outName) == ".go" {
-			data = bytes.ReplaceAll(data, []byte("//go:build ignore\n\n"), nil)
-		}
-		return os.WriteFile(target, data, 0644)
-	}); err != nil {
-		return fmt.Errorf("extracting sockrelay source: %w", err)
-	}
-
 	for _, arch := range []string{"amd64", "arm64"} {
-		outPath := filepath.Join(buildDir, "aw-sockrelay-"+arch)
-		cmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", outPath, ".")
-		cmd.Dir = tmpSrc
-		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("compiling aw-sockrelay for linux/%s: %w", arch, err)
+		if _, err := crossCompileEmbedded(SockRelayFS(), "aw-sockrelay", "", buildDir, "linux", arch); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// HostArch returns the GOARCH value for the current host.
+func HostArch() string {
+	return runtime.GOARCH
 }
