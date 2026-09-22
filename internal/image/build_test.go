@@ -513,6 +513,9 @@ func TestEmbeddedBinaries_Compile(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go toolchain not available")
 	}
+	if runtime.GOOS == "windows" {
+		t.Skip("cross-compiling embedded linux binaries on Windows CI is unsupported")
+	}
 
 	outDir := t.TempDir()
 
