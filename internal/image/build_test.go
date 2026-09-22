@@ -515,12 +515,10 @@ func TestEmbeddedBinaries_Compile(t *testing.T) {
 	}
 
 	outDir := t.TempDir()
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
 
 	for _, eb := range EmbeddedBinaries() {
 		t.Run(eb.Name, func(t *testing.T) {
-			outPath, err := crossCompileEmbedded(eb.SrcFS, eb.Name, eb.BuildOpt, outDir, goos, goarch)
+			outPath, err := crossCompileEmbedded(eb.SrcFS, eb.Name, eb.BuildOpt, outDir, "linux", runtime.GOARCH)
 			if err != nil {
 				t.Fatalf("compile %s: %v", eb.Name, err)
 			}
