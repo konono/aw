@@ -61,6 +61,17 @@ RUN ARCH=$(uname -m); \
     esac && \
     rm -f /tmp/pty-logger-* && chmod +x /usr/local/bin/pty-logger
 {{end}}
+{{if .SockRelay}}
+COPY aw-sockrelay-amd64 /tmp/aw-sockrelay-amd64
+COPY aw-sockrelay-arm64 /tmp/aw-sockrelay-arm64
+RUN ARCH=$(uname -m); \
+    case $ARCH in \
+      x86_64) cp /tmp/aw-sockrelay-amd64 /usr/local/bin/aw-sockrelay;; \
+      aarch64) cp /tmp/aw-sockrelay-arm64 /usr/local/bin/aw-sockrelay;; \
+      *) echo "Unsupported architecture for aw-sockrelay: $ARCH" >&2; exit 1;; \
+    esac && \
+    rm -f /tmp/aw-sockrelay-* && chmod +x /usr/local/bin/aw-sockrelay
+{{end}}
 RUN chmod +x /aw-init.sh /entrypoint.sh /aw-deps.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}
 

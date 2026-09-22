@@ -13,11 +13,6 @@ import (
 // SSHAgentContainerPath is the fixed path where the SSH agent socket is mounted inside the container.
 const SSHAgentContainerPath = "/run/ssh-agent.sock"
 
-// ZellijContainerSocketDir is the fixed directory inside the container where the
-// zellij socket is mounted. Zellij discovers sockets via $TMPDIR/zellij-$UID/...
-// so we mount to /tmp/zellij-1001 (container agent UID).
-const ZellijContainerSocketDir = "/tmp/zellij-1001/contract_version_1"
-
 // MountOptions contains the parameters needed to construct Docker mounts.
 type MountOptions struct {
 	HomeDir          string         // host user home directory
@@ -31,8 +26,6 @@ type MountOptions struct {
 	SSHAuthSock        string       // host SSH_AUTH_SOCK path
 	MountContainerSock bool         // whether to mount the container runtime socket
 	ContainerSockPath  string       // host (or VM-internal) path to the container runtime socket
-	MountZellij        bool         // whether to mount the zellij socket
-	ZellijSocketPath   string       // host (or VM-internal) path to the zellij session socket
 	ExtraMounts      []docker.Mount // user-defined custom mounts
 }
 
@@ -75,12 +68,6 @@ func (b *DefaultBuilder) BuildMounts(opts MountOptions) ([]docker.Mount, error) 
 
 	if opts.MountContainerSock {
 		if m := containerSockMount(opts.ContainerSockPath); m != nil {
-			mounts = append(mounts, *m)
-		}
-	}
-
-	if opts.MountZellij {
-		if m := zellijMount(opts.ZellijSocketPath); m != nil {
 			mounts = append(mounts, *m)
 		}
 	}
@@ -186,16 +173,6 @@ func containerSockMount(sockPath string) *docker.Mount {
 		Source:  sockPath,
 		Target:  ContainerSockContainerPath,
 		Options: "z",
-	}
-}
-
-func zellijMount(socketPath string) *docker.Mount {
-	if socketPath == "" {
-		return nil
-	}
-	return &docker.Mount{
-		Source: filepath.Dir(socketPath),
-		Target: ZellijContainerSocketDir,
 	}
 }
 

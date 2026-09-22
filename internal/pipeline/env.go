@@ -21,6 +21,7 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 
 	if ec.ZellijReady {
 		envVars["ZELLIJ_SESSION_NAME"] = ec.ZellijSessionName
+		envVars["AW_ZELLIJ_RELAY_PORT"] = ec.ZellijRelayPort
 	}
 
 	if ec.ContainerSockReady {

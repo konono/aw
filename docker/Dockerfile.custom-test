@@ -1,7 +1,0 @@
-FROM ghcr.io/konono/aw-claude:4.7.0-debian12
-
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    htop \
-  && rm -rf /var/lib/apt/lists/*
-USER agent

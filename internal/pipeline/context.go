@@ -45,6 +45,7 @@ type ExecutionContext struct {
 	ZellijReady       bool
 	ZellijCleanup     func()
 	ZellijSessionName string
+	ZellijRelayPort   string // host-side TCP relay port
 
 	// Set by DockerStage when gh_token is enabled
 	GhTokenValue string

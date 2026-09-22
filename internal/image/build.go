@@ -66,6 +66,13 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		}
 	}
 
+	if cenv.SockRelay {
+		if err := writeSockRelayBinaries(tmpDir); err != nil {
+			cleanupFn()
+			return "", nil, fmt.Errorf("building sockrelay: %w", err)
+		}
+	}
+
 	return tmpDir, cleanupFn, nil
 }
 
@@ -121,4 +128,43 @@ func writePtyLoggerBinaries(buildDir string) error {
 		}
 	}
 	return nil
+}
+
+// writeSockRelayBinaries cross-compiles the aw-sockrelay binary for both
+// amd64 and arm64 and writes them to the Docker build context.
+func writeSockRelayBinaries(buildDir string) error {
+	if _, err := exec.LookPath("go"); err != nil {
+		return fmt.Errorf("mount_zellij requires the Go toolchain on the host: %w", err)
+	}
+
+	// Find the module root by looking for go.mod relative to this package.
+	modRoot, err := findModuleRoot()
+	if err != nil {
+		return err
+	}
+
+	for _, arch := range []string{"amd64", "arm64"} {
+		outPath := filepath.Join(buildDir, "aw-sockrelay-"+arch)
+		cmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", outPath, "./cmd/sockrelay")
+		cmd.Dir = modRoot
+		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("compiling aw-sockrelay for linux/%s: %w", arch, err)
+		}
+	}
+	return nil
+}
+
+func findModuleRoot() (string, error) {
+	cmd := exec.Command("go", "env", "GOMOD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("finding go module root: %w", err)
+	}
+	gomod := string(bytes.TrimSpace(out))
+	if gomod == "" || gomod == os.DevNull {
+		return "", fmt.Errorf("not inside a Go module")
+	}
+	return filepath.Dir(gomod), nil
 }

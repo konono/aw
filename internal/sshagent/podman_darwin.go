@@ -119,37 +119,6 @@ func findSSHTunnelPID(socketPath string) (int, error) {
 	return pid, nil
 }
 
-// SetupSocketTunnel creates an SSH tunnel to forward an arbitrary host Unix socket
-// into the Podman VM on macOS. It returns a ForwardedAgent with the VM-side socket
-// path and a cleanup function. This is reusable for any socket type (SSH agent, zellij, etc.).
-func SetupSocketTunnel(hostSocketPath, tunnelName string) (*ForwardedAgent, error) {
-	sshCfg, err := podmanMachineSSHConfig()
-	if err != nil {
-		return nil, fmt.Errorf("reading podman machine SSH config: %w", err)
-	}
-
-	vmSocketPath := VMSocketPath(tunnelName)
-	pid, err := startSSHTunnel(sshCfg, hostSocketPath, vmSocketPath)
-	if err != nil {
-		return nil, fmt.Errorf("starting SSH tunnel: %w", err)
-	}
-
-	cleanup := func() {
-		if p, err := os.FindProcess(pid); err == nil {
-			_ = p.Signal(syscall.SIGTERM)
-			_, _ = p.Wait()
-		}
-		_, _ = podmanMachineExec(sshCfg, "rm", "-f", vmSocketPath)
-	}
-
-	return &ForwardedAgent{
-		SocketPath:   vmSocketPath,
-		Cleanup:      cleanup,
-		SSHTunnelPID: pid,
-		SSHConfig:    sshCfg,
-	}, nil
-}
-
 func setupPodmanWindows(hostAuthSock, containerName string) (*ForwardedAgent, error) {
 	return nil, fmt.Errorf("podman SSH agent forwarding is not supported on this platform")
 }

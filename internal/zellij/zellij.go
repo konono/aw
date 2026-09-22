@@ -2,24 +2,25 @@ package zellij
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	"github.com/konono/aw/v4/internal/sockrelay"
 )
 
 // ForwardedZellij holds the result of zellij socket forwarding setup.
 type ForwardedZellij struct {
-	SocketPath  string // path to the session socket file to mount
+	SocketPath  string // host-side zellij session socket path
 	SessionName string // zellij session name
+	RelayAddr   string // TCP address the host relay is listening on
 	Cleanup     func() // call on shutdown to release resources
 }
 
-// Setup configures zellij socket forwarding for the given container runtime.
-// It reads ZELLIJ_SESSION_NAME and ZELLIJ_SOCKET_DIR from the host environment.
-// On Linux and macOS+Docker, the socket is returned directly.
-// On macOS+Podman, an SSH tunnel is established into the Podman VM.
+// Setup locates the host zellij socket and starts a TCP relay so containers
+// can access it via host.containers.internal (Podman) or host.docker.internal (Docker).
 func Setup(containerRuntime, containerName string) (*ForwardedZellij, error) {
 	sessionName := os.Getenv("ZELLIJ_SESSION_NAME")
 	if sessionName == "" {
@@ -31,14 +32,20 @@ func Setup(containerRuntime, containerName string) (*ForwardedZellij, error) {
 		return nil, err
 	}
 
-	if runtime.GOOS == "darwin" && containerRuntime == "podman" {
-		return setupPodmanDarwin(socketPath, sessionName, containerName)
+	relay, err := sockrelay.TCPToUnix("127.0.0.1:0", socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("starting zellij relay: %w", err)
 	}
+
+	go func() { _ = relay.Serve() }()
+
+	tcpAddr := relay.Addr().(*net.TCPAddr)
 
 	return &ForwardedZellij{
 		SocketPath:  socketPath,
 		SessionName: sessionName,
-		Cleanup:     func() {},
+		RelayAddr:   fmt.Sprintf("%d", tcpAddr.Port),
+		Cleanup:     relay.Close,
 	}, nil
 }
 
