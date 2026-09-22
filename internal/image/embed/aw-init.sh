@@ -172,6 +172,28 @@ if [ -S /run/container.sock ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Zellij socket relay
+# ---------------------------------------------------------------------------
+if [ -n "${AW_ZELLIJ_RELAY_PORT:-}" ] && [ -n "${ZELLIJ_SESSION_NAME:-}" ] && command -v aw-sockrelay >/dev/null 2>&1; then
+  _zellij_sock_dir="/tmp/zellij-$(id -u)/contract_version_1"
+  mkdir -p "$_zellij_sock_dir"
+  _zellij_host="${AW_ZELLIJ_RELAY_HOST:-host.containers.internal}"
+  _zellij_socket_dir="$(dirname "$_zellij_sock_dir")"
+  export ZELLIJ_SOCKET_DIR="$_zellij_socket_dir"
+  aw-sockrelay --unix "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" --tcp "$_zellij_host:$AW_ZELLIJ_RELAY_PORT" &
+  for _i in 1 2 3 4 5; do
+    [ -S "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" ] && break
+    sleep 0.2
+  done
+  if [ -S "$_zellij_sock_dir/$ZELLIJ_SESSION_NAME" ]; then
+    aw_log "Zellij relay started: $ZELLIJ_SESSION_NAME -> $_zellij_host:$AW_ZELLIJ_RELAY_PORT"
+  else
+    aw_log "Warning: zellij relay socket not ready after 1s"
+  fi
+  unset _zellij_sock_dir _zellij_host _zellij_socket_dir
+fi
+
+# ---------------------------------------------------------------------------
 # Generate shell environment files
 # ---------------------------------------------------------------------------
 aw_log "Generating shell environment..."
@@ -199,6 +221,9 @@ export MISE_YES=1
 if [ -S /run/container.sock ]; then
   [ -z "\${DOCKER_HOST:-}" ] && export DOCKER_HOST="unix:///run/container.sock"
   [ -z "\${CONTAINER_HOST:-}" ] && export CONTAINER_HOST="unix:///run/container.sock"
+fi
+if [ -n "${ZELLIJ_SOCKET_DIR:-}" ]; then
+  export ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_DIR"
 fi
 if [ -n "\${GITHUB_TOKEN:-}" ] && [ -x "$AW_HOME/.git-credential-token" ]; then
   export GIT_CONFIG_COUNT=1

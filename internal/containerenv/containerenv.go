@@ -15,6 +15,7 @@ type Config struct {
 	Home       string
 	Workspace  string
 	SessionLog bool
+	SockRelay  bool
 }
 
 func Default() Config {

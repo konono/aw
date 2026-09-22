@@ -16,6 +16,7 @@ ENV HOME="{{.Home}}" \
 ARG AW_TOOL_INSTALL_SCRIPT=""
 ARG AW_GH_VERSION=""
 ARG AW_MISE_VERSION=""
+ARG AW_ZELLIJ_VERSION=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
 RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
@@ -32,6 +33,10 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
       curl -fsSL "https://github.com/cli/cli/releases/download/v${AW_GH_VERSION}/gh_${AW_GH_VERSION}_linux_${ARCH}.tar.gz" | tar xz -C /tmp && \
       mv /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
       rm -rf /tmp/gh_${AW_GH_VERSION}_linux_${ARCH}; \
+    fi && \
+    if [ -n "$AW_ZELLIJ_VERSION" ]; then \
+      ARCH=$(uname -m) && \
+      curl -fsSL "https://github.com/zellij-org/zellij/releases/download/v${AW_ZELLIJ_VERSION}/zellij-${ARCH}-unknown-linux-musl.tar.gz" | tar xz -C /usr/local/bin; \
     fi && \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
       su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
@@ -55,6 +60,17 @@ RUN ARCH=$(uname -m); \
       *) echo "Unsupported architecture for pty-logger: $ARCH" >&2; exit 1;; \
     esac && \
     rm -f /tmp/pty-logger-* && chmod +x /usr/local/bin/pty-logger
+{{end}}
+{{if .SockRelay}}
+COPY aw-sockrelay-amd64 /tmp/aw-sockrelay-amd64
+COPY aw-sockrelay-arm64 /tmp/aw-sockrelay-arm64
+RUN ARCH=$(uname -m); \
+    case $ARCH in \
+      x86_64) cp /tmp/aw-sockrelay-amd64 /usr/local/bin/aw-sockrelay;; \
+      aarch64) cp /tmp/aw-sockrelay-arm64 /usr/local/bin/aw-sockrelay;; \
+      *) echo "Unsupported architecture for aw-sockrelay: $ARCH" >&2; exit 1;; \
+    esac && \
+    rm -f /tmp/aw-sockrelay-* && chmod +x /usr/local/bin/aw-sockrelay
 {{end}}
 RUN chmod +x /aw-init.sh /entrypoint.sh /aw-deps.sh && \
     mkdir -p /Users {{.Workspace}} && chown {{.User}}:0 /Users {{.Workspace}} && chmod g=u /Users {{.Workspace}}

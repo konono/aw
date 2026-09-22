@@ -40,5 +40,8 @@ func FeatureFlags(p Profile) string {
 	if p.EffectiveMountContainerSock() {
 		features = append(features, "mount_container_sock")
 	}
+	if p.EffectiveMountZellij() {
+		features = append(features, "mount_zellij")
+	}
 	return strings.Join(features, " + ")
 }

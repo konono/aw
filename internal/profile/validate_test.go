@@ -331,6 +331,15 @@ func TestValidate(t *testing.T) {
 			wantErr: "mount_container_sock is only valid with environment: container",
 		},
 		{
+			name:    "valid container + mount_zellij",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountZellij: &v} }(),
+		},
+		{
+			name:    "mount_zellij with host environment",
+			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountZellij: &v} }(),
+			wantErr: "mount_zellij is only valid with environment: container",
+		},
+		{
 			name: "valid container with packages",
 			profile: Profile{
 				Environment: EnvironmentContainer,

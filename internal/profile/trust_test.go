@@ -86,6 +86,11 @@ func TestProjectConfig_SensitiveFieldsRequireTrust(t *testing.T) {
 			expectPrompt: true,
 		},
 		{
+			name:         "mount_zellij triggers prompt",
+			cfg:          &Config{Profiles: map[string]Profile{"test": func() Profile { v := true; return Profile{MountZellij: &v} }()}},
+			expectPrompt: true,
+		},
+		{
 			name: "sensitive fields in defaults trigger prompt",
 			cfg: &Config{
 				Defaults: ProfileDefaultsFromProfile(Profile{
@@ -154,6 +159,7 @@ func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
 				Packages:    []string{"evil-pkg"},
 				Env:         map[string]string{"EVIL": "true"},
 				Dockerfile:  "Dockerfile.evil",
+				MountZellij: func() *bool { v := true; return &v }(),
 			},
 		},
 	}
@@ -183,6 +189,9 @@ func TestProjectConfig_DeniedStripsUnsafePreservesSafe(t *testing.T) {
 	}
 	if len(p.Packages) != 0 {
 		t.Error("packages should be stripped")
+	}
+	if p.MountZellij != nil {
+		t.Error("mount_zellij should be stripped")
 	}
 
 	// Defaults sensitive fields stripped

@@ -68,6 +68,7 @@
 - `mount_ssh` は `mount_gh` と同じ三値動作
 - `ssh_agent_forwarding` は `mount_gh` と同じ三値動作
 - `mount_container_sock` は `mount_gh` と同じ三値動作
+- `mount_zellij` は `mount_gh` と同じ三値動作
 - `gh_token` は `mount_gh` と同じ三値動作
 - `devbox_install` は `mount_gh` と同じ三値動作（`skip_devbox_install` は非推奨、両方指定不可）
 - `mise_install` は `mount_gh` と同じ三値動作（`skip_mise_install` は非推奨、両方指定不可）
@@ -191,6 +192,7 @@ profiles:
 - `mount_ssh`
 - `ssh_agent_forwarding`
 - `mount_container_sock`
+- `mount_zellij`
 - `gh_token`
 - `packages`
 - `package_manager`
@@ -500,6 +502,30 @@ tree
 
 **⚠ セキュリティ:** AI エージェントがホスト（または Podman VM）のコンテナランタイムにフルアクセスできるようになります。有効化時に Warning ログが出力されます。
 
+### `mount_zellij`（任意）
+
+ホストの zellij セッションソケットをコンテナに転送し、コンテナ内から `zellij action` コマンド（`send-keys`、`list-panes` 等）でホスト側のペインを操作できるようにします。
+
+aw をゼリジセッション内で起動する必要があります（`ZELLIJ_SESSION_NAME` 環境変数が設定されている状態）。
+
+**デフォルト: `false`（無効）**。
+
+省略した場合、トップレベルのデフォルトから継承します。
+
+**動作の仕組み:**
+
+aw はホスト側で TCP リレー（zellij Unix ソケットへの中継）を起動し、コンテナ内では `aw-sockrelay` バイナリが zellij が期待するパスに Unix ソケットを作成して TCP リレーに接続します。zellij バイナリ（v0.44.3）もコンテナにインストールされます。
+
+```
+コンテナ: zellij CLI → Unix socket → aw-sockrelay → TCP → aw (ホスト) → zellij socket
+```
+
+**ビルド要件:** ホストに Go ツールチェインが必要です（`aw-sockrelay` のクロスコンパイルに使用）。
+
+**⚠ セキュリティ:** コンテナ内のプロセスがホストの zellij セッションを操作できるようになります（ペイン作成・キー送信・レイアウト変更等）。有効化時に Warning ログが出力されます。
+
+**注意:** `package_manager: devbox` との併用は未テストです。
+
 ### `mounts`（任意）
 
 コンテナプロファイル用の追加バインドマウント。
@@ -607,7 +633,8 @@ aw init
 20. `gh_token` は `environment: container` の場合のみ有効
 21. `mount_gh` と `gh_token` は排他的
 22. `mount_container_sock` は `environment: container` の場合のみ有効
-23. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+23. `mount_zellij` は `environment: container` の場合のみ有効
+24. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
 24. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
 25. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
 26. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること

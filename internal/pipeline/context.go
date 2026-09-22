@@ -41,6 +41,12 @@ type ExecutionContext struct {
 	// Set by DockerStage for container runtime socket mounting
 	ContainerSockReady bool
 
+	// Set by DockerStage for zellij socket forwarding
+	ZellijReady       bool
+	ZellijCleanup     func()
+	ZellijSessionName string
+	ZellijRelayPort   string // host-side TCP relay port
+
 	// Set by DockerStage when gh_token is enabled
 	GhTokenValue string
 

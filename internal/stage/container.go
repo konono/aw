@@ -17,6 +17,7 @@ import (
 	"github.com/konono/aw/v4/internal/sshagent"
 	"github.com/konono/aw/v4/internal/toolinfo"
 	"github.com/konono/aw/v4/internal/version"
+	"github.com/konono/aw/v4/internal/zellij"
 )
 
 const (
@@ -53,6 +54,9 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 	cenv := containerenv.FromUser(ec.Profile.EffectiveContainerUser())
 	if ec.Profile.Kubernetes != nil && ec.Profile.Kubernetes.SessionLog {
 		cenv.SessionLog = true
+	}
+	if ec.Profile.EffectiveMountZellij() {
+		cenv.SockRelay = true
 	}
 	ec.ContainerEnv = cenv
 
@@ -143,7 +147,8 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
 		p.PackageManager == profile.PackageManagerDevbox ||
-		(p.ContainerUser != "" && p.ContainerUser != "agent") {
+		(p.ContainerUser != "" && p.ContainerUser != "agent") ||
+		p.EffectiveMountZellij() {
 		return true
 	}
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
@@ -298,6 +303,19 @@ func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (ssh
 			fmt.Fprintf(os.Stderr, "Warning: gh_token: %v\n", err)
 		} else {
 			ec.GhTokenValue = token
+		}
+	}
+
+	if ec.Profile.EffectiveMountZellij() {
+		fwd, err := zellij.Setup(ec.Profile.EffectiveContainerRuntime(), ec.ContainerName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mount_zellij: %v\n", err)
+		} else {
+			ec.ZellijReady = true
+			ec.ZellijCleanup = fwd.Cleanup
+			ec.ZellijSessionName = fwd.SessionName
+			ec.ZellijRelayPort = fwd.RelayAddr
+			fmt.Fprintf(os.Stderr, "Warning: mount_zellij is enabled — the container can control your host zellij session\n")
 		}
 	}
 

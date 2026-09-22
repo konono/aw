@@ -158,6 +158,9 @@ func runCleanups(ec *pipeline.ExecutionContext) {
 	if ec.SSHAgentCleanup != nil {
 		ec.SSHAgentCleanup()
 	}
+	if ec.ZellijCleanup != nil {
+		ec.ZellijCleanup()
+	}
 	runOnEndIfConfigured(ec)
 }
 

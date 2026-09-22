@@ -59,22 +59,18 @@ profiles:
     os: debian12
     launch: claude
     package_manager: devbox
-
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude
     gh_token: false
     mount_container_sock: true
     mount_gh: true
-
   claude-dev:
     os: debian12
     launch: claude
-
   cursor-review:
     os: debian12
     launch: cursor
-
   # ── Kubernetes manifest profiles ──────────────────────────────────
   k8s-claude:
     os: ubi9
@@ -97,7 +93,6 @@ profiles:
           - source: ~/.config/gcloud/application_default_credentials.json
             mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
             env: GOOGLE_APPLICATION_CREDENTIALS
-
 teams:
   review-team:
     members:
@@ -106,4 +101,3 @@ teams:
         foreground: true
       - profile: cursor-review
         role: reviewer
-
