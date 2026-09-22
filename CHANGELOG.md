@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.14.0](https://github.com/konono/aw/compare/v4.13.0...v4.14.0) (2026-09-22)
+
+
+### Features
+
+* **profile:** add mount_zellij for host zellij socket forwarding ([da3149a](https://github.com/konono/aw/commit/da3149a2d49c2d655f835f9c149019bc6ab427ef))
+
 ## [4.13.0](https://github.com/konono/aw/compare/v4.12.0...v4.13.0) (2026-09-14)
 
 
