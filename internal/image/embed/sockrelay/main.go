@@ -2,6 +2,11 @@
 
 // aw-sockrelay is a standalone Unix↔TCP socket relay for use inside containers.
 // It creates a Unix domain socket and forwards connections to a TCP endpoint.
+//
+// NOTE: The relay logic here is intentionally duplicated from internal/sockrelay/relay.go
+// to keep this as a self-contained module with no external dependencies (required for
+// the //go:embed + cross-compile pattern). Changes to the relay algorithm should be
+// applied to both files.
 package main
 
 import (

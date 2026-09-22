@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 
 	"github.com/konono/aw/v4/internal/containerenv"
 	"github.com/konono/aw/v4/internal/profile"
@@ -172,7 +171,3 @@ func writeSockRelayBinaries(buildDir string) error {
 	return nil
 }
 
-// HostArch returns the GOARCH value for the current host.
-func HostArch() string {
-	return runtime.GOARCH
-}

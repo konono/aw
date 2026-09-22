@@ -516,7 +516,7 @@ func TestEmbeddedBinaries_Compile(t *testing.T) {
 
 	outDir := t.TempDir()
 	goos := runtime.GOOS
-	goarch := HostArch()
+	goarch := runtime.GOARCH
 
 	for _, eb := range EmbeddedBinaries() {
 		t.Run(eb.Name, func(t *testing.T) {
