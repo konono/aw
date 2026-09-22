@@ -54,6 +54,9 @@ var awDepsSh []byte
 //go:embed all:embed/pty-logger
 var ptyLoggerFS embed.FS
 
+//go:embed all:embed/sockrelay
+var sockRelayFS embed.FS
+
 var dockerfileTmpls = map[profile.OSTemplate]string{
 	profile.OSDebian12:   dockerfileDebian12Tmpl,
 	profile.OSUBI9:       dockerfileUBI9Tmpl,
@@ -111,6 +114,15 @@ func PtyLoggerFS() fs.FS {
 	sub, err := fs.Sub(ptyLoggerFS, "embed/pty-logger")
 	if err != nil {
 		panic(fmt.Sprintf("embedded pty-logger source not found: %v", err))
+	}
+	return sub
+}
+
+// SockRelayFS returns the embedded sockrelay source tree.
+func SockRelayFS() fs.FS {
+	sub, err := fs.Sub(sockRelayFS, "embed/sockrelay")
+	if err != nil {
+		panic(fmt.Sprintf("embedded sockrelay source not found: %v", err))
 	}
 	return sub
 }

@@ -2,6 +2,7 @@ package image
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -501,6 +502,37 @@ func TestRenderDockerfile_SessionLog(t *testing.T) {
 			}
 		})
 		}
+	}
+}
+
+// TestEmbeddedBinaries_Compile verifies that all embedded Go source trees
+// (pty-logger, aw-sockrelay, etc.) can be extracted and compiled for the
+// host architecture. This catches missing files, import errors, and build
+// tag issues that would only surface at `aw build` time.
+func TestEmbeddedBinaries_Compile(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("cross-compiling embedded linux binaries on Windows CI is unsupported")
+	}
+
+	outDir := t.TempDir()
+
+	for _, eb := range EmbeddedBinaries() {
+		t.Run(eb.Name, func(t *testing.T) {
+			outPath, err := crossCompileEmbedded(eb.SrcFS, eb.Name, eb.BuildOpt, outDir, "linux", runtime.GOARCH)
+			if err != nil {
+				t.Fatalf("compile %s: %v", eb.Name, err)
+			}
+			info, err := os.Stat(outPath)
+			if err != nil {
+				t.Fatalf("output binary not found: %v", err)
+			}
+			if info.Size() == 0 {
+				t.Error("output binary is empty")
+			}
+		})
 	}
 }
 
