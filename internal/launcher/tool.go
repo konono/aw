@@ -18,7 +18,7 @@ import (
 // These differ from host mode because containers run with elevated permissions.
 var toolContainerCommands = map[string][]string{
 	"claude":   {"claude", "--permission-mode", "bypassPermissions"},
-	"codex":    {"codex", "-a", "never"},
+	"codex":    {"codex", "--no-daemon", "-a", "never"},
 	"opencode": {"opencode"},
 	"cursor":   {"agent", "--force"},
 }
