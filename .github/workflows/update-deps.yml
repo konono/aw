@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   update-tools:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -20,16 +20,20 @@ jobs:
         run: |
           mise=$(grep -oP 'const MiseVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
           gh_cli=$(grep -oP 'const GhCLIVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
+          panecom=$(grep -oP 'const PanecomVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
           echo "mise=$mise" >> "$GITHUB_OUTPUT"
           echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+          echo "panecom=$panecom" >> "$GITHUB_OUTPUT"
 
       - name: Get latest versions
         id: latest
         run: |
           mise=$(curl -fsSL https://api.github.com/repos/jdx/mise/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           gh_cli=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          panecom=$(curl -fsSL https://api.github.com/repos/konono/panecom/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           echo "mise=$mise" >> "$GITHUB_OUTPUT"
           echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+          echo "panecom=$panecom" >> "$GITHUB_OUTPUT"
 
       - name: Update mise
         if: steps.current.outputs.mise != steps.latest.outputs.mise
@@ -41,6 +45,11 @@ jobs:
         run: |
           sed -i 's/const GhCLIVersion = ".*"/const GhCLIVersion = "${{ steps.latest.outputs.gh_cli }}"/' internal/toolinfo/toolinfo.go
 
+      - name: Update panecom
+        if: steps.current.outputs.panecom != steps.latest.outputs.panecom
+        run: |
+          sed -i 's/const PanecomVersion = ".*"/const PanecomVersion = "${{ steps.latest.outputs.panecom }}"/' internal/toolinfo/toolinfo.go
+
       - name: Build PR description
         id: desc
         run: |
@@ -51,13 +60,16 @@ jobs:
           if [ "${{ steps.current.outputs.gh_cli }}" != "${{ steps.latest.outputs.gh_cli }}" ]; then
             body="${body}- **gh CLI**: ${{ steps.current.outputs.gh_cli }} → ${{ steps.latest.outputs.gh_cli }} ([release notes](https://github.com/cli/cli/releases/tag/v${{ steps.latest.outputs.gh_cli }}))\n"
           fi
+          if [ "${{ steps.current.outputs.panecom }}" != "${{ steps.latest.outputs.panecom }}" ]; then
+            body="${body}- **panecom**: ${{ steps.current.outputs.panecom }} → ${{ steps.latest.outputs.panecom }} ([release notes](https://github.com/konono/panecom/releases/tag/v${{ steps.latest.outputs.panecom }}))\n"
+          fi
           echo "body<<GHEOF" >> "$GITHUB_OUTPUT"
           echo -e "$body" >> "$GITHUB_OUTPUT"
           echo "GHEOF" >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
-        if: steps.current.outputs.mise != steps.latest.outputs.mise || steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli
-        uses: peter-evans/create-pull-request@v7
+        if: steps.current.outputs.mise != steps.latest.outputs.mise || steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli || steps.current.outputs.panecom != steps.latest.outputs.panecom
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: 'chore(deps): bump pinned tool versions'
           title: 'chore(deps): bump pinned tool versions'
