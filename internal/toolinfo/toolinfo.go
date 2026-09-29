@@ -125,6 +125,9 @@ const MiseVersion = "2026.9.12"
 // ZellijVersion is the pinned version of zellij installed when mount_zellij is enabled.
 const ZellijVersion = "0.44.3"
 
+// PanecomVersion is the pinned version of panecom installed when mount_zellij is enabled.
+const PanecomVersion = "0.1.2"
+
 // ContainerEnvVarsFor returns tool-specific container environment variables
 // (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add context-specific
 // variables on top (e.g. HOST_WORKSPACE, SSH_AUTH_SOCK).

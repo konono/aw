@@ -69,6 +69,7 @@ func computeImageTag(buildDir, customDockerfile string, ec *pipeline.ExecutionCo
 		hashInput += "\n" + toolinfo.MiseVersion
 		if ec.Profile.EffectiveMountZellij() {
 			hashInput += "\n" + toolinfo.ZellijVersion
+			hashInput += "\n" + toolinfo.PanecomVersion
 		}
 	}
 	if bi.extraPackages != "" {
@@ -99,6 +100,7 @@ func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi
 		buildArgs["AW_MISE_VERSION"] = toolinfo.MiseVersion
 		if ec.Profile.EffectiveMountZellij() {
 			buildArgs["AW_ZELLIJ_VERSION"] = toolinfo.ZellijVersion
+			buildArgs["AW_PANECOM_VERSION"] = toolinfo.PanecomVersion
 		}
 	}
 	if bi.toolPkg != "" {

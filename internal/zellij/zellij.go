@@ -15,6 +15,8 @@ import (
 type ForwardedZellij struct {
 	SocketPath  string // host-side zellij session socket path
 	SessionName string // zellij session name
+	PaneID      string // zellij pane ID (ZELLIJ_PANE_ID)
+	Zellij      string // ZELLIJ env var (typically "0" when inside zellij)
 	RelayAddr   string // TCP address the host relay is listening on
 	Cleanup     func() // call on shutdown to release resources
 }
@@ -48,6 +50,8 @@ func Setup(containerRuntime, containerName string) (*ForwardedZellij, error) {
 	return &ForwardedZellij{
 		SocketPath:  socketPath,
 		SessionName: sessionName,
+		PaneID:      os.Getenv("ZELLIJ_PANE_ID"),
+		Zellij:      os.Getenv("ZELLIJ"),
 		RelayAddr:   fmt.Sprintf("%d", tcpAddr.Port),
 		Cleanup:     relay.Close,
 	}, nil

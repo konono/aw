@@ -17,6 +17,7 @@ ARG AW_TOOL_INSTALL_SCRIPT=""
 ARG AW_GH_VERSION=""
 ARG AW_MISE_VERSION=""
 ARG AW_ZELLIJ_VERSION=""
+ARG AW_PANECOM_VERSION=""
 ARG AW_EXTRA_PACKAGES=""
 COPY . /tmp/aw-build/
 RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
@@ -37,6 +38,10 @@ RUN if [ -f /tmp/aw-build/ca-cert.pem ]; then \
     if [ -n "$AW_ZELLIJ_VERSION" ]; then \
       ARCH=$(uname -m) && \
       curl -fsSL "https://github.com/zellij-org/zellij/releases/download/v${AW_ZELLIJ_VERSION}/zellij-${ARCH}-unknown-linux-musl.tar.gz" | tar xz -C /usr/local/bin; \
+    fi && \
+    if [ -n "$AW_PANECOM_VERSION" ]; then \
+      ARCH=$(uname -m); case $ARCH in aarch64) ARCH=arm64;; x86_64) ARCH=amd64;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1;; esac && \
+      curl -fsSL "https://github.com/konono/panecom/releases/download/v${AW_PANECOM_VERSION}/panecom_linux_${ARCH}.tar.gz" | tar xz -C /usr/local/bin panecom; \
     fi && \
     if [ -n "$AW_TOOL_INSTALL_SCRIPT" ]; then \
       su -s /bin/bash {{.User}} -c "$AW_TOOL_INSTALL_SCRIPT"; \
