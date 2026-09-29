@@ -120,13 +120,13 @@ func ImageTool(tool string) string {
 const GhCLIVersion = "2.101.0"
 
 // MiseVersion is the pinned version of mise installed in all images.
-const MiseVersion = "2026.9.16"
+const MiseVersion = "2026.9.17"
 
 // ZellijVersion is the pinned version of zellij installed when mount_zellij is enabled.
 const ZellijVersion = "0.44.3"
 
 // PanecomVersion is the pinned version of panecom installed when mount_zellij is enabled.
-const PanecomVersion = "0.1.2"
+const PanecomVersion = "0.2.0"
 
 // ContainerEnvVarsFor returns tool-specific container environment variables
 // (AW_CONTAINER_CONFIG_DIR, AW_DATA_SYMLINKS). Callers add context-specific
