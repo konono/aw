@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.15.0](https://github.com/konono/aw/compare/v4.14.1...v4.15.0) (2026-09-29)
+
+
+### Features
+
+* **zellij:** pass ZELLIJ env vars and install panecom in container ([#168](https://github.com/konono/aw/issues/168)) ([b26b824](https://github.com/konono/aw/commit/b26b824d941b3a7e633172c81e731c505469895c))
+
 ## [4.14.1](https://github.com/konono/aw/compare/v4.14.0...v4.14.1) (2026-09-22)
 
 
