@@ -314,6 +314,8 @@ func (s *DockerStage) setupContainerFeatures(ec *pipeline.ExecutionContext) (ssh
 			ec.ZellijReady = true
 			ec.ZellijCleanup = fwd.Cleanup
 			ec.ZellijSessionName = fwd.SessionName
+			ec.ZellijPaneID = fwd.PaneID
+			ec.ZellijEnvVar = fwd.Zellij
 			ec.ZellijRelayPort = fwd.RelayAddr
 			fmt.Fprintf(os.Stderr, "Warning: mount_zellij is enabled — the container can control your host zellij session\n")
 		}
