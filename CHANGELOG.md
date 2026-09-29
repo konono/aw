@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [4.15.1](https://github.com/konono/aw/compare/v4.15.0...v4.15.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **ci:** include zellij and panecom in official image builds ([#170](https://github.com/konono/aw/issues/170)) ([1d27435](https://github.com/konono/aw/commit/1d2743594fab35857c762b9cb45063c66245dd21))
+
 ## [4.15.0](https://github.com/konono/aw/compare/v4.14.1...v4.15.0) (2026-09-29)
 
 
