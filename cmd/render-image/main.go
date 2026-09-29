@@ -102,6 +102,8 @@ func renderContext(osName, tool, outputDir string) error {
 	buildArgsFile := fmt.Sprintf("AW_TOOL_INSTALL_SCRIPT=%s\n", installScript)
 	buildArgsFile += fmt.Sprintf("AW_GH_VERSION=%s\n", toolinfo.GhCLIVersion)
 	buildArgsFile += fmt.Sprintf("AW_MISE_VERSION=%s\n", toolinfo.MiseVersion)
+	buildArgsFile += fmt.Sprintf("AW_ZELLIJ_VERSION=%s\n", toolinfo.ZellijVersion)
+	buildArgsFile += fmt.Sprintf("AW_PANECOM_VERSION=%s\n", toolinfo.PanecomVersion)
 	buildArgsFile += "AW_OCI_SOURCE=https://github.com/konono/aw\n"
 	buildArgsFile += fmt.Sprintf("AW_OCI_VERSION=%s\n", version.Version)
 	buildArgsFile += fmt.Sprintf("AW_OCI_OS=%s\n", osName)

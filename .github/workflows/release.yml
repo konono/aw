@@ -90,6 +90,8 @@ jobs:
           INSTALL_SCRIPT=$(grep '^AW_TOOL_INSTALL_SCRIPT=' "$ENV_FILE" | cut -d= -f2-)
           GH_VERSION=$(grep '^AW_GH_VERSION=' "$ENV_FILE" | cut -d= -f2-)
           MISE_VERSION=$(grep '^AW_MISE_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          ZELLIJ_VERSION=$(grep '^AW_ZELLIJ_VERSION=' "$ENV_FILE" | cut -d= -f2-)
+          PANECOM_VERSION=$(grep '^AW_PANECOM_VERSION=' "$ENV_FILE" | cut -d= -f2-)
           if [ -z "$INSTALL_SCRIPT" ] && [ "$TOOL" != "base" ]; then
             echo "::error::Missing AW_TOOL_INSTALL_SCRIPT for ${TOOL}-${OS}"
             exit 1
@@ -97,7 +99,9 @@ jobs:
           docker buildx bake -f docker-bake.hcl "aw-${TOOL}-${OS}" --push \
             --set "aw-${TOOL}-${OS}.args.AW_TOOL_INSTALL_SCRIPT=${INSTALL_SCRIPT}" \
             --set "aw-${TOOL}-${OS}.args.AW_GH_VERSION=${GH_VERSION}" \
-            --set "aw-${TOOL}-${OS}.args.AW_MISE_VERSION=${MISE_VERSION}"
+            --set "aw-${TOOL}-${OS}.args.AW_MISE_VERSION=${MISE_VERSION}" \
+            --set "aw-${TOOL}-${OS}.args.AW_ZELLIJ_VERSION=${ZELLIJ_VERSION}" \
+            --set "aw-${TOOL}-${OS}.args.AW_PANECOM_VERSION=${PANECOM_VERSION}"
 
       - name: Create arch-specific tags
         env:
