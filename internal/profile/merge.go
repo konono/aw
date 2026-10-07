@@ -34,9 +34,6 @@ func mergeStringFields(merged *Profile, override Profile) {
 	if override.ContainerUser != "" {
 		merged.ContainerUser = override.ContainerUser
 	}
-	if override.PackageManager != "" {
-		merged.PackageManager = override.PackageManager
-	}
 	if override.CACert != "" {
 		merged.CACert = override.CACert
 	}
@@ -76,14 +73,6 @@ func mergeImageFields(merged *Profile, override Profile) {
 }
 
 func mergeBoolPtrFields(merged *Profile, override Profile) {
-	if override.SkipDevboxInstall != nil {
-		v := *override.SkipDevboxInstall
-		merged.SkipDevboxInstall = &v
-	}
-	if override.DevboxInstall != nil {
-		v := *override.DevboxInstall
-		merged.DevboxInstall = &v
-	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
 		merged.SkipMiseInstall = &v
@@ -217,9 +206,6 @@ func relativeStringFields(relative *Profile, defaults, effective Profile) {
 	if effective.ContainerUser != defaults.ContainerUser {
 		relative.ContainerUser = effective.ContainerUser
 	}
-	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
-		relative.PackageManager = effective.PackageManager
-	}
 	if effective.CACert != defaults.CACert {
 		relative.CACert = effective.CACert
 	}
@@ -241,14 +227,6 @@ func relativeImageFields(relative *Profile, defaults, effective Profile) {
 }
 
 func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
-	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
-		v := *effective.SkipDevboxInstall
-		relative.SkipDevboxInstall = &v
-	}
-	if !equalBoolPtr(effective.DevboxInstall, defaults.DevboxInstall) && effective.DevboxInstall != nil {
-		v := *effective.DevboxInstall
-		relative.DevboxInstall = &v
-	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall
 		relative.SkipMiseInstall = &v

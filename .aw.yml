@@ -54,11 +54,6 @@ profiles:
   test-ubuntu2604-cursor:
     os: ubuntu2604
     launch: cursor
-  # ── devbox mode (deprecated) ────────────────────────────────────
-  test-devbox-claude:
-    os: debian12
-    launch: claude
-    package_manager: devbox
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude

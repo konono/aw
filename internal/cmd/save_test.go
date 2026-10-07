@@ -244,10 +244,10 @@ func TestResolveSaveProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := resolveSaveProfile(cfg, tt.containerName, tt.profileName, "/workspace", "podman")
+			err := resolveSaveProfile(cfg, tt.containerName, tt.profileName, "/workspace", "podman")
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("expected error for container %q, got profile %+v", tt.containerName, p)
+					t.Fatalf("expected error for container %q", tt.containerName)
 				}
 				if !strings.Contains(err.Error(), tt.profileName) {
 					t.Errorf("error should name the unresolved profile %q, got: %v", tt.profileName, err)
@@ -256,9 +256,6 @@ func TestResolveSaveProfile(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
-			}
-			if p.Launch != profile.LaunchClaude {
-				t.Errorf("Launch = %q, want %q", p.Launch, profile.LaunchClaude)
 			}
 		})
 	}
@@ -283,7 +280,7 @@ func TestResolveSaveProfile_MixedListing(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if _, err := resolveSaveProfile(cfg, name, profileName, "/workspace", "podman"); err != nil {
+		if err := resolveSaveProfile(cfg, name, profileName, "/workspace", "podman"); err != nil {
 			continue
 		}
 		saveable = append(saveable, name)

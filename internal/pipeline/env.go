@@ -53,9 +53,6 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 		envVars["AW_AUTO_DEPS_INSTALL"] = "1"
 	}
 
-	if ec.Profile.EffectivePackageManager() == profile.PackageManagerDevbox && ec.Profile.EffectiveSkipDevboxInstall() {
-		envVars["AW_SKIP_DEVBOX_INSTALL"] = "1"
-	}
 
 	if pkgs := CollectPackages(ec.Profile.Packages, ec.OrigWorkDir); len(pkgs) > 0 {
 		envVars["AW_PACKAGES"] = strings.Join(pkgs, ",")

@@ -19,7 +19,7 @@ type Config struct {
 	Default  string             `yaml:"default"`
 	Defaults ProfileDefaults    `yaml:",inline"` // top-level defaults shared by all profiles
 	Profiles map[string]Profile `yaml:"profiles"`
-	Source ConfigSource `yaml:"-"`
+	Source   ConfigSource       `yaml:"-"`
 }
 
 // ContainerRuntime specifies the container CLI to use.
@@ -50,14 +50,6 @@ func OSTemplateNames() []string {
 	}
 }
 
-// PackageManager specifies the package manager used inside the container.
-type PackageManager string
-
-const (
-	PackageManagerApt    PackageManager = "apt"
-	PackageManagerDevbox PackageManager = "devbox"
-)
-
 // ImagePullPolicy controls how official prebuilt images are resolved.
 type ImagePullPolicy string
 
@@ -70,46 +62,43 @@ const (
 
 // Profile describes a single named workspace profile.
 type Profile struct {
-	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
-	Environment      Environment       `yaml:"environment"`
-	Launch           LaunchMode        `yaml:"launch"`
-	Auth             *AuthConfig       `yaml:"auth,omitempty"`
-	Env              map[string]string `yaml:"env,omitempty"`
-	OS               OSTemplate        `yaml:"os,omitempty"`
-	Image            string            `yaml:"image,omitempty"`
-	Dockerfile       string            `yaml:"dockerfile,omitempty"`
-	ImagePullPolicy  ImagePullPolicy   `yaml:"image_pull_policy,omitempty"`
-	ContainerRuntime   ContainerRuntime  `yaml:"container_runtime,omitempty"`
-	ContainerUser      string            `yaml:"container_user,omitempty"`
-	SkipDevboxInstall *bool             `yaml:"skip_devbox_install,omitempty"` // Deprecated: use devbox_install instead
-	SkipMiseInstall   *bool             `yaml:"skip_mise_install,omitempty"`   // Deprecated: use mise_install instead
-	DevboxInstall     *bool             `yaml:"devbox_install,omitempty"`
-	MiseInstall       *bool             `yaml:"mise_install,omitempty"`
-	AutoDepsInstall   *bool             `yaml:"auto_deps_install,omitempty"`
-	PackageManager    PackageManager    `yaml:"package_manager,omitempty"`
-	GhToken          *bool             `yaml:"gh_token,omitempty"`
-	MountGH          *bool             `yaml:"mount_gh,omitempty"`
-	MountSSH         *bool             `yaml:"mount_ssh,omitempty"`
-	SSHAgentForwarding *bool           `yaml:"ssh_agent_forwarding,omitempty"`
-	MountContainerSock *bool          `yaml:"mount_container_sock,omitempty"`
-	MountZellij        *bool          `yaml:"mount_zellij,omitempty"`
-	Mounts           []CustomMount     `yaml:"mounts,omitempty"`
-	Packages         []string          `yaml:"packages,omitempty"`
-	BuildEnv         map[string]string `yaml:"build_env,omitempty"`
-	CACert           string            `yaml:"ca_cert,omitempty"`
-	Build            *BuildConfig      `yaml:"build,omitempty"`
-	Reaper           *ReaperProfileConfig `yaml:"reaper,omitempty"`
-	Kubernetes       *KubernetesConfig `yaml:"kubernetes,omitempty"`
+	Worktree           *WorktreeConfig      `yaml:"worktree,omitempty"`
+	Environment        Environment          `yaml:"environment"`
+	Launch             LaunchMode           `yaml:"launch"`
+	Auth               *AuthConfig          `yaml:"auth,omitempty"`
+	Env                map[string]string    `yaml:"env,omitempty"`
+	OS                 OSTemplate           `yaml:"os,omitempty"`
+	Image              string               `yaml:"image,omitempty"`
+	Dockerfile         string               `yaml:"dockerfile,omitempty"`
+	ImagePullPolicy    ImagePullPolicy      `yaml:"image_pull_policy,omitempty"`
+	ContainerRuntime   ContainerRuntime     `yaml:"container_runtime,omitempty"`
+	ContainerUser      string               `yaml:"container_user,omitempty"`
+	SkipMiseInstall    *bool                `yaml:"skip_mise_install,omitempty"` // Deprecated: use mise_install instead
+	MiseInstall        *bool                `yaml:"mise_install,omitempty"`
+	AutoDepsInstall    *bool                `yaml:"auto_deps_install,omitempty"`
+	GhToken            *bool                `yaml:"gh_token,omitempty"`
+	MountGH            *bool                `yaml:"mount_gh,omitempty"`
+	MountSSH           *bool                `yaml:"mount_ssh,omitempty"`
+	SSHAgentForwarding *bool                `yaml:"ssh_agent_forwarding,omitempty"`
+	MountContainerSock *bool                `yaml:"mount_container_sock,omitempty"`
+	MountZellij        *bool                `yaml:"mount_zellij,omitempty"`
+	Mounts             []CustomMount        `yaml:"mounts,omitempty"`
+	Packages           []string             `yaml:"packages,omitempty"`
+	BuildEnv           map[string]string    `yaml:"build_env,omitempty"`
+	CACert             string               `yaml:"ca_cert,omitempty"`
+	Build              *BuildConfig         `yaml:"build,omitempty"`
+	Reaper             *ReaperProfileConfig `yaml:"reaper,omitempty"`
+	Kubernetes         *KubernetesConfig    `yaml:"kubernetes,omitempty"`
 
 	hadLegacyExport bool `yaml:"-"`
 }
 
 // ReaperProfileConfig controls reaper behavior per-profile.
 type ReaperProfileConfig struct {
-	Timeout          int    `yaml:"timeout,omitempty"`
-	KeepContainer    bool   `yaml:"keep-container,omitempty"`
-	ReportRetention  int    `yaml:"report-retention,omitempty"`
-	CollectLogs      string `yaml:"collect-logs,omitempty"`
+	Timeout         int    `yaml:"timeout,omitempty"`
+	KeepContainer   bool   `yaml:"keep-container,omitempty"`
+	ReportRetention int    `yaml:"report-retention,omitempty"`
+	CollectLogs     string `yaml:"collect-logs,omitempty"`
 }
 
 // KubernetesMode specifies the operational mode for Kubernetes deployments.
@@ -353,18 +342,6 @@ func (p *Profile) EffectiveMountZellij() bool {
 	return p != nil && p.MountZellij != nil && *p.MountZellij
 }
 
-// EffectiveSkipDevboxInstall returns whether devbox install should be skipped in the entrypoint.
-// Supports both devbox_install (preferred) and skip_devbox_install (deprecated).
-func (p *Profile) EffectiveSkipDevboxInstall() bool {
-	if p == nil {
-		return false
-	}
-	if p.DevboxInstall != nil {
-		return !*p.DevboxInstall
-	}
-	return p.SkipDevboxInstall != nil && *p.SkipDevboxInstall
-}
-
 // EffectiveSkipMiseInstall returns whether mise install should be skipped in the entrypoint.
 // Supports both mise_install (preferred) and skip_mise_install (deprecated).
 func (p *Profile) EffectiveSkipMiseInstall() bool {
@@ -380,14 +357,6 @@ func (p *Profile) EffectiveSkipMiseInstall() bool {
 // EffectiveAutoDepsInstall returns whether language dependency auto-install is enabled.
 func (p *Profile) EffectiveAutoDepsInstall() bool {
 	return p != nil && p.AutoDepsInstall != nil && *p.AutoDepsInstall
-}
-
-// EffectivePackageManager returns the package manager, defaulting to "apt" if empty.
-func (p *Profile) EffectivePackageManager() PackageManager {
-	if p != nil && p.PackageManager != "" {
-		return p.PackageManager
-	}
-	return PackageManagerApt
 }
 
 // EffectiveAuthOnLaunchCheck returns the configured launch-time auth check mode.
@@ -541,4 +510,3 @@ func (p *Profile) EffectiveTool() string {
 		return ""
 	}
 }
-

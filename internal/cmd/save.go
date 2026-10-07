@@ -100,8 +100,7 @@ func saveSelectedContainer(ctx context.Context, client containerSaver, entry *co
 	if err != nil {
 		return fmt.Errorf("loading config for workspace %q: %w", workspace, err)
 	}
-	p, err := resolveSaveProfile(cfg, entry.Name, profileName, workspace, entry.Runtime)
-	if err != nil {
+	if err := resolveSaveProfile(cfg, entry.Name, profileName, workspace, entry.Runtime); err != nil {
 		return err
 	}
 
@@ -120,8 +119,7 @@ func saveSelectedContainer(ctx context.Context, client containerSaver, entry *co
 		return fmt.Errorf("committing container: %w", err)
 	}
 
-	pkgMgr := p.EffectivePackageManager()
-	if err := applyBuildResult(configPath, profileName, imageName, pkgMgr, true); err != nil {
+	if err := applyBuildResult(configPath, profileName, imageName, true); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: image '%s' was created but config update failed.\n", imageName)
 		return fmt.Errorf("writing config: %w", err)
 	}
@@ -278,14 +276,13 @@ func lookupContainerEnv(ctx context.Context, client containerSaver, containerNam
 // container matching aw-<something>-<digits> is listed, including leftovers
 // from the removed "aw team" command (aw-<team>-<agent>-<n>), which would
 // resolve to a bogus "<team>-<agent>" profile and get written into the config.
-func resolveSaveProfile(cfg *profile.Config, containerName, profileName, workspace, runtime string) (profile.Profile, error) {
-	p, ok := cfg.Profiles[profileName]
-	if !ok {
-		return profile.Profile{}, fmt.Errorf("container %q does not belong to a known profile: %q is not defined in the config for %s\n"+
+func resolveSaveProfile(cfg *profile.Config, containerName, profileName, workspace, runtime string) error {
+	if _, ok := cfg.Profiles[profileName]; !ok {
+		return fmt.Errorf("container %q does not belong to a known profile: %q is not defined in the config for %s\n"+
 			"If this is a leftover container from the removed 'aw team' command, remove it with '%s rm -f %s'",
 			containerName, profileName, workspace, runtime, containerName)
 	}
-	return p, nil
+	return nil
 }
 
 // loadWorkspaceConfig loads the merged config (builtin -> user -> project) as

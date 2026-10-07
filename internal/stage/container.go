@@ -190,18 +190,16 @@ func (s *DockerStage) resolvePinnedImage(ctx context.Context, ec *pipeline.Execu
 // falls back to the official image or a template build.
 //
 // It also clears the entrypoint install toggles. `aw build --apply` writes
-// skip_mise_install/skip_devbox_install alongside `image:` because the tools
-// are baked into that snapshot image. A fallback image has no such layer, so
-// keeping the skips would start a container without those tools.
+// skip_mise_install alongside `image:` because the tools are baked into that
+// snapshot image. A fallback image has no such layer, so keeping the skip
+// would start a container without those tools.
 func clearPinnedImage(ec *pipeline.ExecutionContext) {
 	ec.Profile.Image = ""
-	if ec.Profile.EffectiveSkipMiseInstall() || ec.Profile.EffectiveSkipDevboxInstall() {
-		fmt.Fprintln(os.Stderr, "  Re-enabling mise/devbox install: the fallback image does not have the snapshot's pre-installed tools.")
+	if ec.Profile.EffectiveSkipMiseInstall() {
+		fmt.Fprintln(os.Stderr, "  Re-enabling mise install: the fallback image does not have the snapshot's pre-installed tools.")
 	}
 	ec.Profile.SkipMiseInstall = nil
-	ec.Profile.SkipDevboxInstall = nil
 	ec.Profile.MiseInstall = nil
-	ec.Profile.DevboxInstall = nil
 }
 
 // HasBuildCustomizations reports whether the profile has settings that require
@@ -209,7 +207,6 @@ func clearPinnedImage(ec *pipeline.ExecutionContext) {
 func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	p := ec.Profile
 	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
-		p.PackageManager == profile.PackageManagerDevbox ||
 		(p.ContainerUser != "" && p.ContainerUser != "agent") ||
 		p.EffectiveMountZellij() {
 		return true

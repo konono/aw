@@ -198,15 +198,15 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 ### 動作の流れ
 
 1. docker / podman 両方からコンテナを検索（`--runtime` で限定可能）
-2. `aw-<profile>-<timestamp>` パターンに合致するコンテナを fzf ピッカーで一覧表示（snapshot / team コンテナは除外）
+2. `aw-<profile>-<timestamp>` パターンに合致するコンテナを fzf ピッカーで一覧表示（snapshot コンテナは除外）
 3. 選択したコンテナに対して `docker commit` を実行（ENTRYPOINT/CMD を `aw build` と同じ設定にリセット）
-4. コンテナの `HOST_WORKSPACE` 環境変数からワークスペースを特定し、git root のプロジェクト config（`.aw.yml` / `.aw.yaml` / `.agent-workspace.yml`）に `image` と `skip_mise_install: true` を書き込む（devbox プロファイルの場合は `skip_devbox_install: true` も設定）
+4. コンテナの `HOST_WORKSPACE` 環境変数からワークスペースを特定し、git root のプロジェクト config（`.aw.yml` / `.aw.yaml` / `.agent-workspace.yml`）に `image` と `skip_mise_install: true` を書き込む
 
 ### aw build との比較
 
 | 観点 | `aw build --apply` | `aw save` |
 |------|-------------------|-----------|
-| 入力 | mise.toml / devbox.json / packages.txt | コンテナ内の手作業 |
+| 入力 | mise.toml / packages.txt | コンテナ内の手作業 |
 | 再現性 | 高（宣言的。同じ設定から同じイメージ） | 低（手動操作の結果） |
 | ユースケース | 構成が固まった環境の高速化 | 試行錯誤中の環境保存 |
 | イメージ名 | `aw-build:<profile>-<hash>` | `aw-save:<profile>-<timestamp>` |
@@ -238,8 +238,6 @@ debian:bookworm-slim
   └── WORKDIR /workspace
 ```
 
-> **Note:** `package_manager: devbox` の場合は `Dockerfile.debian12.devbox.tmpl` が使用され、Nix + devbox が追加されます。
-
 この時点では `.aw_env.sh` ファイルは存在しません。`BASH_ENV` は設定されているが、ファイルが作られるのは aw-init.sh 実行時（通常起動）または snapshot スクリプト実行時（build 時）です。
 
 ## snapshot スクリプトの動作
@@ -257,10 +255,9 @@ debian:bookworm-slim
 
 ### なぜワークスペースをコピーするか
 
-`mise install`（および `package_manager: devbox` の場合は `devbox install`）はカレントディレクトリに中間生成物を書き込みます:
+`mise install` はカレントディレクトリに中間生成物を書き込みます:
 
 - mise: `.mise/` ディレクトリ
-- devbox（devbox モード時）: `.devbox/gen/shell.nix`, `.devbox/virtenv/` など
 
 `/workspace` は ro マウントなので、これらの書き込みが失敗します。そのため snapshot スクリプトは以下の手順を踏みます:
 
@@ -268,7 +265,6 @@ debian:bookworm-slim
 WORK="/tmp/aw-snapshot-work"
 cp -r "$WORKSPACE/." "$WORK/"    # ro マウントから書き込み可能な場所にコピー
 cd "$WORK" && mise install       # こちらで実行
-cd "$WORK" && devbox install     # devbox モード時のみ
 rm -rf "$WORK"                   # commit 前にクリーンアップ
 ```
 
@@ -276,7 +272,6 @@ rm -rf "$WORK"                   # commit 前にクリーンアップ
 
 | ツール | インストール先 | 参照方法 |
 |--------|-------------|----------|
-| devbox (Nix) パッケージ | `/nix/store/`, `/home/agent/.local/share/devbox/` | `devbox global shellenv` が PATH を設定 |
 | mise ツール（jq, go 等） | `/home/agent/.local/share/mise/installs/<tool>/<ver>/` | `/home/agent/.local/share/mise/shims/` 経由 |
 
 mise shim がバージョンを解決するには設定ファイルが必要です。snapshot スクリプトはワークスペースの `mise.toml` を `/home/agent/.config/mise/config.toml`（グローバル設定）にコピーして、shim がどのバージョンを使うか分かるようにしています。
@@ -293,7 +288,7 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 
 | ファイル | 内容 |
 |---------|------|
-| `/home/agent/.aw_env.sh` | PATH 設定、devbox/mise 環境変数 |
+| `/home/agent/.aw_env.sh` | PATH 設定、mise 環境変数 |
 | `/home/agent/.bashrc` | `.aw_env.sh` を source する |
 | `/home/agent/.bash_profile` | `.bashrc` を source する |
 
@@ -343,11 +338,6 @@ entrypoint.sh → source /aw-init.sh
   ├── [entrypoint.sh] skip_mise_install: true の場合 → mise install をスキップ
   │   （ツールは snapshot で焼き込み済み）
   │
-  ├── [entrypoint.sh.devbox] skip_devbox_install: true の場合 → devbox install をスキップ
-  │   （パッケージは snapshot で焼き込み済み）
-  │
-  ├── [entrypoint.sh.devbox] devbox/nix 固有の env を .aw_env.sh に追記
-  │
   └── aw_exec "$@"  ← ツール起動（claude, codex 等）
 ```
 
@@ -365,17 +355,16 @@ bash 起動
 
 snapshot が生成する `.aw_env.sh` と aw-init.sh が生成する `.aw_env.sh` はほぼ同じ内容ですが、1 点違いがあります:
 
-- snapshot 版: `MISE_TRUSTED_CONFIG_PATHS="/workspace"`, `devbox shellenv` のパスも `/workspace`
-- aw-init.sh 版: `MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE}"`, `devbox shellenv` のパスも `${HOST_WORKSPACE}`
+- snapshot 版: `MISE_TRUSTED_CONFIG_PATHS="/workspace"`
+- aw-init.sh 版: `MISE_TRUSTED_CONFIG_PATHS="${HOST_WORKSPACE}"`
 
-aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（コンテナ内から見えるプロジェクトパス）になります。焼き込み済みツール（devbox global、mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
+aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST_WORKSPACE`（コンテナ内から見えるプロジェクトパス）になります。焼き込み済みツール（mise global config）は `HOST_WORKSPACE` に依存しないので、どちらのパスでも動作します。
 
 ## まとめ: 何がイメージに焼き込まれ、何が起動時に設定されるか
 
 | 内容 | 焼き込み（snapshot） | 起動時（aw-init.sh + entrypoint） |
 |------|---------------------|---------------------|
 | mise ツール（/home/agent/.local/share/mise） | install 済み | skip_mise_install で省略 |
-| devbox パッケージ（/nix/store）※devbox モード時 | install 済み | skip_devbox_install で省略 |
 | mise グローバル config | コピー済み | 変更なし |
 | .aw_env.sh | 生成される | **上書きされる** |
 | .bashrc / .bash_profile | 生成される | **上書きされる** |

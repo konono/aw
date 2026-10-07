@@ -18,7 +18,7 @@ func TestAllOSTemplates_RenderValidDockerfiles(t *testing.T) {
 		profile.OSDebian12, profile.OSUBI9, profile.OSUBI10, profile.OSUbuntu2604,
 	} {
 		t.Run(string(os), func(t *testing.T) {
-			df, err := RenderDockerfile(os, profile.PackageManagerApt, cenv)
+			df, err := RenderDockerfile(os, cenv)
 			if err != nil {
 				t.Fatalf("RenderDockerfile: %v", err)
 			}
@@ -50,7 +50,7 @@ func TestRenderDockerfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			df, err := RenderDockerfile(tt.os, profile.PackageManagerApt, cenv)
+			df, err := RenderDockerfile(tt.os, cenv)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error for unknown OS template")
@@ -84,7 +84,7 @@ func TestRenderDockerfile(t *testing.T) {
 
 func TestRenderDockerfile_CustomUser(t *testing.T) {
 	cenv := containerenv.FromUser("dev")
-	df, err := RenderDockerfile(profile.OSDebian12, profile.PackageManagerApt, cenv)
+	df, err := RenderDockerfile(profile.OSDebian12, cenv)
 	if err != nil {
 		t.Fatalf("RenderDockerfile() error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestRenderDockerfile_CustomUser(t *testing.T) {
 }
 
 func TestEntrypoint(t *testing.T) {
-	ep := Entrypoint(profile.PackageManagerApt)
+	ep := Entrypoint()
 	content := string(ep)
 	if !strings.HasPrefix(content, "#!/bin/bash") {
 		t.Error("entrypoint.sh should start with shebang")
@@ -117,40 +117,14 @@ func TestEntrypoint(t *testing.T) {
 	}
 }
 
-func TestEntrypoint_Devbox(t *testing.T) {
-	ep := Entrypoint(profile.PackageManagerDevbox)
-	content := string(ep)
-	if !strings.HasPrefix(content, "#!/bin/bash") {
-		t.Error("devbox entrypoint should start with shebang")
-	}
-	if !strings.Contains(content, ". /aw-init.sh") {
-		t.Error("devbox entrypoint should source /aw-init.sh")
-	}
-	if strings.Contains(content, "{{") {
-		t.Error("devbox entrypoint should not contain Go template variables")
-	}
-	if !strings.Contains(content, "devbox") {
-		t.Error("devbox entrypoint should handle devbox packages")
-	}
-	if !strings.Contains(content, "/nix/var") {
-		t.Error("devbox entrypoint should fix /nix/var ownership")
-	}
-	if !strings.Contains(content, "aw_exec") {
-		t.Error("devbox entrypoint should call aw_exec")
-	}
-}
-
 func TestRenderDockerfile_ContainsExtraPackagesArg(t *testing.T) {
 	cenv := containerenv.Default()
 	for _, tmplOS := range []profile.OSTemplate{
 		profile.OSDebian12, profile.OSUBI9, profile.OSUBI10, profile.OSUbuntu2604,
 	} {
-		for _, pkgMgr := range []profile.PackageManager{
-			profile.PackageManagerApt, profile.PackageManagerDevbox,
-		} {
-			name := string(tmplOS) + "_" + string(pkgMgr)
-			t.Run(name, func(t *testing.T) {
-				df, err := RenderDockerfile(tmplOS, pkgMgr, cenv)
+		{
+			t.Run(string(tmplOS), func(t *testing.T) {
+				df, err := RenderDockerfile(tmplOS, cenv)
 				if err != nil {
 					t.Fatalf("RenderDockerfile() error: %v", err)
 				}
@@ -178,14 +152,6 @@ func TestInitScript_ContainsAWPackages(t *testing.T) {
 		if !strings.Contains(content, want) {
 			t.Errorf("aw-init.sh should contain %q", want)
 		}
-	}
-}
-
-func TestEntrypoint_DiffersPerPackageManager(t *testing.T) {
-	apt := Entrypoint(profile.PackageManagerApt)
-	devbox := Entrypoint(profile.PackageManagerDevbox)
-	if string(apt) == string(devbox) {
-		t.Error("apt and devbox entrypoints should differ")
 	}
 }
 
@@ -233,7 +199,7 @@ func TestDefaultDockerfile(t *testing.T) {
 	if len(content) == 0 {
 		t.Error("DefaultDockerfile() returned empty content")
 	}
-	expected, _ := RenderDockerfile(profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	expected, _ := RenderDockerfile(profile.OSDebian12, containerenv.Default())
 	if string(content) != string(expected) {
 		t.Error("DefaultDockerfile() content does not match rendered debian12 dockerfile")
 	}
@@ -241,7 +207,7 @@ func TestDefaultDockerfile(t *testing.T) {
 
 func TestPrepareBuildContext(t *testing.T) {
 	cenv := containerenv.Default()
-	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, cenv)
+	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, cenv)
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -255,7 +221,7 @@ func TestPrepareBuildContext(t *testing.T) {
 		t.Fatal("build context path is not a directory")
 	}
 
-	expectedDF, _ := RenderDockerfile(profile.OSDebian12, profile.PackageManagerApt, cenv)
+	expectedDF, _ := RenderDockerfile(profile.OSDebian12, cenv)
 	dfContent, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
 	if err != nil {
 		t.Fatalf("reading Dockerfile: %v", err)
@@ -264,7 +230,7 @@ func TestPrepareBuildContext(t *testing.T) {
 		t.Error("Dockerfile content does not match rendered debian12 content")
 	}
 
-	expectedEP := Entrypoint(profile.PackageManagerApt)
+	expectedEP := Entrypoint()
 	epContent, err := os.ReadFile(filepath.Join(dir, "entrypoint.sh"))
 	if err != nil {
 		t.Fatalf("reading entrypoint.sh: %v", err)
@@ -327,7 +293,7 @@ func TestPrepareBuildContext_WithOS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir, cleanup, err := PrepareBuildContext("", tt.os, profile.PackageManagerApt, cenv)
+			dir, cleanup, err := PrepareBuildContext("", tt.os, cenv)
 			if err != nil {
 				t.Fatalf("PrepareBuildContext() error: %v", err)
 			}
@@ -365,7 +331,7 @@ func TestPrepareBuildContext_CustomDockerfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -390,7 +356,7 @@ func TestPrepareBuildContext_CustomDockerfileCleanupIsNoop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	dir, cleanup, err := PrepareBuildContext(customPath, profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -403,7 +369,7 @@ func TestPrepareBuildContext_CustomDockerfileCleanupIsNoop(t *testing.T) {
 }
 
 func TestPrepareBuildContext_CustomDockerfileNotFound(t *testing.T) {
-	_, _, err := PrepareBuildContext("/nonexistent/Dockerfile", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	_, _, err := PrepareBuildContext("/nonexistent/Dockerfile", profile.OSDebian12, containerenv.Default())
 	if err == nil {
 		t.Fatal("expected error for nonexistent custom Dockerfile")
 	}
@@ -413,7 +379,7 @@ func TestPrepareBuildContext_CustomDockerfileNotFound(t *testing.T) {
 }
 
 func TestPrepareBuildContextCleanup(t *testing.T) {
-	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	dir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext() error: %v", err)
 	}
@@ -438,7 +404,7 @@ func TestRenderDockerfile_GID0Pattern(t *testing.T) {
 		profile.OSUbuntu2604,
 	} {
 		t.Run(string(osTemplate), func(t *testing.T) {
-			df, err := RenderDockerfile(osTemplate, profile.PackageManagerApt, cenv)
+			df, err := RenderDockerfile(osTemplate, cenv)
 			if err != nil {
 				t.Fatalf("RenderDockerfile() error: %v", err)
 			}
@@ -467,40 +433,35 @@ func TestRenderDockerfile_SessionLog(t *testing.T) {
 		profile.OSUBI10,
 		profile.OSUbuntu2604,
 	}
-	allPkgMgr := []profile.PackageManager{
-		profile.PackageManagerApt,
-		profile.PackageManagerDevbox,
-	}
 	for _, osTemplate := range allOS {
-		for _, pkgMgr := range allPkgMgr {
-			name := string(osTemplate) + "/" + string(pkgMgr)
-			t.Run(name, func(t *testing.T) {
-			cenvOff := containerenv.Default()
-			dfOff, err := RenderDockerfile(osTemplate, pkgMgr, cenvOff)
-			if err != nil {
-				t.Fatalf("RenderDockerfile(SessionLog=false) error: %v", err)
-			}
-			if strings.Contains(string(dfOff), "pty-logger") {
-				t.Error("Dockerfile with SessionLog=false should not contain pty-logger")
-			}
+		{
+			t.Run(string(osTemplate), func(t *testing.T) {
+				cenvOff := containerenv.Default()
+				dfOff, err := RenderDockerfile(osTemplate, cenvOff)
+				if err != nil {
+					t.Fatalf("RenderDockerfile(SessionLog=false) error: %v", err)
+				}
+				if strings.Contains(string(dfOff), "pty-logger") {
+					t.Error("Dockerfile with SessionLog=false should not contain pty-logger")
+				}
 
-			cenvOn := containerenv.Default()
-			cenvOn.SessionLog = true
-			dfOn, err := RenderDockerfile(osTemplate, pkgMgr, cenvOn)
-			if err != nil {
-				t.Fatalf("RenderDockerfile(SessionLog=true) error: %v", err)
-			}
-			content := string(dfOn)
-			if !strings.Contains(content, "pty-logger-amd64") {
-				t.Error("Dockerfile with SessionLog=true should COPY pty-logger-amd64")
-			}
-			if !strings.Contains(content, "pty-logger-arm64") {
-				t.Error("Dockerfile with SessionLog=true should COPY pty-logger-arm64")
-			}
-			if !strings.Contains(content, "Unsupported architecture") {
-				t.Error("Dockerfile with SessionLog=true should have arch fallback error")
-			}
-		})
+				cenvOn := containerenv.Default()
+				cenvOn.SessionLog = true
+				dfOn, err := RenderDockerfile(osTemplate, cenvOn)
+				if err != nil {
+					t.Fatalf("RenderDockerfile(SessionLog=true) error: %v", err)
+				}
+				content := string(dfOn)
+				if !strings.Contains(content, "pty-logger-amd64") {
+					t.Error("Dockerfile with SessionLog=true should COPY pty-logger-amd64")
+				}
+				if !strings.Contains(content, "pty-logger-arm64") {
+					t.Error("Dockerfile with SessionLog=true should COPY pty-logger-arm64")
+				}
+				if !strings.Contains(content, "Unsupported architecture") {
+					t.Error("Dockerfile with SessionLog=true should have arch fallback error")
+				}
+			})
 		}
 	}
 }
@@ -545,7 +506,7 @@ func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 		profile.OSUbuntu2604,
 	} {
 		t.Run(string(osTemplate), func(t *testing.T) {
-			df, err := RenderDockerfile(osTemplate, profile.PackageManagerApt, cenv)
+			df, err := RenderDockerfile(osTemplate, cenv)
 			if err != nil {
 				t.Fatalf("RenderDockerfile() error: %v", err)
 			}
@@ -557,4 +518,3 @@ func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 		})
 	}
 }
-

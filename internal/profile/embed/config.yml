@@ -117,7 +117,6 @@ profiles:
   #   # ca_cert: "~/certs/corporate-ca.pem"
   #
   #   # ── Entrypoint install control ──────────────────────────────────
-  #   # skip_devbox_install: true          # skip project devbox install on startup
   #   # skip_mise_install: true            # skip project mise install on startup
   #
   #   # ── Host resource mounts ──────────────────────────────────────

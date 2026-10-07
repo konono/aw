@@ -182,7 +182,7 @@ func TestHasWorkspaceFiles(t *testing.T) {
 		}
 	})
 
-	for _, name := range []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"} {
+	for _, name := range []string{"mise.toml", ".mise.toml", "packages.txt"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0644); err != nil {
@@ -310,13 +310,10 @@ func TestPrepareBuildProfile(t *testing.T) {
 
 	t.Run("skip flags cleared", func(t *testing.T) {
 		tr := true
-		p := profile.Profile{SkipMiseInstall: &tr, SkipDevboxInstall: &tr}
+		p := profile.Profile{SkipMiseInstall: &tr}
 		prepareBuildProfile(&p, false)
 		if p.SkipMiseInstall != nil {
 			t.Error("SkipMiseInstall should be nil")
-		}
-		if p.SkipDevboxInstall != nil {
-			t.Error("SkipDevboxInstall should be nil")
 		}
 	})
 
@@ -331,9 +328,9 @@ func TestPrepareBuildProfile(t *testing.T) {
 
 func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	b := BuildCmd{
-		ProfileName:  "test",
-		NoCache:  true,
-		BuildArg: map[string]string{"AW_FOO": "bar"},
+		ProfileName: "test",
+		NoCache:     true,
+		BuildArg:    map[string]string{"AW_FOO": "bar"},
 	}
 	err := b.Validate()
 	if err == nil {
@@ -419,7 +416,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -439,30 +436,6 @@ profiles:
 		}
 	})
 
-	t.Run("adds both skip flags with devbox", func(t *testing.T) {
-		dir := t.TempDir()
-		cfgPath := filepath.Join(dir, "config.yml")
-		if err := os.WriteFile(cfgPath, []byte(`profiles:
-  dev:
-    launch: shell
-`), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", profile.PackageManagerDevbox, true); err != nil {
-			t.Fatalf("applyBuildResult() error = %v", err)
-		}
-
-		data, _ := os.ReadFile(cfgPath)
-		content := string(data)
-		if !strings.Contains(content, "skip_devbox_install: true") {
-			t.Errorf("config should contain skip_devbox_install, got:\n%s", content)
-		}
-		if !strings.Contains(content, "skip_mise_install: true") {
-			t.Errorf("config should contain skip_mise_install, got:\n%s", content)
-		}
-	})
-
 	t.Run("updates existing image", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
@@ -474,7 +447,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -498,7 +471,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -523,7 +496,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -550,7 +523,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -577,7 +550,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", profile.PackageManagerApt, false); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", false); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -595,7 +568,7 @@ profiles:
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, ".aw.yml")
 
-		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 

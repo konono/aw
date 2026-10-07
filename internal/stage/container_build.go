@@ -15,26 +15,20 @@ import (
 	"github.com/konono/aw/v4/internal/image"
 	"github.com/konono/aw/v4/internal/pathutil"
 	"github.com/konono/aw/v4/internal/pipeline"
-	"github.com/konono/aw/v4/internal/profile"
 	"github.com/konono/aw/v4/internal/toolinfo"
 )
 
 type buildInputs struct {
-	toolPkg           string
 	toolInstallScript string
 	extraPackages     string
 }
 
-func resolveBuildInputs(customDockerfile string, tool string, pkgMgr profile.PackageManager, ec *pipeline.ExecutionContext) buildInputs {
+func resolveBuildInputs(customDockerfile string, tool string, ec *pipeline.ExecutionContext) buildInputs {
 	var bi buildInputs
 	if customDockerfile != "" {
 		return bi
 	}
-	if pkgMgr == profile.PackageManagerDevbox {
-		bi.toolPkg = toolinfo.DevboxPkg(tool)
-	} else {
-		bi.toolInstallScript = toolinfo.InstallScript(tool)
-	}
+	bi.toolInstallScript = toolinfo.InstallScript(tool)
 	packages := pipeline.CollectPackages(ec.Profile.Packages, ec.OrigWorkDir)
 	if len(packages) > 0 {
 		bi.extraPackages = strings.Join(packages, " ")
@@ -42,7 +36,7 @@ func resolveBuildInputs(customDockerfile string, tool string, pkgMgr profile.Pac
 	return bi
 }
 
-func computeImageTag(buildDir, customDockerfile string, ec *pipeline.ExecutionContext, cenv containerenv.Config, pkgMgr profile.PackageManager, bi buildInputs) string {
+func computeImageTag(buildDir, customDockerfile string, ec *pipeline.ExecutionContext, cenv containerenv.Config, bi buildInputs) string {
 	hashSource := filepath.Join(buildDir, "Dockerfile")
 	if customDockerfile != "" {
 		hashSource = customDockerfile
@@ -62,9 +56,7 @@ func computeImageTag(buildDir, customDockerfile string, ec *pipeline.ExecutionCo
 	hashInput += "\n" + cenv.User
 
 	if customDockerfile == "" {
-		hashInput += "\n" + bi.toolPkg
 		hashInput += "\n" + bi.toolInstallScript
-		hashInput += "\n" + string(pkgMgr)
 		hashInput += "\n" + toolinfo.GhCLIVersion
 		hashInput += "\n" + toolinfo.MiseVersion
 		if ec.Profile.EffectiveMountZellij() {
@@ -103,9 +95,6 @@ func collectBuildArgs(customDockerfile string, ec *pipeline.ExecutionContext, bi
 			buildArgs["AW_PANECOM_VERSION"] = toolinfo.PanecomVersion
 		}
 	}
-	if bi.toolPkg != "" {
-		buildArgs["AW_TOOL_PKG"] = bi.toolPkg
-	}
 	if bi.toolInstallScript != "" {
 		buildArgs["AW_TOOL_INSTALL_SCRIPT"] = bi.toolInstallScript
 	}
@@ -130,9 +119,7 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 
 	tool := ec.Profile.EffectiveTool()
 	osTemplate := ec.Profile.EffectiveOS()
-	pkgMgr := ec.Profile.EffectivePackageManager()
-
-	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate, pkgMgr, cenv)
+	buildDir, cleanup, err := image.PrepareBuildContext(customDockerfile, osTemplate, cenv)
 	if err != nil {
 		return "", fmt.Errorf("preparing build context: %w", err)
 	}
@@ -146,8 +133,8 @@ func (s *DockerStage) buildImage(ctx context.Context, ec *pipeline.ExecutionCont
 		defer func() { _ = os.Remove(caCertInBuildDir) }()
 	}
 
-	bi := resolveBuildInputs(customDockerfile, tool, pkgMgr, ec)
-	imageName := computeImageTag(buildDir, customDockerfile, ec, cenv, pkgMgr, bi)
+	bi := resolveBuildInputs(customDockerfile, tool, ec)
+	imageName := computeImageTag(buildDir, customDockerfile, ec, cenv, bi)
 	buildArgs := collectBuildArgs(customDockerfile, ec, bi)
 
 	if customDockerfile != "" {

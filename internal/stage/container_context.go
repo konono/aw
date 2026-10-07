@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/konono/aw/v4/internal/pipeline"
-	"github.com/konono/aw/v4/internal/profile"
 )
 
 const containerContextMarker = "\n# aw Container Environment\n"
@@ -19,19 +18,7 @@ func appendContainerContext(toolStageDir string, ec *pipeline.ExecutionContext) 
 
 	var sections []string
 
-	if ec.Profile.EffectivePackageManager() == profile.PackageManagerDevbox {
-		sections = append(sections, `## Package Managers
-
-- npm: Node.js package manager. Use "npm install -g <pkg>" to install global packages
-- mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
-- Both are pre-installed and available in PATH
-
-When you install a new tool or package, record it in the workspace so it persists across container rebuilds:
-- devbox packages: add via "devbox global add <pkg>" or edit devbox.json in the workspace root
-- mise tools: add to mise.toml (or .mise.toml) in the workspace root
-- apt/dnf system packages: add to packages.txt in the workspace root (one package per line)`)
-	} else {
-		sections = append(sections, `## Package Managers
+	sections = append(sections, `## Package Managers
 
 - mise: polyglot runtime manager. Use "mise install" / "mise use" for language runtimes
 - Pre-installed and available in PATH
@@ -39,7 +26,6 @@ When you install a new tool or package, record it in the workspace so it persist
 When you install a new tool or package, record it in the workspace so it persists across container rebuilds:
 - mise tools: add to mise.toml (or .mise.toml) in the workspace root
 - apt/dnf system packages: add to packages.txt in the workspace root (one package per line)`)
-	}
 
 	if ec.ContainerSockReady {
 		sections = append(sections, `## Docker / Podman (DooD)

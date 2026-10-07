@@ -70,7 +70,6 @@ profiles:
 - `packages:` でパッケージが追加されている
 - `build_env:` でビルド引数が設定されている
 - `ca_cert:` で CA 証明書が設定されている
-- `package_manager: devbox` が設定されている
 - `container_user:` が `agent` 以外に設定されている
 - ワークスペースの `packages.txt` にパッケージがある
 - `image_pull_policy: build` が設定されている

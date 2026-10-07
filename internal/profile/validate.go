@@ -14,7 +14,7 @@ var dns1123LabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 var k8sQuantityRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?([eE][0-9]+)?([kKMGTPE]i?)?$`)
 
 const (
-	maxReaperTimeout       = 3600
+	maxReaperTimeout         = 3600
 	maxReaperReportRetention = 100
 )
 
@@ -88,13 +88,6 @@ func validateBasicFields(p Profile) error {
 		return fmt.Errorf("image_pull_policy is only valid with environment: container")
 	}
 
-	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
-		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)
-	}
-	if p.PackageManager != "" && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("package_manager is only valid with environment: container")
-	}
-
 	switch p.ContainerRuntime {
 	case "", ContainerRuntimeDocker, ContainerRuntimePodman:
 	default:
@@ -105,14 +98,8 @@ func validateBasicFields(p Profile) error {
 }
 
 func validateContainerFlags(p Profile) error {
-	if p.DevboxInstall != nil && p.SkipDevboxInstall != nil {
-		return fmt.Errorf("devbox_install and skip_devbox_install are mutually exclusive; use devbox_install only")
-	}
 	if p.MiseInstall != nil && p.SkipMiseInstall != nil {
 		return fmt.Errorf("mise_install and skip_mise_install are mutually exclusive; use mise_install only")
-	}
-	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("devbox_install/skip_devbox_install is only valid with environment: container")
 	}
 	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mise_install/skip_mise_install is only valid with environment: container")
@@ -350,4 +337,3 @@ func ValidateConfig(cfg *Config) error {
 
 	return nil
 }
-

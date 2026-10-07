@@ -19,22 +19,18 @@ aw container ──mount──> host/VM container socket
 
 ## セットアップ
 
-### 1. devbox.json を配置
+### 1. mise.toml を配置
 
-ワークスペースルートに `devbox.json` を配置してコンテナ内で使うツールを定義します。エントリポイントで自動的にインストールされます。
+ワークスペースルートに `mise.toml` を配置してコンテナ内で使うツールを定義します。エントリポイントで自動的にインストールされます。
 
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
-  "packages": [
-    "docker-compose@latest",
-    "docker-client@latest"
-  ]
-}
+```toml
+[tools]
+docker-compose = "latest"
+docker-cli = "latest"
 ```
 
 - `docker-compose` — docker-compose コマンド
-- `docker-client` — docker CLI（クライアントのみ、daemon なし）
+- `docker-cli` — docker CLI（クライアントのみ、daemon なし）
 
 ### 2. aw の設定
 
