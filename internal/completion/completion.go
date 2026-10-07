@@ -48,19 +48,3 @@ func (t ToolPredictor) Predict(args complete.Args) []string {
 	sort.Strings(results)
 	return results
 }
-
-// TeamPredictor provides tab completion for team names.
-type TeamPredictor struct{}
-
-func (t TeamPredictor) Predict(args complete.Args) []string {
-	cfg, err := profile.LoadQuiet()
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(cfg.Teams))
-	for name := range cfg.Teams {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}

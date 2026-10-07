@@ -52,7 +52,6 @@ func main() {
 	kongcompletion.Register(parser,
 		kongcompletion.WithPredictor("profile", completion.ProfilePredictor{}),
 		kongcompletion.WithPredictor("tool", completion.ToolPredictor{}),
-		kongcompletion.WithPredictor("team", completion.TeamPredictor{}),
 	)
 
 	ctx, err := parser.Parse(kongArgs)

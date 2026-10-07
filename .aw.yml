@@ -93,11 +93,4 @@ profiles:
           - source: ~/.config/gcloud/application_default_credentials.json
             mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
             env: GOOGLE_APPLICATION_CREDENTIALS
-teams:
-  review-team:
-    members:
-      - profile: claude-dev
-        role: developer
-        foreground: true
-      - profile: cursor-review
-        role: reviewer
+

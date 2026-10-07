@@ -11,6 +11,19 @@ import (
 	"github.com/konono/aw/v4/internal/messaging"
 )
 
+// toolContextFile returns the context filename for the given tool,
+// or empty string if the tool doesn't support context injection.
+func toolContextFile(tool string) string {
+	switch tool {
+	case "claude", "cursor":
+		return "CLAUDE.md"
+	case "codex", "opencode":
+		return "AGENTS.md"
+	default:
+		return ""
+	}
+}
+
 // Run handles internal agent loop.
 func (a *InternalAgentLoopCmd) Run() error {
 	dbPath := a.DB

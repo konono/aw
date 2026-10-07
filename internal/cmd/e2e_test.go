@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,7 +10,6 @@ import (
 	"github.com/konono/aw/v4/internal/messaging"
 	"github.com/konono/aw/v4/internal/messaging/inject"
 	"github.com/konono/aw/v4/internal/messaging/roles"
-	"github.com/konono/aw/v4/internal/team"
 )
 
 // runCheckInbox is a test helper that runs InternalCheckInboxCmd.Run()
@@ -241,47 +239,6 @@ func TestE2E_TaskInAllRoleTemplates(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 1.5c: Delivery mode — profile round-trip
-// ---------------------------------------------------------------------------
-
-func TestE2E_DeliveryMode_ProfileToInjection(t *testing.T) {
-	tests := []struct {
-		name         string
-		delivery     string
-		tool         string
-		wantDelivery inject.DeliveryMode
-	}{
-		{"claude default", "", "claude", inject.DeliveryTurn},
-		{"cursor default", "", "cursor", inject.DeliveryOff},
-		{"claude explicit monitor", "monitor", "claude", inject.DeliveryMonitor},
-		{"cursor override to turn", "turn", "cursor", inject.DeliveryTurn},
-		{"codex explicit off", "off", "codex", inject.DeliveryOff},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := struct{ Delivery string }{Delivery: tt.delivery}
-
-			// Simulate EffectiveDelivery
-			effective := p.Delivery
-			if effective == "" {
-				switch tt.tool {
-				case "cursor", "opencode":
-					effective = "off"
-				default:
-					effective = "turn"
-				}
-			}
-
-			got := inject.DeliveryMode(effective)
-			if got != tt.wantDelivery {
-				t.Errorf("got %q, want %q", got, tt.wantDelivery)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Phase 1.5b: Monitor mode — inject and verify settings.json structure
 // ---------------------------------------------------------------------------
 
@@ -405,87 +362,6 @@ func TestE2E_OffMode_NoSettingsJSON(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2c: Branch isolation — worktree lifecycle
-// ---------------------------------------------------------------------------
-
-func TestE2E_Worktree_Lifecycle(t *testing.T) {
-	repoDir := t.TempDir()
-	gitRun := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repoDir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-
-	gitRun("init")
-	gitRun("checkout", "-b", "main")
-	_ = os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Test"), 0644)
-	gitRun("add", ".")
-	gitRun("commit", "-m", "initial")
-
-	// Create two worktrees (simulating two team members)
-	wt1 := filepath.Join(repoDir, "worktrees", "aw-team-developer-1")
-	wt2 := filepath.Join(repoDir, "worktrees", "aw-team-reviewer-1")
-	branch1 := "aw/team/developer-1"
-	branch2 := "aw/team/reviewer-1"
-
-	if err := ensureWorktree(repoDir, branch1, wt1, "HEAD", false); err != nil {
-		t.Fatalf("create wt1: %v", err)
-	}
-	if err := ensureWorktree(repoDir, branch2, wt2, "HEAD", false); err != nil {
-		t.Fatalf("create wt2: %v", err)
-	}
-
-	// Verify both worktrees exist
-	for _, wt := range []string{wt1, wt2} {
-		if _, err := os.Stat(wt); err != nil {
-			t.Errorf("worktree %s should exist", wt)
-		}
-		// Verify README.md is accessible
-		if _, err := os.Stat(filepath.Join(wt, "README.md")); err != nil {
-			t.Errorf("README.md should be in worktree %s", wt)
-		}
-	}
-
-	// Verify branches are separate
-	cmd := exec.Command("git", "-C", repoDir, "branch", "--list")
-	out, _ := cmd.Output()
-	branches := string(out)
-	if !strings.Contains(branches, branch1) {
-		t.Errorf("branch %q should exist", branch1)
-	}
-	if !strings.Contains(branches, branch2) {
-		t.Errorf("branch %q should exist", branch2)
-	}
-
-	// Make a change in wt1, verify it doesn't appear in wt2
-	_ = os.WriteFile(filepath.Join(wt1, "dev-file.txt"), []byte("dev only"), 0644)
-	gitRun("-C", wt1, "add", "dev-file.txt")
-	gitRun("-C", wt1, "commit", "-m", "dev work")
-
-	if _, err := os.Stat(filepath.Join(wt2, "dev-file.txt")); err == nil {
-		t.Error("dev-file.txt should NOT appear in reviewer worktree")
-	}
-
-	// Resume should not error
-	if err := ensureWorktree(repoDir, branch1, wt1, "HEAD", true); err != nil {
-		t.Errorf("resume wt1: %v", err)
-	}
-
-	// Non-resume should error
-	if err := ensureWorktree(repoDir, branch1, wt1, "HEAD", false); err == nil {
-		t.Error("should error when worktree exists and resume=false")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Integration: Claude injector — all delivery modes x roles
 // ---------------------------------------------------------------------------
 
@@ -567,72 +443,6 @@ func TestIntegration_ClaudeInjector_AllModes(t *testing.T) {
 				t.Errorf("SessionStart hook: got %v, want %v", hasStart, tt.wantStart)
 			}
 		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Integration: Team state with worktree fields
-// ---------------------------------------------------------------------------
-
-func TestIntegration_TeamState_WorktreeFields(t *testing.T) {
-	state := team.TeamState{
-		Name:        "test-team",
-		SessionID:   "uuid-1234-5678-abcd",
-		ProjectHash: "abc123def456",
-		TeamScope:   "test-team-abc123-uuid-1234-56",
-		StartedAt:   "2025-01-01T00:00:00Z",
-		Members: []team.MemberState{
-			{
-				AgentName:     "developer-1",
-				Profile:       "claude-dev",
-				Role:          "developer",
-				ContainerName: "aw-test-dev-1",
-				Foreground:    true,
-				Status:        "running",
-				WorktreePath:  "/path/to/worktrees/aw-test-developer-1",
-				BranchName:    "aw/test/developer-1",
-			},
-			{
-				AgentName:     "reviewer-1",
-				Profile:       "cursor-review",
-				Role:          "reviewer",
-				ContainerName: "aw-test-rev-1",
-				Foreground:    false,
-				Status:        "running",
-				WorktreePath:  "/path/to/worktrees/aw-test-reviewer-1",
-				BranchName:    "aw/test/reviewer-1",
-			},
-		},
-	}
-
-	data, err := json.Marshal(state)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var loaded team.TeamState
-	if err := json.Unmarshal(data, &loaded); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(loaded.Members) != 2 {
-		t.Fatalf("expected 2 members, got %d", len(loaded.Members))
-	}
-
-	dev := loaded.Members[0]
-	if dev.WorktreePath != "/path/to/worktrees/aw-test-developer-1" {
-		t.Errorf("WorktreePath = %q", dev.WorktreePath)
-	}
-	if dev.BranchName != "aw/test/developer-1" {
-		t.Errorf("BranchName = %q", dev.BranchName)
-	}
-
-	rev := loaded.Members[1]
-	if rev.WorktreePath != "/path/to/worktrees/aw-test-reviewer-1" {
-		t.Errorf("WorktreePath = %q", rev.WorktreePath)
-	}
-	if rev.BranchName != "aw/test/reviewer-1" {
-		t.Errorf("BranchName = %q", rev.BranchName)
 	}
 }
 

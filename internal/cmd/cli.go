@@ -62,7 +62,6 @@ type CLI struct {
 	Export           ExportCmd           `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
 	Doctor           DoctorCmd           `cmd:"" help:"Check system environment and configuration."`
 	Reaper           ReaperCmd           `cmd:"" help:"View/recover post-container cleanup reports."`
-	Team             TeamCmd             `cmd:"" help:"Manage agent teams."`
 	Msg              MsgCmd              `cmd:"" help:"Inter-agent messaging."`
 	Update           UpdateCmd           `cmd:"" help:"Update aw to the latest version."`
 	DefaultDockerfile DefaultDockerfileCmd `cmd:"" name:"default-dockerfile" help:"Print the default Dockerfile."`
@@ -252,36 +251,6 @@ type ReaperRecoverCmd struct {
 // ReaperDiscardCmd discards a spec.
 type ReaperDiscardCmd struct {
 	ContainerName string `arg:"" help:"Container name to discard."`
-}
-
-// TeamCmd handles team subcommands.
-type TeamCmd struct {
-	Start  TeamStartCmd  `cmd:"" help:"Start all team members."`
-	Stop   TeamStopCmd   `cmd:"" help:"Stop all team members."`
-	Status TeamStatusCmd `cmd:"" help:"Show team status."`
-	Scope  TeamScopeCmd  `cmd:"" help:"Print team scope."`
-}
-
-// TeamStartCmd starts a team.
-type TeamStartCmd struct {
-	TeamName string `arg:"" help:"Team name to start." completion-predictor:"team"`
-	Resume   bool   `name:"resume" help:"Resume a previous session."`
-	Task     string `name:"task" help:"Task description for the team."`
-}
-
-// TeamStopCmd stops a team.
-type TeamStopCmd struct {
-	TeamName string `arg:"" help:"Team name to stop." completion-predictor:"team"`
-}
-
-// TeamStatusCmd shows team status.
-type TeamStatusCmd struct {
-	TeamName string `arg:"" optional:"" help:"Team name (shows all if omitted)." completion-predictor:"team"`
-}
-
-// TeamScopeCmd prints team scope.
-type TeamScopeCmd struct {
-	TeamName string `arg:"" help:"Team name." completion-predictor:"team"`
 }
 
 // MsgCmd handles messaging subcommands.

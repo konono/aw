@@ -28,9 +28,6 @@ func mergeStringFields(merged *Profile, override Profile) {
 	if override.Launch != "" {
 		merged.Launch = override.Launch
 	}
-	if override.Delivery != "" {
-		merged.Delivery = override.Delivery
-	}
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
@@ -214,9 +211,6 @@ func relativeStringFields(relative *Profile, defaults, effective Profile) {
 	if effective.Launch != defaults.Launch {
 		relative.Launch = effective.Launch
 	}
-	if effective.Delivery != defaults.Delivery {
-		relative.Delivery = effective.Delivery
-	}
 	if effective.ContainerRuntime != defaults.ContainerRuntime {
 		relative.ContainerRuntime = effective.ContainerRuntime
 	}
@@ -347,17 +341,6 @@ func MergeConfig(builtin, user Config) Config {
 		merged.Default = user.Default
 	}
 
-	// Merge teams: user teams override builtin teams by name
-	if len(builtin.Teams) > 0 || len(user.Teams) > 0 {
-		merged.Teams = make(map[string]Team, len(builtin.Teams)+len(user.Teams))
-		for name, t := range builtin.Teams {
-			merged.Teams[name] = t
-		}
-		for name, t := range user.Teams {
-			merged.Teams[name] = t
-		}
-	}
-
 	return merged
 }
 
@@ -370,7 +353,6 @@ func ApplyDefaults(cfg Config) Config {
 		Default:  cfg.Default,
 		Defaults: cfg.Defaults,
 		Profiles: make(map[string]Profile, len(cfg.Profiles)),
-		Teams:    cfg.Teams,
 		Source:   cfg.Source,
 	}
 	defaults := cfg.Defaults.AsProfile()

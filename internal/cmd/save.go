@@ -14,7 +14,6 @@ import (
 	"github.com/konono/aw/v4/internal/picker"
 	"github.com/konono/aw/v4/internal/platform"
 	"github.com/konono/aw/v4/internal/profile"
-	"github.com/konono/aw/v4/internal/team"
 )
 
 type containerEntry struct {
@@ -183,34 +182,14 @@ func formatStatus(status string) string {
 var snapshotNameRe = regexp.MustCompile(`^aw-snapshot-`)
 
 func filterUserEntries(entries []containerEntry) []containerEntry {
-	teamNames := teamContainerNames()
 	var result []containerEntry
 	for _, e := range entries {
 		if snapshotNameRe.MatchString(e.Name) {
 			continue
 		}
-		if teamNames[e.Name] {
-			continue
-		}
 		result = append(result, e)
 	}
 	return result
-}
-
-func teamContainerNames() map[string]bool {
-	states, err := team.ListStates()
-	if err != nil {
-		return nil
-	}
-	names := make(map[string]bool)
-	for _, s := range states {
-		for _, m := range s.Members {
-			if m.ContainerName != "" {
-				names[m.ContainerName] = true
-			}
-		}
-	}
-	return names
 }
 
 func resolveConfigPath(workspace string) (string, error) {
