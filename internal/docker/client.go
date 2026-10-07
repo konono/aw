@@ -356,7 +356,7 @@ func (c *ShellClient) ExecRun(containerName string, config RunConfig, spawnReape
 	}()
 
 	const (
-		maxRapidFailures = 3
+		maxRapidFailures  = 3
 		maxAttachAttempts = 20
 	)
 	rapidFailures := 0
@@ -529,6 +529,12 @@ func (c *ShellClient) Push(ctx context.Context, imageName string) error {
 	return cmd.Run()
 }
 
+// ErrEnvNotFound reports that a container was inspected successfully but does
+// not define the requested environment variable. Callers must distinguish this
+// from an inspect that failed outright, where nothing is known about the
+// container.
+var ErrEnvNotFound = errors.New("environment variable not set")
+
 // ContainerInfo holds metadata about a container for listing/selection.
 type ContainerInfo struct {
 	Name   string
@@ -577,7 +583,7 @@ func (c *ShellClient) InspectContainerEnv(ctx context.Context, containerName, en
 			return strings.TrimPrefix(line, prefix), nil
 		}
 	}
-	return "", fmt.Errorf("env %q not found in container %q", envKey, containerName)
+	return "", fmt.Errorf("%w: %q in container %q", ErrEnvNotFound, envKey, containerName)
 }
 
 // StartDetached starts a container in detached mode without attaching.
@@ -587,4 +593,3 @@ func (c *ShellClient) StartDetached(containerName string, config RunConfig) erro
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
-

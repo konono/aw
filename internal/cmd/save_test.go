@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -306,15 +307,19 @@ func TestListAllAwContainers_EmptyRuntimes(t *testing.T) {
 // fakeSaver records what the save flow asks of the container runtime.
 type fakeSaver struct {
 	env       map[string]string
+	failEnv   map[string]error // inspect command failures, keyed by env var
 	commits   []string
 	inspected []string
 }
 
-func (f *fakeSaver) InspectContainerEnv(_ context.Context, _, envKey string) (string, error) {
+func (f *fakeSaver) InspectContainerEnv(_ context.Context, containerName, envKey string) (string, error) {
 	f.inspected = append(f.inspected, envKey)
+	if err, ok := f.failEnv[envKey]; ok {
+		return "", err
+	}
 	v, ok := f.env[envKey]
 	if !ok {
-		return "", fmt.Errorf("env %q not found", envKey)
+		return "", fmt.Errorf("%w: %q in container %q", docker.ErrEnvNotFound, envKey, containerName)
 	}
 	return v, nil
 }
@@ -396,5 +401,44 @@ func TestSaveSelectedContainer_RegularContainer(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "aw-save:test") {
 		t.Errorf("config should record the saved image, got:\n%s", data)
+	}
+}
+
+// A failing inspect must not be read as "this is not a team container": the
+// container could be a leftover whose name collides with a real profile, in
+// which case saving it would overwrite that profile's image.
+func TestSaveSelectedContainer_InspectFailureAborts(t *testing.T) {
+	const containerName = "aw-review-team-developer-1-1700000000000000000"
+	const profileName = "review-team-developer-1"
+
+	for _, envKey := range []string{"AW_TEAM_NAME", "AW_AGENT_NAME"} {
+		t.Run(envKey, func(t *testing.T) {
+			workspace := newSaveWorkspace(t, profileName)
+			saver := &fakeSaver{
+				env: map[string]string{
+					"HOST_WORKSPACE": workspace,
+					"AW_TEAM_NAME":   "review-team",
+					"AW_AGENT_NAME":  "developer-1",
+				},
+				failEnv: map[string]error{
+					envKey: errors.New("podman inspect: connection refused"),
+				},
+			}
+			entry := &containerEntry{
+				ContainerInfo: docker.ContainerInfo{Name: containerName},
+				Runtime:       "podman",
+			}
+
+			err := saveSelectedContainer(context.Background(), saver, entry, profileName, "")
+			if err == nil {
+				t.Fatal("expected the failed inspect to abort the save")
+			}
+			if !strings.Contains(err.Error(), envKey) {
+				t.Errorf("error should name the env var it could not read, got: %v", err)
+			}
+			if len(saver.commits) != 0 {
+				t.Errorf("Commit must not be called after a failed inspect, got %v", saver.commits)
+			}
+		})
 	}
 }

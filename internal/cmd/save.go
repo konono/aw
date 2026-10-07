@@ -240,16 +240,37 @@ func resolveConfigPath(workspace string) (string, error) {
 // AW_AGENT_NAME in the container environment, which nothing else does, so
 // inspect the selected container once and use that instead.
 func rejectLegacyTeamContainer(ctx context.Context, client containerSaver, containerName, runtime string) error {
-	teamName, err := client.InspectContainerEnv(ctx, containerName, "AW_TEAM_NAME")
-	if err != nil || teamName == "" {
+	teamName, err := lookupContainerEnv(ctx, client, containerName, "AW_TEAM_NAME")
+	if err != nil {
+		return err
+	}
+	if teamName == "" {
 		return nil
 	}
-	agentName, err := client.InspectContainerEnv(ctx, containerName, "AW_AGENT_NAME")
-	if err != nil || agentName == "" {
+	agentName, err := lookupContainerEnv(ctx, client, containerName, "AW_AGENT_NAME")
+	if err != nil {
+		return err
+	}
+	if agentName == "" {
 		return nil
 	}
 	return fmt.Errorf("container %q is a leftover from the removed 'aw team' command (team %q, agent %q) and cannot be saved\n"+
 		"Remove it with '%s rm -f %s'", containerName, teamName, agentName, runtime, containerName)
+}
+
+// lookupContainerEnv returns the value of envKey, or "" when the container
+// simply does not define it. An inspect that fails outright is returned as an
+// error: treating it as "not set" would let a container we know nothing about
+// through the checks that run before Commit.
+func lookupContainerEnv(ctx context.Context, client containerSaver, containerName, envKey string) (string, error) {
+	v, err := client.InspectContainerEnv(ctx, containerName, envKey)
+	if errors.Is(err, docker.ErrEnvNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("cannot inspect %s of container %q: %w", envKey, containerName, err)
+	}
+	return v, nil
 }
 
 // resolveSaveProfile looks up the profile a container was launched from.
