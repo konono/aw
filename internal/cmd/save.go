@@ -68,8 +68,17 @@ func (s *SaveCmd) Run() error {
 		return err
 	}
 
-	client := docker.NewShellClient(entry.Runtime)
+	return saveSelectedContainer(ctx, docker.NewShellClient(entry.Runtime), entry, profileName, s.ImageName)
+}
 
+// containerSaver is the subset of docker.ShellClient that saving a container
+// needs, so the post-selection flow can be tested without a container runtime.
+type containerSaver interface {
+	InspectContainerEnv(ctx context.Context, containerName, envKey string) (string, error)
+	Commit(ctx context.Context, containerID, imageName string, changes []string) error
+}
+
+func saveSelectedContainer(ctx context.Context, client containerSaver, entry *containerEntry, profileName, imageNameOverride string) error {
 	rawWorkspace, err := client.InspectContainerEnv(ctx, entry.Name, "HOST_WORKSPACE")
 	if err != nil {
 		return fmt.Errorf("cannot determine workspace directory for container %q (HOST_WORKSPACE not set)", entry.Name)
@@ -80,11 +89,13 @@ func (s *SaveCmd) Run() error {
 		return fmt.Errorf("workspace directory %q does not exist on this host", workspace)
 	}
 
-	// Resolve the profile against the config as seen from the container's own
-	// workspace before committing anything. A container name only yields a
-	// candidate profile name; leftover containers from the removed "aw team"
-	// command are named aw-<team>-<agent>-<n> and would otherwise resolve to a
-	// bogus "<team>-<agent>" profile that gets written into the config.
+	// Everything below must run before Commit: a container name alone is not
+	// enough to tell what we are saving, and committing first would leave a
+	// stray image behind when the checks fail.
+	if err := rejectLegacyTeamContainer(ctx, client, entry.Name, entry.Runtime); err != nil {
+		return err
+	}
+
 	cfg, err := loadWorkspaceConfig(workspace)
 	if err != nil {
 		return fmt.Errorf("loading config for workspace %q: %w", workspace, err)
@@ -99,7 +110,7 @@ func (s *SaveCmd) Run() error {
 		return fmt.Errorf("could not determine config path for workspace %q: %w", workspace, err)
 	}
 
-	imageName := s.ImageName
+	imageName := imageNameOverride
 	if imageName == "" {
 		imageName = computeSaveImageName(profileName)
 	}
@@ -220,6 +231,25 @@ func resolveConfigPath(workspace string) (string, error) {
 		return "", fmt.Errorf("could not determine config path for workspace %q", workspace)
 	}
 	return path, nil
+}
+
+// rejectLegacyTeamContainer refuses containers started by the removed
+// "aw team" command. Their names (aw-<team>-<agent>-<n>) match the listing
+// filter and can even extract to a profile name that exists in the config, so
+// the name is not a reliable signal. The launcher always set AW_TEAM_NAME and
+// AW_AGENT_NAME in the container environment, which nothing else does, so
+// inspect the selected container once and use that instead.
+func rejectLegacyTeamContainer(ctx context.Context, client containerSaver, containerName, runtime string) error {
+	teamName, err := client.InspectContainerEnv(ctx, containerName, "AW_TEAM_NAME")
+	if err != nil || teamName == "" {
+		return nil
+	}
+	agentName, err := client.InspectContainerEnv(ctx, containerName, "AW_AGENT_NAME")
+	if err != nil || agentName == "" {
+		return nil
+	}
+	return fmt.Errorf("container %q is a leftover from the removed 'aw team' command (team %q, agent %q) and cannot be saved\n"+
+		"Remove it with '%s rm -f %s'", containerName, teamName, agentName, runtime, containerName)
 }
 
 // resolveSaveProfile looks up the profile a container was launched from.

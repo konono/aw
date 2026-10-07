@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -299,5 +300,101 @@ func TestListAllAwContainers_EmptyRuntimes(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("expected 0 entries, got %d", len(entries))
+	}
+}
+
+// fakeSaver records what the save flow asks of the container runtime.
+type fakeSaver struct {
+	env       map[string]string
+	commits   []string
+	inspected []string
+}
+
+func (f *fakeSaver) InspectContainerEnv(_ context.Context, _, envKey string) (string, error) {
+	f.inspected = append(f.inspected, envKey)
+	v, ok := f.env[envKey]
+	if !ok {
+		return "", fmt.Errorf("env %q not found", envKey)
+	}
+	return v, nil
+}
+
+func (f *fakeSaver) Commit(_ context.Context, containerID, imageName string, _ []string) error {
+	f.commits = append(f.commits, containerID+"=>"+imageName)
+	return nil
+}
+
+// newSaveWorkspace creates a git repo with an .aw.yml defining profileName.
+func newSaveWorkspace(t *testing.T, profileName string) string {
+	t.Helper()
+	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "init", root).Run(); err != nil {
+		t.Skipf("git init failed: %v", err)
+	}
+	body := "profiles:\n  " + profileName + ":\n    launch: claude\n    environment: container\n"
+	if err := os.WriteFile(filepath.Join(root, ".aw.yml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// Regression: a leftover team container whose extracted name happens to match
+// a real profile must still be rejected, and must not be committed.
+func TestSaveSelectedContainer_LegacyTeamContainerWithCollidingProfile(t *testing.T) {
+	const containerName = "aw-review-team-developer-1-1700000000000000000"
+	const profileName = "review-team-developer-1"
+
+	workspace := newSaveWorkspace(t, profileName)
+	saver := &fakeSaver{env: map[string]string{
+		"HOST_WORKSPACE": workspace,
+		"AW_TEAM_NAME":   "review-team",
+		"AW_AGENT_NAME":  "developer-1",
+	}}
+	entry := &containerEntry{
+		ContainerInfo: docker.ContainerInfo{Name: containerName},
+		Runtime:       "podman",
+	}
+
+	err := saveSelectedContainer(context.Background(), saver, entry, profileName, "")
+	if err == nil {
+		t.Fatal("expected the leftover team container to be rejected")
+	}
+	if !strings.Contains(err.Error(), "aw team") {
+		t.Errorf("error should point at the removed team command, got: %v", err)
+	}
+	if len(saver.commits) != 0 {
+		t.Errorf("Commit must not be called for a rejected container, got %v", saver.commits)
+	}
+}
+
+// A regular container is committed and its config updated.
+func TestSaveSelectedContainer_RegularContainer(t *testing.T) {
+	const containerName = "aw-claude-dev-1234"
+	const profileName = "claude-dev"
+
+	workspace := newSaveWorkspace(t, profileName)
+	saver := &fakeSaver{env: map[string]string{"HOST_WORKSPACE": workspace}}
+	entry := &containerEntry{
+		ContainerInfo: docker.ContainerInfo{Name: containerName},
+		Runtime:       "podman",
+	}
+
+	if err := saveSelectedContainer(context.Background(), saver, entry, profileName, "aw-save:test"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(saver.commits) != 1 || saver.commits[0] != containerName+"=>aw-save:test" {
+		t.Fatalf("commits = %v, want one commit of %q", saver.commits, containerName)
+	}
+
+	data, err := os.ReadFile(filepath.Join(workspace, ".aw.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "aw-save:test") {
+		t.Errorf("config should record the saved image, got:\n%s", data)
 	}
 }
