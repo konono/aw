@@ -15,6 +15,7 @@ AI ツールを動かすという中心の機能は変わりません。以下�
 | `devbox_install` / `skip_devbox_install` | 同上 |
 | 組み込みテンプレートのイメージでの `devbox.json` 自動インストール | `mise.toml`（[パッケージ管理](mise.md)） |
 | `aw export`（`aw build` の非推奨エイリアス） | `aw build` |
+| `aw build --from-template` | `aw build --no-cache` |
 
 ## 設定ファイルの対応
 
@@ -74,18 +75,37 @@ devbox を入れ、entrypoint がワークスペースの `devbox.json`（なけ
 ### 旧 team コンテナ
 
 ```bash
+# podman
 podman ps -a --filter 'name=^aw-' --format '{{.Names}}'
 podman rm -f <旧 team コンテナ名>
+
+# docker
+docker ps -a --filter 'name=^aw-' --format '{{.Names}}'
+docker rm -f <旧 team コンテナ名>
 ```
 
 旧 team コンテナは `aw-<team>-<agent>-<数字>` という名前で、`aw save` の一覧に
 は表示されます。選択しても保存はできず、削除方法を案内するエラーで停止します。
 
-### messaging データベースと team state
+### team state ファイル
+
+保存先は `os.UserConfigDir()/aw/teams` で、OS によって異なります。
 
 ```bash
+# Linux
 rm -rf ~/.config/aw/teams
-find ~ -name 'messages.db' -path '*aw*'
+
+# macOS
+rm -rf ~/Library/Application\ Support/aw/teams
+```
+
+### messaging データベース
+
+こちらは OS によらず `~/.config/aw/messaging/` 固定です。SQLite の WAL / SHM
+ファイルごとディレクトリを削除します。
+
+```bash
+rm -rf ~/.config/aw/messaging
 ```
 
 ### 旧 team worktree
@@ -96,8 +116,19 @@ find ~ -name 'messages.db' -path '*aw*'
 ```bash
 git worktree list
 git worktree remove <path>
-git branch -D aw/<team>/<agent>
+git worktree prune
 ```
+
+ブランチを消す前に、未マージの作業が残っていないか確認してください。
+
+```bash
+git log --oneline main..aw/<team>/<agent>   # 残っている作業を確認
+git branch -d aw/<team>/<agent>             # マージ済みのみ削除
+```
+
+`-d` が「not fully merged」で拒否する場合、そのブランチには取り込まれていない
+コミットがあります。中身を確認して退避してから、本当に不要であれば `-D` で
+削除してください。
 
 ## チーム機能について
 
@@ -119,6 +150,14 @@ v5 で削除した team / messaging は「**代替がある**」のではなく�
 
 Slack / Discord からエージェントを操作する用途は
 [aw-manager](https://github.com/konono/aw-manager) でカバーされています。
-こちらは `aw manifest` が生成する Kubernetes マニフェストを使う構成で、v5 でも
-そのまま動作します（`aw manifest`、`environment: container` + `kubernetes:`
-ブロック、リソース命名とラベルはいずれも変更していません）。
+
+aw-manager が依存する契約（`aw manifest`、`environment: container` +
+`kubernetes:` ブロック、`aw-<profile>-<suffix>` の命名、
+`app.kubernetes.io/managed-by` と `app.kubernetes.io/instance` のラベル）は
+v5 でも変更していません。ただし aw-manager リポジトリの `.aw.yml` 自体に
+`package_manager: devbox` のプロファイルと `teams:` ブロックが含まれているため、
+**そちらの設定も追従させる必要があります**。
+
+`aw` のバリデーションはコマンドが実際に使うプロファイル単位で行うため、
+`aw manifest k8s-claude` は同じファイルに古いプロファイルが残っていても失敗し
+ませんが、設定の掃除は済ませてください。

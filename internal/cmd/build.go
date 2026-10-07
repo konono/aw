@@ -33,13 +33,9 @@ func (b *BuildCmd) Run() error {
 		return err
 	}
 
-	cfg := b.preloadedConfig
-	if cfg == nil {
-		var err error
-		cfg, err = profile.Load()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+	cfg, err := profile.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	p, ok := cfg.Profiles[b.ProfileName]
@@ -49,6 +45,14 @@ func (b *BuildCmd) Run() error {
 
 	if p.Environment != profile.EnvironmentContainer {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
+	}
+
+	// aw run validates the whole config up front; build and manifest are
+	// entered directly, so validate the one profile they act on. Doing it
+	// per profile rather than config-wide keeps an unrelated broken profile
+	// from blocking a build.
+	if err := profile.Validate(p); err != nil {
+		return fmt.Errorf("profile %q: %w", b.ProfileName, err)
 	}
 
 	prepareBuildProfile(&p, b.NoCache)

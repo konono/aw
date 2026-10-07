@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -270,7 +271,6 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
-
 func TestPrepareBuildProfile(t *testing.T) {
 	t.Run("image preserved when no dockerfile and no no-cache", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
@@ -333,7 +333,6 @@ func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 		t.Errorf("non-AW_ key should pass validation: %v", err)
 	}
 }
-
 
 func TestApplyBuildResult(t *testing.T) {
 	t.Run("adds image to profile with apt", func(t *testing.T) {
@@ -526,6 +525,73 @@ profiles:
 		}
 		if p.Image != "aw-build:claude-abc123" {
 			t.Errorf("image = %q, want %q", p.Image, "aw-build:claude-abc123")
+		}
+	})
+}
+
+// aw run validates the whole config before doing anything; build and manifest
+// are entered directly, so they validate the profile they act on. Without that
+// a config carrying a removed key reaches the build unchecked.
+func TestBuildAndManifest_ValidateTargetProfile(t *testing.T) {
+	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "init", dir).Run(); err != nil {
+		t.Skipf("git init failed: %v", err)
+	}
+	cfg := `profiles:
+  legacy:
+    environment: container
+    launch: claude
+    package_manager: devbox
+  fine:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	t.Run("build rejects the legacy profile", func(t *testing.T) {
+		b := BuildCmd{ProfileName: "legacy"}
+		err := b.Run()
+		if err == nil {
+			t.Fatal("expected build to reject package_manager: devbox")
+		}
+		if !strings.Contains(err.Error(), "package_manager") {
+			t.Errorf("error should name package_manager, got: %v", err)
+		}
+	})
+
+	t.Run("manifest rejects the legacy profile", func(t *testing.T) {
+		m := ManifestCmd{ProfileName: "legacy"}
+		err := m.Run()
+		if err == nil {
+			t.Fatal("expected manifest to reject package_manager: devbox")
+		}
+		if !strings.Contains(err.Error(), "package_manager") {
+			t.Errorf("error should name package_manager, got: %v", err)
+		}
+	})
+
+	// An unrelated legacy profile must not block a healthy one: aw-manager's
+	// .aw.yml carries one, and its `aw manifest k8s-claude` has to keep working
+	// until that config is cleaned up.
+	t.Run("manifest accepts a healthy profile alongside it", func(t *testing.T) {
+		m := ManifestCmd{ProfileName: "fine", Output: t.TempDir()}
+		if err := m.Run(); err != nil {
+			t.Fatalf("healthy profile should not be blocked: %v", err)
 		}
 	})
 }

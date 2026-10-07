@@ -339,7 +339,7 @@ profiles:
 - `image` + `dockerfile`: `dockerfile` でビルド（`image` は無視）
 - `image` のみ + ワークスペースファイル（mise.toml 等）: `image` をベースに snapshot で増分ビルド（mise install → docker commit）
 - `image` + `packages` / `ca_cert` / `build_env` / `packages.txt`: `image` を無視してテンプレートからフルビルド（これらは Dockerfile レイヤーで処理が必要なため）
-- `image` + `--from-template` / `--no-cache`: `image` を無視してテンプレートからフルビルド
+- `image` + `--no-cache`: `image` を無視してテンプレートからフルビルド（ビルド入力がある場合）
 
 `aw build --apply` でビルド結果を `image` に書き戻せます。
 
@@ -556,7 +556,7 @@ profiles:
 CLI フラグ `--build-arg KEY=VAL` でも指定でき、設定ファイルの値とマージされます（同一キーは CLI が優先）。
 
 ```bash
-aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
 ```
 
 > **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。

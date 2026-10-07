@@ -304,11 +304,16 @@ aw build claude --apply
 
 以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
 
-テンプレートからの完全ビルドが必要な場合は `--from-template` を使用します:
+`image:` が設定されていても OS テンプレートから作り直したい場合は `--no-cache` を使います:
 
 ```bash
-aw build claude --from-template --apply
+aw build claude --no-cache --apply
 ```
+
+> **Note:** `aw build` は、ビルド入力（`dockerfile`、`mise.toml`、`packages.txt`、
+> `packages`、`build_env`、`--include`、`--env`、`--build-arg`）が 1 つもない場合は
+> テンプレートをビルドせず、公式イメージをそのまま使います。`--no-cache` を付けても
+> これは変わりません。テンプレートビルドを行うには、いずれかのビルド入力が必要です。
 
 ランタイム構成を変更した場合は、再度 `aw build --apply` を実行してイメージを更新してください。
 
@@ -543,8 +548,8 @@ profiles:
 # イメージをビルドして tar に保存
 aw build claude --save my-image.tar
 
-# --from-template: テンプレートからビルド（公式イメージではなく）
-aw build claude --from-template --save my-image.tar
+# --no-cache: キャッシュと image: 設定を無視してテンプレートから作り直す
+aw build claude --packages jq --no-cache --save my-image.tar
 
 # --include: ホストのディレクトリをイメージにコピー
 aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-image.tar
@@ -553,7 +558,7 @@ aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-ima
 aw build claude --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
 
 # --build-arg: ビルド時のみ使われる引数を渡す（イメージには焼き込まない）
-aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
 
 # USB 等で転送
 docker load -i my-image.tar             # オフライン環境でロード
@@ -614,7 +619,7 @@ defaults:
   ca_cert: "C:/certs/corporate-ca.pem"  # または ~/certs/corp.pem
 ```
 
-- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します。CLI の `--build-arg` フラグでも同等の指定が可能です（例: `aw build claude --build-arg HTTP_PROXY=http://proxy.corp:8080 --from-template`）
+- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します。CLI の `--build-arg` フラグでも同等の指定が可能です（例: `aw build claude --build-arg HTTP_PROXY=http://proxy.corp:8080`）
 - `ca_cert`: 証明書ファイルをビルドコンテキストにコピーし、ツールインストール前に `update-ca-certificates`（Debian/Ubuntu）または `update-ca-trust`（UBI）を実行します
 
 > **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。

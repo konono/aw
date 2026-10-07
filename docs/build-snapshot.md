@@ -10,7 +10,7 @@
 aw build dev --save image.tar
 ```
 
-1. **イメージ取得** — 公式イメージを pull、`--from-template` でテンプレートからビルド、`image:` 設定時は既存イメージを使用、`dockerfile:` 設定時はカスタム Dockerfile でビルド
+1. **イメージ取得** — ビルド入力がなければ公式イメージを pull、ビルド入力があれば OS テンプレートからビルド、`image:` 設定時は既存イメージを使用、`dockerfile:` 設定時はカスタム Dockerfile でビルド
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
 3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
 
@@ -23,7 +23,7 @@ aw build dev --save image.tar
 | 方式 | 設定 | ベースイメージ | カスタマイズ手段 | ビルド速度 |
 |------|------|---------------|-----------------|-----------|
 | **公式イメージ + snapshot** | （デフォルト） | 公式プリビルトイメージ (GHCR) | mise.toml, include, env | 高速 |
-| **テンプレートビルド + snapshot** | `--from-template` or `packages` | OS テンプレート Dockerfile | packages, build_env, ca_cert, mise.toml | 遅い |
+| **テンプレートビルド + snapshot** | `packages` 等のビルド入力 | OS テンプレート Dockerfile | packages, build_env, ca_cert, mise.toml | 遅い |
 | **カスタム Dockerfile** | `dockerfile:` | 自分で書いた Dockerfile | Dockerfile 内で自由 | Dockerfile 次第 |
 | **既存イメージ + snapshot** | `image:` (dockerfile なし) | 指定したイメージ | mise.toml, include, env | 高速 |
 
@@ -163,7 +163,7 @@ dockerfile あり          → カスタム Dockerfile（image: は aw run 用�
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
 | `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
 | `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | - |
-| `aw build <profile> --from-template` | o（テンプレート） | o | - | - |
+| `aw build <profile> --no-cache` | o（テンプレート） | o | - | - |
 | `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
 | `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
 
@@ -181,9 +181,13 @@ aw build claude --push --registry ghcr.io/myorg --apply
 
 イメージ名のレジストリプレフィックスは `distribution/reference` で正規に解析されるため、`ghcr.io`、`localhost:5000`、ECR/GCR 等のレジストリに対応しています。
 
-### --from-template と --no-cache
+### --no-cache
 
-`--from-template` はテンプレートビルドを強制します。`--no-cache` は `--from-template` を暗黙的に有効にし、Docker のビルドキャッシュも無効にします。`image` が設定されている場合、どちらのフラグも `image` を無視してテンプレートからフルビルドします。
+`--no-cache` は `image:` 設定を無視してテンプレートからビルドし、Docker のビルドキャッシュも無効にします。
+
+ただしビルド入力（`dockerfile`、`mise.toml` / `.mise.toml`、`packages.txt`、`packages`、`build_env`、`--include`、`--env`、`--build-arg`、`kubernetes.session_log`）が 1 つもない場合、`aw build` はテンプレートをビルドせず公式イメージをそのまま使います。`--no-cache` を付けてもこの判定は変わりません。
+
+> **v4 からの変更:** 非推奨だった `--from-template` は削除されました。`--no-cache` を使ってください。
 
 ## aw save — 対話的なカスタマイズの保存
 

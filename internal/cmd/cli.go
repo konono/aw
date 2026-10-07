@@ -132,17 +132,15 @@ type LoginCmd struct{ authFlags }
 
 // BuildCmd builds a profile's container image with snapshot.
 type BuildCmd struct {
-	ProfileName  string            `arg:"" help:"Profile name to build." completion-predictor:"profile"`
-	Save         *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
-	Apply        bool              `name:"apply" help:"Write image name back to config file."`
-	NoCache      bool              `name:"no-cache" help:"Rebuild from template without cache."`
-	Push         bool              `name:"push" help:"Push the image to a container registry."`
-	Registry     string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`
-	Include      []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
-	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
-	BuildArg     map[string]string `name:"build-arg" help:"Pass a build arg to docker build (KEY=VAL, repeatable)." placeholder:"KEY=VAL"`
-
-	preloadedConfig *profile.Config // internal: avoids double profile.Load() in export compat
+	ProfileName string            `arg:"" help:"Profile name to build." completion-predictor:"profile"`
+	Save        *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
+	Apply       bool              `name:"apply" help:"Write image name back to config file."`
+	NoCache     bool              `name:"no-cache" help:"Rebuild from template without cache."`
+	Push        bool              `name:"push" help:"Push the image to a container registry."`
+	Registry    string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`
+	Include     []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
+	Env         map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
+	BuildArg    map[string]string `name:"build-arg" help:"Pass a build arg to docker build (KEY=VAL, repeatable)." placeholder:"KEY=VAL"`
 }
 
 func (b *BuildCmd) Validate() error {

@@ -252,7 +252,7 @@ aw_exec() {
   if [ "${AW_SESSION_LOG}" = "1" ]; then
     if ! command -v pty-logger >/dev/null 2>&1; then
       aw_log "ERROR: AW_SESSION_LOG=1 but pty-logger is not installed."
-      aw_log "Build the image with 'aw build --from-template' and session_log: true."
+      aw_log "Build the image with 'aw build --no-cache' and session_log: true."
       exit 1
     fi
     aw_log "Session logging enabled — wrapping with script + pty-logger"

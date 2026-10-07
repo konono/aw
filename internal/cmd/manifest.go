@@ -29,6 +29,12 @@ func (m *ManifestCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (manifest requires environment: container)", m.ProfileName, p.Environment)
 	}
 
+	// See the same call in BuildCmd.Run: these commands skip the config-wide
+	// validation that aw run performs.
+	if err := profile.Validate(p); err != nil {
+		return fmt.Errorf("profile %q: %w", m.ProfileName, err)
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("getting home directory: %w", err)
