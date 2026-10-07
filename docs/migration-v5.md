@@ -50,23 +50,40 @@ apt モードのイメージ（約 400 MB、Nix なし）でビルドされま�
 
 `package_manager` はイメージタグのハッシュ入力に含まれており、そのハッシュは
 組み込みテンプレートからビルドする場合にのみ計算されます。そのため **`os:` を
-使う（= 組み込みテンプレートでビルドする）プロファイルはタグが変わり、v5 で最初
-に起動したときにキャッシュが効かず再ビルドが走ります**。公式プレビルドイメージを
-使っている場合は再 pull です。
+使い、かつビルド入力があるプロファイルはタグが変わり、v5 で最初に起動したときに
+キャッシュが効かず再ビルドが走ります**。
 
-`dockerfile:` でカスタム Dockerfile を使うプロファイルのタグは、この変更では
-変わりません。
+対象外:
 
-## カスタム Dockerfile は影響を受けません
+- `dockerfile:` でカスタム Dockerfile を使うプロファイル
+- `image:` でイメージを明示しているプロファイル
+- 公式プレビルドイメージをそのまま使う構成。公式イメージの選択はバージョンタグと
+  `image_pull_policy` で決まり、このハッシュとは無関係です。`auto`（デフォルト）
+  なら同じタグがローカルにある限り再 pull は発生しません
 
-ここまでの devbox の話は、すべて `aw` の組み込みテンプレートと snapshot 経路に
-限った話です。`dockerfile:` で指定するカスタム Dockerfile の中身に `aw` は関与
-しません。Nix と devbox を自分でインストールして、自前の entrypoint で
-`devbox.json` を読むことは v5 でも問題なくできます。
+## カスタム Dockerfile の扱い
 
-このリポジトリの `playwright-docker/` がまさにその例で、Dockerfile 内で Nix と
-devbox を入れ、entrypoint がワークスペースの `devbox.json`（なければ
-`mise.toml`）を処理します。v5 でもそのまま動作します。
+`dockerfile:` で指定するカスタム Dockerfile の中身に `aw` は関与しません。
+Nix と devbox を自分でインストールして、自前の entrypoint で `devbox.json` を
+読むことは v5 でもできます。このリポジトリの `playwright-docker/` がその例です。
+
+ただし **起動時と `aw build` の snapshot で扱いが分かれます**。
+
+| 経路 | v4 | v5 |
+|---|---|---|
+| 通常起動（カスタム entrypoint が `devbox.json` を処理） | 動く | **動く** |
+| `aw build` の snapshot（`aw` の snapshot スクリプトが `devbox.json` を処理） | 動く | **動かない** |
+
+`aw build` はカスタム Dockerfile のイメージに対しても snapshot スクリプトを実行
+します（`runSnapshot`）。v4 の snapshot スクリプトは、イメージに `devbox`
+バイナリがあれば `devbox.json` をインストールして焼き込んでいました。v5 では
+この処理を削除したため、**`aw build --apply` で `devbox.json` の内容が
+snapshot に焼き込まれることはなくなりました**。
+
+`playwright-docker/` のような構成は、コンテナ起動のたびに entrypoint が
+`devbox install` を実行する形で引き続き動作します。焼き込みによる起動高速化が
+必要な場合は、`devbox.json` の内容を `mise.toml` に移すか、Dockerfile の
+`RUN` でパッケージを入れてください。
 
 ## 残骸の手動削除
 
@@ -158,6 +175,13 @@ v5 でも変更していません。ただし aw-manager リポジトリの `.aw
 `package_manager: devbox` のプロファイルと `teams:` ブロックが含まれているため、
 **そちらの設定も追従させる必要があります**。
 
-`aw` のバリデーションはコマンドが実際に使うプロファイル単位で行うため、
-`aw manifest k8s-claude` は同じファイルに古いプロファイルが残っていても失敗し
-ませんが、設定の掃除は済ませてください。
+バリデーションの範囲はコマンドによって違います。
+
+| コマンド | 検証範囲 |
+|---|---|
+| `aw <profile>`（通常起動） | 設定全体。1 つでも古いプロファイルがあると起動できない |
+| `aw build` / `aw manifest` | 対象プロファイルのみ |
+
+そのため aw-manager の `aw manifest k8s-claude` は `.aw.yml` に古いプロファイル
+が残っていても通りますが、**同じ設定で `aw <profile>` を使うと旧 devbox
+プロファイルで止まります**。

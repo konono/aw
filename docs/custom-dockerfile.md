@@ -76,6 +76,11 @@ RUN useradd -m -s /bin/bash agent && \
 > `package_manager: devbox` が削除されたあとも、カスタム Dockerfile で Nix / devbox を
 > 自分でインストールして自前の entrypoint で `devbox.json` を処理することはできます。
 > `playwright-docker/` はその例です。
+>
+> ただし `aw build` の snapshot は別です。`aw build` はカスタム Dockerfile のイメージ
+> に対しても snapshot スクリプトを実行しますが、v5 のスクリプトは `devbox.json` を
+> 扱いません。起動時のインストールは動きますが、`aw build --apply` で焼き込むことは
+> できません。詳細は [v4 → v5 移行ガイド](migration-v5.md)。
 
 ```
 playwright-docker/

@@ -304,16 +304,25 @@ aw build claude --apply
 
 以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
 
-`image:` が設定されていても OS テンプレートから作り直したい場合は `--no-cache` を使います:
+`image:` が設定されていても OS テンプレートから作り直したい場合は `--no-cache` を使います。
+
+> **Note:** `aw build` は、ビルド入力（`dockerfile`、`mise.toml` / `.mise.toml`、
+> `packages.txt`、プロファイルの `packages` / `build_env`、`--include`、`--env`、
+> `--build-arg`）が 1 つもない場合、テンプレートをビルドせず公式イメージをそのまま
+> 使います。`--no-cache` を付けてもこの判定は変わりません。
+
+つまり `--no-cache` が効くのは、プロファイルにビルド入力がある場合です:
+
+```yaml
+profiles:
+  claude:
+    launch: claude
+    packages: [jq]        # ← ビルド入力
+```
 
 ```bash
 aw build claude --no-cache --apply
 ```
-
-> **Note:** `aw build` は、ビルド入力（`dockerfile`、`mise.toml`、`packages.txt`、
-> `packages`、`build_env`、`--include`、`--env`、`--build-arg`）が 1 つもない場合は
-> テンプレートをビルドせず、公式イメージをそのまま使います。`--no-cache` を付けても
-> これは変わりません。テンプレートビルドを行うには、いずれかのビルド入力が必要です。
 
 ランタイム構成を変更した場合は、再度 `aw build --apply` を実行してイメージを更新してください。
 
@@ -549,7 +558,8 @@ profiles:
 aw build claude --save my-image.tar
 
 # --no-cache: キャッシュと image: 設定を無視してテンプレートから作り直す
-aw build claude --packages jq --no-cache --save my-image.tar
+# （プロファイルに packages 等のビルド入力があることが前提）
+aw build claude --no-cache --save my-image.tar
 
 # --include: ホストのディレクトリをイメージにコピー
 aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-image.tar

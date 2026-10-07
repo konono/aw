@@ -163,7 +163,8 @@ dockerfile あり          → カスタム Dockerfile（image: は aw run 用�
 | `aw build <profile> --apply --save file.tar` | o | o | o | o |
 | `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
 | `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | - |
-| `aw build <profile> --no-cache` | o（テンプレート） | o | - | - |
+| `aw build <profile> --no-cache`（ビルド入力あり） | o（テンプレート） | o | - | - |
+| `aw build <profile> --no-cache`（ビルド入力なし） | o（公式イメージ） | - | - | - |
 | `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
 | `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
 

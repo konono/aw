@@ -1,5 +1,5 @@
 # aw test profiles — used by `aw -- <cmd>` manual testing
-# These profiles verify tool installation across all OS templates and package managers.
+# These profiles verify tool installation across all OS templates.
 
 profiles:
   # ── apt mode (default): 4 OS × 4 tools + shell ──────────────────
@@ -88,4 +88,3 @@ profiles:
           - source: ~/.config/gcloud/application_default_credentials.json
             mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
             env: GOOGLE_APPLICATION_CREDENTIALS
-
