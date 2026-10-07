@@ -51,30 +51,23 @@ type CLI struct {
 	Version kong.VersionFlag `name:"version" help:"Show version."`
 
 	// Subcommands
-	Run              RunCmd              `cmd:"" default:"withargs" help:"Run a profile (default command)."`
-	Profiles         ProfilesCmd         `cmd:"" help:"List available profiles."`
-	Init             InitCmd             `cmd:"" help:"Write the built-in config to ~/.config/aw/config.yml."`
-	Auth             AuthCmd             `cmd:"" help:"Run auth login/logout/status for a tool."`
-	Login            LoginCmd            `cmd:"" help:"Alias for 'auth login'."`
-	Build            BuildCmd            `cmd:"" help:"Build a profile's container image."`
-	Save             SaveCmd             `cmd:"" help:"Save a container's state as a reusable image and update .aw.yml."`
-	Manifest         ManifestCmd         `cmd:"" help:"Generate Kubernetes manifests for a profile."`
-	Export           ExportCmd           `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
-	Doctor           DoctorCmd           `cmd:"" help:"Check system environment and configuration."`
-	Reaper           ReaperCmd           `cmd:"" help:"View/recover post-container cleanup reports."`
-	Msg              MsgCmd              `cmd:"" help:"Inter-agent messaging."`
-	Update           UpdateCmd           `cmd:"" help:"Update aw to the latest version."`
+	Run               RunCmd               `cmd:"" default:"withargs" help:"Run a profile (default command)."`
+	Profiles          ProfilesCmd          `cmd:"" help:"List available profiles."`
+	Init              InitCmd              `cmd:"" help:"Write the built-in config to ~/.config/aw/config.yml."`
+	Auth              AuthCmd              `cmd:"" help:"Run auth login/logout/status for a tool."`
+	Login             LoginCmd             `cmd:"" help:"Alias for 'auth login'."`
+	Build             BuildCmd             `cmd:"" help:"Build a profile's container image."`
+	Save              SaveCmd              `cmd:"" help:"Save a container's state as a reusable image and update .aw.yml."`
+	Manifest          ManifestCmd          `cmd:"" help:"Generate Kubernetes manifests for a profile."`
+	Export            ExportCmd            `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
+	Doctor            DoctorCmd            `cmd:"" help:"Check system environment and configuration."`
+	Reaper            ReaperCmd            `cmd:"" help:"View/recover post-container cleanup reports."`
+	Update            UpdateCmd            `cmd:"" help:"Update aw to the latest version."`
 	DefaultDockerfile DefaultDockerfileCmd `cmd:"" name:"default-dockerfile" help:"Print the default Dockerfile."`
 	DefaultInitScript DefaultInitScriptCmd `cmd:"" name:"default-init-script" help:"Print aw-init.sh."`
 
 	// Completion support
 	Completion kongcompletion.Completion `cmd:"" help:"Outputs shell code for initialising tab completions."`
-
-	// Internal subcommands (hidden, used by containers)
-	InternalMCPMsg    InternalMCPMsgCmd    `cmd:"" name:"internal-mcp-msg" hidden:"" help:"Run MCP message server."`
-	InternalCheckInbox InternalCheckInboxCmd `cmd:"" name:"internal-check-inbox" hidden:"" help:"Check inbox for unread messages."`
-	InternalWatch     InternalWatchCmd     `cmd:"" name:"internal-watch" hidden:"" help:"Watch for messages."`
-	InternalAgentLoop InternalAgentLoopCmd `cmd:"" name:"internal-agent-loop" hidden:"" help:"Run agent loop."`
 }
 
 // ProfilesCmd lists available profiles.
@@ -251,83 +244,6 @@ type ReaperRecoverCmd struct {
 // ReaperDiscardCmd discards a spec.
 type ReaperDiscardCmd struct {
 	ContainerName string `arg:"" help:"Container name to discard."`
-}
-
-// MsgCmd handles messaging subcommands.
-type MsgCmd struct {
-	Send    MsgSendCmd    `cmd:"" help:"Send a message."`
-	Inbox   MsgInboxCmd   `cmd:"" help:"Show unread messages."`
-	History MsgHistoryCmd `cmd:"" help:"Show message history."`
-	Watch   MsgWatchCmd   `cmd:"" help:"Watch all messages in real-time."`
-	Clear   MsgClearCmd   `cmd:"" help:"Delete messages."`
-}
-
-// MsgSendCmd sends a message.
-type MsgSendCmd struct {
-	Team string `name:"team" required:"" help:"Team scope."`
-	From string `arg:"" help:"Sender agent name."`
-	To   string `arg:"" help:"Recipient agent name."`
-	Body string `arg:"" help:"Message body."`
-}
-
-// MsgInboxCmd shows inbox.
-type MsgInboxCmd struct {
-	Team  string `name:"team" required:"" help:"Team scope."`
-	Agent string `arg:"" help:"Agent name."`
-}
-
-// MsgHistoryCmd shows history.
-type MsgHistoryCmd struct {
-	Team  string `name:"team" required:"" help:"Team scope."`
-	Agent string `name:"agent" help:"Filter by agent name."`
-	Limit int    `name:"limit" default:"50" help:"Maximum messages to show."`
-}
-
-// MsgWatchCmd watches messages.
-type MsgWatchCmd struct {
-	Team string `name:"team" required:"" help:"Team scope."`
-}
-
-// MsgClearCmd deletes messages.
-type MsgClearCmd struct {
-	Team   string `name:"team" help:"Delete messages for a specific team scope."`
-	All    bool   `name:"all" help:"Delete all messages."`
-	Before string `name:"before" help:"Delete messages older than duration (e.g. 7d, 24h, 30m)."`
-	List   bool   `name:"list" help:"Show available team scopes."`
-}
-
-func (c *MsgClearCmd) Validate() error {
-	if c.All && (c.Team != "" || c.Before != "") {
-		return fmt.Errorf("--all cannot be combined with --team or --before")
-	}
-	return nil
-}
-
-type internalMsgFlags struct {
-	DB    string `name:"db" env:"AW_MSG_DB" help:"Path to messages database."`
-	Agent string `name:"agent" env:"AW_AGENT_NAME" help:"Agent name."`
-	Team  string `name:"team" env:"AW_TEAM_NAME" help:"Team scope."`
-}
-
-// InternalMCPMsgCmd runs the MCP message server.
-type InternalMCPMsgCmd struct {
-	internalMsgFlags
-}
-
-// InternalCheckInboxCmd checks inbox for unread messages.
-type InternalCheckInboxCmd struct {
-	internalMsgFlags
-}
-
-// InternalWatchCmd watches for messages.
-type InternalWatchCmd struct {
-	internalMsgFlags
-}
-
-// InternalAgentLoopCmd runs agent loop.
-type InternalAgentLoopCmd struct {
-	internalMsgFlags
-	Tool string `name:"tool" env:"AW_TOOL" help:"Tool name."`
 }
 
 // IsSubcommand returns true if the first non-flag argument matches a known

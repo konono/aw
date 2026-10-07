@@ -22,7 +22,7 @@ const (
 var reservedProfileNames = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
 	"export": true, "build": true, "init": true, "auth": true, "login": true,
-	"doctor": true, "reaper": true, "msg": true, "manifest": true,
+	"doctor": true, "reaper": true, "manifest": true,
 }
 
 // Validate checks that a profile configuration is semantically valid.
