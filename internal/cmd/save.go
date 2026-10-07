@@ -80,6 +80,25 @@ func (s *SaveCmd) Run() error {
 		return fmt.Errorf("workspace directory %q does not exist on this host", workspace)
 	}
 
+	// Resolve the profile against the config as seen from the container's own
+	// workspace before committing anything. A container name only yields a
+	// candidate profile name; leftover containers from the removed "aw team"
+	// command are named aw-<team>-<agent>-<n> and would otherwise resolve to a
+	// bogus "<team>-<agent>" profile that gets written into the config.
+	cfg, err := loadWorkspaceConfig(workspace)
+	if err != nil {
+		return fmt.Errorf("loading config for workspace %q: %w", workspace, err)
+	}
+	p, err := resolveSaveProfile(cfg, entry.Name, profileName, workspace, entry.Runtime)
+	if err != nil {
+		return err
+	}
+
+	configPath, err := resolveConfigPath(workspace)
+	if err != nil {
+		return fmt.Errorf("could not determine config path for workspace %q: %w", workspace, err)
+	}
+
 	imageName := s.ImageName
 	if imageName == "" {
 		imageName = computeSaveImageName(profileName)
@@ -90,12 +109,7 @@ func (s *SaveCmd) Run() error {
 		return fmt.Errorf("committing container: %w", err)
 	}
 
-	pkgMgr := detectPackageManager(workspace, profileName)
-	configPath, err := resolveConfigPath(workspace)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: image '%s' was created but could not determine config path: %v\n", imageName, err)
-		return err
-	}
+	pkgMgr := p.EffectivePackageManager()
 	if err := applyBuildResult(configPath, profileName, imageName, pkgMgr, true); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: image '%s' was created but config update failed.\n", imageName)
 		return fmt.Errorf("writing config: %w", err)
@@ -208,23 +222,32 @@ func resolveConfigPath(workspace string) (string, error) {
 	return path, nil
 }
 
-func detectPackageManager(workspace, profileName string) profile.PackageManager {
-	origDir, err := os.Getwd()
-	if err != nil {
-		return profile.PackageManagerApt
-	}
-	if err := os.Chdir(workspace); err != nil {
-		return profile.PackageManagerApt
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	cfg, err := profile.LoadQuiet()
-	if err != nil {
-		return profile.PackageManagerApt
-	}
+// resolveSaveProfile looks up the profile a container was launched from.
+// The profile name extracted from a container name is only a candidate: any
+// container matching aw-<something>-<digits> is listed, including leftovers
+// from the removed "aw team" command (aw-<team>-<agent>-<n>), which would
+// resolve to a bogus "<team>-<agent>" profile and get written into the config.
+func resolveSaveProfile(cfg *profile.Config, containerName, profileName, workspace, runtime string) (profile.Profile, error) {
 	p, ok := cfg.Profiles[profileName]
 	if !ok {
-		return profile.PackageManagerApt
+		return profile.Profile{}, fmt.Errorf("container %q does not belong to a known profile: %q is not defined in the config for %s\n"+
+			"If this is a leftover container from the removed 'aw team' command, remove it with '%s rm -f %s'",
+			containerName, profileName, workspace, runtime, containerName)
 	}
-	return p.EffectivePackageManager()
+	return p, nil
+}
+
+// loadWorkspaceConfig loads the merged config (builtin -> user -> project) as
+// seen from the container's workspace directory, not from the directory aw was
+// invoked in.
+func loadWorkspaceConfig(workspace string) (*profile.Config, error) {
+	origDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getting current directory: %w", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		return nil, fmt.Errorf("changing to workspace %q: %w", workspace, err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+	return profile.LoadQuiet()
 }

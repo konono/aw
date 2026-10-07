@@ -213,11 +213,82 @@ func TestResolveConfigPath_SubdirUsesGitRoot(t *testing.T) {
 	}
 }
 
-func TestDetectPackageManager_Default(t *testing.T) {
-	dir := t.TempDir()
-	got := detectPackageManager(dir, "nonexistent")
-	if got != profile.PackageManagerApt {
-		t.Errorf("got %q, want %q (default)", got, profile.PackageManagerApt)
+func TestResolveSaveProfile(t *testing.T) {
+	cfg := &profile.Config{Profiles: map[string]profile.Profile{
+		"claude-dev": {Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude},
+	}}
+
+	tests := []struct {
+		name          string
+		containerName string
+		profileName   string
+		wantErr       bool
+	}{
+		{
+			name:          "regular container resolves to its profile",
+			containerName: "aw-claude-dev-1234",
+			profileName:   "claude-dev",
+		},
+		{
+			// Leftover from the removed "aw team" command: the name matches
+			// the aw-<...>-<digits> listing filter and yields a profile name
+			// that does not exist.
+			name:          "leftover team container is rejected",
+			containerName: "aw-review-team-developer-1-1700000000000000000",
+			profileName:   "review-team-developer-1",
+			wantErr:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := resolveSaveProfile(cfg, tt.containerName, tt.profileName, "/workspace", "podman")
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for container %q, got profile %+v", tt.containerName, p)
+				}
+				if !strings.Contains(err.Error(), tt.profileName) {
+					t.Errorf("error should name the unresolved profile %q, got: %v", tt.profileName, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if p.Launch != profile.LaunchClaude {
+				t.Errorf("Launch = %q, want %q", p.Launch, profile.LaunchClaude)
+			}
+		})
+	}
+}
+
+// Regression: a listing that mixes a regular container with a leftover team
+// container must only be able to save the regular one.
+func TestResolveSaveProfile_MixedListing(t *testing.T) {
+	cfg := &profile.Config{Profiles: map[string]profile.Profile{
+		"claude-dev": {Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude},
+	}}
+
+	containers := []string{
+		"aw-claude-dev-1234",
+		"aw-review-team-developer-1-1700000000000000000",
+		"aw-review-team-reviewer-1-1700000000000000001",
+	}
+
+	var saveable []string
+	for _, name := range containers {
+		profileName, err := extractProfileName(name)
+		if err != nil {
+			continue
+		}
+		if _, err := resolveSaveProfile(cfg, name, profileName, "/workspace", "podman"); err != nil {
+			continue
+		}
+		saveable = append(saveable, name)
+	}
+
+	if len(saveable) != 1 || saveable[0] != "aw-claude-dev-1234" {
+		t.Errorf("saveable = %v, want only [aw-claude-dev-1234]", saveable)
 	}
 }
 
