@@ -227,15 +227,10 @@ type BuildInclude struct {
 type BuildConfig struct {
 	Include []BuildInclude    `yaml:"include,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
-
-	// LegacySnapshot is set when migrating from the deprecated export: YAML
-	// field that had snapshot: true. Not serialized; used only by the
-	// deprecated aw export compat shim.
-	LegacySnapshot bool `yaml:"-"`
 }
 
 type legacyExportConfig struct {
-	Snapshot bool              `yaml:"snapshot,omitempty"`
+	Snapshot bool              `yaml:"snapshot,omitempty"` // accepted and ignored; aw build always snapshots
 	Include  []BuildInclude    `yaml:"include,omitempty"`
 	Env      map[string]string `yaml:"env,omitempty"`
 }
@@ -244,9 +239,8 @@ func migrateLegacyExport(export *legacyExportConfig, build **BuildConfig, hadLeg
 	if export != nil && *build == nil {
 		*hadLegacy = true
 		*build = &BuildConfig{
-			Include:        export.Include,
-			Env:            export.Env,
-			LegacySnapshot: export.Snapshot,
+			Include: export.Include,
+			Env:     export.Env,
 		}
 	}
 }

@@ -59,7 +59,6 @@ type CLI struct {
 	Build             BuildCmd             `cmd:"" help:"Build a profile's container image."`
 	Save              SaveCmd              `cmd:"" help:"Save a container's state as a reusable image and update .aw.yml."`
 	Manifest          ManifestCmd          `cmd:"" help:"Generate Kubernetes manifests for a profile."`
-	Export            ExportCmd            `cmd:"" hidden:"" help:"Deprecated: use 'build' instead."`
 	Doctor            DoctorCmd            `cmd:"" help:"Check system environment and configuration."`
 	Reaper            ReaperCmd            `cmd:"" help:"View/recover post-container cleanup reports."`
 	Update            UpdateCmd            `cmd:"" help:"Update aw to the latest version."`
@@ -135,7 +134,6 @@ type LoginCmd struct{ authFlags }
 type BuildCmd struct {
 	ProfileName  string            `arg:"" help:"Profile name to build." completion-predictor:"profile"`
 	Save         *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
-	FromTemplate bool              `name:"from-template" hidden:"" help:"Deprecated: use --no-cache instead."`
 	Apply        bool              `name:"apply" help:"Write image name back to config file."`
 	NoCache      bool              `name:"no-cache" help:"Rebuild from template without cache."`
 	Push         bool              `name:"push" help:"Push the image to a container registry."`
@@ -144,14 +142,10 @@ type BuildCmd struct {
 	Env          map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
 	BuildArg     map[string]string `name:"build-arg" help:"Pass a build arg to docker build (KEY=VAL, repeatable)." placeholder:"KEY=VAL"`
 
-	skipSnapshot    bool            // internal: used by deprecated export compat shim
 	preloadedConfig *profile.Config // internal: avoids double profile.Load() in export compat
 }
 
 func (b *BuildCmd) Validate() error {
-	if b.FromTemplate {
-		b.NoCache = true
-	}
 	if b.Push && b.Registry == "" {
 		return fmt.Errorf("--push requires --registry")
 	}
@@ -170,17 +164,6 @@ func (b *BuildCmd) Validate() error {
 type SaveCmd struct {
 	Runtime   string `name:"runtime" help:"Container runtime (docker or podman). When omitted, queries all installed runtimes."`
 	ImageName string `name:"image" help:"Override the saved image name (default: aw-save:<profile>-<timestamp>)."`
-}
-
-// ExportCmd is a deprecated alias for BuildCmd.
-type ExportCmd struct {
-	ProfileName string            `arg:"" help:"Profile name to export." completion-predictor:"profile"`
-	Output      string            `short:"o" name:"output" help:"Output file path." type:"path"`
-	Snapshot    bool              `name:"snapshot" help:"(Deprecated, now always on) Run setup and commit the result."`
-	Apply       bool              `name:"apply" help:"Write image name back to config file."`
-	NoCache     bool              `name:"no-cache" help:"Rebuild without cache."`
-	Include     []string          `name:"include" help:"Copy host path into image (src:dst format, repeatable)." placeholder:"src:dst"`
-	Env         map[string]string `name:"env" help:"Bake env var into image (KEY=VAL, repeatable)."`
 }
 
 // ManifestCmd generates Kubernetes manifests.

@@ -270,18 +270,6 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
-func TestBuildCmd_Validate_FromTemplateImpliesNoCache(t *testing.T) {
-	b := BuildCmd{
-		ProfileName:  "test",
-		FromTemplate: true,
-	}
-	if err := b.Validate(); err != nil {
-		t.Fatalf("--from-template should not error: %v", err)
-	}
-	if !b.NoCache {
-		t.Error("--from-template should set NoCache to true")
-	}
-}
 
 func TestPrepareBuildProfile(t *testing.T) {
 	t.Run("image preserved when no dockerfile and no no-cache", func(t *testing.T) {
@@ -346,63 +334,6 @@ func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	}
 }
 
-func TestExportNeedsSnapshot(t *testing.T) {
-	t.Run("no flags no config", func(t *testing.T) {
-		if exportNeedsSnapshot(false, nil, nil, nil) {
-			t.Error("should be false with no flags and no config")
-		}
-	})
-
-	t.Run("snapshot flag", func(t *testing.T) {
-		if !exportNeedsSnapshot(true, nil, nil, nil) {
-			t.Error("should be true with --snapshot flag")
-		}
-	})
-
-	t.Run("include flag implies snapshot", func(t *testing.T) {
-		if !exportNeedsSnapshot(false, []string{"./a:/a"}, nil, nil) {
-			t.Error("should be true with --include flag")
-		}
-	})
-
-	t.Run("env flag implies snapshot", func(t *testing.T) {
-		if !exportNeedsSnapshot(false, nil, map[string]string{"K": "V"}, nil) {
-			t.Error("should be true with --env flag")
-		}
-	})
-
-	t.Run("profile LegacySnapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{LegacySnapshot: true}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile LegacySnapshot")
-		}
-	})
-
-	t.Run("profile include implies snapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{
-			Include: []profile.BuildInclude{{Src: "./a", Dst: "/a"}},
-		}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile includes")
-		}
-	})
-
-	t.Run("profile env implies snapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{
-			Env: map[string]string{"K": "V"},
-		}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile env")
-		}
-	})
-
-	t.Run("empty profile config", func(t *testing.T) {
-		cfg := &profile.BuildConfig{}
-		if exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be false with empty profile config")
-		}
-	})
-}
 
 func TestApplyBuildResult(t *testing.T) {
 	t.Run("adds image to profile with apt", func(t *testing.T) {

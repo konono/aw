@@ -51,7 +51,7 @@ func (b *BuildCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
 	}
 
-	prepareBuildProfile(&p, b.NoCache || b.FromTemplate)
+	prepareBuildProfile(&p, b.NoCache)
 
 	ec, err := buildExecutionContext(b.ProfileName, p)
 	if err != nil {
@@ -100,7 +100,7 @@ func (b *BuildCmd) Run() error {
 		cenv.SessionLog = true
 	}
 
-	snapshot := !b.skipSnapshot
+	const snapshot = true
 	resultImage := ec.DockerImage
 
 	if snapshot {
