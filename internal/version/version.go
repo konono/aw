@@ -1,6 +1,6 @@
 package version
 
 // x-release-please-start-version
-const Version = "4.15.1"
+const Version = "5.0.0"
 
 // x-release-please-end
