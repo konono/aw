@@ -193,7 +193,6 @@ profiles:
 - `mount_zellij`
 - `gh_token`
 - `packages`
-- `package_manager`
 - `mounts`
 - `os`
 - `dockerfile`

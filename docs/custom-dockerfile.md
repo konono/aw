@@ -72,6 +72,11 @@ RUN useradd -m -s /bin/bash agent && \
 
 このリポジトリには `playwright-docker/` ディレクトリに実例があります:
 
+> **Note:** カスタム Dockerfile の中身に `aw` は関与しません。組み込みテンプレートから
+> `package_manager: devbox` が削除されたあとも、カスタム Dockerfile で Nix / devbox を
+> 自分でインストールして自前の entrypoint で `devbox.json` を処理することはできます。
+> `playwright-docker/` はその例です。
+
 ```
 playwright-docker/
 ├── Dockerfile       ← dockerfile: で指定

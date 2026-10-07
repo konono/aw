@@ -13,32 +13,59 @@ AI ツールを動かすという中心の機能は変わりません。以下�
 | `teams:` 設定キーと `delivery:` プロファイルフィールド | なし |
 | `package_manager: devbox`（Nix + devbox モード） | `mise.toml`、プロファイルの `packages`、[カスタム Dockerfile](custom-dockerfile.md) |
 | `devbox_install` / `skip_devbox_install` | 同上 |
-| ワークスペースの `devbox.json` の自動インストール | `mise.toml`（[パッケージ管理](mise.md)） |
+| 組み込みテンプレートのイメージでの `devbox.json` 自動インストール | `mise.toml`（[パッケージ管理](mise.md)） |
 | `aw export`（`aw build` の非推奨エイリアス） | `aw build` |
 
 ## 設定ファイルの対応
 
-`aw` の設定読み込みは未知のキーを無視します。削除されたキーが `.aw.yml` や
-`~/.config/aw/config.yml` に残っていても**エラーにはなりませんが、黙って無視
-されます**。意図しない挙動を避けるため、以下のキーは削除してください。
+### `package_manager` はエラーになります
+
+`package_manager: devbox`（および `apt` 以外の任意の値）はバリデーションエラー
+になります。イメージの中身が黙って変わるのを避けるため、キー自体は互換用に残し
+て拒否しています。
+
+```
+profile "dev": package_manager "devbox" is no longer supported: the devbox
+package manager was removed in v5. ...
+```
+
+`package_manager` キーを削除し、devbox で入れていたパッケージは `mise.toml`、
+プロファイルの `packages`、またはカスタム Dockerfile に移してください。移行後は
+apt モードのイメージ（約 400 MB、Nix なし）でビルドされます。
+
+### 黙って無視されるキー
+
+以下は設定に残っていてもエラーになりません。`aw` の設定読み込みは未知のキーを
+無視するためです。動作には影響しませんが、削除を推奨します。
 
 - `teams:` ブロック全体
 - プロファイルの `delivery:`
-- プロファイルの `package_manager:`
 - プロファイルの `devbox_install:` / `skip_devbox_install:`
-
-`package_manager: devbox` を使っていたプロファイルは、何もしなければ apt モー
-ドのイメージ（約 400 MB、Nix なし）でビルドされます。devbox で入れていたパッ
-ケージは `mise.toml` かカスタム Dockerfile に移してください。
 
 `aw build --apply` は、設定に残った `skip_devbox_install` を次回実行時に自動で
 削除します。
 
-## イメージの再ビルドが発生します
+## 組み込みテンプレートのイメージは再ビルドされます
 
-イメージタグのハッシュ入力から `package_manager` が外れたため、**すべてのプロ
-ファイルでイメージタグが変わります**。v5 で最初に起動したときは、キャッシュが
-効かず再ビルドが走ります。公式プレビルドイメージを使っている場合は再 pull です。
+`package_manager` はイメージタグのハッシュ入力に含まれており、そのハッシュは
+組み込みテンプレートからビルドする場合にのみ計算されます。そのため **`os:` を
+使う（= 組み込みテンプレートでビルドする）プロファイルはタグが変わり、v5 で最初
+に起動したときにキャッシュが効かず再ビルドが走ります**。公式プレビルドイメージを
+使っている場合は再 pull です。
+
+`dockerfile:` でカスタム Dockerfile を使うプロファイルのタグは、この変更では
+変わりません。
+
+## カスタム Dockerfile は影響を受けません
+
+ここまでの devbox の話は、すべて `aw` の組み込みテンプレートと snapshot 経路に
+限った話です。`dockerfile:` で指定するカスタム Dockerfile の中身に `aw` は関与
+しません。Nix と devbox を自分でインストールして、自前の entrypoint で
+`devbox.json` を読むことは v5 でも問題なくできます。
+
+このリポジトリの `playwright-docker/` がまさにその例で、Dockerfile 内で Nix と
+devbox を入れ、entrypoint がワークスペースの `devbox.json`（なければ
+`mise.toml`）を処理します。v5 でもそのまま動作します。
 
 ## 残骸の手動削除
 

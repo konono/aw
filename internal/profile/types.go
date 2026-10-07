@@ -62,20 +62,25 @@ const (
 
 // Profile describes a single named workspace profile.
 type Profile struct {
-	Worktree           *WorktreeConfig      `yaml:"worktree,omitempty"`
-	Environment        Environment          `yaml:"environment"`
-	Launch             LaunchMode           `yaml:"launch"`
-	Auth               *AuthConfig          `yaml:"auth,omitempty"`
-	Env                map[string]string    `yaml:"env,omitempty"`
-	OS                 OSTemplate           `yaml:"os,omitempty"`
-	Image              string               `yaml:"image,omitempty"`
-	Dockerfile         string               `yaml:"dockerfile,omitempty"`
-	ImagePullPolicy    ImagePullPolicy      `yaml:"image_pull_policy,omitempty"`
-	ContainerRuntime   ContainerRuntime     `yaml:"container_runtime,omitempty"`
-	ContainerUser      string               `yaml:"container_user,omitempty"`
-	SkipMiseInstall    *bool                `yaml:"skip_mise_install,omitempty"` // Deprecated: use mise_install instead
-	MiseInstall        *bool                `yaml:"mise_install,omitempty"`
-	AutoDepsInstall    *bool                `yaml:"auto_deps_install,omitempty"`
+	Worktree         *WorktreeConfig   `yaml:"worktree,omitempty"`
+	Environment      Environment       `yaml:"environment"`
+	Launch           LaunchMode        `yaml:"launch"`
+	Auth             *AuthConfig       `yaml:"auth,omitempty"`
+	Env              map[string]string `yaml:"env,omitempty"`
+	OS               OSTemplate        `yaml:"os,omitempty"`
+	Image            string            `yaml:"image,omitempty"`
+	Dockerfile       string            `yaml:"dockerfile,omitempty"`
+	ImagePullPolicy  ImagePullPolicy   `yaml:"image_pull_policy,omitempty"`
+	ContainerRuntime ContainerRuntime  `yaml:"container_runtime,omitempty"`
+	ContainerUser    string            `yaml:"container_user,omitempty"`
+	SkipMiseInstall  *bool             `yaml:"skip_mise_install,omitempty"` // Deprecated: use mise_install instead
+	MiseInstall      *bool             `yaml:"mise_install,omitempty"`
+	AutoDepsInstall  *bool             `yaml:"auto_deps_install,omitempty"`
+
+	// PackageManager is kept only so that configs written before the devbox
+	// package manager was removed fail loudly instead of silently building a
+	// different image. Only "" and "apt" are accepted.
+	PackageManager     string               `yaml:"package_manager,omitempty"`
 	GhToken            *bool                `yaml:"gh_token,omitempty"`
 	MountGH            *bool                `yaml:"mount_gh,omitempty"`
 	MountSSH           *bool                `yaml:"mount_ssh,omitempty"`

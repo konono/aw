@@ -18,7 +18,11 @@ mise.toml にコミット
 
 ワークスペースルートに `mise.toml` または `.mise.toml` があると、コンテナ起動時に `mise install` が実行されます。
 
-> **Note:** `package_manager: devbox`（Nix + devbox モード）は廃止されました。`devbox.json` は読まれません。同等の構成は `mise.toml`、プロファイルの `packages`、または[カスタム Dockerfile](custom-dockerfile.md) で表現してください。
+> **Note:** `package_manager: devbox`（Nix + devbox モード）は廃止されました。設定に残っていると
+> バリデーションエラーになります。組み込みテンプレートのイメージでは `devbox.json` は読まれません。
+> 同等の構成は `mise.toml`、プロファイルの `packages`、または[カスタム Dockerfile](custom-dockerfile.md)
+> で表現してください（カスタム Dockerfile なら自前で devbox を入れることもできます）。
+> 詳細は [v4 → v5 移行ガイド](migration-v5.md)。
 
 ## mise を使う場合
 

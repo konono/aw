@@ -88,6 +88,12 @@ func validateBasicFields(p Profile) error {
 		return fmt.Errorf("image_pull_policy is only valid with environment: container")
 	}
 
+	if p.PackageManager != "" && p.PackageManager != "apt" {
+		return fmt.Errorf("package_manager %q is no longer supported: the devbox package manager was removed in v5. "+
+			"Remove the package_manager key and move devbox packages to mise.toml, the profile's packages, or a custom dockerfile "+
+			"(see docs/migration-v5.md)", p.PackageManager)
+	}
+
 	switch p.ContainerRuntime {
 	case "", ContainerRuntimeDocker, ContainerRuntimePodman:
 	default:

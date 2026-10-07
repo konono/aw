@@ -3,6 +3,8 @@ package profile
 import (
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidate(t *testing.T) {
@@ -706,6 +708,106 @@ func TestValidateConfig(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("ValidateConfig() error = %q, want containing %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// A config written before the devbox package manager was removed must fail
+// loudly. yaml.Unmarshal ignores unknown keys, so dropping the field entirely
+// would have silently built a different image.
+func TestValidateConfig_RejectsLegacyPackageManager(t *testing.T) {
+	tests := []struct {
+		name  string
+		yaml  string
+		valid bool
+	}{
+		{
+			name: "devbox in a profile",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: devbox
+`,
+		},
+		{
+			name: "devbox in top-level defaults",
+			yaml: `
+package_manager: devbox
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+		},
+		{
+			name: "unknown value in a profile",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: nix
+`,
+		},
+		{
+			name: "apt is still accepted",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: apt
+`,
+			valid: true,
+		},
+		{
+			name: "apt in top-level defaults is still accepted",
+			yaml: `
+package_manager: apt
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+			valid: true,
+		},
+		{
+			name: "omitted is still accepted",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+			valid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg Config
+			if err := yaml.Unmarshal([]byte(tt.yaml), &cfg); err != nil {
+				t.Fatalf("unmarshal error: %v", err)
+			}
+			applied := ApplyDefaults(cfg)
+			err := ValidateConfig(&applied)
+			if tt.valid {
+				if err != nil {
+					t.Fatalf("expected config to validate, got: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected a validation error for a legacy package_manager value")
+			}
+			if !strings.Contains(err.Error(), "package_manager") {
+				t.Errorf("error should name package_manager, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "migration-v5") {
+				t.Errorf("error should point at the migration guide, got: %v", err)
 			}
 		})
 	}

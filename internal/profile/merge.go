@@ -31,6 +31,9 @@ func mergeStringFields(merged *Profile, override Profile) {
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
+	if override.PackageManager != "" {
+		merged.PackageManager = override.PackageManager
+	}
 	if override.ContainerUser != "" {
 		merged.ContainerUser = override.ContainerUser
 	}

@@ -222,7 +222,7 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 
 ## イメージビルド（Dockerfile）
 
-`internal/image/embed/Dockerfile.debian12.tmpl` がベースイメージを定義しています（`package_manager: apt` の場合）。
+`internal/image/embed/Dockerfile.debian12.tmpl` がベースイメージを定義しています。
 
 ```
 debian:bookworm-slim
