@@ -1,5 +1,5 @@
 # aw test profiles — used by `aw -- <cmd>` manual testing
-# These profiles verify tool installation across all OS templates and package managers.
+# These profiles verify tool installation across all OS templates.
 
 profiles:
   # ── apt mode (default): 4 OS × 4 tools + shell ──────────────────
@@ -54,11 +54,6 @@ profiles:
   test-ubuntu2604-cursor:
     os: ubuntu2604
     launch: cursor
-  # ── devbox mode (deprecated) ────────────────────────────────────
-  test-devbox-claude:
-    os: debian12
-    launch: claude
-    package_manager: devbox
   # ── development profile ──────────────────────────────────────────
   dev:
     launch: claude
@@ -93,11 +88,3 @@ profiles:
           - source: ~/.config/gcloud/application_default_credentials.json
             mountPath: /run/secrets/aw/gcloud/application_default_credentials.json
             env: GOOGLE_APPLICATION_CREDENTIALS
-teams:
-  review-team:
-    members:
-      - profile: claude-dev
-        role: developer
-        foreground: true
-      - profile: cursor-review
-        role: reviewer

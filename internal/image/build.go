@@ -13,7 +13,7 @@ import (
 )
 
 // PrepareBuildContext prepares a build context directory for docker build.
-func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate, pkgMgr profile.PackageManager, cenv containerenv.Config) (dir string, cleanup func(), err error) {
+func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTemplate, cenv containerenv.Config) (dir string, cleanup func(), err error) {
 	if customDockerfilePath != "" {
 		absPath, err := filepath.Abs(customDockerfilePath)
 		if err != nil {
@@ -25,12 +25,12 @@ func PrepareBuildContext(customDockerfilePath string, osTemplate profile.OSTempl
 		return filepath.Dir(absPath), func() {}, nil
 	}
 
-	df, err := RenderDockerfile(osTemplate, pkgMgr, cenv)
+	df, err := RenderDockerfile(osTemplate, cenv)
 	if err != nil {
 		return "", nil, err
 	}
 
-	ep := Entrypoint(pkgMgr)
+	ep := Entrypoint()
 
 	tmpDir, err := os.MkdirTemp("", "aw-build-*")
 	if err != nil {

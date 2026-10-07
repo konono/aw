@@ -3,6 +3,8 @@ package profile
 import (
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidate(t *testing.T) {
@@ -205,81 +207,33 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "valid container + package_manager apt",
-			profile: Profile{
-				Environment:    EnvironmentContainer,
-				Launch:         LaunchClaude,
-				PackageManager: PackageManagerApt,
-			},
-		},
-		{
-			name: "valid container + package_manager devbox",
-			profile: Profile{
-				Environment:    EnvironmentContainer,
-				Launch:         LaunchClaude,
-				PackageManager: PackageManagerDevbox,
-			},
-		},
-		{
-			name: "invalid package_manager value",
-			profile: Profile{
-				Environment:    EnvironmentContainer,
-				Launch:         LaunchClaude,
-				PackageManager: "nix",
-			},
-			wantErr: "package_manager must be",
-		},
-		{
-			name: "package_manager with host environment",
-			profile: Profile{
-				Environment:    EnvironmentHost,
-				Launch:         LaunchShell,
-				PackageManager: PackageManagerApt,
-			},
-			wantErr: "package_manager is only valid with environment: container",
-		},
-		{
-			name:    "valid container + skip_devbox_install",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipDevboxInstall: &v} }(),
-		},
-		{
-			name:    "skip_devbox_install with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipDevboxInstall: &v} }(),
-			wantErr: "devbox_install/skip_devbox_install is only valid with environment: container",
-		},
-		{
-			name:    "valid container + devbox_install false",
-			profile: func() Profile { v := false; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, DevboxInstall: &v} }(),
-		},
-		{
-			name:    "devbox_install false with host environment",
-			profile: func() Profile { v := false; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, DevboxInstall: &v} }(),
-			wantErr: "devbox_install/skip_devbox_install is only valid with environment: container",
-		},
-		{
-			name: "devbox_install and skip_devbox_install conflict",
+			name: "valid container + skip_mise_install",
 			profile: func() Profile {
-				t, f := true, false
-				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, DevboxInstall: &f, SkipDevboxInstall: &t}
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipMiseInstall: &v}
 			}(),
-			wantErr: "devbox_install and skip_devbox_install are mutually exclusive",
 		},
 		{
-			name:    "valid container + skip_mise_install",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SkipMiseInstall: &v} }(),
-		},
-		{
-			name:    "skip_mise_install with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipMiseInstall: &v} }(),
+			name: "skip_mise_install with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SkipMiseInstall: &v}
+			}(),
 			wantErr: "mise_install/skip_mise_install is only valid with environment: container",
 		},
 		{
-			name:    "valid container + mise_install false",
-			profile: func() Profile { v := false; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MiseInstall: &v} }(),
+			name: "valid container + mise_install false",
+			profile: func() Profile {
+				v := false
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MiseInstall: &v}
+			}(),
 		},
 		{
-			name:    "mise_install false with host environment",
-			profile: func() Profile { v := false; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MiseInstall: &v} }(),
+			name: "mise_install false with host environment",
+			profile: func() Profile {
+				v := false
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MiseInstall: &v}
+			}(),
 			wantErr: "mise_install/skip_mise_install is only valid with environment: container",
 		},
 		{
@@ -291,30 +245,48 @@ func TestValidate(t *testing.T) {
 			wantErr: "mise_install and skip_mise_install are mutually exclusive",
 		},
 		{
-			name:    "valid container + auto_deps_install",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, AutoDepsInstall: &v} }(),
+			name: "valid container + auto_deps_install",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, AutoDepsInstall: &v}
+			}(),
 		},
 		{
-			name:    "auto_deps_install with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, AutoDepsInstall: &v} }(),
+			name: "auto_deps_install with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, AutoDepsInstall: &v}
+			}(),
 			wantErr: "auto_deps_install is only valid with environment: container",
 		},
 		{
-			name:    "valid container + ssh_agent_forwarding",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v} }(),
+			name: "valid container + ssh_agent_forwarding",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, SSHAgentForwarding: &v}
+			}(),
 		},
 		{
-			name:    "ssh_agent_forwarding with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SSHAgentForwarding: &v} }(),
+			name: "ssh_agent_forwarding with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, SSHAgentForwarding: &v}
+			}(),
 			wantErr: "ssh_agent_forwarding is only valid with environment: container",
 		},
 		{
-			name:    "valid container + mount_container_sock",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountContainerSock: &v} }(),
+			name: "valid container + mount_container_sock",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountContainerSock: &v}
+			}(),
 		},
 		{
-			name:    "gh_token with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, GhToken: &v} }(),
+			name: "gh_token with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, GhToken: &v}
+			}(),
 			wantErr: "gh_token is only valid with environment: container",
 		},
 		{
@@ -326,17 +298,26 @@ func TestValidate(t *testing.T) {
 			wantErr: "mount_gh and gh_token are mutually exclusive",
 		},
 		{
-			name:    "mount_container_sock with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountContainerSock: &v} }(),
+			name: "mount_container_sock with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountContainerSock: &v}
+			}(),
 			wantErr: "mount_container_sock is only valid with environment: container",
 		},
 		{
-			name:    "valid container + mount_zellij",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountZellij: &v} }(),
+			name: "valid container + mount_zellij",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentContainer, Launch: LaunchClaude, MountZellij: &v}
+			}(),
 		},
 		{
-			name:    "mount_zellij with host environment",
-			profile: func() Profile { v := true; return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountZellij: &v} }(),
+			name: "mount_zellij with host environment",
+			profile: func() Profile {
+				v := true
+				return Profile{Environment: EnvironmentHost, Launch: LaunchShell, MountZellij: &v}
+			}(),
 			wantErr: "mount_zellij is only valid with environment: container",
 		},
 		{
@@ -617,39 +598,6 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: "ca_cert is only valid with environment: container",
 		},
-		{
-			name: "valid delivery turn",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Delivery:    "turn",
-			},
-		},
-		{
-			name: "valid delivery monitor",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Delivery:    "monitor",
-			},
-		},
-		{
-			name: "valid delivery off",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Delivery:    "off",
-			},
-		},
-		{
-			name: "invalid delivery",
-			profile: Profile{
-				Environment: EnvironmentContainer,
-				Launch:      LaunchClaude,
-				Delivery:    "push",
-			},
-			wantErr: `unknown delivery: "push"`,
-		},
 	}
 
 	for _, tt := range tests {
@@ -760,6 +708,106 @@ func TestValidateConfig(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("ValidateConfig() error = %q, want containing %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// A config written before the devbox package manager was removed must fail
+// loudly. yaml.Unmarshal ignores unknown keys, so dropping the field entirely
+// would have silently built a different image.
+func TestValidateConfig_RejectsLegacyPackageManager(t *testing.T) {
+	tests := []struct {
+		name  string
+		yaml  string
+		valid bool
+	}{
+		{
+			name: "devbox in a profile",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: devbox
+`,
+		},
+		{
+			name: "devbox in top-level defaults",
+			yaml: `
+package_manager: devbox
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+		},
+		{
+			name: "unknown value in a profile",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: nix
+`,
+		},
+		{
+			name: "apt is still accepted",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    package_manager: apt
+`,
+			valid: true,
+		},
+		{
+			name: "apt in top-level defaults is still accepted",
+			yaml: `
+package_manager: apt
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+			valid: true,
+		},
+		{
+			name: "omitted is still accepted",
+			yaml: `
+profiles:
+  dev:
+    environment: container
+    launch: claude
+`,
+			valid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg Config
+			if err := yaml.Unmarshal([]byte(tt.yaml), &cfg); err != nil {
+				t.Fatalf("unmarshal error: %v", err)
+			}
+			applied := ApplyDefaults(cfg)
+			err := ValidateConfig(&applied)
+			if tt.valid {
+				if err != nil {
+					t.Fatalf("expected config to validate, got: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected a validation error for a legacy package_manager value")
+			}
+			if !strings.Contains(err.Error(), "package_manager") {
+				t.Errorf("error should name package_manager, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "migration-v5") {
+				t.Errorf("error should point at the migration guide, got: %v", err)
 			}
 		})
 	}

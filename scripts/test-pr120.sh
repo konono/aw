@@ -50,10 +50,6 @@ profiles:
     os: debian12
     launch: claude
     gh_token: true
-  test-devbox:
-    os: debian12
-    launch: claude
-    package_manager: devbox
 YAML
 }
 
@@ -244,12 +240,6 @@ else
   pass "mise.toml テンプレートは生成されない"
 fi
 
-if [ -f "$INIT_HOME/.config/aw/devbox.json" ]; then
-  fail "devbox.json テンプレートが生成された（廃止済みのはず）"
-else
-  pass "devbox.json テンプレートは生成されない"
-fi
-
 # ────────────────────────────────────────────────────────────────
 section "9. aw doctor"
 # ────────────────────────────────────────────────────────────────
@@ -260,21 +250,6 @@ if echo "$DOCTOR_OUT" | grep -qi "panic"; then
   fail "aw doctor でエラー発生: $DOCTOR_OUT"
 else
   pass "aw doctor が正常完了"
-fi
-
-# ────────────────────────────────────────────────────────────────
-section "10. devbox モード（オプション）"
-# ────────────────────────────────────────────────────────────────
-
-cd "$TMPDIR"
-mkdir -p devbox-test && cd devbox-test
-write_test_config
-
-DEVBOX_OUT=$($AW test-devbox -- mise --version 2>&1) || true
-if echo "$DEVBOX_OUT" | grep -q "202[0-9]"; then
-  pass "devbox モードでも mise がインストール済み"
-else
-  fail "devbox モードで mise が見つからない: $(echo "$DEVBOX_OUT" | tail -3)"
 fi
 
 # ────────────────────────────────────────────────────────────────

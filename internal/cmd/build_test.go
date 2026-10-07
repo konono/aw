@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -182,7 +183,7 @@ func TestHasWorkspaceFiles(t *testing.T) {
 		}
 	})
 
-	for _, name := range []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"} {
+	for _, name := range []string{"mise.toml", ".mise.toml", "packages.txt"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0644); err != nil {
@@ -270,19 +271,6 @@ func TestHasBuildInputs(t *testing.T) {
 	})
 }
 
-func TestBuildCmd_Validate_FromTemplateImpliesNoCache(t *testing.T) {
-	b := BuildCmd{
-		ProfileName:  "test",
-		FromTemplate: true,
-	}
-	if err := b.Validate(); err != nil {
-		t.Fatalf("--from-template should not error: %v", err)
-	}
-	if !b.NoCache {
-		t.Error("--from-template should set NoCache to true")
-	}
-}
-
 func TestPrepareBuildProfile(t *testing.T) {
 	t.Run("image preserved when no dockerfile and no no-cache", func(t *testing.T) {
 		p := profile.Profile{Image: "my-image:latest"}
@@ -310,13 +298,10 @@ func TestPrepareBuildProfile(t *testing.T) {
 
 	t.Run("skip flags cleared", func(t *testing.T) {
 		tr := true
-		p := profile.Profile{SkipMiseInstall: &tr, SkipDevboxInstall: &tr}
+		p := profile.Profile{SkipMiseInstall: &tr}
 		prepareBuildProfile(&p, false)
 		if p.SkipMiseInstall != nil {
 			t.Error("SkipMiseInstall should be nil")
-		}
-		if p.SkipDevboxInstall != nil {
-			t.Error("SkipDevboxInstall should be nil")
 		}
 	})
 
@@ -331,9 +316,9 @@ func TestPrepareBuildProfile(t *testing.T) {
 
 func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	b := BuildCmd{
-		ProfileName:  "test",
-		NoCache:  true,
-		BuildArg: map[string]string{"AW_FOO": "bar"},
+		ProfileName: "test",
+		NoCache:     true,
+		BuildArg:    map[string]string{"AW_FOO": "bar"},
 	}
 	err := b.Validate()
 	if err == nil {
@@ -349,64 +334,6 @@ func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	}
 }
 
-func TestExportNeedsSnapshot(t *testing.T) {
-	t.Run("no flags no config", func(t *testing.T) {
-		if exportNeedsSnapshot(false, nil, nil, nil) {
-			t.Error("should be false with no flags and no config")
-		}
-	})
-
-	t.Run("snapshot flag", func(t *testing.T) {
-		if !exportNeedsSnapshot(true, nil, nil, nil) {
-			t.Error("should be true with --snapshot flag")
-		}
-	})
-
-	t.Run("include flag implies snapshot", func(t *testing.T) {
-		if !exportNeedsSnapshot(false, []string{"./a:/a"}, nil, nil) {
-			t.Error("should be true with --include flag")
-		}
-	})
-
-	t.Run("env flag implies snapshot", func(t *testing.T) {
-		if !exportNeedsSnapshot(false, nil, map[string]string{"K": "V"}, nil) {
-			t.Error("should be true with --env flag")
-		}
-	})
-
-	t.Run("profile LegacySnapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{LegacySnapshot: true}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile LegacySnapshot")
-		}
-	})
-
-	t.Run("profile include implies snapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{
-			Include: []profile.BuildInclude{{Src: "./a", Dst: "/a"}},
-		}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile includes")
-		}
-	})
-
-	t.Run("profile env implies snapshot", func(t *testing.T) {
-		cfg := &profile.BuildConfig{
-			Env: map[string]string{"K": "V"},
-		}
-		if !exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be true with profile env")
-		}
-	})
-
-	t.Run("empty profile config", func(t *testing.T) {
-		cfg := &profile.BuildConfig{}
-		if exportNeedsSnapshot(false, nil, nil, cfg) {
-			t.Error("should be false with empty profile config")
-		}
-	})
-}
-
 func TestApplyBuildResult(t *testing.T) {
 	t.Run("adds image to profile with apt", func(t *testing.T) {
 		dir := t.TempDir()
@@ -419,7 +346,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -439,30 +366,6 @@ profiles:
 		}
 	})
 
-	t.Run("adds both skip flags with devbox", func(t *testing.T) {
-		dir := t.TempDir()
-		cfgPath := filepath.Join(dir, "config.yml")
-		if err := os.WriteFile(cfgPath, []byte(`profiles:
-  dev:
-    launch: shell
-`), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", profile.PackageManagerDevbox, true); err != nil {
-			t.Fatalf("applyBuildResult() error = %v", err)
-		}
-
-		data, _ := os.ReadFile(cfgPath)
-		content := string(data)
-		if !strings.Contains(content, "skip_devbox_install: true") {
-			t.Errorf("config should contain skip_devbox_install, got:\n%s", content)
-		}
-		if !strings.Contains(content, "skip_mise_install: true") {
-			t.Errorf("config should contain skip_mise_install, got:\n%s", content)
-		}
-	})
-
 	t.Run("updates existing image", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
@@ -474,7 +377,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -498,7 +401,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -523,7 +426,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -550,7 +453,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -577,7 +480,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", profile.PackageManagerApt, false); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", false); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -595,7 +498,7 @@ profiles:
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, ".aw.yml")
 
-		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", profile.PackageManagerApt, true); err != nil {
+		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", true); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -622,6 +525,73 @@ profiles:
 		}
 		if p.Image != "aw-build:claude-abc123" {
 			t.Errorf("image = %q, want %q", p.Image, "aw-build:claude-abc123")
+		}
+	})
+}
+
+// aw run validates the whole config before doing anything; build and manifest
+// are entered directly, so they validate the profile they act on. Without that
+// a config carrying a removed key reaches the build unchecked.
+func TestBuildAndManifest_ValidateTargetProfile(t *testing.T) {
+	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "init", dir).Run(); err != nil {
+		t.Skipf("git init failed: %v", err)
+	}
+	cfg := `profiles:
+  legacy:
+    environment: container
+    launch: claude
+    package_manager: devbox
+  fine:
+    environment: container
+    launch: claude
+`
+	if err := os.WriteFile(filepath.Join(dir, ".aw.yml"), []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	t.Run("build rejects the legacy profile", func(t *testing.T) {
+		b := BuildCmd{ProfileName: "legacy"}
+		err := b.Run()
+		if err == nil {
+			t.Fatal("expected build to reject package_manager: devbox")
+		}
+		if !strings.Contains(err.Error(), "package_manager") {
+			t.Errorf("error should name package_manager, got: %v", err)
+		}
+	})
+
+	t.Run("manifest rejects the legacy profile", func(t *testing.T) {
+		m := ManifestCmd{ProfileName: "legacy"}
+		err := m.Run()
+		if err == nil {
+			t.Fatal("expected manifest to reject package_manager: devbox")
+		}
+		if !strings.Contains(err.Error(), "package_manager") {
+			t.Errorf("error should name package_manager, got: %v", err)
+		}
+	})
+
+	// An unrelated legacy profile must not block a healthy one: aw-manager's
+	// .aw.yml carries one, and its `aw manifest k8s-claude` has to keep working
+	// until that config is cleaned up.
+	t.Run("manifest accepts a healthy profile alongside it", func(t *testing.T) {
+		m := ManifestCmd{ProfileName: "fine", Output: t.TempDir()}
+		if err := m.Run(); err != nil {
+			t.Fatalf("healthy profile should not be blocked: %v", err)
 		}
 	})
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -170,19 +169,13 @@ func runContainerCommand(t *testing.T, runtime, imageName string, command ...str
 }
 
 // toolBuildArgs returns the Docker build args for installing a tool.
-func toolBuildArgs(tool string, pkgMgr profile.PackageManager) map[string]string {
+func toolBuildArgs(tool string) map[string]string {
 	args := map[string]string{
-		"AW_GH_VERSION":  toolinfo.GhCLIVersion,
+		"AW_GH_VERSION":   toolinfo.GhCLIVersion,
 		"AW_MISE_VERSION": toolinfo.MiseVersion,
 	}
-	if pkgMgr == profile.PackageManagerDevbox {
-		if pkg := toolinfo.DevboxPkg(tool); pkg != "" {
-			args["AW_TOOL_PKG"] = pkg
-		}
-	} else {
-		if script := toolinfo.InstallScript(tool); script != "" {
-			args["AW_TOOL_INSTALL_SCRIPT"] = script
-		}
+	if script := toolinfo.InstallScript(tool); script != "" {
+		args["AW_TOOL_INSTALL_SCRIPT"] = script
 	}
 	return args
 }
@@ -204,7 +197,7 @@ func TestIntegration_ShellPerOS(t *testing.T) {
 		t.Cleanup(func() { removeImage(runtime, imageName) })
 
 		t.Run(string(osTemplate), func(t *testing.T) {
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
@@ -260,13 +253,13 @@ func TestIntegration_ToolPerOS(t *testing.T) {
 			t.Cleanup(func() { removeImage(runtime, imageName) })
 
 			t.Run(testName, func(t *testing.T) {
-				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, containerenv.Default())
+				buildDir, cleanup, err := PrepareBuildContext("", osTemplate, containerenv.Default())
 				if err != nil {
 					t.Fatalf("PrepareBuildContext: %v", err)
 				}
 				defer cleanup()
 
-				buildArgs := toolBuildArgs(tool, profile.PackageManagerApt)
+				buildArgs := toolBuildArgs(tool)
 				t.Logf("building %s on %s with args: %v", tool, osTemplate, buildArgs)
 				buildImage(t, runtime, imageName, buildDir, buildArgs)
 
@@ -292,13 +285,13 @@ func TestIntegration_Smoke(t *testing.T) {
 	imageName := "aw-inttest-smoke"
 	t.Cleanup(func() { removeImage(runtime, imageName) })
 
-	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+	buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
 	if err != nil {
 		t.Fatalf("PrepareBuildContext: %v", err)
 	}
 	defer cleanup()
 
-	buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude", profile.PackageManagerApt))
+	buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude"))
 
 	// Test tool launch via entrypoint
 	t.Run("claude", func(t *testing.T) {
@@ -338,13 +331,13 @@ func TestIntegration_E2E(t *testing.T) {
 
 		t.Run(string(osTemplate), func(t *testing.T) {
 			cenv := containerenv.Default()
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerApt, cenv)
+			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, cenv)
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
 			defer cleanup()
 
-			buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude", profile.PackageManagerApt))
+			buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude"))
 
 			// Tool launch via entrypoint (like `aw claude -- claude --version`)
 			t.Run("tool_launch", func(t *testing.T) {
@@ -394,13 +387,13 @@ func TestIntegration_ContainerLaunchFlags(t *testing.T) {
 		t.Cleanup(func() { removeImage(runtime, imageName) })
 
 		t.Run(tool, func(t *testing.T) {
-			buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, profile.PackageManagerApt, containerenv.Default())
+			buildDir, cleanup, err := PrepareBuildContext("", profile.OSDebian12, containerenv.Default())
 			if err != nil {
 				t.Fatalf("PrepareBuildContext: %v", err)
 			}
 			defer cleanup()
 
-			buildArgs := toolBuildArgs(tool, profile.PackageManagerApt)
+			buildArgs := toolBuildArgs(tool)
 			buildImage(t, runtime, imageName, buildDir, buildArgs)
 
 			// Sanity check: tool is installed
@@ -469,114 +462,10 @@ func TestIntegration_ContainerLaunchFlags(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// devbox mode tests (deprecated)
-// =============================================================================
-
-// TestIntegration_Devbox_ShellPerOS verifies that devbox mode still produces
-// working images with Nix and devbox available.
-//
-//	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_Devbox_ShellPerOS
-func TestIntegration_Devbox_ShellPerOS(t *testing.T) {
-	runtime := detectRuntime()
-	t.Logf("container runtime: %s", runtime)
-
-	for _, osTemplate := range allOSTemplates {
-		imageName := fmt.Sprintf("aw-inttest-devbox-shell-%s", osTemplate)
-		t.Cleanup(func() { removeImage(runtime, imageName) })
-
-		t.Run(string(osTemplate), func(t *testing.T) {
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerDevbox, containerenv.Default())
-			if err != nil {
-				t.Fatalf("PrepareBuildContext: %v", err)
-			}
-			defer cleanup()
-
-			buildImage(t, runtime, imageName, buildDir, nil)
-
-			out := runContainerCommand(t, runtime, imageName, "bash", "-c", `
-id -un
-which devbox
-nix --version
-echo DEVBOX_SHELL_OK
-`)
-			if !strings.Contains(out, "agent") {
-				t.Error("expected user 'agent'")
-			}
-			if !strings.Contains(out, "DEVBOX_SHELL_OK") {
-				t.Error("devbox shell test did not complete")
-			}
-		})
-	}
-}
-
-// TestIntegration_Devbox_E2E verifies the devbox mode E2E flow: build with
-// devbox.json, install a tool via devbox, verify it works.
-//
-//	go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_Devbox_E2E
-func TestIntegration_Devbox_E2E(t *testing.T) {
-	runtime := detectRuntime()
-	t.Logf("container runtime: %s", runtime)
-
-	for _, osTemplate := range allOSTemplates {
-		imageName := fmt.Sprintf("aw-inttest-devbox-e2e-%s", osTemplate)
-		t.Cleanup(func() { removeImage(runtime, imageName) })
-
-		t.Run(string(osTemplate), func(t *testing.T) {
-			cenv := containerenv.Default()
-			buildDir, cleanup, err := PrepareBuildContext("", osTemplate, profile.PackageManagerDevbox, cenv)
-			if err != nil {
-				t.Fatalf("PrepareBuildContext: %v", err)
-			}
-			defer cleanup()
-
-			devboxJSON := []byte(`{"packages":["hello@latest"]}`)
-			if err := os.WriteFile(filepath.Join(buildDir, "devbox.json"), devboxJSON, 0644); err != nil {
-				t.Fatalf("writing devbox.json: %v", err)
-			}
-
-			buildImage(t, runtime, imageName, buildDir, toolBuildArgs("claude", profile.PackageManagerDevbox))
-
-			// Tool launch via entrypoint
-			t.Run("tool_launch", func(t *testing.T) {
-				out := runContainerCommand(t, runtime, imageName, "claude", "--version")
-				if !strings.Contains(strings.ToLower(out), "claude") {
-					t.Errorf("claude --version did not produce expected output:\n%s", out)
-				}
-			})
-
-			// devbox.json package
-			t.Run("devbox_json_package", func(t *testing.T) {
-				out := runContainerCommand(t, runtime, imageName, "hello")
-				if !strings.Contains(out, "Hello") {
-					t.Errorf("hello from devbox.json failed:\n%s", out)
-				}
-			})
-
-			// Runtime devbox install
-			t.Run("runtime_devbox_install", func(t *testing.T) {
-				containerID := runDetachedContainer(t, runtime, imageName, "sleep", "600")
-				t.Cleanup(func() { removeContainer(runtime, containerID) })
-
-				execInContainer(t, runtime, containerID, "bash", "-lc",
-					"devbox global add "+toolinfo.DevboxPkg("codex"))
-				out := execInContainer(t, runtime, containerID, "bash", "-lc",
-					"codex --version")
-				if !strings.Contains(out, "codex") {
-					t.Errorf("codex --version after devbox install failed:\n%s", out)
-				}
-			})
-		})
-	}
-}
-
 func TestIntegration_AllOSTemplatesHaveDockerfile(t *testing.T) {
 	for _, os := range allOSTemplates {
 		if _, ok := dockerfileTmpls[os]; !ok {
-			t.Errorf("no apt Dockerfile for OS template %q", os)
-		}
-		if _, ok := dockerfileDevboxTmpls[os]; !ok {
-			t.Errorf("no devbox Dockerfile for OS template %q", os)
+			t.Errorf("no Dockerfile for OS template %q", os)
 		}
 	}
 }

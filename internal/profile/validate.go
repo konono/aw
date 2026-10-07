@@ -14,22 +14,15 @@ var dns1123LabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 var k8sQuantityRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?([eE][0-9]+)?([kKMGTPE]i?)?$`)
 
 const (
-	maxReaperTimeout       = 3600
+	maxReaperTimeout         = 3600
 	maxReaperReportRetention = 100
 )
 
 // reservedProfileNames are aw subcommand names that cannot be used as profile names.
 var reservedProfileNames = map[string]bool{
 	"update": true, "profiles": true, "default-dockerfile": true, "default-init-script": true,
-	"export": true, "build": true, "init": true, "auth": true, "login": true,
-	"doctor": true, "reaper": true, "team": true, "msg": true, "manifest": true,
-}
-
-var validRoles = map[Role]bool{
-	RoleDeveloper: true,
-	RoleReviewer:  true,
-	RoleLead:      true,
-	RolePartner:   true,
+	"build": true, "init": true, "auth": true, "login": true,
+	"doctor": true, "reaper": true, "manifest": true,
 }
 
 // Validate checks that a profile configuration is semantically valid.
@@ -95,17 +88,10 @@ func validateBasicFields(p Profile) error {
 		return fmt.Errorf("image_pull_policy is only valid with environment: container")
 	}
 
-	if p.PackageManager != "" && p.PackageManager != PackageManagerApt && p.PackageManager != PackageManagerDevbox {
-		return fmt.Errorf("package_manager must be \"apt\" or \"devbox\", got %q", p.PackageManager)
-	}
-	if p.PackageManager != "" && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("package_manager is only valid with environment: container")
-	}
-
-	switch p.Delivery {
-	case "", "turn", "monitor", "off":
-	default:
-		return fmt.Errorf("unknown delivery: %q (must be \"turn\", \"monitor\", or \"off\")", p.Delivery)
+	if p.PackageManager != "" && p.PackageManager != "apt" {
+		return fmt.Errorf("package_manager %q is no longer supported: the devbox package manager was removed in v5. "+
+			"Remove the package_manager key and move devbox packages to mise.toml, the profile's packages, or a custom dockerfile "+
+			"(see docs/migration-v5.md)", p.PackageManager)
 	}
 
 	switch p.ContainerRuntime {
@@ -118,14 +104,8 @@ func validateBasicFields(p Profile) error {
 }
 
 func validateContainerFlags(p Profile) error {
-	if p.DevboxInstall != nil && p.SkipDevboxInstall != nil {
-		return fmt.Errorf("devbox_install and skip_devbox_install are mutually exclusive; use devbox_install only")
-	}
 	if p.MiseInstall != nil && p.SkipMiseInstall != nil {
 		return fmt.Errorf("mise_install and skip_mise_install are mutually exclusive; use mise_install only")
-	}
-	if p.EffectiveSkipDevboxInstall() && p.Environment != EnvironmentContainer {
-		return fmt.Errorf("devbox_install/skip_devbox_install is only valid with environment: container")
 	}
 	if p.EffectiveSkipMiseInstall() && p.Environment != EnvironmentContainer {
 		return fmt.Errorf("mise_install/skip_mise_install is only valid with environment: container")
@@ -357,50 +337,8 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
-	// Validate teams
-	for name, team := range cfg.Teams {
-		if err := validateTeam(name, team, cfg.Profiles); err != nil {
-			errs = append(errs, err.Error())
-		}
-	}
-
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation errors:\n  %s", strings.Join(errs, "\n  "))
-	}
-
-	return nil
-}
-
-func validateTeam(name string, team Team, profiles map[string]Profile) error {
-	if len(team.Members) == 0 {
-		return fmt.Errorf("team %q: must have at least one member", name)
-	}
-
-	fgCount := 0
-	for i, m := range team.Members {
-		if m.Profile == "" {
-			return fmt.Errorf("team %q: member[%d]: profile is required", name, i)
-		}
-		p, ok := profiles[m.Profile]
-		if !ok {
-			return fmt.Errorf("team %q: member[%d]: profile %q not found", name, i, m.Profile)
-		}
-		if p.Environment != EnvironmentContainer {
-			return fmt.Errorf("team %q: member[%d]: profile %q must use environment: container", name, i, m.Profile)
-		}
-		if m.Role == "" {
-			return fmt.Errorf("team %q: member[%d]: role is required", name, i)
-		}
-		if !validRoles[m.Role] {
-			return fmt.Errorf("team %q: member[%d]: unknown role %q (must be developer, reviewer, lead, or partner)", name, i, m.Role)
-		}
-		if m.Foreground {
-			fgCount++
-		}
-	}
-
-	if fgCount > 1 {
-		return fmt.Errorf("team %q: at most one member can have foreground: true", name)
 	}
 
 	return nil

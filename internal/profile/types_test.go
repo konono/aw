@@ -181,9 +181,6 @@ export:
 		if p.Build == nil {
 			t.Fatal("Build should be populated from legacy export field")
 		}
-		if !p.Build.LegacySnapshot {
-			t.Error("LegacySnapshot should be true")
-		}
 		if len(p.Build.Include) != 1 || p.Build.Include[0].Src != "./certs" {
 			t.Errorf("Include = %v, want [{./certs /usr/local/share/ca-certificates}]", p.Build.Include)
 		}
@@ -216,9 +213,6 @@ export:
 		if len(p.Build.Include) != 1 || p.Build.Include[0].Src != "./from-build" {
 			t.Errorf("Build should use build: field, got Include = %v", p.Build.Include)
 		}
-		if p.Build.LegacySnapshot {
-			t.Error("LegacySnapshot should be false when build: takes precedence")
-		}
 	})
 
 	t.Run("export snapshot only", func(t *testing.T) {
@@ -235,9 +229,7 @@ export:
 		if p.Build == nil {
 			t.Fatal("Build should be populated from legacy export field")
 		}
-		if !p.Build.LegacySnapshot {
-			t.Error("LegacySnapshot should be true for export: { snapshot: true }")
-		}
+		// export.snapshot is accepted and ignored: aw build always snapshots.
 	})
 
 	t.Run("no export or build field", func(t *testing.T) {
@@ -253,33 +245,6 @@ launch: claude
 			t.Errorf("Build should be nil when neither export nor build is set, got %+v", p.Build)
 		}
 	})
-}
-
-func TestEffectiveDelivery(t *testing.T) {
-	tests := []struct {
-		name     string
-		delivery string
-		tool     string
-		want     string
-	}{
-		{"explicit turn", "turn", "claude", "turn"},
-		{"explicit monitor", "monitor", "claude", "monitor"},
-		{"explicit off", "off", "claude", "off"},
-		{"default claude", "", "claude", "turn"},
-		{"default codex", "", "codex", "turn"},
-		{"default cursor", "", "cursor", "off"},
-		{"default opencode", "", "opencode", "off"},
-		{"override cursor default", "turn", "cursor", "turn"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := &Profile{Delivery: tt.delivery}
-			if got := p.EffectiveDelivery(tt.tool); got != tt.want {
-				t.Errorf("EffectiveDelivery(%q) = %q, want %q", tt.tool, got, tt.want)
-			}
-		})
-	}
 }
 
 func TestProfile_CodexSyncOptions(t *testing.T) {

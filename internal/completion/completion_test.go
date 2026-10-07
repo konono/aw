@@ -29,9 +29,3 @@ func TestProfilePredictor_Predict_NoPanic(t *testing.T) {
 	results := p.Predict(complete.Args{})
 	_ = results
 }
-
-func TestTeamPredictor_Predict_NoPanic(t *testing.T) {
-	p := TeamPredictor{}
-	results := p.Predict(complete.Args{})
-	_ = results
-}

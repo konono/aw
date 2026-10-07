@@ -91,7 +91,7 @@ sudo loginctl enable-linger $(whoami)
 │  │                                                          │  │
 │  │  ├── プロジェクト  ← bind mount (RW)                     │  │
 │  │  ├── .gitconfig    ← bind mount (RO)                     │  │
-│  │  └── mise / devbox（コンテナ内で完結）                    │  │
+│  │  └── mise（コンテナ内で完結）                             │  │
 │  │                                                          │  │
 │  │  ─── オプトインで追加 ────────────────────────────        │  │
 │  │  ├── SSH Agent socket   (ssh_agent_forwarding)           │  │
@@ -113,7 +113,7 @@ sudo loginctl enable-linger $(whoami)
 - **Claude / Codex / OpenCode 対応** — プロファイルを切り替えるだけ
 - **Docker / Podman 両対応** — デフォルトは Podman、`container_runtime: docker` で Docker に切替
 - **git worktree 自動生成** — 実行ごとに独立ブランチで作業。壊しても消せば終わり。複数ターミナルで並列実行も可能
-- **mise / devbox 対応** — エージェントの試行錯誤を `mise.toml` や `devbox.json` に落として再現可能に
+- **mise 対応** — エージェントの試行錯誤を `mise.toml` に落として再現可能に
 - **プレビルドイメージ対応** — `image:` で事前ビルド済みイメージを指定。エアギャップ環境に対応
 - **マルチ OS テンプレート** — Debian 12 / UBI 9 / UBI 10 / Ubuntu 26.04
 - **カスタムコンテナユーザー** — `container_user:` でコンテナ内ユーザーを変更可能
@@ -122,7 +122,6 @@ sudo loginctl enable-linger $(whoami)
 - **自動リソースクリーンアップ** — コンテナ終了後に reaper が SSH トンネル・ソケット・コンテナを自動削除。失敗時は `aw reaper recover` で再試行可能
 - **環境診断** — `aw doctor` でランタイム・認証・プロファイル・reaper の状態を一括チェック
 - **チーム共有** — `.aw.yml` をコミットすれば全員が同じエージェント環境を再現できる
-- **マルチエージェントチーム** — developer + reviewer を別コンテナで起動し、メッセージングで自動コードレビュー。詳細は [チームガイド](docs/teams.md)
 
 ## 利便性とリスクのバランス
 
@@ -172,7 +171,7 @@ mount_container_sock: true    # docker-compose up/down
 2. `settings.json` にはコンテナ向けのパッチを適用する（`skipDangerousModePermissionPrompt: true` の追加など）
 3. ステージングディレクトリを `/home/agent/.claude/` としてコンテナにマウントする
 4. Claude Code を `--permission-mode bypassPermissions` で起動する
-5. プロジェクト内に `devbox.json` や `mise.toml` があれば、自動で `devbox install` / `mise install` を実行する
+5. プロジェクト内に `mise.toml` があれば、自動で `mise install` を実行する
 
 ```
 ホスト ~/.claude/                         ステージング ~/.agent-workspace/claude/
@@ -211,11 +210,11 @@ mount_container_sock: true    # docker-compose up/down
 | セッション履歴（`/resume`） | ✓ | `~/.agent-workspace/<tool>/` |
 | ツール設定・プラグイン | ✓ | `~/.agent-workspace/<tool>/` |
 | git worktree | ✓ | ホスト上（手動で削除するまで残る） |
-| mise / devbox でインストールしたツール | ✗ | コンテナ破棄時に消失（`aw build --apply` で焼き込み可） |
+| mise でインストールしたツール | ✗ | コンテナ破棄時に消失（`aw build --apply` で焼き込み可） |
 | コンテナ内で apt install したもの | ✗ | コンテナ破棄時に消失（`aw save` で保存可） |
 | コンテナ内の一時ファイル | ✗ | コンテナ破棄時に消失 |
 
-コンテナ内で `apt install` したパッケージを永続化するには、`mise.toml` や `devbox.json` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。対話的なカスタマイズ（`apt install` や設定変更）をそのまま保存したい場合は `aw save` が使えます。
+コンテナ内で `apt install` したパッケージを永続化するには、`mise.toml` に記述するか、[カスタム Dockerfile](docs/custom-dockerfile.md) を使ってください。対話的なカスタマイズ（`apt install` や設定変更）をそのまま保存したい場合は `aw save` が使えます。
 
 ### Reaper（後処理）
 
@@ -289,9 +288,9 @@ aw auth status claude  # 認証状態を確認
 
 ### イメージのビルドとキャッシュ
 
-`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー名・ツール・devbox.json・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。イメージは GID 0 パターンで構築されるため、ホストの UID が異なってもリビルドは不要です。
+`aw` は Dockerfile の内容・OS テンプレート・コンテナユーザー名・ツール・mise.toml の内容からハッシュを計算し、イメージ名に使います。これらのいずれかが変わると自動的に再ビルドされ、変わらなければキャッシュ済みイメージが再利用されます。イメージは GID 0 パターンで構築されるため、ホストの UID が異なってもリビルドは不要です。
 
-通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`devbox install` や `mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw build` で環境をイメージに焼き込むことで起動を高速化できます:
+通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw build` で環境をイメージに焼き込むことで起動を高速化できます:
 
 ```bash
 aw build claude --apply
@@ -299,16 +298,30 @@ aw build claude --apply
 
 このコマンドは以下を行います:
 
-1. 公式イメージをベースにコンテナを起動し、プロジェクトの `devbox.json` / `mise.toml` に基づいてパッケージをインストール
+1. 公式イメージをベースにコンテナを起動し、プロジェクトの `mise.toml` に基づいてパッケージをインストール
 2. インストール済みの状態を `aw-build:<profile>-<hash>` としてコミット（公式イメージは上書きしない）
 3. `--apply` により、プロファイルの設定に `image:` と `skip_mise_install: true` を書き戻す
 
 以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
 
-テンプレートからの完全ビルドが必要な場合は `--from-template` を使用します:
+`image:` が設定されていても OS テンプレートから作り直したい場合は `--no-cache` を使います。
+
+> **Note:** `aw build` は、ビルド入力（`dockerfile`、`mise.toml` / `.mise.toml`、
+> `packages.txt`、プロファイルの `packages` / `build_env`、`--include`、`--env`、
+> `--build-arg`）が 1 つもない場合、テンプレートをビルドせず公式イメージをそのまま
+> 使います。`--no-cache` を付けてもこの判定は変わりません。
+
+つまり `--no-cache` が効くのは、プロファイルにビルド入力がある場合です:
+
+```yaml
+profiles:
+  claude:
+    launch: claude
+    packages: [jq]        # ← ビルド入力
+```
 
 ```bash
-aw build claude --from-template --apply
+aw build claude --no-cache --apply
 ```
 
 ランタイム構成を変更した場合は、再度 `aw build --apply` を実行してイメージを更新してください。
@@ -326,24 +339,19 @@ container_runtime: docker
 ベースイメージには以下のツールがプリインストールされています:
 
 - `git`、`curl`、`wget`、`sudo`、`openssh-client`、`ca-certificates`、`xz-utils`
-- `mise`（ランタイムマネージャー。`package_manager: devbox` の場合は代わりに `devbox` がインストールされます）
+- `mise`（ランタイムマネージャー）
 
 コンテナからインターネットへのアクセスに制限はありません。エージェントは `curl` や `fetch` で外部の情報を取得できます。ネットワークの隔離ではなく、ファイルシステムの隔離によってホストを保護する設計です。
 
 ### コンテナにツールを追加する
 
-コンテナ内で `apt install` したパッケージはコンテナ破棄時に消えます。ツールを永続化するには、プロジェクトルートに `mise.toml` や `devbox.json` を置いてください。`aw` はコンテナ起動時にこれらを検出し、自動で `mise install` / `devbox install` を実行します。
+コンテナ内で `apt install` したパッケージはコンテナ破棄時に消えます。ツールを永続化するには、プロジェクトルートに `mise.toml` を置いてください。`aw` はコンテナ起動時にこれを検出し、自動で `mise install` を実行します。
 
 ```toml
 # mise.toml の例
 [tools]
 node = "22"
 python = "3.12"
-```
-
-```json
-// devbox.json の例
-{ "packages": ["ripgrep", "jq", "gh"] }
 ```
 
 OS レベルのパッケージ（apt/dnf）を追加するには、`packages.txt` を使います。
@@ -363,9 +371,9 @@ tree
 
 プロファイルの `packages:` フィールドとも併用でき、すべてマージされます。重複は自動排除されます。OS テンプレートに応じて `apt-get install` / `dnf install` が自動で使い分けられるため、ユーザーが意識する必要はありません。
 
-mise / devbox でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw build --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
+mise でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw build --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
 
-`aw build --apply` は、ワークスペースに `mise.toml`・`devbox.json`・`packages.txt` が存在する場合、プロジェクトローカルの `.aw.yml` にイメージ名を書き込みます。これにより、プロジェクトごとに異なる snapshot イメージを管理できます。ワークスペース固有ファイルがない場合は、従来通りグローバル config に書き込みます。
+`aw build --apply` は、ワークスペースに `mise.toml`・`packages.txt` が存在する場合、プロジェクトローカルの `.aw.yml` にイメージ名を書き込みます。これにより、プロジェクトごとに異なる snapshot イメージを管理できます。ワークスペース固有ファイルがない場合は、従来通りグローバル config に書き込みます。
 
 > **モノレポでの注意**: `aw build --apply` はカレントディレクトリのワークスペースファイルを検出しますが、`.aw.yml` は git リポジトリルートに書き込まれます。モノレポのサブディレクトリごとに異なる `mise.toml` がある場合、最後に `aw build --apply` を実行したサブディレクトリの snapshot が `.aw.yml` に反映されます。サブディレクトリごとに異なる snapshot が必要な場合は、プロファイル名を分けて管理してください。
 
@@ -386,7 +394,7 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 
 | コマンド | 用途 | 入力 |
 |---------|------|------|
-| `aw build --apply` | mise.toml / devbox.json / packages.txt の焼き込み | 宣言的な設定ファイル |
+| `aw build --apply` | mise.toml / packages.txt の焼き込み | 宣言的な設定ファイル |
 | `aw save` | 対話的なカスタマイズの保存 | コンテナ内の手作業 |
 
 `aw save` は `--image` でイメージ名を指定でき、`--runtime` で docker / podman を明示できます（省略時は両方を検索）。
@@ -429,10 +437,6 @@ aw profiles     # 一覧を表示
 ```bash
 aw [profile-name]              # プロファイルを実行
 aw profiles                    # 利用可能なプロファイル一覧
-aw team start [--task <desc>] <team>  # チームを起動（developer + reviewer 等）
-aw team stop <team>            # チームを停止
-aw team status [team]          # チームの稼働状況
-aw msg send/inbox/history      # エージェント間メッセージング
 aw auth login claude|codex|opencode|cursor   # ツールの認証
 aw auth status claude          # 認証状態の確認
 aw login claude                # auth login の短縮形
@@ -528,36 +532,6 @@ profiles:
     launch: claude
 ```
 
-### マルチエージェントでコードレビュー
-
-developer と reviewer を別コンテナで起動し、自動レビューフローを実現します:
-
-```yaml
-# .aw.yml
-profiles:
-  claude-dev:
-    launch: claude
-  claude-review:
-    launch: claude
-
-teams:
-  review-team:
-    members:
-      - profile: claude-dev
-        role: developer
-        foreground: true
-      - profile: claude-review
-        role: reviewer
-```
-
-```bash
-aw team start --task "FizzBuzz を実装してテストを書いてください" review-team
-```
-
-developer がコードを書いてレビュー依頼を送ると、reviewer が自動でレビューしてフィードバックを返します。各メンバーは独立した git worktree で作業するため、互いの変更が干渉しません。
-
-詳細は [チーム & メッセージング](docs/teams.md) を参照してください。
-
 ### Vertex AI で Claude を使う
 
 ```yaml
@@ -583,8 +557,9 @@ profiles:
 # イメージをビルドして tar に保存
 aw build claude --save my-image.tar
 
-# --from-template: テンプレートからビルド（公式イメージではなく）
-aw build claude --from-template --save my-image.tar
+# --no-cache: キャッシュと image: 設定を無視してテンプレートから作り直す
+# （プロファイルに packages 等のビルド入力があることが前提）
+aw build claude --no-cache --save my-image.tar
 
 # --include: ホストのディレクトリをイメージにコピー
 aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-image.tar
@@ -593,7 +568,7 @@ aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-ima
 aw build claude --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
 
 # --build-arg: ビルド時のみ使われる引数を渡す（イメージには焼き込まない）
-aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
 
 # USB 等で転送
 docker load -i my-image.tar             # オフライン環境でロード
@@ -635,11 +610,11 @@ profiles:
 | [設定リファレンス](docs/configuration.md) | 全オプション、バリデーションルール、マージモデル |
 | [認証ガイド](docs/authentication.md) | ツール別の認証設定 |
 | [コンテナ同期](docs/container-sync.md) | ホスト設定の同期、SSH、データ保存先 |
-| [パッケージ管理](docs/mise.md) | mise / devbox によるコンテナ内ツール管理 |
+| [パッケージ管理](docs/mise.md) | mise によるコンテナ内ツール管理 |
 | [カスタム Dockerfile](docs/custom-dockerfile.md) | 独自イメージの作成方法 |
 | [DooD (Docker outside of Docker)](docs/dood.md) | コンテナ内から docker-compose を操作する方法 |
 | [Build & Snapshot](docs/build-snapshot.md) | `aw build` のビルド・焼き込み、`aw save` の対話的保存 |
-| [チーム & メッセージング](docs/teams.md) | マルチエージェント起動、自動レビュー、ブランチ分離 |
+| [v4 → v5 移行ガイド](docs/migration-v5.md) | v5 で削除された機能と設定の移行手順 |
 
 ## 企業プロキシ・CA 証明書
 
@@ -654,7 +629,7 @@ defaults:
   ca_cert: "C:/certs/corporate-ca.pem"  # または ~/certs/corp.pem
 ```
 
-- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します。CLI の `--build-arg` フラグでも同等の指定が可能です（例: `aw build claude --build-arg HTTP_PROXY=http://proxy.corp:8080 --from-template`）
+- `build_env`: `docker build` / `podman build` に `--build-arg` として渡されます。Docker/Podman は `HTTP_PROXY` 等を RUN ステップで自動的に使用します。CLI の `--build-arg` フラグでも同等の指定が可能です（例: `aw build claude --build-arg HTTP_PROXY=http://proxy.corp:8080`）
 - `ca_cert`: 証明書ファイルをビルドコンテキストにコピーし、ツールインストール前に `update-ca-certificates`（Debian/Ubuntu）または `update-ca-trust`（UBI）を実行します
 
 > **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。

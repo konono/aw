@@ -28,17 +28,14 @@ func mergeStringFields(merged *Profile, override Profile) {
 	if override.Launch != "" {
 		merged.Launch = override.Launch
 	}
-	if override.Delivery != "" {
-		merged.Delivery = override.Delivery
-	}
 	if override.ContainerRuntime != "" {
 		merged.ContainerRuntime = override.ContainerRuntime
 	}
-	if override.ContainerUser != "" {
-		merged.ContainerUser = override.ContainerUser
-	}
 	if override.PackageManager != "" {
 		merged.PackageManager = override.PackageManager
+	}
+	if override.ContainerUser != "" {
+		merged.ContainerUser = override.ContainerUser
 	}
 	if override.CACert != "" {
 		merged.CACert = override.CACert
@@ -79,14 +76,6 @@ func mergeImageFields(merged *Profile, override Profile) {
 }
 
 func mergeBoolPtrFields(merged *Profile, override Profile) {
-	if override.SkipDevboxInstall != nil {
-		v := *override.SkipDevboxInstall
-		merged.SkipDevboxInstall = &v
-	}
-	if override.DevboxInstall != nil {
-		v := *override.DevboxInstall
-		merged.DevboxInstall = &v
-	}
 	if override.SkipMiseInstall != nil {
 		v := *override.SkipMiseInstall
 		merged.SkipMiseInstall = &v
@@ -214,17 +203,11 @@ func relativeStringFields(relative *Profile, defaults, effective Profile) {
 	if effective.Launch != defaults.Launch {
 		relative.Launch = effective.Launch
 	}
-	if effective.Delivery != defaults.Delivery {
-		relative.Delivery = effective.Delivery
-	}
 	if effective.ContainerRuntime != defaults.ContainerRuntime {
 		relative.ContainerRuntime = effective.ContainerRuntime
 	}
 	if effective.ContainerUser != defaults.ContainerUser {
 		relative.ContainerUser = effective.ContainerUser
-	}
-	if effective.PackageManager != defaults.PackageManager && effective.PackageManager != "" {
-		relative.PackageManager = effective.PackageManager
 	}
 	if effective.CACert != defaults.CACert {
 		relative.CACert = effective.CACert
@@ -247,14 +230,6 @@ func relativeImageFields(relative *Profile, defaults, effective Profile) {
 }
 
 func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
-	if !equalBoolPtr(effective.SkipDevboxInstall, defaults.SkipDevboxInstall) && effective.SkipDevboxInstall != nil {
-		v := *effective.SkipDevboxInstall
-		relative.SkipDevboxInstall = &v
-	}
-	if !equalBoolPtr(effective.DevboxInstall, defaults.DevboxInstall) && effective.DevboxInstall != nil {
-		v := *effective.DevboxInstall
-		relative.DevboxInstall = &v
-	}
 	if !equalBoolPtr(effective.SkipMiseInstall, defaults.SkipMiseInstall) && effective.SkipMiseInstall != nil {
 		v := *effective.SkipMiseInstall
 		relative.SkipMiseInstall = &v
@@ -347,17 +322,6 @@ func MergeConfig(builtin, user Config) Config {
 		merged.Default = user.Default
 	}
 
-	// Merge teams: user teams override builtin teams by name
-	if len(builtin.Teams) > 0 || len(user.Teams) > 0 {
-		merged.Teams = make(map[string]Team, len(builtin.Teams)+len(user.Teams))
-		for name, t := range builtin.Teams {
-			merged.Teams[name] = t
-		}
-		for name, t := range user.Teams {
-			merged.Teams[name] = t
-		}
-	}
-
 	return merged
 }
 
@@ -370,7 +334,6 @@ func ApplyDefaults(cfg Config) Config {
 		Default:  cfg.Default,
 		Defaults: cfg.Defaults,
 		Profiles: make(map[string]Profile, len(cfg.Profiles)),
-		Teams:    cfg.Teams,
 		Source:   cfg.Source,
 	}
 	defaults := cfg.Defaults.AsProfile()

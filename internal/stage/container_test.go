@@ -204,32 +204,6 @@ func TestAppendContainerContext_BaseOnly(t *testing.T) {
 	}
 }
 
-func TestAppendContainerContext_DevboxMode(t *testing.T) {
-	tmpDir := t.TempDir()
-	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			PackageManager: profile.PackageManagerDevbox,
-		},
-	}
-
-	if err := appendContainerContext(tmpDir, ec); err != nil {
-		t.Fatalf("appendContainerContext() error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(tmpDir, "CLAUDE.md"))
-	if err != nil {
-		t.Fatalf("reading CLAUDE.md: %v", err)
-	}
-	content := string(data)
-
-	if !strings.Contains(content, "npm") {
-		t.Error("devbox mode should mention npm")
-	}
-	if !strings.Contains(content, "mise") {
-		t.Error("devbox mode should mention mise")
-	}
-}
-
 func TestAppendContainerContext_AllFeatures(t *testing.T) {
 	tmpDir := t.TempDir()
 	ghToken := true
@@ -628,12 +602,10 @@ func TestDockerStage_PrebuiltImage_NotFound_ReenablesInstallsFromApply(t *testin
 	skip := true
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Environment:       profile.EnvironmentContainer,
-			Launch:            profile.LaunchShell,
-			Image:             "aw-container-myprofile:08b2c728bba5",
-			SkipMiseInstall:   &skip,
-			SkipDevboxInstall: &skip,
-			PackageManager:    profile.PackageManagerDevbox,
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchShell,
+			Image:           "aw-container-myprofile:08b2c728bba5",
+			SkipMiseInstall: &skip,
 		},
 		HomeDir: t.TempDir(),
 		WorkDir: t.TempDir(),
@@ -648,16 +620,10 @@ func TestDockerStage_PrebuiltImage_NotFound_ReenablesInstallsFromApply(t *testin
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		t.Error("mise install should be re-enabled after falling back")
 	}
-	if ec.Profile.EffectiveSkipDevboxInstall() {
-		t.Error("devbox install should be re-enabled after falling back")
-	}
 
 	env := pipeline.ContainerEnvVars(ec, "claude")
 	if _, ok := env["AW_SKIP_MISE_INSTALL"]; ok {
 		t.Error("AW_SKIP_MISE_INSTALL should not be set for the fallback image")
-	}
-	if _, ok := env["AW_SKIP_DEVBOX_INSTALL"]; ok {
-		t.Error("AW_SKIP_DEVBOX_INSTALL should not be set for the fallback image")
 	}
 }
 
@@ -909,106 +875,6 @@ func TestDockerStage_BuildArgs_AptMode(t *testing.T) {
 				t.Error("AW_TOOL_PKG should not be set in apt mode")
 			}
 		})
-	}
-}
-
-func TestDockerStage_BuildArgs_DevboxMode(t *testing.T) {
-	tests := []struct {
-		tool    string
-		wantPkg string
-	}{
-		{"claude", "claude-code"},
-		{"codex", "codex"},
-		{"opencode", "opencode"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.tool, func(t *testing.T) {
-			dc := &mockDockerClient{available: true}
-			s := &DockerStage{
-				DockerClient: dc,
-				ConfigSyncer: &mockConfigSyncer{},
-				MountBuilder: &mockMountBuilder{},
-			}
-
-			var launch profile.LaunchMode
-			switch tt.tool {
-			case "claude":
-				launch = profile.LaunchClaude
-			case "codex":
-				launch = profile.LaunchCodex
-			case "opencode":
-				launch = profile.LaunchOpenCode
-			}
-
-			ec := &pipeline.ExecutionContext{
-				Profile: profile.Profile{
-					Environment:    profile.EnvironmentContainer,
-					Launch:         launch,
-					PackageManager: profile.PackageManagerDevbox,
-				},
-				HomeDir: t.TempDir(),
-				WorkDir: t.TempDir(),
-			}
-
-			if err := s.Run(context.Background(), ec); err != nil {
-				t.Fatalf("Run() error: %v", err)
-			}
-
-			if dc.buildArgs["AW_TOOL_PKG"] != tt.wantPkg {
-				t.Errorf("AW_TOOL_PKG = %q, want %q", dc.buildArgs["AW_TOOL_PKG"], tt.wantPkg)
-			}
-			if _, ok := dc.buildArgs["AW_TOOL_INSTALL_SCRIPT"]; ok {
-				t.Error("AW_TOOL_INSTALL_SCRIPT should not be set in devbox mode")
-			}
-		})
-	}
-}
-
-func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
-	aptDC := &mockDockerClient{available: true}
-	aptStage := &DockerStage{
-		DockerClient: aptDC,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-	}
-
-	aptEC := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-		},
-		HomeDir: t.TempDir(),
-		WorkDir: t.TempDir(),
-	}
-
-	if err := aptStage.Run(context.Background(), aptEC); err != nil {
-		t.Fatalf("apt Run() error: %v", err)
-	}
-
-	devboxDC := &mockDockerClient{available: true}
-	devboxStage := &DockerStage{
-		DockerClient: devboxDC,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
-	}
-
-	devboxEC := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment:    profile.EnvironmentContainer,
-			Launch:         profile.LaunchClaude,
-			PackageManager: profile.PackageManagerDevbox,
-		},
-		HomeDir: t.TempDir(),
-		WorkDir: t.TempDir(),
-	}
-
-	if err := devboxStage.Run(context.Background(), devboxEC); err != nil {
-		t.Fatalf("devbox Run() error: %v", err)
-	}
-
-	if aptDC.buildImageName == devboxDC.buildImageName {
-		t.Errorf("apt and devbox should produce different image hashes, both got %q", aptDC.buildImageName)
 	}
 }
 

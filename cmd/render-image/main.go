@@ -73,12 +73,12 @@ func renderContext(osName, tool, outputDir string) error {
 		return fmt.Errorf("unknown tool: %q (supported: %s)", tool, strings.Join(toolinfo.Names(), ", "))
 	}
 
-	dockerfile, err := image.RenderDockerfile(osTemplate, profile.PackageManagerApt, cenv)
+	dockerfile, err := image.RenderDockerfile(osTemplate, cenv)
 	if err != nil {
 		return fmt.Errorf("rendering Dockerfile: %w", err)
 	}
 
-	entrypoint := image.Entrypoint(profile.PackageManagerApt)
+	entrypoint := image.Entrypoint()
 	initScript := image.InitScript()
 
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {

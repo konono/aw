@@ -14,7 +14,6 @@ type ToolSpec struct {
 	Binary            string
 	DisplayName       string
 	InstallScript     string // shell command to install the tool in a container
-	DevboxPkg         string // deprecated: used with package_manager: devbox
 	HomeEnvVar        string
 	DefaultHomeSubdir string
 	InstallHint       string
@@ -28,7 +27,6 @@ var tools = map[string]ToolSpec{
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
 		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash; _rc=$?; if [ $_rc -ne 0 ]; then if [ ! -f $HOME/.local/bin/claude ] && ! command -v claude >/dev/null 2>&1; then exit $_rc; fi; fi; { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(which claude) $HOME/.local/bin/claude; }; }; sudo ln -sf $HOME/.local/bin/claude /claude 2>/dev/null || true",
-		DevboxPkg:         "claude-code",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
 		InstallHint:       "Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash",
@@ -37,7 +35,6 @@ var tools = map[string]ToolSpec{
 		Binary:            "codex",
 		DisplayName:       "Codex",
 		InstallScript:     "curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=true sh && cp -L $HOME/.local/bin/codex $HOME/.local/bin/codex.tmp && mv $HOME/.local/bin/codex.tmp $HOME/.local/bin/codex",
-		DevboxPkg:         "codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
 		InstallHint:       "Install Codex CLI: curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | sh",
@@ -46,7 +43,6 @@ var tools = map[string]ToolSpec{
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
 		InstallScript:     "curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && mkdir -p $HOME/.local/bin && ln -sf $HOME/.opencode/bin/opencode $HOME/.local/bin/opencode",
-		DevboxPkg:         "opencode",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		InstallHint:       "Install via: curl -fsSL https://opencode.ai/install | bash",
@@ -75,13 +71,6 @@ func Lookup(tool string) (ToolSpec, bool) {
 func InstallScript(tool string) string {
 	if spec, ok := Lookup(tool); ok {
 		return spec.InstallScript
-	}
-	return ""
-}
-
-func DevboxPkg(tool string) string {
-	if spec, ok := Lookup(tool); ok {
-		return spec.DevboxPkg
 	}
 	return ""
 }

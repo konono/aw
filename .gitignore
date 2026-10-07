@@ -11,3 +11,4 @@ docs/plan.md
 build/
 .kube/
 .envrc
+.panecom

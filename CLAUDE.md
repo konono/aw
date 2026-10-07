@@ -64,16 +64,13 @@ go test ./...
 go test -v -tags integration -timeout 30m ./internal/image/ -run TestIntegration_E2E/debian12
 ```
 
-### package_manager changes or new tool addition
+### New tool addition
 
-Unit tests + full integration for the affected mode:
+Unit tests + full integration:
 
 ```bash
 go test ./...
-# apt mode
 go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegration_ToolPerOS|TestIntegration_E2E"
-# devbox mode
-go test -v -tags integration -timeout 30m ./internal/image/ -run "TestIntegration_Devbox"
 ```
 
 ### Container launch command changes (`internal/launcher/tool.go`)
@@ -101,26 +98,19 @@ go test -v -tags integration -timeout 60m ./internal/image/
 
 # Manual: representative aw -- checks
 aw test-debian12-claude -- claude --version
-aw test-devbox-claude -- claude --version
 podman images | grep aw-container
 ```
 
 ## Test profiles
 
-`.aw.yml` in the project root defines 13 test profiles (4 OS × 3 tools + 1 devbox) for `aw -- <cmd>` manual testing. See `aw profiles` for the full list.
+`.aw.yml` in the project root defines 17 test profiles (4 OS × 4 tools, plus a debian12 shell profile) for `aw -- <cmd>` manual testing. See `aw profiles` for the full list.
 
-# Architecture: Package Manager
+# Architecture: Container Image
 
-The container image supports two package managers, selected via the `package_manager` profile field:
-
-- `apt` (default) — AI tools installed via standalone installers (curl-based install scripts). Lightweight (~400 MB image).
-- `devbox` (deprecated) — Nix single-user + devbox. Original behavior. Heavy (~1.8 GB image).
-
-Templates live in `internal/image/embed/`:
-- `Dockerfile.<os>.tmpl` + `entrypoint.sh.tmpl` — apt mode
-- `Dockerfile.<os>.devbox.tmpl` + `entrypoint.sh.devbox.tmpl` — devbox mode
-
-Selection happens in `embed.go` via `RenderDockerfile(os, pkgMgr, cenv)`.
+AI tools are installed via standalone installers (curl-based install scripts),
+giving a ~400 MB image. Templates live in `internal/image/embed/`:
+`Dockerfile.<os>.tmpl` + `entrypoint.sh`, rendered by `embed.go` via
+`RenderDockerfile(os, cenv)`.
 
 # Release Rules
 

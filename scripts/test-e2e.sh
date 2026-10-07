@@ -252,10 +252,6 @@ profiles:
     os: debian12
     launch: claude
     gh_token: true
-  test-devbox:
-    os: debian12
-    launch: claude
-    package_manager: devbox
 YAML
 }
 
@@ -419,23 +415,6 @@ if echo "$DOCTOR_OUT" | grep -qi "panic"; then
   fail "aw doctor でパニック: $DOCTOR_OUT"
 else
   pass "aw doctor が正常完了"
-fi
-
-# ====================================================================
-# 12. devbox モード
-# ====================================================================
-
-section "12. devbox モード"
-
-cd "$TMPDIR"
-mkdir -p devbox-test && cd devbox-test
-write_test_config
-
-DEVBOX_OUT=$($AW test-devbox -- mise --version 2>&1) || true
-if echo "$DEVBOX_OUT" | grep -q "202[0-9]"; then
-  pass "devbox モードでも mise がインストール済み"
-else
-  fail "devbox モードで mise が見つからない"
 fi
 
 # ====================================================================

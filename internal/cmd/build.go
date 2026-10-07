@@ -6,9 +6,9 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -33,13 +33,9 @@ func (b *BuildCmd) Run() error {
 		return err
 	}
 
-	cfg := b.preloadedConfig
-	if cfg == nil {
-		var err error
-		cfg, err = profile.Load()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+	cfg, err := profile.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	p, ok := cfg.Profiles[b.ProfileName]
@@ -51,7 +47,15 @@ func (b *BuildCmd) Run() error {
 		return fmt.Errorf("profile %q uses environment: %s (build requires environment: container)", b.ProfileName, p.Environment)
 	}
 
-	prepareBuildProfile(&p, b.NoCache || b.FromTemplate)
+	// aw run validates the whole config up front; build and manifest are
+	// entered directly, so validate the one profile they act on. Doing it
+	// per profile rather than config-wide keeps an unrelated broken profile
+	// from blocking a build.
+	if err := profile.Validate(p); err != nil {
+		return fmt.Errorf("profile %q: %w", b.ProfileName, err)
+	}
+
+	prepareBuildProfile(&p, b.NoCache)
 
 	ec, err := buildExecutionContext(b.ProfileName, p)
 	if err != nil {
@@ -82,7 +86,7 @@ func (b *BuildCmd) Run() error {
 		if b.Apply {
 			return b.applyOfficialImage(p, ec)
 		}
-		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
+		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
 		return nil
 	}
@@ -100,7 +104,7 @@ func (b *BuildCmd) Run() error {
 		cenv.SessionLog = true
 	}
 
-	snapshot := !b.skipSnapshot
+	const snapshot = true
 	resultImage := ec.DockerImage
 
 	if snapshot {
@@ -140,8 +144,6 @@ func (b *BuildCmd) Run() error {
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
 
-	pkgMgr := p.EffectivePackageManager()
-
 	if b.Apply {
 		var targetFile string
 		if hasWorkspaceFiles(workDir) {
@@ -155,7 +157,7 @@ func (b *BuildCmd) Run() error {
 		if targetFile == "" {
 			return fmt.Errorf("--apply requires a config file. Run `aw init` first")
 		}
-		if err := applyBuildResult(targetFile, b.ProfileName, resultImage, pkgMgr, snapshot); err != nil {
+		if err := applyBuildResult(targetFile, b.ProfileName, resultImage, snapshot); err != nil {
 			return fmt.Errorf("applying build result: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", resultImage, b.ProfileName, targetFile)
@@ -164,7 +166,7 @@ func (b *BuildCmd) Run() error {
 			fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, outputPath)
 		}
 	} else if saveTar {
-		printConfigSnippet(resultImage, runtime, string(p.Launch), outputPath, pkgMgr, snapshot)
+		printConfigSnippet(resultImage, runtime, string(p.Launch), outputPath, snapshot)
 	} else {
 		fmt.Fprintf(os.Stderr, "Built image '%s'\n", resultImage)
 	}
@@ -179,7 +181,7 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, devbox.json, packages.txt, packages, --include, --env, --build-arg, or build_env).")
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, packages.txt, packages, --include, --env, --build-arg, or build_env).")
 	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
 	if err := client.Pull(context.Background(), imageName); err != nil {
 		return fmt.Errorf("pulling official image: %w", err)
@@ -196,8 +198,7 @@ func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionC
 		return fmt.Errorf("--apply requires a config file. Run `aw init` first")
 	}
 
-	pkgMgr := p.EffectivePackageManager()
-	if err := applyBuildResult(targetFile, b.ProfileName, imageName, pkgMgr, false); err != nil {
+	if err := applyBuildResult(targetFile, b.ProfileName, imageName, false); err != nil {
 		return fmt.Errorf("applying build result: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
@@ -236,8 +237,7 @@ func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
 			}
 		}
 		if targetFile != "" {
-			pkgMgr := p.EffectivePackageManager()
-			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, pkgMgr, false); err != nil {
+			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, false); err != nil {
 				return fmt.Errorf("applying build result: %w", err)
 			}
 			fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
@@ -247,7 +247,7 @@ func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
 	return nil
 }
 
-var workspaceFileNames = []string{"mise.toml", ".mise.toml", "devbox.json", "packages.txt"}
+var workspaceFileNames = []string{"mise.toml", ".mise.toml", "packages.txt"}
 
 func hasWorkspaceFiles(dir string) bool {
 	for _, name := range workspaceFileNames {
@@ -263,9 +263,7 @@ func prepareBuildProfile(p *profile.Profile, fromTemplate bool) {
 		p.Image = ""
 	}
 	p.SkipMiseInstall = nil
-	p.SkipDevboxInstall = nil
 	p.MiseInstall = nil
-	p.DevboxInstall = nil
 	if fromTemplate {
 		p.ImagePullPolicy = profile.ImagePullPolicyBuild
 	}
@@ -411,7 +409,7 @@ func mergeBuildFields(flagIncludes []profile.BuildInclude, flagEnv map[string]st
 	return
 }
 
-func printConfigSnippet(imageName, runtime, launch, tarPath string, pkgMgr profile.PackageManager, snapshot bool) {
+func printConfigSnippet(imageName, runtime, launch, tarPath string, snapshot bool) {
 	fmt.Fprintf(os.Stderr, "# Load on target machine:\n")
 	fmt.Fprintf(os.Stderr, "#   %s load -i %s\n", runtime, tarPath)
 	fmt.Fprintf(os.Stderr, "#\n")
@@ -423,13 +421,10 @@ func printConfigSnippet(imageName, runtime, launch, tarPath string, pkgMgr profi
 	fmt.Fprintf(os.Stderr, "#       image: '%s'\n", imageName)
 	if snapshot {
 		fmt.Fprintf(os.Stderr, "#       skip_mise_install: true\n")
-		if pkgMgr == profile.PackageManagerDevbox {
-			fmt.Fprintf(os.Stderr, "#       skip_devbox_install: true\n")
-		}
 	}
 }
 
-func applyBuildResult(configPath, profileName, imageName string, pkgMgr profile.PackageManager, snapshot bool) error {
+func applyBuildResult(configPath, profileName, imageName string, snapshot bool) error {
 	data, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading config file: %w", err)
@@ -472,17 +467,9 @@ func applyBuildResult(configPath, profileName, imageName string, pkgMgr profile.
 	}
 
 	setYAMLMapValue(targetProfile, "image", imageName)
-	if snapshot {
-		setYAMLMapBool(targetProfile, "skip_mise_install", true)
-		if pkgMgr == profile.PackageManagerDevbox {
-			setYAMLMapBool(targetProfile, "skip_devbox_install", true)
-		} else {
-			removeYAMLMapKey(targetProfile, "skip_devbox_install")
-		}
-	} else {
-		setYAMLMapBool(targetProfile, "skip_mise_install", false)
-		setYAMLMapBool(targetProfile, "skip_devbox_install", false)
-	}
+	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
+	// Drop the key left behind by the removed devbox package manager.
+	removeYAMLMapKey(targetProfile, "skip_devbox_install")
 
 	var yamlBuf bytes.Buffer
 	enc := yaml.NewEncoder(&yamlBuf)

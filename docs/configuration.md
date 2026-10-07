@@ -70,7 +70,6 @@
 - `mount_container_sock` は `mount_gh` と同じ三値動作
 - `mount_zellij` は `mount_gh` と同じ三値動作
 - `gh_token` は `mount_gh` と同じ三値動作
-- `devbox_install` は `mount_gh` と同じ三値動作（`skip_devbox_install` は非推奨、両方指定不可）
 - `mise_install` は `mount_gh` と同じ三値動作（`skip_mise_install` は非推奨、両方指定不可）
 - `auto_deps_install` は `mount_gh` と同じ三値動作
 - `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能（`aw run` 時は `image` を使い、`aw build` 時は `dockerfile` でビルドする）
@@ -168,7 +167,6 @@ profiles:
   airgap:
     launch: claude
     image: 'aw-container:a1b2c3d4e5f6'
-    devbox_install: false
     mise_install: false
 ```
 
@@ -195,7 +193,6 @@ profiles:
 - `mount_zellij`
 - `gh_token`
 - `packages`
-- `package_manager`
 - `mounts`
 - `os`
 - `dockerfile`
@@ -342,21 +339,13 @@ profiles:
 - `image` + `dockerfile`: `dockerfile` でビルド（`image` は無視）
 - `image` のみ + ワークスペースファイル（mise.toml 等）: `image` をベースに snapshot で増分ビルド（mise install → docker commit）
 - `image` + `packages` / `ca_cert` / `build_env` / `packages.txt`: `image` を無視してテンプレートからフルビルド（これらは Dockerfile レイヤーで処理が必要なため）
-- `image` + `--from-template` / `--no-cache`: `image` を無視してテンプレートからフルビルド
+- `image` + `--no-cache`: `image` を無視してテンプレートからフルビルド（ビルド入力がある場合）
 
 `aw build --apply` でビルド結果を `image` に書き戻せます。
 
 ### `dockerfile`（任意）
 
 カスタム Dockerfile のパス。git ルートからの相対パス（絶対パスも可）。`environment: container` の場合のみ有効。`os` と排他的です。`image` と併用可能（`aw run` は `image` を使い、`aw build` は `dockerfile` でビルド）。
-
-### `devbox_install`（任意）
-
-コンテナ起動時のプロジェクト devbox.json のインストールを実行するかどうか。デフォルトは `true`（インストール実行）。`false` に設定するとスキップします。`environment: container` の場合のみ有効。
-
-省略した場合、トップレベルのデフォルトから継承します。
-
-> **非推奨**: `skip_devbox_install` も引き続きサポートされますが、`devbox_install` の使用を推奨します。両方を同時に指定するとエラーになります。
 
 ### `mise_install`（任意）
 
@@ -399,17 +388,6 @@ profiles:
 - スナップショットスクリプトの実行ユーザー
 
 `environment: container` でのみ有効です。
-
-### `package_manager`（任意）
-
-コンテナ内の AI ツールのインストール方法を制御します。
-
-- `apt`（デフォルト） — AI ツールをスタンドアロンの install script（curl ベース）でインストール。イメージサイズが軽量（約 400 MB）
-- `devbox`（非推奨） — Nix single-user + devbox でインストール。イメージサイズが大きい（約 1.8 GB）
-
-`environment: container` の場合のみ有効。
-
-省略した場合、デフォルトは `apt` です。
 
 ### `packages`（任意）
 
@@ -488,7 +466,7 @@ tree
 
 コンテナランタイム（Docker/Podman）のソケットをコンテナにマウントし、docker-compose 等によるコンテナ操作を有効にするかどうか（DooD: Docker outside of Docker 方式）。
 
-コンテナ内に `DOCKER_HOST` と `CONTAINER_HOST`（podman-remote 用）が `unix:///run/container.sock` に自動設定されます。docker-compose / docker CLI はユーザーが mise.toml や devbox.json、カスタム Dockerfile で別途インストールしてください。
+コンテナ内に `DOCKER_HOST` と `CONTAINER_HOST`（podman-remote 用）が `unix:///run/container.sock` に自動設定されます。docker-compose / docker CLI はユーザーが mise.toml やカスタム Dockerfile で別途インストールしてください。
 
 **デフォルト: `false`（無効）**。
 
@@ -523,8 +501,6 @@ aw はホスト側で TCP リレー（zellij Unix ソケットへの中継）を
 **ビルド要件:** ホストに Go ツールチェインが必要です（`aw-sockrelay` のクロスコンパイルに使用）。
 
 **⚠ セキュリティ:** コンテナ内のプロセスがホストの zellij セッションを操作できるようになります（ペイン作成・キー送信・レイアウト変更等）。有効化時に Warning ログが出力されます。
-
-**注意:** `package_manager: devbox` との併用は未テストです。
 
 ### `mounts`（任意）
 
@@ -580,7 +556,7 @@ profiles:
 CLI フラグ `--build-arg KEY=VAL` でも指定でき、設定ファイルの値とマージされます（同一キーは CLI が優先）。
 
 ```bash
-aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN --from-template
+aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
 ```
 
 > **Note:** `build_env` および `--build-arg` のキーに `AW_` プレフィックスは使用できません（内部ビルド引数と衝突するため）。
@@ -621,30 +597,27 @@ aw init
 8. `image` は `environment: container` の場合のみ有効
 9. `os` と `dockerfile` は排他的。`image` と `dockerfile` は共存可能
 10. `container_runtime` は `docker` または `podman` であること
-11. `package_manager` は `apt` または `devbox` であること
-12. `package_manager` は `environment: container` の場合のみ有効
-13. `devbox_install` / `skip_devbox_install` は `environment: container` の場合のみ有効（両方同時指定不可）
-14. `mise_install` / `skip_mise_install` は `environment: container` の場合のみ有効（両方同時指定不可）
-15. `auto_deps_install` は `environment: container` の場合のみ有効
-16. `mounts` は `environment: container` の場合のみ有効
-17. すべてのマウントに `source` と `target` の両方が必要
-18. `container_user` は `environment: container` の場合のみ有効
-19. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
-20. `gh_token` は `environment: container` の場合のみ有効
-21. `mount_gh` と `gh_token` は排他的
-22. `mount_container_sock` は `environment: container` の場合のみ有効
-23. `mount_zellij` は `environment: container` の場合のみ有効
-24. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
-24. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
-25. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
-26. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
-27. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
-28. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
-29. `reaper` は `environment: container` の場合のみ有効
-30. `reaper.timeout` は 0〜3600 の範囲であること
-31. `reaper.report-retention` は 0〜100 の範囲であること
-32. `packages` は `environment: container` の場合のみ有効
-33. `packages` の各パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチすること
+11. `mise_install` / `skip_mise_install` は `environment: container` の場合のみ有効（両方同時指定不可）
+12. `auto_deps_install` は `environment: container` の場合のみ有効
+13. `mounts` は `environment: container` の場合のみ有効
+14. すべてのマウントに `source` と `target` の両方が必要
+15. `container_user` は `environment: container` の場合のみ有効
+16. `ssh_agent_forwarding` は `environment: container` の場合のみ有効
+17. `gh_token` は `environment: container` の場合のみ有効
+18. `mount_gh` と `gh_token` は排他的
+19. `mount_container_sock` は `environment: container` の場合のみ有効
+20. `mount_zellij` は `environment: container` の場合のみ有効
+21. `auth.on_launch.check` が設定されている場合、`none`、`warn`、`require` のいずれかであること
+22. `auth.codex.login_mode` が設定されている場合、`browser`、`device`、`api-key`、`access-token` のいずれかであること
+23. `auth.codex.credentials_store` が設定されている場合、`file`、`keyring`、`auto` のいずれかであること
+24. `auth.codex.seed_from_host` が設定されている場合、`if_missing`、`always`、`never` のいずれかであること
+25. `auth.codex.persist_auth` が設定されている場合、現在は `stage` であること
+26. `auth.claude.login_mode` が設定されている場合、`browser`、`console`、`email`、`sso` のいずれかであること
+27. `reaper` は `environment: container` の場合のみ有効
+28. `reaper.timeout` は 0〜3600 の範囲であること
+29. `reaper.report-retention` は 0〜100 の範囲であること
+30. `packages` は `environment: container` の場合のみ有効
+31. `packages` の各パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチすること
 
 ## コンテナに同期されるホスト設定
 
