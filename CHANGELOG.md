@@ -6,6 +6,22 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [5.0.0](https://github.com/konono/aw/compare/v4.15.1...v5.0.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove team orchestration and inter-agent messaging ([#176](https://github.com/konono/aw/issues/176))
+
+### Features
+
+* remove team orchestration and inter-agent messaging ([#176](https://github.com/konono/aw/issues/176)) ([75475e0](https://github.com/konono/aw/commit/75475e0bff97c00fe9cb7423955781bdacab338f))
+
+
+### Bug Fixes
+
+* **stage:** fall back instead of failing when the pinned image is missing ([#174](https://github.com/konono/aw/issues/174)) ([2f72937](https://github.com/konono/aw/commit/2f72937bdcd55091046f1e694403becc6454ef83))
+
 ## [4.15.1](https://github.com/konono/aw/compare/v4.15.0...v4.15.1) (2026-09-29)
 
 
