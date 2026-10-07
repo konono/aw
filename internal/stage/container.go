@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/distribution/reference"
+
 	"github.com/konono/aw/v4/internal/config"
 	"github.com/konono/aw/v4/internal/containerenv"
 	"github.com/konono/aw/v4/internal/docker"
@@ -115,17 +117,16 @@ func (s *DockerStage) Run(ctx context.Context, ec *pipeline.ExecutionContext) er
 
 func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionContext, cenv containerenv.Config) (string, error) {
 	if ec.Profile.Image != "" {
-		imageName := ec.Profile.Image
-		exists, err := s.DockerClient.ImageExists(ctx, imageName)
+		imageName, err := s.resolvePinnedImage(ctx, ec)
 		if err != nil {
-			return "", fmt.Errorf("checking image %q: %w", imageName, err)
+			return "", err
 		}
-		if !exists {
-			return "", fmt.Errorf("image %q not found; load it via '%s load'",
-				imageName, ec.Profile.EffectiveContainerRuntime())
+		if imageName != "" {
+			return imageName, nil
 		}
-		fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
-		return imageName, nil
+		// The pinned image is unusable. Fall through to the official
+		// image / template build so recoverable commands keep working.
+		clearPinnedImage(ec)
 	}
 
 	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec) {
@@ -139,6 +140,68 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 	}
 
 	return s.buildImage(ctx, ec, cenv)
+}
+
+// resolvePinnedImage resolves the profile's explicit `image:` setting. It
+// returns an empty name (without an error) when the image cannot be used, so
+// the caller can fall back to the official image or a template build instead
+// of aborting. Only image_pull_policy: always is treated as fatal, because
+// there the user explicitly asked for that exact image to be pulled.
+func (s *DockerStage) resolvePinnedImage(ctx context.Context, ec *pipeline.ExecutionContext) (string, error) {
+	imageName := ec.Profile.Image
+	policy := ec.Profile.EffectiveImagePullPolicy()
+	runtime := ec.Profile.EffectiveContainerRuntime()
+
+	fatal := func(err error) (string, error) {
+		if policy == profile.ImagePullPolicyAlways {
+			return "", err
+		}
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: configured image '%s' is unavailable; falling back to the official image or a template build.\n", imageName)
+		fmt.Fprintf(os.Stderr, "  To keep using it, load it via '%s load' or update the 'image:' field of profile '%s'.\n", runtime, ec.ProfileName)
+		return "", nil
+	}
+
+	if policy != profile.ImagePullPolicyAlways {
+		exists, err := s.DockerClient.ImageExists(ctx, imageName)
+		if err != nil {
+			return fatal(fmt.Errorf("checking image %q: %w", imageName, err))
+		}
+		if exists {
+			fmt.Fprintf(os.Stderr, "Using pre-built image '%s'...\n", imageName)
+			return imageName, nil
+		}
+		if policy == profile.ImagePullPolicyNever {
+			return fatal(fmt.Errorf("image %q not found locally (image_pull_policy: never)", imageName))
+		}
+		if _, err := reference.ParseNormalizedNamed(imageName); err != nil {
+			return fatal(fmt.Errorf("image %q not found locally and is not a valid image reference: %w", imageName, err))
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Pulling image '%s'...\n", imageName)
+	if err := s.DockerClient.Pull(ctx, imageName); err != nil {
+		return fatal(fmt.Errorf("pulling image %q: %w", imageName, err))
+	}
+	return imageName, nil
+}
+
+// clearPinnedImage drops the profile's `image:` setting so image resolution
+// falls back to the official image or a template build.
+//
+// It also clears the entrypoint install toggles. `aw build --apply` writes
+// skip_mise_install/skip_devbox_install alongside `image:` because the tools
+// are baked into that snapshot image. A fallback image has no such layer, so
+// keeping the skips would start a container without those tools.
+func clearPinnedImage(ec *pipeline.ExecutionContext) {
+	ec.Profile.Image = ""
+	if ec.Profile.EffectiveSkipMiseInstall() || ec.Profile.EffectiveSkipDevboxInstall() {
+		fmt.Fprintln(os.Stderr, "  Re-enabling mise/devbox install: the fallback image does not have the snapshot's pre-installed tools.")
+	}
+	ec.Profile.SkipMiseInstall = nil
+	ec.Profile.SkipDevboxInstall = nil
+	ec.Profile.MiseInstall = nil
+	ec.Profile.DevboxInstall = nil
 }
 
 // HasBuildCustomizations reports whether the profile has settings that require

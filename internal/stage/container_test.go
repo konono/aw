@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,22 +17,23 @@ import (
 )
 
 type mockDockerClient struct {
-	available           bool
-	buildCalled         bool
-	buildImageName      string
-	buildContextDir     string
-	buildArgs           map[string]string
-	buildContextFiles   map[string][]byte
-	runCalled           bool
-	runConfig           docker.RunConfig
-	imageExists         bool
-	imageExistsCalled   bool
-	imageExistsErr      error
-	saveCalled          bool
-	saveImageName       string
-	saveOutputPath      string
-	pullCalled          bool
-	pullSucceeds        bool
+	available         bool
+	buildCalled       bool
+	buildImageName    string
+	buildContextDir   string
+	buildArgs         map[string]string
+	buildContextFiles map[string][]byte
+	runCalled         bool
+	runConfig         docker.RunConfig
+	imageExists       bool
+	imageExistsCalled bool
+	imageExistsErr    error
+	saveCalled        bool
+	saveImageName     string
+	saveOutputPath    string
+	pullCalled        bool
+	pullImages        []string
+	pullSucceeds      bool
 }
 
 func (m *mockDockerClient) CheckAvailable() error {
@@ -83,8 +85,9 @@ func (m *mockDockerClient) Commit(_ context.Context, _, _ string, _ []string) er
 	return nil
 }
 
-func (m *mockDockerClient) Pull(_ context.Context, _ string) error {
+func (m *mockDockerClient) Pull(_ context.Context, imageName string) error {
 	m.pullCalled = true
+	m.pullImages = append(m.pullImages, imageName)
 	if m.pullSucceeds {
 		return nil
 	}
@@ -121,8 +124,8 @@ func (m *mockConfigSyncer) EnsureOnboardingState(_ string) error {
 }
 
 type mockMountBuilder struct {
-	mounts  []docker.Mount
-	err     error
+	mounts   []docker.Mount
+	err      error
 	lastOpts mount.MountOptions
 }
 
@@ -495,15 +498,195 @@ func TestDockerStage_PrebuiltImage_NotFound(t *testing.T) {
 		WorkDir: t.TempDir(),
 	}
 
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() should warn and fall back, got error: %v", err)
+	}
+	if !dc.buildCalled {
+		t.Error("Build should be called when the pinned image is missing")
+	}
+	if ec.DockerImage == "nonexistent:v1" {
+		t.Error("DockerImage should not be the missing pinned image")
+	}
+}
+
+func TestDockerStage_PrebuiltImage_NotFound_PullAlwaysIsFatal(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: false, pullSucceeds: false}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchShell,
+			Image:           "ghcr.io/konono/gone:v1",
+			ImagePullPolicy: profile.ImagePullPolicyAlways,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
 	err := s.Run(context.Background(), ec)
 	if err == nil {
-		t.Fatal("Run() should return error when image not found")
+		t.Fatal("Run() should return error when image_pull_policy: always and the pull fails")
 	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("error = %q, want containing 'not found'", err.Error())
+	if !strings.Contains(err.Error(), "pulling image") {
+		t.Errorf("error = %q, want containing 'pulling image'", err.Error())
 	}
-	if !strings.Contains(err.Error(), "docker load") {
-		t.Errorf("error = %q, want containing 'docker load'", err.Error())
+}
+
+func TestDockerStage_PrebuiltImage_NotFound_PullsValidRefs(t *testing.T) {
+	// Any reference docker/podman can resolve must be pulled before giving up
+	// on it -- including bare Docker Hub names, which carry no registry host.
+	tests := []struct {
+		name  string
+		image string
+	}{
+		{"registry host", "ghcr.io/konono/aw-claude:1.0.0-debian12"},
+		{"docker hub official", "alpine:latest"},
+		{"docker hub namespaced", "myorg/image:tag"},
+		{"locally built tag", "aw-container:08b2c728bba5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dc := &mockDockerClient{available: true, imageExists: false, pullSucceeds: true}
+			s := &DockerStage{
+				DockerClient: dc,
+				ConfigSyncer: &mockConfigSyncer{},
+				MountBuilder: &mockMountBuilder{},
+			}
+
+			ec := &pipeline.ExecutionContext{
+				Profile: profile.Profile{
+					Environment: profile.EnvironmentContainer,
+					Launch:      profile.LaunchShell,
+					Image:       tt.image,
+				},
+				HomeDir: t.TempDir(),
+				WorkDir: t.TempDir(),
+			}
+
+			if err := s.Run(context.Background(), ec); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if !slices.Contains(dc.pullImages, tt.image) {
+				t.Errorf("Pull should be called for %q, got %v", tt.image, dc.pullImages)
+			}
+			if ec.DockerImage != tt.image {
+				t.Errorf("DockerImage = %q, want %q", ec.DockerImage, tt.image)
+			}
+			if dc.buildCalled {
+				t.Error("Build should not be called when the pinned image pulls successfully")
+			}
+		})
+	}
+}
+
+func TestDockerStage_PrebuiltImage_NotFound_InvalidRefSkipsPull(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: false}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchShell,
+			Image:       "Bad::Ref",
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() should warn and fall back, got error: %v", err)
+	}
+	if slices.Contains(dc.pullImages, "Bad::Ref") {
+		t.Error("Pull should not be attempted for an unparseable reference")
+	}
+	if !dc.buildCalled {
+		t.Error("Build should be called after falling back")
+	}
+}
+
+// aw build --apply writes `image:` together with skip_mise_install, because the
+// snapshot image has the tools baked in. When that image is gone we fall back
+// to an image without them, so the skips must be dropped too.
+func TestDockerStage_PrebuiltImage_NotFound_ReenablesInstallsFromApply(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: false}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	skip := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:       profile.EnvironmentContainer,
+			Launch:            profile.LaunchShell,
+			Image:             "aw-container-myprofile:08b2c728bba5",
+			SkipMiseInstall:   &skip,
+			SkipDevboxInstall: &skip,
+			PackageManager:    profile.PackageManagerDevbox,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() should warn and fall back, got error: %v", err)
+	}
+	if !dc.buildCalled {
+		t.Fatal("Build should be called after falling back")
+	}
+	if ec.Profile.EffectiveSkipMiseInstall() {
+		t.Error("mise install should be re-enabled after falling back")
+	}
+	if ec.Profile.EffectiveSkipDevboxInstall() {
+		t.Error("devbox install should be re-enabled after falling back")
+	}
+
+	env := pipeline.ContainerEnvVars(ec, "claude")
+	if _, ok := env["AW_SKIP_MISE_INSTALL"]; ok {
+		t.Error("AW_SKIP_MISE_INSTALL should not be set for the fallback image")
+	}
+	if _, ok := env["AW_SKIP_DEVBOX_INSTALL"]; ok {
+		t.Error("AW_SKIP_DEVBOX_INSTALL should not be set for the fallback image")
+	}
+}
+
+// A pinned image that is present keeps its snapshot install skips.
+func TestDockerStage_PrebuiltImage_Found_KeepsInstallSkips(t *testing.T) {
+	dc := &mockDockerClient{available: true, imageExists: true}
+	s := &DockerStage{
+		DockerClient: dc,
+		ConfigSyncer: &mockConfigSyncer{},
+		MountBuilder: &mockMountBuilder{},
+	}
+
+	skip := true
+	ec := &pipeline.ExecutionContext{
+		Profile: profile.Profile{
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchShell,
+			Image:           "aw-container-myprofile:08b2c728bba5",
+			SkipMiseInstall: &skip,
+		},
+		HomeDir: t.TempDir(),
+		WorkDir: t.TempDir(),
+	}
+
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !ec.Profile.EffectiveSkipMiseInstall() {
+		t.Error("mise install skip should be preserved when the pinned image is used")
 	}
 }
 
@@ -528,15 +711,11 @@ func TestDockerStage_PrebuiltImage_ImageInspectError(t *testing.T) {
 		WorkDir: t.TempDir(),
 	}
 
-	err := s.Run(context.Background(), ec)
-	if err == nil {
-		t.Fatal("Run() should return error when image inspect fails")
+	if err := s.Run(context.Background(), ec); err != nil {
+		t.Fatalf("Run() should warn and fall back on inspect errors, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "invalid reference format") {
-		t.Errorf("error = %q, want containing 'invalid reference format'", err.Error())
-	}
-	if strings.Contains(err.Error(), "docker load") {
-		t.Errorf("error = %q, should not suggest docker load for inspect errors", err.Error())
+	if !dc.buildCalled {
+		t.Error("Build should be called after an image inspect error")
 	}
 }
 
@@ -832,7 +1011,6 @@ func TestDockerStage_ImageHash_DiffersByPackageManager(t *testing.T) {
 		t.Errorf("apt and devbox should produce different image hashes, both got %q", aptDC.buildImageName)
 	}
 }
-
 
 func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
 	workDir := t.TempDir()
@@ -1276,7 +1454,6 @@ func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
 	}
 }
 
-
 func TestResolveOfficialImage_ShellUsesBase(t *testing.T) {
 	tmpDir := t.TempDir()
 	dc := &mockDockerClient{available: true, imageExists: true}
@@ -1369,9 +1546,9 @@ func TestResolveOfficialImage_ShellPullFail(t *testing.T) {
 
 func TestHasBuildCustomizations_SessionLog(t *testing.T) {
 	tests := []struct {
-		name   string
-		k      *profile.KubernetesConfig
-		want   bool
+		name string
+		k    *profile.KubernetesConfig
+		want bool
 	}{
 		{"nil kubernetes", nil, false},
 		{"session_log false", &profile.KubernetesConfig{SessionLog: false}, false},
@@ -1380,7 +1557,7 @@ func TestHasBuildCustomizations_SessionLog(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ec := &pipeline.ExecutionContext{
-				Profile:    profile.Profile{Kubernetes: tt.k},
+				Profile:     profile.Profile{Kubernetes: tt.k},
 				OrigWorkDir: t.TempDir(),
 			}
 			got := HasBuildCustomizations(ec)
@@ -1398,4 +1575,3 @@ func setupToolConfig(t *testing.T, homeDir, tool string) {
 		t.Fatalf("creating tool dir: %v", err)
 	}
 }
-
