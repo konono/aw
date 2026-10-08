@@ -6,6 +6,17 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [6.0.0](https://github.com/konono/aw/compare/v5.0.0...v6.0.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* default aw build to --apply and detect installs at startup
+
+### Features
+
+* default aw build to --apply and detect installs at startup ([e924ca4](https://github.com/konono/aw/commit/e924ca4437ae7decf47a648b1a7d852c35dac738))
+
 ## [5.0.0](https://github.com/konono/aw/compare/v4.15.1...v5.0.0) (2026-10-07)
 
 
