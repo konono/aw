@@ -106,7 +106,13 @@ func crossCompileEmbedded(srcFS fs.FS, name, buildOpt, outDir, goos, goarch stri
 		return "", fmt.Errorf("extracting %s source: %w", name, err)
 	}
 
-	outPath := filepath.Join(outDir, name+"-"+goarch)
+	// go build runs with cmd.Dir set to the extracted source, so a relative
+	// -o would land in the temp dir that gets deleted on return.
+	absOutDir, err := filepath.Abs(outDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving output dir %q: %w", outDir, err)
+	}
+	outPath := filepath.Join(absOutDir, name+"-"+goarch)
 	args := []string{"build", "-ldflags=-s -w", "-o", outPath}
 	if buildOpt != "" {
 		args = append(args[:1], append([]string{buildOpt}, args[1:]...)...)
