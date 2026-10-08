@@ -14,8 +14,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/distribution/reference"
 	"github.com/konono/aw/v4/internal/containerenv"
 	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/mise"
 	"github.com/konono/aw/v4/internal/pipeline"
 	"github.com/konono/aw/v4/internal/profile"
 	"github.com/konono/aw/v4/internal/stage"
@@ -72,47 +74,48 @@ func (b *BuildCmd) Run() error {
 		}
 	}
 
-	if ec.Profile.Image != "" && stage.HasBuildCustomizations(ec) {
-		ec.Profile.Image = ""
-	}
+	prepareBuildImageSelection(ec)
 
 	incl, envVars := mergeBuildFields(includes, b.Env, p.Build)
 	workDir := ec.OrigWorkDir
 
-	if !hasBuildInputs(workDir, incl, envVars, ec.Profile) {
-		if b.Push {
-			return b.pushOfficialImage(p)
-		}
-		if b.Apply {
-			return b.applyOfficialImage(p, ec)
-		}
-		fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, packages.txt, packages, --include, --env, --build-arg, or build_env).")
-		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
-		return nil
-	}
-
-	dockerStage := stage.NewDockerStage()
-	if err := dockerStage.Run(context.Background(), ec); err != nil {
-		return err
-	}
-
 	runtime := p.EffectiveContainerRuntime()
 	client := docker.NewShellClient(runtime)
 
-	cenv := containerenv.FromUser(p.EffectiveContainerUser())
-	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
-		cenv.SessionLog = true
-	}
+	// reusedPinnedImage records that this run produced nothing new: the profile
+	// already pins the image aw would use. Writing the same name back would
+	// only reformat the config through the YAML encoder, so it is left
+	// untouched unless a later step (--push) renames the image.
+	reusedPinnedImage := false
+	snapshot := true
+	var resultImage string
 
-	const snapshot = true
-	resultImage := ec.DockerImage
+	if hasBuildInputs(ec, incl, envVars) {
+		dockerStage := stage.NewDockerStage()
+		if err := dockerStage.Run(context.Background(), ec); err != nil {
+			return err
+		}
 
-	if snapshot {
+		cenv := containerenv.FromUser(p.EffectiveContainerUser())
+		if p.Kubernetes != nil && p.Kubernetes.SessionLog {
+			cenv.SessionLog = true
+		}
+
 		commitImage := computeBuildImageName(b.ProfileName, ec.DockerImage, incl, envVars, workDir)
 		if err := runSnapshot(client, ec, p, incl, envVars, cenv, commitImage); err != nil {
 			return err
 		}
 		resultImage = commitImage
+	} else {
+		// Nothing to bake in, so there is no snapshot layer on the result.
+		snapshot = false
+		resultImage, reusedPinnedImage, err = b.imageWithoutBuildInputs(context.Background(), ec.Profile, client)
+		if err != nil {
+			return err
+		}
+		if resultImage == "" {
+			return nil
+		}
 	}
 
 	saveTar := b.Save != nil
@@ -140,11 +143,13 @@ func (b *BuildCmd) Run() error {
 			return fmt.Errorf("pushing image: %w", err)
 		}
 		resultImage = pushImage
+		// The pushed reference is a new name, so it is worth recording.
+		reusedPinnedImage = false
 	}
 
 	fmt.Fprintf(os.Stderr, "\nDone.\n\n")
 
-	if b.Apply {
+	if b.Apply && !reusedPinnedImage {
 		var targetFile string
 		if hasWorkspaceFiles(workDir) {
 			targetFile = profile.ProjectConfigPath()
@@ -155,9 +160,15 @@ func (b *BuildCmd) Run() error {
 			}
 		}
 		if targetFile == "" {
-			return fmt.Errorf("--apply requires a config file. Run `aw init` first")
+			return fmt.Errorf("writing the image name back needs a config file. Run `aw init` first, or pass --no-apply")
 		}
-		if err := applyBuildResult(targetFile, b.ProfileName, resultImage, snapshot); err != nil {
+		// aw build writes the image only. The entrypoint decides whether to
+		// run mise install by comparing the fingerprint baked into the image
+		// against the workspace, so pinning a toggle here would override a
+		// decision aw can now make correctly on its own. An explicit
+		// mise_install / skip_mise_install stays untouched as the user's
+		// opt-out.
+		if err := applyBuildResult(targetFile, b.ProfileName, resultImage, nil); err != nil {
 			return fmt.Errorf("applying build result: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", resultImage, b.ProfileName, targetFile)
@@ -174,76 +185,74 @@ func (b *BuildCmd) Run() error {
 	return nil
 }
 
-func (b *BuildCmd) applyOfficialImage(p profile.Profile, ec *pipeline.ExecutionContext) error {
-	tool := toolinfo.ImageTool(p.EffectiveTool())
+// imageWithoutBuildInputs resolves the image to operate on when the profile has
+// nothing to bake in. It returns the image name, whether that image is the one
+// the profile already pins, and an empty name when there is nothing to do at
+// all. --save, --push and the config write-back all run on the result, so the
+// no-input path supports the same flags as a real build.
+func (b *BuildCmd) imageWithoutBuildInputs(ctx context.Context, p profile.Profile, client docker.Client) (string, bool, error) {
+	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, packages.txt, packages, ca_cert, --include, --env, --build-arg, or build_env).")
 
-	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
-	runtime := p.EffectiveContainerRuntime()
-	client := docker.NewShellClient(runtime)
-
-	fmt.Fprintln(os.Stderr, "Warning: No build inputs found (no dockerfile, mise.toml, packages.txt, packages, --include, --env, --build-arg, or build_env).")
-	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
-	if err := client.Pull(context.Background(), imageName); err != nil {
-		return fmt.Errorf("pulling official image: %w", err)
-	}
-
-	targetFile := profile.FindProfileSource(b.ProfileName)
-	if targetFile == "" {
-		cfg, err := profile.Load()
-		if err == nil && cfg.Source.FilePath != "" {
-			targetFile = cfg.Source.FilePath
+	// A pinned image is already the image aw would run. Replacing it with the
+	// official one would throw away the user's choice, so reuse it instead.
+	if p.Image != "" {
+		fmt.Fprintf(os.Stderr, "  Profile pins image '%s'. Using it as-is.\n", p.Image)
+		// --save and --push operate on the local image store, so the
+		// reference has to be there. Nothing else in this branch touches the
+		// image, and pulling for a no-op build would only cost time.
+		if b.Save != nil || b.Push {
+			if err := resolvePinnedImage(ctx, p, client); err != nil {
+				return "", false, err
+			}
 		}
-	}
-	if targetFile == "" {
-		return fmt.Errorf("--apply requires a config file. Run `aw init` first")
+		return p.Image, true, nil
 	}
 
-	if err := applyBuildResult(targetFile, b.ProfileName, imageName, false); err != nil {
-		return fmt.Errorf("applying build result: %w", err)
+	if !b.Apply && !b.Push && b.Save == nil {
+		fmt.Fprintln(os.Stderr, "  The official image will be used as-is. Skipping build.")
+		return "", false, nil
 	}
-	fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", imageName, b.ProfileName, targetFile)
-	return nil
+
+	imageName := stage.OfficialImageName(toolinfo.ImageTool(p.EffectiveTool()), p.EffectiveOS())
+	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
+	if err := client.Pull(ctx, imageName); err != nil {
+		return "", false, fmt.Errorf("pulling official image: %w", err)
+	}
+	return imageName, false, nil
 }
 
-func (b *BuildCmd) pushOfficialImage(p profile.Profile) error {
-	tool := toolinfo.ImageTool(p.EffectiveTool())
-	imageName := stage.OfficialImageName(tool, p.EffectiveOS())
-	runtime := p.EffectiveContainerRuntime()
-	client := docker.NewShellClient(runtime)
+// resolvePinnedImage makes the profile's `image:` available in the local image
+// store, pulling it when image_pull_policy allows.
+//
+// Unlike the launch path, which falls back to the official image so that an
+// interactive session keeps working, a failure here is fatal: --save and
+// --push name one specific image, and quietly substituting a different one
+// would write the wrong thing to a tar or a registry.
+func resolvePinnedImage(ctx context.Context, p profile.Profile, client docker.Client) error {
+	imageName := p.Image
+	policy := p.EffectiveImagePullPolicy()
 
-	fmt.Fprintf(os.Stderr, "Pulling official image '%s'...\n", imageName)
-	if err := client.Pull(context.Background(), imageName); err != nil {
-		return fmt.Errorf("pulling official image: %w", err)
-	}
-
-	pushImage := replaceImageRegistry(imageName, b.Registry)
-	fmt.Fprintf(os.Stderr, "Tagging image '%s' as '%s'...\n", imageName, pushImage)
-	if err := client.Tag(context.Background(), imageName, pushImage); err != nil {
-		return fmt.Errorf("tagging image: %w", err)
-	}
-	fmt.Fprintf(os.Stderr, "Pushing image '%s'...\n", pushImage)
-	if err := client.Push(context.Background(), pushImage); err != nil {
-		return fmt.Errorf("pushing image: %w", err)
-	}
-
-	fmt.Fprintf(os.Stderr, "\nDone. Pushed '%s'\n", pushImage)
-
-	if b.Apply {
-		targetFile := profile.FindProfileSource(b.ProfileName)
-		if targetFile == "" {
-			cfg, err := profile.Load()
-			if err == nil && cfg.Source.FilePath != "" {
-				targetFile = cfg.Source.FilePath
-			}
+	if policy != profile.ImagePullPolicyAlways {
+		exists, err := client.ImageExists(ctx, imageName)
+		if err != nil {
+			return fmt.Errorf("checking image %q: %w", imageName, err)
 		}
-		if targetFile != "" {
-			if err := applyBuildResult(targetFile, b.ProfileName, pushImage, false); err != nil {
-				return fmt.Errorf("applying build result: %w", err)
-			}
-			fmt.Fprintf(os.Stderr, "Applied image '%s' to profile '%s' in %s\n", pushImage, b.ProfileName, targetFile)
+		if exists {
+			fmt.Fprintf(os.Stderr, "  Using local image '%s'.\n", imageName)
+			return nil
+		}
+		if policy == profile.ImagePullPolicyNever {
+			return fmt.Errorf("image %q not found locally (image_pull_policy: never)", imageName)
+		}
+		if _, err := reference.ParseNormalizedNamed(imageName); err != nil {
+			return fmt.Errorf("image %q not found locally and is not a valid image reference: %w", imageName, err)
 		}
 	}
 
+	fmt.Fprintf(os.Stderr, "  Pulling image '%s'...\n", imageName)
+	if err := client.Pull(ctx, imageName); err != nil {
+		return fmt.Errorf("pulling image %q: %w", imageName, err)
+	}
 	return nil
 }
 
@@ -269,26 +278,32 @@ func prepareBuildProfile(p *profile.Profile, fromTemplate bool) {
 	}
 }
 
-func hasBuildInputs(dir string, includes []profile.BuildInclude, envVars map[string]string, p profile.Profile) bool {
-	if p.Dockerfile != "" {
+// prepareBuildImageSelection keeps explicit builds on the template path for
+// image customizations, including OS packages. Normal launches can install
+// packages.txt through aw-init on an existing image instead.
+func prepareBuildImageSelection(ec *pipeline.ExecutionContext) {
+	if !stage.HasBuildCustomizations(ec) {
+		return
+	}
+	ec.Profile.Image = ""
+	ec.Profile.ImagePullPolicy = profile.ImagePullPolicyBuild
+}
+
+func hasBuildInputs(ec *pipeline.ExecutionContext, includes []profile.BuildInclude, envVars map[string]string) bool {
+	if ec.Profile.Dockerfile != "" {
 		return true
 	}
-	if hasWorkspaceFiles(dir) {
+	if hasWorkspaceFiles(ec.OrigWorkDir) {
 		return true
 	}
 	if len(includes) > 0 || len(envVars) > 0 {
 		return true
 	}
-	if len(p.Packages) > 0 {
-		return true
-	}
-	if len(p.BuildEnv) > 0 {
-		return true
-	}
-	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
-		return true
-	}
-	return false
+	// Everything that forces a template build is a build input too. Deferring
+	// to the same predicate the image resolution uses keeps ca_cert,
+	// container_user and mount_zellij profiles from falling through to the
+	// official image, which has none of those customizations.
+	return stage.HasBuildCustomizations(ec)
 }
 
 var commitBaseChanges = []string{
@@ -319,7 +334,11 @@ func computeBuildImageName(profileName, baseImage string, includes []profile.Bui
 func runSnapshot(client docker.Client, ec *pipeline.ExecutionContext, p profile.Profile, includes []profile.BuildInclude, envVars map[string]string, cenv containerenv.Config, commitImage string) error {
 	fmt.Fprintf(os.Stderr, "Snapshotting image '%s'...\n", ec.DockerImage)
 
-	script, err := renderSnapshotScript(cenv)
+	// Empty when the workspace has mise inputs the snapshot does not copy, so
+	// the image goes without a fingerprint and the entrypoint keeps installing.
+	miseFingerprint, _ := mise.Fingerprint(ec.OrigWorkDir)
+
+	script, err := renderSnapshotScript(cenv, miseFingerprint)
 	if err != nil {
 		return err
 	}
@@ -420,11 +439,19 @@ func printConfigSnippet(imageName, runtime, launch, tarPath string, snapshot boo
 	fmt.Fprintf(os.Stderr, "#       launch: %s\n", launch)
 	fmt.Fprintf(os.Stderr, "#       image: '%s'\n", imageName)
 	if snapshot {
-		fmt.Fprintf(os.Stderr, "#       skip_mise_install: true\n")
+		// The tar already carries the tools, and an air-gapped target cannot
+		// reinstall them, so suggest opting out of the startup install there.
+		fmt.Fprintf(os.Stderr, "#       mise_install: false\n")
 	}
 }
 
-func applyBuildResult(configPath, profileName, imageName string, snapshot bool) error {
+// applyBuildResult writes imageName into the named profile.
+//
+// skipMiseInstall controls the deprecated entrypoint install toggle: nil leaves
+// whatever the profile already has. aw build passes nil because it no longer
+// manages the toggle; aw save passes a value because the container it commits
+// has its tools installed already.
+func applyBuildResult(configPath, profileName, imageName string, skipMiseInstall *bool) error {
 	data, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading config file: %w", err)
@@ -467,7 +494,9 @@ func applyBuildResult(configPath, profileName, imageName string, snapshot bool) 
 	}
 
 	setYAMLMapValue(targetProfile, "image", imageName)
-	setYAMLMapBool(targetProfile, "skip_mise_install", snapshot)
+	if skipMiseInstall != nil {
+		setMiseInstallToggle(root, targetProfile, *skipMiseInstall)
+	}
 	// Drop the key left behind by the removed devbox package manager.
 	removeYAMLMapKey(targetProfile, "skip_devbox_install")
 
@@ -484,6 +513,21 @@ func applyBuildResult(configPath, profileName, imageName string, snapshot bool) 
 	}
 
 	return nil
+}
+
+// setMiseInstallToggle records whether the entrypoint should skip mise install.
+//
+// New writes use mise_install; skip_mise_install is kept readable but is no
+// longer introduced. A profile that already carries the deprecated key keeps
+// using it, because the two are mutually exclusive (profile.Validate) and
+// adding the new key beside the old one would break the next aw command.
+func setMiseInstallToggle(root, targetProfile *yaml.Node, skip bool) {
+	if findYAMLMapValue(targetProfile, "skip_mise_install") != nil ||
+		findYAMLMapValue(root, "skip_mise_install") != nil {
+		setYAMLMapBool(targetProfile, "skip_mise_install", skip)
+		return
+	}
+	setYAMLMapBool(targetProfile, "mise_install", !skip)
 }
 
 func findYAMLMapValue(mapping *yaml.Node, key string) *yaml.Node {
@@ -538,14 +582,23 @@ func removeYAMLMapKey(mapping *yaml.Node, key string) {
 	}
 }
 
-func renderSnapshotScript(cenv containerenv.Config) (string, error) {
+// snapshotData is the template input for snapshot.sh.tmpl: the container's own
+// layout plus the mise fingerprint to bake into the image. An empty
+// MiseFingerprint leaves the image without one, which makes the entrypoint
+// install at every launch.
+type snapshotData struct {
+	containerenv.Config
+	MiseFingerprint string
+}
+
+func renderSnapshotScript(cenv containerenv.Config, miseFingerprint string) (string, error) {
 	tmpl := strings.ReplaceAll(snapshotScriptTmpl, "\r", "")
 	t, err := template.New("snapshot").Parse(tmpl)
 	if err != nil {
 		return "", fmt.Errorf("parsing snapshot script template: %w", err)
 	}
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, cenv); err != nil {
+	if err := t.Execute(&buf, snapshotData{Config: cenv, MiseFingerprint: miseFingerprint}); err != nil {
 		return "", fmt.Errorf("rendering snapshot script: %w", err)
 	}
 	return buf.String(), nil

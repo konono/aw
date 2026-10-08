@@ -12,7 +12,6 @@ import (
 	"github.com/konono/aw/v4/internal/docker"
 	"github.com/konono/aw/v4/internal/mount"
 	"github.com/konono/aw/v4/internal/pathutil"
-	"github.com/konono/aw/v4/internal/pipeline"
 	"github.com/konono/aw/v4/internal/profile"
 	"github.com/konono/aw/v4/internal/reaper"
 	"github.com/konono/aw/v4/internal/stage"
@@ -489,19 +488,18 @@ func checkOfficialImages(res *result, cfg *profile.Config, runtimeOK map[string]
 			continue
 		}
 
-		key := fmt.Sprintf("%s-%s", tool, p.EffectiveOS())
-		if checked[key] {
-			continue
-		}
-		checked[key] = true
-
-		ec := &pipeline.ExecutionContext{Profile: p}
-		if stage.HasBuildCustomizations(ec) {
+		if stage.HasImageCustomizations(p) {
 			if verbose {
 				res.detail(fmt.Sprintf("%s: has build customizations, will build from template", tool))
 			}
 			continue
 		}
+
+		key := fmt.Sprintf("%s-%s", tool, p.EffectiveOS())
+		if checked[key] {
+			continue
+		}
+		checked[key] = true
 
 		checks = append(checks, imageCheck{tool: tool, os: p.EffectiveOS()})
 	}
@@ -633,4 +631,3 @@ func printSystemInfo() {
 		fmt.Printf("  cwd: %s\n", cwd)
 	}
 }
-

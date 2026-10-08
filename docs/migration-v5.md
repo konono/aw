@@ -17,6 +17,100 @@ AI ツールを動かすという中心の機能は変わりません。以下�
 | `aw export`（`aw build` の非推奨エイリアス） | `aw build` |
 | `aw build --from-template` | `aw build --no-cache` |
 
+## コマンドの既定値の変更
+
+### `aw build` は既定で config に書き戻します
+
+v4 では `--apply` を付けたときだけプロファイルに `image:` と
+`skip_mise_install:` を書き込んでいました。v5 ではこれが **既定の動作** になり、
+書き戻したくない場合に `--no-apply` を付けます。
+
+| | v4 | v5 |
+|---|---|---|
+| `aw build <profile>` | ビルドのみ | ビルド + config 書き戻し |
+| `aw build <profile> --apply` | ビルド + config 書き戻し | 同左（引き続き有効） |
+| `aw build <profile> --no-apply` | なし | ビルドのみ |
+
+`--apply` は削除していないので、既存のコマンドやスクリプトはそのまま動きます。
+対応が必要なのは **`--apply` を付けずに `aw build` を実行していた箇所** です。
+
+```bash
+# v4 で config を書き換えたくなかった用途は --no-apply に置き換える
+aw build claude --no-apply --save my-image.tar
+```
+
+ビルド入力（`mise.toml`、`packages` など）が 1 つもないプロファイルでは、
+`aw build <profile>` が公式イメージを pull して **その名前を config に書き込む**
+ようになります。v4 では Warning を出して何もしませんでした。この挙動が不要な場合も
+`--no-apply` を使ってください。
+
+ただし `image:` を明示しているプロファイルは対象外です。焼き込むものが何もない場合、
+v5 は指定済みのイメージをそのまま使い、公式イメージで上書きしません。
+
+> **config ファイルがない環境での注意**: 組み込みプロファイル（`aw build claude` など）は
+> 設定ファイルがなくても解決できますが、書き戻し先がないため
+> `writing the image name back needs a config file` で停止します。`aw init` で
+> config を作るか、`--no-apply` を付けてください。`--no-apply` の場合、ビルド入力が
+> なければ pull も行わず Warning のみで終了します。
+
+### `aw build` は `skip_mise_install` を書かなくなりました
+
+v4 の `aw build --apply` は `image:` と一緒に `skip_mise_install: true` を書き込み、
+以降の起動で `mise install` をスキップしていました。この方式には、ビルド後に
+`mise.toml` へツールを追記しても起動時にインストールされない問題がありました。
+
+v5 では `aw build` は `image:` だけを書き、スキップ判定は **イメージに記録した
+mise 設定の指紋** で行います。指紋が一致する間は `mise install` を呼ばず、
+`mise.toml` を変更した起動では通常どおり実行されます。詳細は
+[Build & Snapshot](build-snapshot.md#mise-install-のスキップ判定)。
+
+| | v4 | v5 |
+|---|---|---|
+| `aw build` が書き込むキー | `image` + `skip_mise_install` | `image` のみ |
+| 無変更での再起動 | `mise install` をスキップ | 同左（指紋一致で判定） |
+| `mise.toml` 追記後の起動 | **スキップされたまま** | `mise install` が走る |
+| `aw save` が書き込むキー | `image` + `skip_mise_install` | `image` + `mise_install`（意味は同じ） |
+
+`aw save` は対話的に作ったコンテナをそのまま固めるコマンドで、ワークスペースの
+`mise.toml` と対応付けられません。指紋による自動判定が使えないため、v4 と同じく
+オプトアウトを固定します。ただし書き込むキーは非推奨の `skip_mise_install: true`
+ではなく `mise_install: false` になりました。意味は同じです。
+
+なお、プロファイル（または設定の最上位）に既に `skip_mise_install` がある場合は、
+2 つのキーが併記されて `profile.Validate` に弾かれないよう、既存のキーをそのまま
+更新します。新しく `skip_mise_install` を書き足すことはありません。
+
+#### 既存の `skip_mise_install: true` が残っている場合
+
+v4 の `aw build --apply` が書いた値は、v5 でも **ユーザーによる強制オプトアウト**
+として尊重されます。`aw` が勝手に消すことはありません。どちらかを選んでください。
+
+```yaml
+# A. 指紋による自動判定に任せる（推奨）
+#    → キーを削除する。mise.toml を変更した起動でインストールが走るようになる
+profiles:
+  dev:
+    image: 'aw-build:dev-xxxx'
+
+# B. 起動時の mise install を今後も常に止める
+#    → 非推奨の skip_mise_install を mise_install に置き換える
+profiles:
+  dev:
+    image: 'aw-build:dev-xxxx'
+    mise_install: false
+```
+
+A を選ぶ場合、古いイメージには指紋が記録されていないため、最初の起動では
+`mise install` が 1 回走ります。`aw build` でイメージを作り直すと指紋が記録され、
+以降はスキップされます。
+
+#### 公式イメージへ戻す場合
+
+`image:` を削除して公式イメージに戻すときは、`skip_mise_install: true` /
+`mise_install: false` も一緒に外してください。公式イメージにはツールが焼き込まれて
+いないため、オプトアウトを残すと `mise install` が走らず、`mise.toml` のツールが
+何も入らないコンテナになります。
+
 ## 設定ファイルの対応
 
 ### `package_manager` はエラーになります
@@ -43,7 +137,7 @@ apt モードのイメージ（約 400 MB、Nix なし）でビルドされま�
 - プロファイルの `delivery:`
 - プロファイルの `devbox_install:` / `skip_devbox_install:`
 
-`aw build --apply` は、設定に残った `skip_devbox_install` を次回実行時に自動で
+`aw build` は、設定に残った `skip_devbox_install` を次回実行時に自動で
 削除します。
 
 ## 組み込みテンプレートのイメージは再ビルドされます
@@ -77,7 +171,7 @@ Nix と devbox を自分でインストールして、自前の entrypoint で `
 `aw build` はカスタム Dockerfile のイメージに対しても snapshot スクリプトを実行
 します（`runSnapshot`）。v4 の snapshot スクリプトは、イメージに `devbox`
 バイナリがあれば `devbox.json` をインストールして焼き込んでいました。v5 では
-この処理を削除したため、**`aw build --apply` で `devbox.json` の内容が
+この処理を削除したため、**`aw build` で `devbox.json` の内容が
 snapshot に焼き込まれることはなくなりました**。
 
 `playwright-docker/` のような構成は、コンテナ起動のたびに entrypoint が

@@ -1,14 +1,49 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
+	"github.com/konono/aw/v4/internal/containerenv"
+	"github.com/konono/aw/v4/internal/docker"
+	"github.com/konono/aw/v4/internal/pipeline"
 	"github.com/konono/aw/v4/internal/profile"
+	"github.com/konono/aw/v4/internal/stage"
 )
+
+func TestBuildApplyFlag(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{"default applies", []string{"build", "dev"}, true},
+		{"explicit --apply", []string{"build", "dev", "--apply"}, true},
+		{"--no-apply opts out", []string{"build", "dev", "--no-apply"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var cli CLI
+			parser, err := kong.New(&cli, kong.Name("aw"), kong.Exit(func(int) {}))
+			if err != nil {
+				t.Fatalf("kong.New: %v", err)
+			}
+			if _, err := parser.Parse(tt.args); err != nil {
+				t.Fatalf("parse %v: %v", tt.args, err)
+			}
+			if cli.Build.Apply != tt.want {
+				t.Fatalf("Apply = %v, want %v", cli.Build.Apply, tt.want)
+			}
+		})
+	}
+}
 
 func TestParseBuildIncludes(t *testing.T) {
 	t.Run("valid single", func(t *testing.T) {
@@ -196,11 +231,23 @@ func TestHasWorkspaceFiles(t *testing.T) {
 	}
 }
 
+func buildInputsEC(dir string, p profile.Profile) *pipeline.ExecutionContext {
+	return &pipeline.ExecutionContext{Profile: p, OrigWorkDir: dir}
+}
+
 func TestHasBuildInputs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		dir := t.TempDir()
-		if hasBuildInputs(dir, nil, nil, profile.Profile{}) {
+		if hasBuildInputs(buildInputsEC(dir, profile.Profile{}), nil, nil) {
 			t.Error("should return false with no inputs")
+		}
+	})
+
+	t.Run("pinned image alone is not a build input", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{Image: "local/custom:latest"}
+		if hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return false: there is nothing to bake onto the pinned image")
 		}
 	})
 
@@ -209,21 +256,21 @@ func TestHasBuildInputs(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("test"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		if !hasBuildInputs(dir, nil, nil, profile.Profile{}) {
+		if !hasBuildInputs(buildInputsEC(dir, profile.Profile{}), nil, nil) {
 			t.Error("should return true with workspace file")
 		}
 	})
 
 	t.Run("includes", func(t *testing.T) {
 		dir := t.TempDir()
-		if !hasBuildInputs(dir, []profile.BuildInclude{{Src: "./a", Dst: "/a"}}, nil, profile.Profile{}) {
+		if !hasBuildInputs(buildInputsEC(dir, profile.Profile{}), []profile.BuildInclude{{Src: "./a", Dst: "/a"}}, nil) {
 			t.Error("should return true with includes")
 		}
 	})
 
 	t.Run("env vars", func(t *testing.T) {
 		dir := t.TempDir()
-		if !hasBuildInputs(dir, nil, map[string]string{"K": "V"}, profile.Profile{}) {
+		if !hasBuildInputs(buildInputsEC(dir, profile.Profile{}), nil, map[string]string{"K": "V"}) {
 			t.Error("should return true with env vars")
 		}
 	})
@@ -231,7 +278,7 @@ func TestHasBuildInputs(t *testing.T) {
 	t.Run("profile packages", func(t *testing.T) {
 		dir := t.TempDir()
 		p := profile.Profile{Packages: []string{"jq"}}
-		if !hasBuildInputs(dir, nil, nil, p) {
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
 			t.Error("should return true with profile packages")
 		}
 	})
@@ -240,7 +287,7 @@ func TestHasBuildInputs(t *testing.T) {
 		dir := t.TempDir()
 		incl := []profile.BuildInclude{{Src: "./certs", Dst: "/certs"}}
 		env := map[string]string{"HTTP_PROXY": "http://proxy:8080"}
-		if !hasBuildInputs(dir, incl, env, profile.Profile{}) {
+		if !hasBuildInputs(buildInputsEC(dir, profile.Profile{}), incl, env) {
 			t.Error("should return true with merged build config includes and env")
 		}
 	})
@@ -248,7 +295,7 @@ func TestHasBuildInputs(t *testing.T) {
 	t.Run("build_env", func(t *testing.T) {
 		dir := t.TempDir()
 		p := profile.Profile{BuildEnv: map[string]string{"GITHUB_TOKEN": "xxx"}}
-		if !hasBuildInputs(dir, nil, nil, p) {
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
 			t.Error("should return true with build_env")
 		}
 	})
@@ -256,7 +303,7 @@ func TestHasBuildInputs(t *testing.T) {
 	t.Run("profile dockerfile", func(t *testing.T) {
 		dir := t.TempDir()
 		p := profile.Profile{Dockerfile: "docker/Dockerfile.custom"}
-		if !hasBuildInputs(dir, nil, nil, p) {
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
 			t.Error("should return true with profile dockerfile")
 		}
 	})
@@ -265,8 +312,52 @@ func TestHasBuildInputs(t *testing.T) {
 		dir := t.TempDir()
 		p := profile.Profile{}
 		p.BuildEnv = map[string]string{"HTTP_PROXY": "http://proxy:8080"}
-		if !hasBuildInputs(dir, nil, nil, p) {
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
 			t.Error("should return true when BuildEnv is set via CLI --build-arg merge")
+		}
+	})
+
+	// These three need Dockerfile layers, so they must not fall through to the
+	// official image. hasBuildInputs defers to stage.HasBuildCustomizations so
+	// the two predicates cannot drift apart.
+	t.Run("ca_cert", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{CACert: "certs/corp-ca.pem"}
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return true with ca_cert")
+		}
+	})
+
+	t.Run("non-default container_user", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{ContainerUser: "dev"}
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return true with a non-default container_user")
+		}
+	})
+
+	t.Run("default container_user is not a build input", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{ContainerUser: "agent"}
+		if hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return false: agent is what the official image already uses")
+		}
+	})
+
+	t.Run("mount_zellij", func(t *testing.T) {
+		dir := t.TempDir()
+		mountZellij := true
+		p := profile.Profile{MountZellij: &mountZellij}
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return true with mount_zellij")
+		}
+	})
+
+	t.Run("kubernetes session_log", func(t *testing.T) {
+		dir := t.TempDir()
+		p := profile.Profile{Kubernetes: &profile.KubernetesConfig{SessionLog: true}}
+		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return true with kubernetes.session_log")
 		}
 	})
 }
@@ -314,6 +405,24 @@ func TestPrepareBuildProfile(t *testing.T) {
 	})
 }
 
+func TestPrepareBuildImageSelection_PackagesUseTemplate(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "packages.txt"), []byte("gcc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ec := &pipeline.ExecutionContext{
+		OrigWorkDir: dir,
+		Profile: profile.Profile{
+			Image:           "ghcr.io/team/base:latest",
+			ImagePullPolicy: profile.ImagePullPolicyAuto,
+		},
+	}
+	prepareBuildImageSelection(ec)
+	if ec.Profile.Image != "" || ec.Profile.ImagePullPolicy != profile.ImagePullPolicyBuild {
+		t.Fatalf("aw build must bake packages into a template image, got image=%q policy=%q", ec.Profile.Image, ec.Profile.ImagePullPolicy)
+	}
+}
+
 func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 	b := BuildCmd{
 		ProfileName: "test",
@@ -335,6 +444,10 @@ func TestBuildCmd_Validate_BuildArgAWPrefix(t *testing.T) {
 }
 
 func TestApplyBuildResult(t *testing.T) {
+	// aw save pins the toggle because the container it commits already has its
+	// tools installed. aw build passes nil; see TestApplyBuildResult_NilToggle.
+	skipTrue, skipFalse := true, false
+
 	t.Run("adds image to profile with apt", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "config.yml")
@@ -346,7 +459,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -355,8 +468,13 @@ profiles:
 		if !strings.Contains(content, "image: aw-build:dev-abc123") {
 			t.Errorf("config should contain image, got:\n%s", content)
 		}
-		if !strings.Contains(content, "skip_mise_install: true") {
-			t.Errorf("config should contain skip_mise_install: true, got:\n%s", content)
+		// A profile with no toggle yet gets the current key, not the
+		// deprecated skip_mise_install.
+		if !strings.Contains(content, "mise_install: false") {
+			t.Errorf("config should contain mise_install: false, got:\n%s", content)
+		}
+		if strings.Contains(content, "skip_mise_install") {
+			t.Errorf("the deprecated key should not be introduced, got:\n%s", content)
 		}
 		if strings.Contains(content, "skip_devbox_install") {
 			t.Errorf("apt mode should not write skip_devbox_install, got:\n%s", content)
@@ -377,7 +495,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new456", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -401,7 +519,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", true); err != nil {
+		if err := applyBuildResult(cfgPath, "newprofile", "aw-build:newprofile-abc", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -426,7 +544,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-456", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -453,7 +571,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", true); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -480,7 +598,7 @@ profiles:
 			t.Fatal(err)
 		}
 
-		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", false); err != nil {
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-new", &skipFalse); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -498,7 +616,7 @@ profiles:
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, ".aw.yml")
 
-		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", true); err != nil {
+		if err := applyBuildResult(cfgPath, "claude", "aw-build:claude-abc123", &skipTrue); err != nil {
 			t.Fatalf("applyBuildResult() error = %v", err)
 		}
 
@@ -592,6 +710,294 @@ func TestBuildAndManifest_ValidateTargetProfile(t *testing.T) {
 		m := ManifestCmd{ProfileName: "fine", Output: t.TempDir()}
 		if err := m.Run(); err != nil {
 			t.Fatalf("healthy profile should not be blocked: %v", err)
+		}
+	})
+}
+
+func TestRenderSnapshotScript_MiseFingerprint(t *testing.T) {
+	cenv := containerenv.Default()
+
+	t.Run("bakes the fingerprint in", func(t *testing.T) {
+		script, err := renderSnapshotScript(cenv, "sha256:abc123")
+		if err != nil {
+			t.Fatalf("renderSnapshotScript() error = %v", err)
+		}
+		if !strings.Contains(script, "printf '%s\\n' 'sha256:abc123' > /home/agent/.aw_mise_fingerprint") {
+			t.Errorf("script should write the fingerprint:\n%s", script)
+		}
+	})
+
+	t.Run("writes nothing when there is no fingerprint", func(t *testing.T) {
+		script, err := renderSnapshotScript(cenv, "")
+		if err != nil {
+			t.Fatalf("renderSnapshotScript() error = %v", err)
+		}
+		if strings.Contains(script, "printf '%s\\n' '' >") {
+			t.Errorf("an empty fingerprint must not be written:\n%s", script)
+		}
+	})
+
+	t.Run("always clears whatever the base image recorded", func(t *testing.T) {
+		for _, fp := range []string{"sha256:abc123", ""} {
+			script, err := renderSnapshotScript(cenv, fp)
+			if err != nil {
+				t.Fatalf("renderSnapshotScript() error = %v", err)
+			}
+			if !strings.Contains(script, "rm -f /home/agent/.aw_mise_fingerprint") {
+				t.Errorf("fingerprint %q: script must drop an inherited fingerprint:\n%s", fp, script)
+			}
+		}
+	})
+}
+
+func TestApplyBuildResult_NilToggle(t *testing.T) {
+	// aw build leaves the install toggle to the entrypoint's fingerprint
+	// check, and must not overwrite an explicit opt-out while doing so.
+	t.Run("leaves an explicit mise_install alone", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		if err := os.WriteFile(cfgPath, []byte("profiles:\n  dev:\n    launch: claude\n    mise_install: false\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+
+		out, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := string(out)
+		if !strings.Contains(got, "image: aw-build:dev-abc") {
+			t.Errorf("image should be written:\n%s", got)
+		}
+		if !strings.Contains(got, "mise_install: false") {
+			t.Errorf("the user's opt-out must survive:\n%s", got)
+		}
+		// Writing skip_mise_install next to mise_install makes the next
+		// profile.Validate fail: the two keys are mutually exclusive.
+		if strings.Contains(got, "skip_mise_install") {
+			t.Errorf("aw build must not add skip_mise_install:\n%s", got)
+		}
+	})
+
+	t.Run("adds no toggle to a profile without one", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		if err := os.WriteFile(cfgPath, []byte("profiles:\n  dev:\n    launch: claude\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+
+		out, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(out), "mise_install") {
+			t.Errorf("aw build should not pin an install toggle:\n%s", out)
+		}
+	})
+}
+
+func TestSetMiseInstallToggle_KeyChoice(t *testing.T) {
+	// The two keys are mutually exclusive in profile.Validate, so a write must
+	// never leave both behind.
+	t.Run("updates the deprecated key in place", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		if err := os.WriteFile(cfgPath, []byte("profiles:\n  dev:\n    skip_mise_install: false\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		skip := true
+		if err := applyBuildResult(cfgPath, "dev", "img:1", &skip); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		if !strings.Contains(content, "skip_mise_install: true") {
+			t.Errorf("the existing key should be updated, got:\n%s", content)
+		}
+		if strings.Contains(content, "mise_install: false") {
+			t.Errorf("a second, mutually exclusive key must not appear, got:\n%s", content)
+		}
+	})
+
+	t.Run("honours a deprecated key set as a top-level default", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "config.yml")
+		if err := os.WriteFile(cfgPath, []byte("skip_mise_install: true\nprofiles:\n  dev:\n    launch: shell\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		skip := true
+		if err := applyBuildResult(cfgPath, "dev", "img:1", &skip); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+
+		data, _ := os.ReadFile(cfgPath)
+		content := string(data)
+		// Top-level keys are inline profile defaults, so a profile-level
+		// mise_install would collide with them after the merge.
+		if strings.Contains(content, "mise_install: false") {
+			t.Errorf("should not add a key that collides with the top-level default, got:\n%s", content)
+		}
+	})
+}
+
+// fakeDockerClient records what aw build asks the runtime to do.
+type fakeDockerClient struct {
+	docker.Client
+
+	imageExists   bool
+	imageExistsFn func(string) (bool, error)
+	pullErr       error
+
+	existsCalls []string
+	pullCalls   []string
+	saveCalls   []string
+	tagCalls    []string
+	pushCalls   []string
+}
+
+func (f *fakeDockerClient) ImageExists(_ context.Context, imageName string) (bool, error) {
+	f.existsCalls = append(f.existsCalls, imageName)
+	if f.imageExistsFn != nil {
+		return f.imageExistsFn(imageName)
+	}
+	return f.imageExists, nil
+}
+
+func (f *fakeDockerClient) Pull(_ context.Context, imageName string) error {
+	f.pullCalls = append(f.pullCalls, imageName)
+	return f.pullErr
+}
+
+func (f *fakeDockerClient) Save(_ context.Context, imageName, outputPath string) error {
+	f.saveCalls = append(f.saveCalls, imageName+"->"+outputPath)
+	return nil
+}
+
+func (f *fakeDockerClient) Tag(_ context.Context, source, target string) error {
+	f.tagCalls = append(f.tagCalls, source+"->"+target)
+	return nil
+}
+
+func (f *fakeDockerClient) Push(_ context.Context, imageName string) error {
+	f.pushCalls = append(f.pushCalls, imageName)
+	return nil
+}
+
+// A pinned image with nothing to bake in still has to exist locally before
+// --save tars it or --push retags it.
+func TestImageWithoutBuildInputs_PinnedImageIsResolved(t *testing.T) {
+	const pinned = "ghcr.io/myorg/base:v1"
+	tarPath := "out.tar"
+
+	t.Run("local image is used without pulling", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: true}
+		b := &BuildCmd{ProfileName: "dev", Save: &tarPath}
+
+		img, reused, err := b.imageWithoutBuildInputs(context.Background(), profile.Profile{Image: pinned}, client)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if img != pinned || !reused {
+			t.Fatalf("got (%q, %v), want (%q, true)", img, reused, pinned)
+		}
+		if len(client.existsCalls) != 1 {
+			t.Errorf("the image should be checked before --save, got %v", client.existsCalls)
+		}
+		if len(client.pullCalls) != 0 {
+			t.Errorf("a local image should not be pulled, got %v", client.pullCalls)
+		}
+	})
+
+	t.Run("remote-only image is pulled", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: false}
+		b := &BuildCmd{ProfileName: "dev", Save: &tarPath}
+
+		img, _, err := b.imageWithoutBuildInputs(context.Background(), profile.Profile{Image: pinned}, client)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if img != pinned {
+			t.Fatalf("image = %q, want %q", img, pinned)
+		}
+		if len(client.pullCalls) != 1 || client.pullCalls[0] != pinned {
+			t.Errorf("the pinned image should be pulled, got %v", client.pullCalls)
+		}
+	})
+
+	t.Run("pull failure is fatal and does not fall back", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: false, pullErr: errors.New("manifest unknown")}
+		b := &BuildCmd{ProfileName: "dev", Save: &tarPath}
+
+		img, _, err := b.imageWithoutBuildInputs(context.Background(), profile.Profile{Image: pinned}, client)
+		if err == nil {
+			t.Fatal("a missing pinned image must fail rather than silently save a different one")
+		}
+		if img != "" {
+			t.Errorf("image = %q, want empty on failure", img)
+		}
+		if !strings.Contains(err.Error(), pinned) {
+			t.Errorf("error should name the image, got: %v", err)
+		}
+		// Falling back here would tar the official image under the user's name.
+		if strings.Contains(err.Error(), stage.OfficialImageRegistry) {
+			t.Errorf("must not switch to the official image, got: %v", err)
+		}
+	})
+
+	t.Run("image_pull_policy never fails instead of pulling", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: false}
+		b := &BuildCmd{ProfileName: "dev", Save: &tarPath}
+		p := profile.Profile{Image: pinned, ImagePullPolicy: profile.ImagePullPolicyNever}
+
+		if _, _, err := b.imageWithoutBuildInputs(context.Background(), p, client); err == nil {
+			t.Fatal("image_pull_policy: never must not pull")
+		}
+		if len(client.pullCalls) != 0 {
+			t.Errorf("no pull should happen, got %v", client.pullCalls)
+		}
+	})
+
+	t.Run("image_pull_policy always pulls without checking locally", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: true}
+		b := &BuildCmd{ProfileName: "dev", Push: true}
+		p := profile.Profile{Image: pinned, ImagePullPolicy: profile.ImagePullPolicyAlways}
+
+		if _, _, err := b.imageWithoutBuildInputs(context.Background(), p, client); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(client.existsCalls) != 0 {
+			t.Errorf("always should skip the local check, got %v", client.existsCalls)
+		}
+		if len(client.pullCalls) != 1 {
+			t.Errorf("always should pull, got %v", client.pullCalls)
+		}
+	})
+
+	t.Run("no save or push leaves the registry alone", func(t *testing.T) {
+		client := &fakeDockerClient{imageExists: false}
+		b := &BuildCmd{ProfileName: "dev", Apply: true}
+
+		img, reused, err := b.imageWithoutBuildInputs(context.Background(), profile.Profile{Image: pinned}, client)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if img != pinned || !reused {
+			t.Fatalf("got (%q, %v), want (%q, true)", img, reused, pinned)
+		}
+		// Nothing consumes the image here: the config keeps the name it
+		// already had, so a pull would be pure cost.
+		if len(client.pullCalls) != 0 || len(client.existsCalls) != 0 {
+			t.Errorf("no runtime calls expected, got exists=%v pull=%v", client.existsCalls, client.pullCalls)
 		}
 	})
 }

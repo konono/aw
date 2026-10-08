@@ -129,7 +129,7 @@ func (s *DockerStage) resolveImage(ctx context.Context, ec *pipeline.ExecutionCo
 		clearPinnedImage(ec)
 	}
 
-	if ec.Profile.Dockerfile == "" && !HasBuildCustomizations(ec) {
+	if ec.Profile.Dockerfile == "" && !HasImageCustomizations(ec.Profile) {
 		imageName, err := s.resolveOfficialImage(ctx, ec)
 		if err != nil && ec.Profile.EffectiveImagePullPolicy() == profile.ImagePullPolicyAlways {
 			return "", err
@@ -189,10 +189,10 @@ func (s *DockerStage) resolvePinnedImage(ctx context.Context, ec *pipeline.Execu
 // clearPinnedImage drops the profile's `image:` setting so image resolution
 // falls back to the official image or a template build.
 //
-// It also clears the entrypoint install toggles. `aw build --apply` writes
-// skip_mise_install alongside `image:` because the tools are baked into that
-// snapshot image. A fallback image has no such layer, so keeping the skip
-// would start a container without those tools.
+// It also clears the entrypoint install toggles. A profile may opt out of the
+// startup install with mise_install (or the deprecated skip_mise_install)
+// because a snapshot image has the tools baked in. A fallback image has no
+// such layer, so keeping the skip would start a container without them.
 func clearPinnedImage(ec *pipeline.ExecutionContext) {
 	ec.Profile.Image = ""
 	if ec.Profile.EffectiveSkipMiseInstall() {
@@ -202,11 +202,11 @@ func clearPinnedImage(ec *pipeline.ExecutionContext) {
 	ec.Profile.MiseInstall = nil
 }
 
-// HasBuildCustomizations reports whether the profile has settings that require
-// building from template instead of using the official prebuilt image.
-func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
-	p := ec.Profile
-	if len(p.Packages) > 0 || len(p.BuildEnv) > 0 || p.CACert != "" ||
+// HasImageCustomizations reports settings that must be present in the image
+// before a container starts. OS packages are intentionally excluded: aw-init
+// installs those at startup when using an existing image.
+func HasImageCustomizations(p profile.Profile) bool {
+	if len(p.BuildEnv) > 0 || p.CACert != "" ||
 		(p.ContainerUser != "" && p.ContainerUser != "agent") ||
 		p.EffectiveMountZellij() {
 		return true
@@ -214,10 +214,15 @@ func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {
 		return true
 	}
-	if pkgs := pipeline.CollectPackages(nil, ec.OrigWorkDir); len(pkgs) > 0 {
-		return true
-	}
 	return false
+}
+
+// HasBuildCustomizations includes packages because an explicit aw build bakes
+// them into a template image, even though normal launches can install them at
+// startup without building.
+func HasBuildCustomizations(ec *pipeline.ExecutionContext) bool {
+	return HasImageCustomizations(ec.Profile) ||
+		len(pipeline.CollectPackages(ec.Profile.Packages, ec.OrigWorkDir)) > 0
 }
 
 const OfficialImageRegistry = "ghcr.io/konono"

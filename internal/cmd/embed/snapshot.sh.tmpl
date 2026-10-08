@@ -45,6 +45,11 @@ for f in mise.toml .mise.toml; do
 done
 sudo chown -R "$(id -u):0" "$WORK"
 
+# Whatever the base image recorded describes its inputs, not the ones being
+# baked in now. Drop it up front so only a successful install below can leave a
+# fingerprint behind; anything else makes the entrypoint install at launch.
+rm -f {{.Home}}/.aw_mise_fingerprint
+
 if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
   if [ "${AW_SKIP_MISE_INSTALL:-}" = "1" ]; then
     echo "Skipping mise install (skip_mise_install is enabled)"
@@ -81,7 +86,16 @@ if [ -f "$WORK/mise.toml" ] || [ -f "$WORK/.mise.toml" ]; then
       cp "$MISE_TOML" {{.Home}}/.config/mise/config.toml
       sudo chown "$(id -u):0" {{.Home}}/.config/mise/config.toml
     fi
-  fi
+
+{{if .MiseFingerprint}}
+    # Record which workspace inputs these tools came from. The entrypoint
+    # compares this against the workspace at launch and skips mise install
+    # while they match. The aw CLI computes both sides, so no fingerprint is
+    # written when it cannot describe the inputs: then every launch installs.
+    printf '%s\n' '{{.MiseFingerprint}}' > {{.Home}}/.aw_mise_fingerprint
+    sudo chown "$(id -u):0" {{.Home}}/.aw_mise_fingerprint
+    sudo chmod g=u {{.Home}}/.aw_mise_fingerprint
+{{end}}  fi
 fi
 
 # Copy included files

@@ -13,6 +13,7 @@ aw build dev --save image.tar
 1. **イメージ取得** — ビルド入力がなければ公式イメージを pull、ビルド入力があれば OS テンプレートからビルド、`image:` 設定時は既存イメージを使用、`dockerfile:` 設定時はカスタム Dockerfile でビルド
 2. **snapshot** — 一時コンテナを起動し、ワークスペースのパッケージをインストールして `docker commit`（`aw-build:<profile>-<hash>` に保存、公式イメージは上書きしない）
 3. **tar 出力** — `--save` 指定時のみ `docker save` でイメージを tar に書き出す
+4. **config 書き戻し** — プロファイルに `image:` を書き込む（デフォルト。`--no-apply` で抑止）
 
 ## ビルド方式の選び方
 
@@ -27,7 +28,9 @@ aw build dev --save image.tar
 | **カスタム Dockerfile** | `dockerfile:` | 自分で書いた Dockerfile | Dockerfile 内で自由 | Dockerfile 次第 |
 | **既存イメージ + snapshot** | `image:` (dockerfile なし) | 指定したイメージ | mise.toml, include, env | 高速 |
 
-> **Note:** `image:` が設定されていても、`packages` / `ca_cert` / `build_env` などテンプレートビルドが必要なカスタマイズがある場合は、自動的にテンプレートビルドにフォールバックします。
+> **Note:** `aw build` では、`image:` が設定されていても `packages` / `ca_cert` / `build_env` などをイメージに焼き込むため、テンプレートからビルドします。通常起動では `packages` / `packages.txt` を起動時にインストールできます。
+
+通常起動で公式イメージにない OS パッケージを使う場合、新しいコンテナを起動するたびにインストールが必要です。`aw build` で焼き込むと、以降の起動ではパッケージの存在確認だけで済みます。
 
 ### どれを使うべきか
 
@@ -51,12 +54,12 @@ node = "22"
 ```
 
 ```bash
-aw build dev --apply
+aw build dev
 ```
 
 **「apt パッケージや CA 証明書が必要」→ テンプレートビルド**
 
-`packages` フィールドや `ca_cert` が必要な場合、テンプレートから Dockerfile をビルドします。`packages` を設定すると自動的にこの方式になります。
+`aw build` で `packages` フィールドや `ca_cert` を焼き込む場合、テンプレートから Dockerfile をビルドします。`packages` を設定して `aw build` を実行するとこの方式になります。
 
 ```yaml
 profiles:
@@ -70,7 +73,7 @@ profiles:
 ```
 
 ```bash
-aw build dev --apply
+aw build dev
 ```
 
 **「Dockerfile を完全にコントロールしたい」→ カスタム Dockerfile**
@@ -86,7 +89,7 @@ profiles:
 ```
 
 ```bash
-aw build dev --apply
+aw build dev
 ```
 
 `image` と `dockerfile` を併用すると、`aw run` は `image` を使い、`aw build` は `dockerfile` でビルドします。ビルド済みイメージで普段は高速起動し、Dockerfile を変更したときだけ再ビルドするワークフローに便利です。
@@ -97,7 +100,7 @@ profiles:
     environment: container
     launch: claude
     dockerfile: docker/Dockerfile.dev
-    image: 'aw-build:dev-xxxx'  # aw build --apply で書き戻された値
+    image: 'aw-build:dev-xxxx'  # aw build で書き戻された値
 ```
 
 **「既存イメージにツールを追加したい」→ 既存イメージ + snapshot**
@@ -120,13 +123,13 @@ uv = "latest"
 ```
 
 ```bash
-aw build ml-dev --apply
+aw build ml-dev
 # → golang イメージの上に python + uv を追加した新イメージが作られる
 ```
 
 > **ベースイメージの要件:** snapshot は `sudo` が使える環境を前提とし、commit 時に `ENTRYPOINT ["/entrypoint.sh"]` を設定します。`aw build` で作成したイメージや aw 公式イメージをベースにすることを推奨します。外部の素の Docker イメージでは snapshot が失敗する可能性があります。
 
-> **packages / ca_cert / build_env との関係:** `image` が設定されていても、`packages`、`packages.txt`、`ca_cert`、`build_env` などテンプレートビルドが必要なカスタマイズがある場合は、`image` は自動的に無視されてテンプレートからフルビルドされます。これらのカスタマイズは Dockerfile レイヤーで処理する必要があるためです。
+> **packages / ca_cert / build_env との関係:** `aw build` では、`image` が設定されていても `packages`、`packages.txt`、`ca_cert`、`build_env` を焼き込むために `image` を無視し、テンプレートからフルビルドします。通常起動では `packages` / `packages.txt` は既存イメージ上でインストールされます。
 
 ### カスタマイズ逆引きリファレンス
 
@@ -135,7 +138,7 @@ aw build ml-dev --apply
 | やりたいこと | 使う設定 | ビルド方式 | 例 |
 |---|---|---|---|
 | Go, Python, Node 等のランタイムを追加 | `mise.toml` | どの方式でも可 | `[tools]` に `go = "1.23"` |
-| jq, ripgrep 等の OS パッケージを追加 | `packages:` or `packages.txt` | テンプレートビルド（自動） | `packages: [jq, ripgrep]` |
+| jq, ripgrep 等の OS パッケージを追加 | `packages:` or `packages.txt` | `aw build` 時にテンプレートビルド | `packages: [jq, ripgrep]` |
 | 社内 CA 証明書を組み込む | `ca_cert:` | テンプレートビルド（自動） | `ca_cert: certs/corp-ca.pem` |
 | Docker ビルド時に変数を渡す | `build_env:` or `--build-arg` | テンプレートビルド（自動） | `build_env: {GITHUB_TOKEN: xxx}` |
 | ホストのファイルをイメージに焼き込む | `--include src:dst` | snapshot で処理 | `--include ./certs:/usr/local/share/ca-certificates` |
@@ -145,7 +148,7 @@ aw build ml-dev --apply
 
 **ビルド方式の自動選択ルール:**
 
-`packages`、`packages.txt`、`ca_cert`、`build_env` のいずれかが設定されている場合、Dockerfile のレイヤーで処理する必要があるため、`image:` が設定されていても自動的にテンプレートビルドにフォールバックします。これらの設定と既存イメージ + snapshot を同時に使うことはできません。
+`aw build` では `packages`、`packages.txt`、`ca_cert`、`build_env` のいずれかが設定されている場合、Dockerfile のレイヤーに焼き込むため、`image:` が設定されていてもテンプレートからビルドします。これらの設定と既存イメージ + snapshot を同時に使うことはできません。
 
 ```
 mise.toml のみ          → 公式イメージ or 既存イメージ + snapshot（高速）
@@ -155,29 +158,128 @@ dockerfile あり          → カスタム Dockerfile（image: は aw run 用�
 
 ### フラグの組み合わせと動作
 
-| コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し |
-|---|---|---|---|---|
-| `aw build <profile>` | o | o | - | - |
-| `aw build <profile> --save file.tar` | o | o | o | - |
-| `aw build <profile> --apply` | o | o | - | o |
-| `aw build <profile> --apply --save file.tar` | o | o | o | o |
-| `aw build <profile>`（`image` 設定あり） | o（既存イメージ） | o | - | - |
-| `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | - |
-| `aw build <profile> --no-cache`（ビルド入力あり） | o（テンプレート） | o | - | - |
-| `aw build <profile> --no-cache`（ビルド入力なし） | o（公式イメージ） | - | - | - |
-| `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | - | レジストリに push |
-| `aw build <profile> --push --registry ghcr.io/myorg --apply` | o | o | - | o | push + config 書き戻し |
+config 書き戻し（プロファイルへの `image:` の書き込み）は **デフォルトで有効**です。
+抑止したい場合は `--no-apply` を付けます。`aw build` が書くのは `image:` だけで、
+`skip_mise_install` / `mise_install` は変更しません（[mise install のスキップ判定](#mise-install-のスキップ判定)）。
+
+動作はまず **ビルド入力の有無** で分かれます。入力があれば snapshot を取り、
+なければ取るものがないので snapshot を行いません。
+
+#### ビルド入力がある場合
+
+`dockerfile` / `mise.toml` / `.mise.toml` / `packages.txt` / `packages` /
+`ca_cert` / `build_env` / `container_user`（既定以外）/ `mount_zellij` /
+`kubernetes.session_log` / `--include` / `--env` / `--build-arg` のいずれかがある場合。
+
+| コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し | 備考 |
+|---|---|---|---|---|---|
+| `aw build <profile>` | o | o | - | o | |
+| `aw build <profile> --no-apply` | o | o | - | - | ビルドのみ |
+| `aw build <profile> --save file.tar` | o | o | o | o | |
+| `aw build <profile> --no-apply --save file.tar` | o | o | o | - | 持ち込み先用の設定スニペットを表示 |
+| `aw build <profile>`（`image` + `mise.toml`） | o（既存イメージ） | o | - | o | 既存イメージの上に焼き込む |
+| `aw build <profile>`（`image` + `packages`） | o（テンプレート） | o | - | o | `image` は無視される |
+| `aw build <profile> --no-cache` | o（テンプレート） | o | - | o | |
+| `aw build <profile> --push --registry ghcr.io/myorg` | o | o | - | o | push 先の名前を書き戻す |
+| `aw build <profile> --push --registry ghcr.io/myorg --no-apply` | o | o | - | - | push のみ |
+
+#### ビルド入力がない場合
+
+焼き込むものがないため snapshot は行いません。`image:` が設定されていればその
+イメージを、なければ公式イメージを対象にします。
+
+| コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し | 備考 |
+|---|---|---|---|---|---|
+| `aw build <profile>` | o（公式イメージを pull） | - | - | o | 公式イメージ名を書き戻す |
+| `aw build <profile> --no-apply` | - | - | - | - | Warning を出して何もしない |
+| `aw build <profile> --save file.tar` | o（公式イメージを pull） | - | o | o | |
+| `aw build <profile> --no-apply --save file.tar` | o（公式イメージを pull） | - | o | - | 設定スニペットを表示 |
+| `aw build <profile> --push --registry ghcr.io/myorg` | o（公式イメージを pull） | - | - | o | 公式イメージをそのまま push |
+| `aw build <profile>`（`image` 設定あり） | - | - | - | - | 既にそのイメージなので何もしない |
+| `aw build <profile> --save file.tar`（`image` 設定あり） | o（`image` を解決） | - | o | - | 書き戻す内容が変わらないため config は触らない |
+| `aw build <profile> --push --registry ghcr.io/myorg`（`image` 設定あり） | o（`image` を解決） | - | - | o | push 後は名前が変わるので書き戻す |
+
+`image:` を `--save` / `--push` の対象にする場合、その参照がローカルにあるかを確認し、
+なければ `image_pull_policy` に従って pull します。取得できない場合は公式イメージに
+切り替えず、エラーで停止します（別のイメージを tar やレジストリに書き込まないため）。
+`image_pull_policy: never` でローカルにないときも同様にエラーです。
+
+### --no-apply
+
+config を書き換えずにイメージだけ作りたいときに使います。
+
+- エアギャップ用に tar を書き出すだけで、手元のプロファイルは公式イメージのままにしたい
+- CI でビルドの成否だけ確認したい
+- レジストリへ push するだけで、`image:` の固定は別途 PR で行いたい
+
+`--no-apply --save file.tar` の場合は、持ち込み先に貼り付けるための config スニペットを
+標準エラーに表示します。
+
+## mise install のスキップ判定
+
+`aw build` は焼き込んだ mise 設定の指紋をイメージ内の
+`/home/agent/.aw_mise_fingerprint` に記録します。起動時に `aw` がワークスペースの
+指紋を計算し直してコンテナへ渡し、entrypoint が 2 つを比較します。
+
+```
+aw build  : mise.toml の指紋 → イメージ内に記録
+aw <prof> : mise.toml の指紋 → AW_MISE_FINGERPRINT 環境変数で渡す
+entrypoint: 2 つが一致 → mise install を呼ばない / 不一致 → mise install
+```
+
+指紋はホスト側の config ではなくイメージの中にあるため、tar で持ち出しても
+レジストリ経由で配っても判定はそのまま機能します。
+
+### 判定表
+
+| 状況 | 起動時の挙動 |
+|---|---|
+| 指紋が一致 | `mise install` を呼ばない |
+| 指紋が不一致（mise.toml を編集・追記） | `mise install` |
+| イメージに指紋がない（公式イメージ、v5 より前の snapshot） | `mise install` |
+| 指紋の対象外入力がワークスペースにある | `mise install`（安全側） |
+| `mise_install: false` / `skip_mise_install: true` | `mise install` を呼ばない（強制オプトアウト） |
+
+### 指紋の対象
+
+snapshot が実際にイメージへ取り込む `mise.toml` と `.mise.toml` の内容だけです。
+
+以下がワークスペースにある場合、指紋では入力全体を説明できないため、`aw` は指紋を
+使わず毎回 `mise install` を実行します（`internal/mise` の `Fingerprint` が
+`ok = false` を返します）。
+
+- `mise.lock`
+- `.tool-versions`
+- `mise.<env>.toml` / `.mise.<env>.toml`
+- `mise/config.toml` / `.mise/config.toml`
+- `.config/mise.toml` / `.config/mise/config.toml`
+- `mise.toml` 内の `include` 指定
+
+両側の指紋は Go の同一関数（`internal/mise.Fingerprint`）が計算します。シェル側に
+二つ目の実装はないため、ビルド時と起動時で判定がずれることはありません。
+
+### なぜ毎起動 install ではないのか
+
+`mise install` は `--force` なしなら既存バージョンを入れ直さず不足分だけを入れますが、
+それでも mise の起動・設定解決・バージョン確認のコストは毎回かかります。指紋が一致する
+間は呼び出し自体を省くことで、焼き込み済み環境の起動を最短にしています。
+
+### ツールを削除したとき
+
+`mise.toml` からツールを削除すると指紋が変わるため `mise install` は走りますが、
+**イメージに焼き込み済みのバイナリは残ります**。`mise install` は不要になったツールを
+削除しないためです。イメージから取り除くには `aw build` でイメージを作り直してください。
 
 ### レジストリへの push
 
 `--push --registry <registry>` でビルド済みイメージをコンテナレジストリに push できます。K8s manifest 生成 (`aw manifest`) と組み合わせて使用します。
 
 ```bash
-# ビルド + push
+# ビルド + push + config にイメージ名を書き戻し
 aw build claude --push --registry ghcr.io/myorg
 
-# ビルド + push + config にイメージ名を書き戻し
-aw build claude --push --registry ghcr.io/myorg --apply
+# ビルド + push のみ（config は書き換えない）
+aw build claude --push --registry ghcr.io/myorg --no-apply
 ```
 
 イメージ名のレジストリプレフィックスは `distribution/reference` で正規に解析されるため、`ghcr.io`、`localhost:5000`、ECR/GCR 等のレジストリに対応しています。
@@ -205,11 +307,16 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 1. docker / podman 両方からコンテナを検索（`--runtime` で限定可能）
 2. `aw-<profile>-<timestamp>` パターンに合致するコンテナを fzf ピッカーで一覧表示（snapshot コンテナは除外）
 3. 選択したコンテナに対して `docker commit` を実行（ENTRYPOINT/CMD を `aw build` と同じ設定にリセット）
-4. コンテナの `HOST_WORKSPACE` 環境変数からワークスペースを特定し、git root のプロジェクト config（`.aw.yml` / `.aw.yaml` / `.agent-workspace.yml`）に `image` と `skip_mise_install: true` を書き込む
+4. コンテナの `HOST_WORKSPACE` 環境変数からワークスペースを特定し、git root のプロジェクト config（`.aw.yml` / `.aw.yaml` / `.agent-workspace.yml`）に `image` と `mise_install: false` を書き込む
+
+`aw save` が `mise_install: false` を書くのは、commit 対象のコンテナが手作業で
+組み上げられたもので、ワークスペースの `mise.toml` と対応付けられないためです。
+指紋による自動判定が使えないので、明示的なオプトアウトを固定します。
+`aw build` が書くのは `image:` だけで、この点が両者で異なります。
 
 ### aw build との比較
 
-| 観点 | `aw build --apply` | `aw save` |
+| 観点 | `aw build` | `aw save` |
 |------|-------------------|-----------|
 | 入力 | mise.toml / packages.txt | コンテナ内の手作業 |
 | 再現性 | 高（宣言的。同じ設定から同じイメージ） | 低（手動操作の結果） |
@@ -293,6 +400,7 @@ snapshot スクリプトは以下の 3 ファイルをイメージに焼き込�
 
 | ファイル | 内容 |
 |---------|------|
+| `/home/agent/.aw_mise_fingerprint` | 焼き込んだ mise 設定の指紋 |
 | `/home/agent/.aw_env.sh` | PATH 設定、mise 環境変数 |
 | `/home/agent/.bashrc` | `.aw_env.sh` を source する |
 | `/home/agent/.bash_profile` | `.bashrc` を source する |
@@ -340,7 +448,7 @@ entrypoint.sh → source /aw-init.sh
   │
   ├── [aw-init.sh] .bashrc / .bash_profile を新規生成
   │
-  ├── [entrypoint.sh] skip_mise_install: true の場合 → mise install をスキップ
+  ├── [entrypoint.sh] mise 指紋が一致 or mise_install: false → mise install をスキップ
   │   （ツールは snapshot で焼き込み済み）
   │
   └── aw_exec "$@"  ← ツール起動（claude, codex 等）
@@ -369,7 +477,7 @@ aw-init.sh が上書きするため、実行時のパスは常に正しい `HOST
 
 | 内容 | 焼き込み（snapshot） | 起動時（aw-init.sh + entrypoint） |
 |------|---------------------|---------------------|
-| mise ツール（/home/agent/.local/share/mise） | install 済み | skip_mise_install で省略 |
+| mise ツール（/home/agent/.local/share/mise） | install 済み | 指紋が一致すれば省略 |
 | mise グローバル config | コピー済み | 変更なし |
 | .aw_env.sh | 生成される | **上書きされる** |
 | .bashrc / .bash_profile | 生成される | **上書きされる** |

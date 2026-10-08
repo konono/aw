@@ -172,3 +172,57 @@ func TestCollectPackages_FiltersInvalidNames(t *testing.T) {
 		}
 	}
 }
+
+func TestContainerEnvVars_MiseFingerprint(t *testing.T) {
+	newEC := func(dir string, p profile.Profile) *ExecutionContext {
+		return &ExecutionContext{
+			Profile:      p,
+			OrigWorkDir:  dir,
+			ContainerEnv: containerenv.Default(),
+		}
+	}
+
+	t.Run("set for a workspace the snapshot can describe", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("[tools]\njq = \"latest\"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		envVars := ContainerEnvVars(newEC(dir, profile.Profile{}), "claude")
+		if envVars["AW_MISE_FINGERPRINT"] == "" {
+			t.Error("AW_MISE_FINGERPRINT should be set so the entrypoint can skip a redundant install")
+		}
+	})
+
+	t.Run("unset without a mise config", func(t *testing.T) {
+		envVars := ContainerEnvVars(newEC(t.TempDir(), profile.Profile{}), "claude")
+		if _, ok := envVars["AW_MISE_FINGERPRINT"]; ok {
+			t.Error("AW_MISE_FINGERPRINT should be absent when there is nothing to install")
+		}
+	})
+
+	t.Run("unset when mise reads more than the snapshot bakes in", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("[tools]\njq = \"latest\"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "mise.lock"), nil, 0644); err != nil {
+			t.Fatal(err)
+		}
+		envVars := ContainerEnvVars(newEC(dir, profile.Profile{}), "claude")
+		if _, ok := envVars["AW_MISE_FINGERPRINT"]; ok {
+			t.Error("AW_MISE_FINGERPRINT must be absent so the entrypoint falls back to installing")
+		}
+	})
+
+	t.Run("explicit opt-out still sends the skip", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "mise.toml"), []byte("[tools]\njq = \"latest\"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		miseInstall := false
+		envVars := ContainerEnvVars(newEC(dir, profile.Profile{MiseInstall: &miseInstall}), "claude")
+		if envVars["AW_SKIP_MISE_INSTALL"] != "1" {
+			t.Error("mise_install: false must keep forcing the skip regardless of the fingerprint")
+		}
+	})
+}

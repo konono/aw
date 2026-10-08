@@ -22,6 +22,8 @@ aw はコンテナ起動時に `/aw-init.sh` を自動的にマウントしま�
 - ツール設定のシンボリンク
 - シェル環境（`.aw_env.sh`, `.bashrc`, `.bash_profile`）の生成
 
+`packages.txt` またはプロファイルの `packages:` で OS パッケージを指定した場合、`aw-init.sh` は起動時に `apt-get` または `dnf` で不足分をインストールします。カスタムイメージにどちらもない場合は、対象パッケージ名と対処を表示して起動を停止します。Alpine などを使う場合は、必要なパッケージをカスタム Dockerfile でインストールしたうえで、`packages.txt` または `packages:` からその指定を外してください。共有ワークスペースの `packages.txt` は、そのワークスペースで起動する他のプロファイルにも適用されます。別の方法として、`apt-get` または `dnf` を使えるベースイメージに変更できます。
+
 ### カスタム entrypoint のテンプレート
 
 ```bash
@@ -79,7 +81,7 @@ RUN useradd -m -s /bin/bash agent && \
 >
 > ただし `aw build` の snapshot は別です。`aw build` はカスタム Dockerfile のイメージ
 > に対しても snapshot スクリプトを実行しますが、v5 のスクリプトは `devbox.json` を
-> 扱いません。起動時のインストールは動きますが、`aw build --apply` で焼き込むことは
+> 扱いません。起動時のインストールは動きますが、`aw build` で焼き込むことは
 > できません。詳細は [v4 → v5 移行ガイド](migration-v5.md)。
 
 ```

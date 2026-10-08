@@ -588,9 +588,9 @@ func TestDockerStage_PrebuiltImage_NotFound_InvalidRefSkipsPull(t *testing.T) {
 	}
 }
 
-// aw build --apply writes `image:` together with skip_mise_install, because the
-// snapshot image has the tools baked in. When that image is gone we fall back
-// to an image without them, so the skips must be dropped too.
+// A profile can pin `image:` together with an install opt-out, because that
+// snapshot image has the tools baked in. When the image is gone we fall back
+// to one without them, so the skips must be dropped too.
 func TestDockerStage_PrebuiltImage_NotFound_ReenablesInstallsFromApply(t *testing.T) {
 	dc := &mockDockerClient{available: true, imageExists: false}
 	s := &DockerStage{
@@ -893,8 +893,9 @@ func TestDockerStage_ExtraPackages_BuildArg(t *testing.T) {
 
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchClaude,
+			ImagePullPolicy: profile.ImagePullPolicyBuild,
 		},
 		HomeDir:     t.TempDir(),
 		WorkDir:     workDir,
@@ -920,9 +921,10 @@ func TestDockerStage_ProfilePackages_BuildArg(t *testing.T) {
 
 	ec := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-			Packages:    []string{"curl", "wget"},
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchClaude,
+			ImagePullPolicy: profile.ImagePullPolicyBuild,
+			Packages:        []string{"curl", "wget"},
 		},
 		HomeDir: t.TempDir(),
 		WorkDir: t.TempDir(),
@@ -1011,8 +1013,9 @@ func TestDockerStage_ImageHash_DiffersByPackages(t *testing.T) {
 
 	ec1 := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchClaude,
+			ImagePullPolicy: profile.ImagePullPolicyBuild,
 		},
 		HomeDir: t.TempDir(),
 		WorkDir: t.TempDir(),
@@ -1031,9 +1034,10 @@ func TestDockerStage_ImageHash_DiffersByPackages(t *testing.T) {
 
 	ec2 := &pipeline.ExecutionContext{
 		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-			Packages:    []string{"jq"},
+			Environment:     profile.EnvironmentContainer,
+			Launch:          profile.LaunchClaude,
+			ImagePullPolicy: profile.ImagePullPolicyBuild,
+			Packages:        []string{"jq"},
 		},
 		HomeDir: t.TempDir(),
 		WorkDir: t.TempDir(),
@@ -1288,35 +1292,67 @@ func TestResolveOfficialImage_BuildPolicy(t *testing.T) {
 	}
 }
 
-func TestResolveOfficialImage_CustomPackagesSkipsOfficial(t *testing.T) {
-	tmpDir := t.TempDir()
-	dc := &mockDockerClient{available: true, imageExists: true, pullSucceeds: true}
-	setupToolConfig(t, tmpDir, "claude")
+func TestResolveOfficialImage_PackagesInstallAtStartup(t *testing.T) {
+	for _, source := range []string{"profile", "packages.txt"} {
+		t.Run(source, func(t *testing.T) {
+			workDir := t.TempDir()
+			homeDir := t.TempDir()
+			p := profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude}
+			if source == "profile" {
+				p.Packages = []string{"jq"}
+			} else if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("jq\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
 
-	s := &DockerStage{
-		DockerClient: dc,
-		ConfigSyncer: &mockConfigSyncer{},
-		MountBuilder: &mockMountBuilder{},
+			dc := &mockDockerClient{available: true, imageExists: true}
+			setupToolConfig(t, homeDir, "claude")
+			s := &DockerStage{
+				DockerClient: dc,
+				ConfigSyncer: &mockConfigSyncer{},
+				MountBuilder: &mockMountBuilder{},
+			}
+			ec := &pipeline.ExecutionContext{
+				Profile: p, HomeDir: homeDir, WorkDir: workDir, OrigWorkDir: workDir,
+			}
+
+			if err := s.Run(context.Background(), ec); err != nil {
+				t.Fatalf("Run() error: %v", err)
+			}
+			if dc.buildCalled || dc.pullCalled || !dc.imageExistsCalled {
+				t.Errorf("expected local official image without a build, got build=%v pull=%v inspect=%v", dc.buildCalled, dc.pullCalled, dc.imageExistsCalled)
+			}
+			if ec.DockerImage != OfficialImageName("claude", profile.OSDebian12) {
+				t.Errorf("DockerImage = %q, want official image", ec.DockerImage)
+			}
+			if got := pipeline.ContainerEnvVars(ec, "claude")["AW_PACKAGES"]; got != "jq" {
+				t.Errorf("AW_PACKAGES = %q, want jq", got)
+			}
+		})
 	}
+}
+
+func TestResolveOfficialImage_PackagesFilePullsOfficial(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workDir, "packages.txt"), []byte("gcc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	homeDir := t.TempDir()
+	setupToolConfig(t, homeDir, "claude")
+	dc := &mockDockerClient{available: true, pullSucceeds: true}
+	s := &DockerStage{DockerClient: dc, ConfigSyncer: &mockConfigSyncer{}, MountBuilder: &mockMountBuilder{}}
 	ec := &pipeline.ExecutionContext{
-		Profile: profile.Profile{
-			Environment: profile.EnvironmentContainer,
-			Launch:      profile.LaunchClaude,
-			Packages:    []string{"jq"},
-		},
-		HomeDir: tmpDir,
-		WorkDir: tmpDir,
+		Profile: profile.Profile{Environment: profile.EnvironmentContainer, Launch: profile.LaunchClaude},
+		HomeDir: homeDir, WorkDir: workDir, OrigWorkDir: workDir,
 	}
 
 	if err := s.Run(context.Background(), ec); err != nil {
 		t.Fatalf("Run() error: %v", err)
 	}
-
-	if dc.pullCalled {
-		t.Error("custom packages: Pull should not be called")
+	if dc.buildCalled || !dc.pullCalled {
+		t.Errorf("packages.txt should pull the official image without building, got build=%v pull=%v", dc.buildCalled, dc.pullCalled)
 	}
-	if !dc.buildCalled {
-		t.Error("custom packages: Build should be called")
+	if got := pipeline.ContainerEnvVars(ec, "claude")["AW_PACKAGES"]; got != "gcc" {
+		t.Errorf("AW_PACKAGES = %q, want gcc", got)
 	}
 }
 

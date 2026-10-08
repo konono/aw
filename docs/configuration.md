@@ -338,10 +338,11 @@ profiles:
 
 - `image` + `dockerfile`: `dockerfile` でビルド（`image` は無視）
 - `image` のみ + ワークスペースファイル（mise.toml 等）: `image` をベースに snapshot で増分ビルド（mise install → docker commit）
-- `image` + `packages` / `ca_cert` / `build_env` / `packages.txt`: `image` を無視してテンプレートからフルビルド（これらは Dockerfile レイヤーで処理が必要なため）
+- `image` + `packages` / `packages.txt`: 通常起動では `image` を使い、起動時に不足する OS パッケージをインストール。`aw build` では `image` を無視してテンプレートからビルド
+- `image` + `ca_cert` / `build_env`: `aw build` では `image` を無視してテンプレートからフルビルド
 - `image` + `--no-cache`: `image` を無視してテンプレートからフルビルド（ビルド入力がある場合）
 
-`aw build --apply` でビルド結果を `image` に書き戻せます。
+`aw build` でビルド結果を `image` に書き戻せます。
 
 ### `dockerfile`（任意）
 
@@ -404,16 +405,22 @@ profiles:
       - ripgrep
 ```
 
-パッケージは 2 つの経路でインストールされます:
+パッケージは 2 つの経路でインストールされます。`packages` や `packages.txt` だけを理由に、通常の `aw` 起動時にイメージをビルドすることはありません:
 
-1. **ビルド時**（`os` テンプレート使用時）— `AW_EXTRA_PACKAGES` ビルド引数として Dockerfile に渡され、イメージレイヤーに組み込まれます。イメージハッシュにも含まれるため、パッケージ構成が変わるとイメージが再ビルドされます
-2. **ランタイム**（カスタム `dockerfile` 使用時を含む全モード）— `AW_PACKAGES` 環境変数としてコンテナに渡され、`aw-init.sh` がコンテナ起動時にインストールします
+1. **通常起動時**（カスタム `dockerfile` 使用時を含む全モード）— `AW_PACKAGES` 環境変数としてコンテナに渡され、`aw-init.sh` が未インストールのものだけを `apt-get` または `dnf` でインストールします
+2. **`aw build` 実行時**（`os` テンプレート使用時）— `AW_EXTRA_PACKAGES` ビルド引数として Dockerfile に渡され、イメージレイヤーに組み込まれます。イメージハッシュにも含まれるため、パッケージ構成が変わるとイメージが再ビルドされます
+
+起動時はパッケージ一覧の指紋ではなく、Debian の `dpkg-query` または UBI の `rpm -q` で実際のインストール状態を確認します。`aw build` 済みのイメージなどで全パッケージが揃っていれば、`apt-get` / `dnf` は呼びません。`packages.txt` に追加した分だけが次の起動でインストールされます。
+
+公式イメージからは毎回新しいコンテナを起動します。公式イメージに含まれないパッケージは起動のたびにネットワーク経由でインストールされるため、起動時間と通信量が増えます。重い構成やオフライン利用では `aw build` でパッケージをイメージに焼き込んでください。`apt-get update` / `apt-get install` / `dnf install` が失敗した場合、必要なパッケージが欠けたままツールを起動せずエラーで停止します。
 
 パッケージ名は `[a-zA-Z0-9][a-zA-Z0-9.+_\-:]*` にマッチする必要があります。プロファイル YAML の不正な名前はバリデーションエラーになります。
 
 #### ワークスペースパッケージファイル
 
 ワークスペースルートに `packages.txt` を配置すると、プロファイルの `packages` とマージされます。`#` で始まる行はコメントとして無視され、不正な名前の行も無視されます。重複は自動的に除去されます。
+
+パッケージ名はコンテナの OS に合わせて指定してください。Debian と UBI で名前が異なる場合は、OS ごとにプロファイルの `packages` を分けて指定できます。
 
 ```
 # packages.txt（ワークスペースルート）
