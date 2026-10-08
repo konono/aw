@@ -205,10 +205,13 @@ func clearPinnedImage(ec *pipeline.ExecutionContext) {
 // HasImageCustomizations reports settings that must be present in the image
 // before a container starts. OS packages are intentionally excluded: aw-init
 // installs those at startup when using an existing image.
+//
+// mount_zellij is excluded too: the official image already ships zellij,
+// panecom and aw-sockrelay, so requiring a local template build for it only
+// rebuilt the same content on every launch.
 func HasImageCustomizations(p profile.Profile) bool {
 	if len(p.BuildEnv) > 0 || p.CACert != "" ||
-		(p.ContainerUser != "" && p.ContainerUser != "agent") ||
-		p.EffectiveMountZellij() {
+		(p.ContainerUser != "" && p.ContainerUser != "agent") {
 		return true
 	}
 	if p.Kubernetes != nil && p.Kubernetes.SessionLog {

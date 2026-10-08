@@ -159,6 +159,11 @@ func writePtyLoggerBinaries(buildDir string) error {
 	return nil
 }
 
+// WriteSockRelayBinaries cross-compiles aw-sockrelay into buildDir. The
+// release image renderer needs it outside of PrepareBuildContext because it
+// assembles the build context itself.
+func WriteSockRelayBinaries(buildDir string) error { return writeSockRelayBinaries(buildDir) }
+
 func writeSockRelayBinaries(buildDir string) error {
 	if _, err := exec.LookPath("go"); err != nil {
 		return fmt.Errorf("mount_zellij requires the Go toolchain on the host: %w", err)
