@@ -86,12 +86,25 @@ if [ -n "${AW_PACKAGES:-}" ]; then
     for _p in "${_aw_pkgs[@]}"; do
       _p=$(echo "$_p" | xargs)
       [ -z "$_p" ] && continue
-      dpkg -s "$_p" > /dev/null 2>&1 || _aw_install+=("$_p")
+      # dpkg -s also succeeds for packages removed with config files left
+      # behind. Check the actual installed state before skipping apt-get.
+      _aw_status=$(dpkg-query -W -f='${Status}' "$_p" 2>/dev/null) || _aw_status=""
+      case "$_aw_status" in
+        'install ok installed'|'hold ok installed') ;;
+        *) _aw_install+=("$_p") ;;
+      esac
     done
     if [ ${#_aw_install[@]} -gt 0 ]; then
       aw_log "Installing packages: ${_aw_install[*]}"
-      sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends "${_aw_install[@]}"
-      sudo rm -rf /var/lib/apt/lists/*
+      if ! sudo apt-get update -qq; then
+        aw_log "ERROR: apt-get update failed; required packages are unavailable."
+        exit 1
+      fi
+      if ! sudo apt-get install -y --no-install-recommends "${_aw_install[@]}"; then
+        aw_log "ERROR: apt-get install failed; required packages are unavailable."
+        exit 1
+      fi
+      sudo rm -rf /var/lib/apt/lists/* || true
     fi
   elif command -v dnf > /dev/null 2>&1; then
     for _p in "${_aw_pkgs[@]}"; do
@@ -101,9 +114,16 @@ if [ -n "${AW_PACKAGES:-}" ]; then
     done
     if [ ${#_aw_install[@]} -gt 0 ]; then
       aw_log "Installing packages: ${_aw_install[*]}"
-      sudo dnf install -y "${_aw_install[@]}"
-      sudo dnf clean all
+      if ! sudo dnf install -y "${_aw_install[@]}"; then
+        aw_log "ERROR: dnf install failed; required packages are unavailable."
+        exit 1
+      fi
+      sudo dnf clean all || true
     fi
+  else
+    aw_log "ERROR: cannot install OS packages (${_aw_pkgs[*]}): neither apt-get nor dnf is available."
+    aw_log "Use an apt/dnf-based image, or install them in the custom Dockerfile and remove them from packages.txt or the profile's packages: setting."
+    exit 1
   fi
 fi
 

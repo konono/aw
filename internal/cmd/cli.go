@@ -134,7 +134,7 @@ type LoginCmd struct{ authFlags }
 type BuildCmd struct {
 	ProfileName string            `arg:"" help:"Profile name to build." completion-predictor:"profile"`
 	Save        *string           `name:"save" help:"Save image as tar archive." placeholder:"PATH"`
-	Apply       bool              `name:"apply" help:"Write image name back to config file."`
+	Apply       bool              `name:"apply" negatable:"" default:"true" help:"Write image name back to config file."`
 	NoCache     bool              `name:"no-cache" help:"Rebuild from template without cache."`
 	Push        bool              `name:"push" help:"Push the image to a container registry."`
 	Registry    string            `name:"registry" help:"Registry to push to (e.g. ghcr.io/myorg)." placeholder:"REGISTRY"`

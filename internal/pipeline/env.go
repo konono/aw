@@ -3,6 +3,7 @@ package pipeline
 import (
 	"strings"
 
+	"github.com/konono/aw/v4/internal/mise"
 	"github.com/konono/aw/v4/internal/mount"
 	"github.com/konono/aw/v4/internal/profile"
 )
@@ -47,6 +48,13 @@ func ContainerEnvVars(ec *ExecutionContext, tool string) map[string]string {
 
 	if ec.Profile.EffectiveSkipMiseInstall() {
 		envVars["AW_SKIP_MISE_INSTALL"] = "1"
+	}
+
+	// The entrypoint skips mise install when this matches the fingerprint
+	// baked into the image. An unset variable means "cannot tell", which the
+	// entrypoint reads as "install".
+	if fp, ok := mise.Fingerprint(ec.OrigWorkDir); ok {
+		envVars["AW_MISE_FINGERPRINT"] = fp
 	}
 
 	if ec.Profile.EffectiveAutoDepsInstall() {

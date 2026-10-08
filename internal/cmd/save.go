@@ -119,7 +119,10 @@ func saveSelectedContainer(ctx context.Context, client containerSaver, entry *co
 		return fmt.Errorf("committing container: %w", err)
 	}
 
-	if err := applyBuildResult(configPath, profileName, imageName, true); err != nil {
+	// Unlike aw build, aw save commits a container whose tools are already
+	// installed, so it keeps pinning the skip alongside the image.
+	skipMiseInstall := true
+	if err := applyBuildResult(configPath, profileName, imageName, &skipMiseInstall); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: image '%s' was created but config update failed.\n", imageName)
 		return fmt.Errorf("writing config: %w", err)
 	}

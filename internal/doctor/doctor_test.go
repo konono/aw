@@ -1,12 +1,67 @@
 package doctor
 
 import (
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/v4/internal/profile"
 )
 
 func boolPtr(b bool) *bool { return &b }
+
+func TestCheckOfficialImages_PackagesUseOfficialImage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The runtime is stubbed with a shebang script on PATH, which Windows
+		// neither resolves (no PATHEXT extension) nor executes. The behaviour
+		// under test is OS-independent, so it is covered on the other runners.
+		t.Skip("PATH stubbing with a shell script is unsupported on Windows")
+	}
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "docker.log")
+	dockerPath := filepath.Join(dir, "docker")
+	if err := os.WriteFile(dockerPath, []byte("#!/bin/sh\necho \"$*\" >> \"$AW_TEST_LOG\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("AW_TEST_LOG", logPath)
+
+	cfg := &profile.Config{Profiles: map[string]profile.Profile{
+		"dev": {
+			Environment: profile.EnvironmentContainer,
+			Launch:      profile.LaunchClaude,
+			Packages:    []string{"gcc"},
+		},
+	}}
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Close() }()
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+	checkOfficialImages(&result{}, cfg, map[string]bool{"docker": true}, true)
+	_ = w.Close()
+	output, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(output), "Official Images") || strings.Contains(string(output), "will build from template") {
+		t.Fatalf("doctor must describe the runtime image for packages-only profiles:\n%s", output)
+	}
+	log, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(log), "image inspect ghcr.io/konono/aw-claude:") {
+		t.Fatalf("doctor did not inspect the official image:\n%s", log)
+	}
+}
 
 func TestCollectRuntimes(t *testing.T) {
 	tests := []struct {
@@ -81,10 +136,10 @@ func TestCollectRuntimes(t *testing.T) {
 
 func TestCollectGHNeeds(t *testing.T) {
 	tests := []struct {
-		name          string
-		cfg           *profile.Config
-		wantGHToken   bool
-		wantMountGH   bool
+		name        string
+		cfg         *profile.Config
+		wantGHToken bool
+		wantMountGH bool
 	}{
 		{
 			name:        "no profiles",

@@ -210,7 +210,7 @@ mount_container_sock: true    # docker-compose up/down
 | セッション履歴（`/resume`） | ✓ | `~/.agent-workspace/<tool>/` |
 | ツール設定・プラグイン | ✓ | `~/.agent-workspace/<tool>/` |
 | git worktree | ✓ | ホスト上（手動で削除するまで残る） |
-| mise でインストールしたツール | ✗ | コンテナ破棄時に消失（`aw build --apply` で焼き込み可） |
+| mise でインストールしたツール | ✗ | コンテナ破棄時に消失（`aw build` で焼き込み可） |
 | コンテナ内で apt install したもの | ✗ | コンテナ破棄時に消失（`aw save` で保存可） |
 | コンテナ内の一時ファイル | ✗ | コンテナ破棄時に消失 |
 
@@ -293,16 +293,55 @@ aw auth status claude  # 認証状態を確認
 通常のイメージにはベース OS とツール（Claude Code 等）だけが含まれ、`mise install` はコンテナ起動のたびに実行されます。プロジェクトで使うランタイムが決まったら、`aw build` で環境をイメージに焼き込むことで起動を高速化できます:
 
 ```bash
-aw build claude --apply
+aw build claude
 ```
 
 このコマンドは以下を行います:
 
 1. 公式イメージをベースにコンテナを起動し、プロジェクトの `mise.toml` に基づいてパッケージをインストール
 2. インストール済みの状態を `aw-build:<profile>-<hash>` としてコミット（公式イメージは上書きしない）
-3. `--apply` により、プロファイルの設定に `image:` と `skip_mise_install: true` を書き戻す
+3. 焼き込んだ mise 設定の**指紋**をイメージ内に記録
+4. プロファイルの設定に `image:` を書き戻す
 
 以降の `aw` 起動では、イメージのビルドと起動時のパッケージインストールの両方がスキップされ、即座にエージェントが立ち上がります。
+
+書き戻しが不要な場合（tar にだけ書き出したい、CI でビルドだけ回したい等）は `--no-apply` を付けます。
+
+#### mise install がスキップされる仕組み
+
+`aw build` は `skip_mise_install` / `mise_install` を自動設定しません。代わりに、
+起動のたびに `aw` がワークスペースの mise 設定の指紋を計算し、イメージに記録された
+指紋と比較します。
+
+| 起動時の状態 | 挙動 |
+|---|---|
+| 指紋が一致（mise.toml 無変更） | `mise install` を呼ばずに起動 |
+| 指紋が不一致（mise.toml を編集・追記） | 通常どおり `mise install` |
+| イメージに指紋がない（公式イメージ） | 通常どおり `mise install` |
+| 指紋の対象外ファイルがある（下記） | 安全側に倒して `mise install` |
+
+つまりビルド後に `mise.toml` へツールを追記しても、次の起動でそれだけが入ります。
+`mise install` は `--force` なしでは既存バージョンを入れ直さないため、追加分だけの
+短時間で済みます。
+
+指紋の対象は、snapshot が実際にイメージへ取り込む `mise.toml` と `.mise.toml` の
+内容です。これら以外に mise が読み得る入力（`mise.lock`、`.tool-versions`、
+`mise.<env>.toml`、`mise/config.toml`、設定内の `include`）がワークスペースにある
+場合は、指紋だけでは入力全体を説明できないため、`aw` は指紋を使わず毎回
+`mise install` を実行します。
+
+> **ツールを削除した場合**: `mise.toml` からツールを消しても、イメージに焼き込まれた
+> バイナリは残ります。指紋が変わるので `mise install` は走りますが、既存のバイナリが
+> 消えるわけではありません。イメージから取り除くには `aw build` で作り直してください。
+
+起動時の `mise install` を常に止めたい場合は、プロファイルに明示的に設定します。
+この指定は指紋より優先される強制オプトアウトです。
+
+```yaml
+profiles:
+  claude:
+    mise_install: false    # 起動時の mise install を常にスキップ
+```
 
 `image:` が設定されていても OS テンプレートから作り直したい場合は `--no-cache` を使います。
 
@@ -321,10 +360,10 @@ profiles:
 ```
 
 ```bash
-aw build claude --no-cache --apply
+aw build claude --no-cache
 ```
 
-ランタイム構成を変更した場合は、再度 `aw build --apply` を実行してイメージを更新してください。
+ランタイム構成を変更した場合は、再度 `aw build` を実行してイメージを更新してください。
 
 ### コンテナランタイムの選択
 
@@ -363,6 +402,15 @@ jq
 tree
 ```
 
+ワークスペース直下に置くと、次の `aw` 起動で不足するパッケージが自動インストールされます。
+通常起動で `packages.txt` だけを理由にイメージをビルドすることはありません。
+構成が固まったら `aw build` で OS パッケージをイメージに焼き込めます。
+
+公式イメージからの起動は毎回新しいコンテナです。公式イメージにないパッケージは
+**起動のたびにネットワーク経由でインストール**されるため、重い構成やオフラインでの
+利用には `aw build` で焼き込んだイメージを使ってください。インストールに失敗した
+場合は、必要なパッケージがない状態でツールを起動せずエラーで停止します。
+
 `packages.txt` は以下の場所に配置できます:
 
 | 配置場所 | スコープ |
@@ -370,12 +418,13 @@ tree
 | カレントディレクトリ（ワークスペース） | プロジェクト固有 |
 
 プロファイルの `packages:` フィールドとも併用でき、すべてマージされます。重複は自動排除されます。OS テンプレートに応じて `apt-get install` / `dnf install` が自動で使い分けられるため、ユーザーが意識する必要はありません。
+ただしパッケージ名が Debian と UBI で異なる場合は、OS ごとのプロファイルで指定してください。
 
-mise でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw build --apply` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
+mise でインストールしたツールはコンテナ内に保存されるため、コンテナ破棄時に消えます。起動のたびに再インストールが走りますが、構成が固まったら `aw build` でイメージに焼き込むと、インストール自体をスキップして即座に起動できます。
 
-`aw build --apply` は、ワークスペースに `mise.toml`・`packages.txt` が存在する場合、プロジェクトローカルの `.aw.yml` にイメージ名を書き込みます。これにより、プロジェクトごとに異なる snapshot イメージを管理できます。ワークスペース固有ファイルがない場合は、従来通りグローバル config に書き込みます。
+`aw build` は、ワークスペースに `mise.toml`・`packages.txt` が存在する場合、プロジェクトローカルの `.aw.yml` にイメージ名を書き込みます。これにより、プロジェクトごとに異なる snapshot イメージを管理できます。ワークスペース固有ファイルがない場合は、従来通りグローバル config に書き込みます。
 
-> **モノレポでの注意**: `aw build --apply` はカレントディレクトリのワークスペースファイルを検出しますが、`.aw.yml` は git リポジトリルートに書き込まれます。モノレポのサブディレクトリごとに異なる `mise.toml` がある場合、最後に `aw build --apply` を実行したサブディレクトリの snapshot が `.aw.yml` に反映されます。サブディレクトリごとに異なる snapshot が必要な場合は、プロファイル名を分けて管理してください。
+> **モノレポでの注意**: `aw build` はカレントディレクトリのワークスペースファイルを検出しますが、`.aw.yml` は git リポジトリルートに書き込まれます。モノレポのサブディレクトリごとに異なる `mise.toml` がある場合、最後に `aw build` を実行したサブディレクトリの snapshot が `.aw.yml` に反映されます。サブディレクトリごとに異なる snapshot が必要な場合は、プロファイル名を分けて管理してください。
 
 ### コンテナ内の変更を保存する
 
@@ -390,11 +439,11 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 
 次回同じディレクトリから `aw claude` を起動すると、保存したイメージが使われます。
 
-`aw save` と `aw build --apply` の使い分け:
+`aw save` と `aw build` の使い分け:
 
 | コマンド | 用途 | 入力 |
 |---------|------|------|
-| `aw build --apply` | mise.toml / packages.txt の焼き込み | 宣言的な設定ファイル |
+| `aw build` | mise.toml / packages.txt の焼き込み | 宣言的な設定ファイル |
 | `aw save` | 対話的なカスタマイズの保存 | コンテナ内の手作業 |
 
 `aw save` は `--image` でイメージ名を指定でき、`--runtime` で docker / podman を明示できます（省略時は両方を検索）。
@@ -555,17 +604,18 @@ profiles:
 
 ```bash
 # イメージをビルドして tar に保存
-aw build claude --save my-image.tar
+# --no-apply: 手元の config は書き換えず、持ち込み先用の設定スニペットを表示する
+aw build claude --no-apply --save my-image.tar
 
 # --no-cache: キャッシュと image: 設定を無視してテンプレートから作り直す
 # （プロファイルに packages 等のビルド入力があることが前提）
-aw build claude --no-cache --save my-image.tar
+aw build claude --no-apply --no-cache --save my-image.tar
 
 # --include: ホストのディレクトリをイメージにコピー
-aw build claude --include ./certs:/usr/local/share/ca-certificates --save my-image.tar
+aw build claude --no-apply --include ./certs:/usr/local/share/ca-certificates --save my-image.tar
 
 # --env: 環境変数をイメージに焼き込み
-aw build claude --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
+aw build claude --no-apply --env HTTP_PROXY=http://proxy.corp:8080 --save my-image.tar
 
 # --build-arg: ビルド時のみ使われる引数を渡す（イメージには焼き込まない）
 aw build claude --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
@@ -582,7 +632,7 @@ profiles:
     environment: container
     launch: claude
     image: 'aw-build:claude-a1b2c3d4'
-    skip_mise_install: true              # プロジェクトの mise install をスキップ
+    mise_install: false                  # 起動時の mise install を常にスキップ
     build:
       include:
         - src: ./certs
