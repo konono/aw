@@ -168,8 +168,11 @@ config 書き戻し（プロファイルへの `image:` の書き込み）は **
 #### ビルド入力がある場合
 
 `dockerfile` / `mise.toml` / `.mise.toml` / `packages.txt` / `packages` /
-`ca_cert` / `build_env` / `container_user`（既定以外）/ `mount_zellij` /
+`ca_cert` / `build_env` / `container_user`（既定以外）/
 `kubernetes.session_log` / `--include` / `--env` / `--build-arg` のいずれかがある場合。
+
+`mount_zellij` はビルド入力ではありません。公式イメージに zellij / panecom /
+aw-sockrelay が同梱されているため、ビルドせずに公式イメージをそのまま使います。
 
 | コマンド | イメージ取得 | snapshot | tar 生成 | config 書き戻し | 備考 |
 |---|---|---|---|---|---|

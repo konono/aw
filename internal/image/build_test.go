@@ -497,6 +497,32 @@ func TestEmbeddedBinaries_Compile(t *testing.T) {
 	}
 }
 
+// TestCrossCompileEmbedded_RelativeOutDir pins that a relative output
+// directory lands in the caller's working directory. go build runs with
+// cmd.Dir set to the extracted source, so a relative -o used to write into
+// the temp dir that is deleted on return, leaving the build context without
+// the binary its Dockerfile COPYs.
+func TestCrossCompileEmbedded_RelativeOutDir(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("cross-compiling embedded linux binaries on Windows CI is unsupported")
+	}
+
+	t.Chdir(t.TempDir())
+	if err := os.Mkdir("out", 0o755); err != nil {
+		t.Fatalf("creating out dir: %v", err)
+	}
+
+	if _, err := crossCompileEmbedded(SockRelayFS(), "aw-sockrelay", "", "out", "linux", runtime.GOARCH); err != nil {
+		t.Fatalf("compile aw-sockrelay: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join("out", "aw-sockrelay-"+runtime.GOARCH)); err != nil {
+		t.Fatalf("output binary not in the relative out dir: %v", err)
+	}
+}
+
 func TestRenderDockerfile_ToolInstallScript(t *testing.T) {
 	cenv := containerenv.Default()
 	for _, osTemplate := range []profile.OSTemplate{

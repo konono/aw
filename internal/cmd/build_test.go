@@ -348,8 +348,8 @@ func TestHasBuildInputs(t *testing.T) {
 		dir := t.TempDir()
 		mountZellij := true
 		p := profile.Profile{MountZellij: &mountZellij}
-		if !hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
-			t.Error("should return true with mount_zellij")
+		if hasBuildInputs(buildInputsEC(dir, p), nil, nil) {
+			t.Error("should return false: the official image already ships zellij, panecom and aw-sockrelay")
 		}
 	})
 

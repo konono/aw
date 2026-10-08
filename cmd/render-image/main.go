@@ -68,6 +68,11 @@ func main() {
 func renderContext(osName, tool, outputDir string) error {
 	osTemplate := profile.OSTemplate(osName)
 	cenv := containerenv.Default()
+	// Official images ship aw-sockrelay so that mount_zellij profiles can use
+	// the official image instead of forcing a local template build on every
+	// launch. zellij and panecom are already installed unconditionally here,
+	// so the relay binary was the only piece missing.
+	cenv.SockRelay = true
 
 	if _, ok := toolinfo.Lookup(tool); !ok {
 		return fmt.Errorf("unknown tool: %q (supported: %s)", tool, strings.Join(toolinfo.Names(), ", "))
@@ -96,6 +101,10 @@ func renderContext(osName, tool, outputDir string) error {
 		if err := os.WriteFile(filepath.Join(outputDir, name), content, 0o644); err != nil {
 			return fmt.Errorf("writing %s: %w", name, err)
 		}
+	}
+
+	if err := image.WriteSockRelayBinaries(outputDir); err != nil {
+		return fmt.Errorf("building aw-sockrelay: %w", err)
 	}
 
 	installScript := toolinfo.InstallScript(tool)
