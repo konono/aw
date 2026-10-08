@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -13,13 +14,20 @@ import (
 func boolPtr(b bool) *bool { return &b }
 
 func TestCheckOfficialImages_PackagesUseOfficialImage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The runtime is stubbed with a shebang script on PATH, which Windows
+		// neither resolves (no PATHEXT extension) nor executes. The behaviour
+		// under test is OS-independent, so it is covered on the other runners.
+		t.Skip("PATH stubbing with a shell script is unsupported on Windows")
+	}
+
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "docker.log")
 	dockerPath := filepath.Join(dir, "docker")
 	if err := os.WriteFile(dockerPath, []byte("#!/bin/sh\necho \"$*\" >> \"$AW_TEST_LOG\"\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("AW_TEST_LOG", logPath)
 
 	cfg := &profile.Config{Profiles: map[string]profile.Profile{
