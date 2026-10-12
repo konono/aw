@@ -109,7 +109,7 @@ func ImageTool(tool string) string {
 const GhCLIVersion = "2.102.0"
 
 // MiseVersion is the pinned version of mise installed in all images.
-const MiseVersion = "2026.10.3"
+const MiseVersion = "2026.10.8"
 
 // ZellijVersion is the pinned version of zellij installed when mount_zellij is enabled.
 const ZellijVersion = "0.44.3"
