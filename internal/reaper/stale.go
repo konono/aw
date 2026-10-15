@@ -35,7 +35,7 @@ func CheckStaleContainers(runtime string) {
 
 func checkStaleExited(runtime string) {
 	out, err := exec.Command(runtime, "ps", "-a",
-		"--filter", "name=^aw-.*-[0-9]+$",
+		"--filter", "name=^aw-.*-[0-9a-f]+$",
 		"--filter", "status=exited",
 		"--format", "{{.Names}} {{.Status}}").Output()
 	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
@@ -43,13 +43,13 @@ func checkStaleExited(runtime string) {
 	}
 	fmt.Fprintf(os.Stderr, "[reaper] stale containers found:\n")
 	fmt.Fprintf(os.Stderr, "%s", out)
-	fmt.Fprintf(os.Stderr, "  remove: %s rm $(%s ps -a --filter name=^aw-.*-[0-9]+$ --filter status=exited -q)\n", runtime, runtime)
+	fmt.Fprintf(os.Stderr, "  remove: %s rm $(%s ps -a --filter name=^aw-.*-[0-9a-f]+$ --filter status=exited -q)\n", runtime, runtime)
 	fmt.Fprintf(os.Stderr, "  inspect: %s logs <container-name>\n", runtime)
 }
 
 func checkStaleRunning(runtime string) {
 	out, err := exec.Command(runtime, "ps",
-		"--filter", "name=^aw-.*-[0-9]+$",
+		"--filter", "name=^aw-.*-[0-9a-f]+$",
 		"--format", "{{.Names}}").Output()
 	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
 		return

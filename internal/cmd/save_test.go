@@ -18,21 +18,24 @@ func TestExtractProfileName(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
+		label   string
 		want    string
 		wantErr bool
 	}{
-		{"simple", "aw-claude-1735000000000", "claude", false},
-		{"hyphenated", "aw-my-profile-1735000000000", "my-profile", false},
-		{"multi-hyphen", "aw-a-b-c-123456", "a-b-c", false},
-		{"short digits", "aw-shell-1", "shell", false},
-		{"no aw prefix", "container-123", "", true},
-		{"no digits suffix", "aw-claude-abc", "", true},
-		{"empty", "", "", true},
-		{"snapshot container", "aw-snapshot-abcdef01", "", true},
+		{"label wins over the name", "aw-my-profile-myrepo-a3f91c", "my-profile", "my-profile", false},
+		{"label on a name the regex cannot split", "aw-a-b-c-my-repo-7b2e04", "a-b-c", "a-b-c", false},
+		{"simple", "aw-claude-1735000000000", "", "claude", false},
+		{"hyphenated", "aw-my-profile-1735000000000", "", "my-profile", false},
+		{"multi-hyphen", "aw-a-b-c-123456", "", "a-b-c", false},
+		{"short digits", "aw-shell-1", "", "shell", false},
+		{"no aw prefix", "container-123", "", "", true},
+		{"no digits suffix", "aw-claude-abc", "", "", true},
+		{"empty", "", "", "", true},
+		{"snapshot container", "aw-snapshot-abcdef01", "", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := extractProfileName(tt.input)
+			got, err := extractProfileName(docker.ContainerInfo{Name: tt.input, Profile: tt.label})
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("extractProfileName(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 			}
@@ -276,7 +279,7 @@ func TestResolveSaveProfile_MixedListing(t *testing.T) {
 
 	var saveable []string
 	for _, name := range containers {
-		profileName, err := extractProfileName(name)
+		profileName, err := extractProfileName(docker.ContainerInfo{Name: name})
 		if err != nil {
 			continue
 		}

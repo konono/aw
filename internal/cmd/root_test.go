@@ -14,18 +14,43 @@ func TestBuildStages_DockerClaude(t *testing.T) {
 	}
 	stages := buildStages(p)
 
-	// Should have DockerStage + EnvStage + LaunchStage = 3 stages
-	if len(stages) != 3 {
-		t.Fatalf("got %d stages, want 3", len(stages))
+	// container-name + DockerStage + EnvStage + LaunchStage = 4 stages
+	want := []string{"container-name", "container", "env", "launch"}
+	if len(stages) != len(want) {
+		t.Fatalf("got %d stages, want %d", len(stages), len(want))
 	}
-	if stages[0].Name() != "container" {
-		t.Errorf("stage[0] = %q, want 'container'", stages[0].Name())
+	for i, name := range want {
+		if stages[i].Name() != name {
+			t.Errorf("stage[%d] = %q, want %q", i, stages[i].Name(), name)
+		}
 	}
-	if stages[1].Name() != "env" {
-		t.Errorf("stage[1] = %q, want 'env'", stages[1].Name())
+}
+
+// The workspace segment of the container name comes from WorkDir, which the
+// worktree stage rewrites. Naming has to come after it or every worktree of a
+// repo is named for the repo.
+func TestBuildStages_NamesContainerAfterWorktree(t *testing.T) {
+	p := profile.Profile{
+		Worktree:    &profile.WorktreeConfig{},
+		Environment: profile.EnvironmentContainer,
+		Launch:      profile.LaunchClaude,
 	}
-	if stages[2].Name() != "launch" {
-		t.Errorf("stage[2] = %q, want 'launch'", stages[2].Name())
+	stages := buildStages(p)
+
+	var worktreeAt, nameAt = -1, -1
+	for i, s := range stages {
+		switch s.Name() {
+		case "worktree":
+			worktreeAt = i
+		case "container-name":
+			nameAt = i
+		}
+	}
+	if worktreeAt == -1 || nameAt == -1 {
+		t.Fatalf("missing stage: worktree at %d, container-name at %d (%v)", worktreeAt, nameAt, stages)
+	}
+	if nameAt < worktreeAt {
+		t.Errorf("container-name at %d runs before worktree at %d", nameAt, worktreeAt)
 	}
 }
 
@@ -75,14 +100,14 @@ func TestBuildStages_AddsAuthCheckBeforeLaunch(t *testing.T) {
 	}
 	stages := buildStages(p)
 
-	if len(stages) != 4 {
-		t.Fatalf("got %d stages, want 4", len(stages))
+	if len(stages) != 5 {
+		t.Fatalf("got %d stages, want 5", len(stages))
 	}
-	if stages[2].Name() != "auth-check" {
-		t.Errorf("stage[2] = %q, want 'auth-check'", stages[2].Name())
+	if stages[3].Name() != "auth-check" {
+		t.Errorf("stage[3] = %q, want 'auth-check'", stages[3].Name())
 	}
-	if stages[3].Name() != "launch" {
-		t.Errorf("stage[3] = %q, want 'launch'", stages[3].Name())
+	if stages[4].Name() != "launch" {
+		t.Errorf("stage[4] = %q, want 'launch'", stages[4].Name())
 	}
 }
 

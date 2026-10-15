@@ -3,6 +3,8 @@ package docker
 import (
 	"fmt"
 	"os/exec"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -704,5 +706,45 @@ func TestBuildRunArgs_MountOptions(t *testing.T) {
 				t.Errorf("expected mount arg %q, got args: %v", tt.wantArg, args)
 			}
 		})
+	}
+}
+
+func TestBuildRunArgs_Labels(t *testing.T) {
+	t.Run("labels are rendered sorted", func(t *testing.T) {
+		args := BuildRunArgs(RunConfig{
+			ImageName: "test-image",
+			Command:   []string{"sh"},
+			Labels:    map[string]string{"z.last": "2", ProfileLabel: "claude"},
+		})
+
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--label aw.profile=claude") {
+			t.Errorf("expected --label aw.profile=claude, got args: %v", args)
+		}
+		if !strings.Contains(joined, "--label aw.profile=claude --label z.last=2") {
+			t.Errorf("expected labels in sorted order, got args: %v", args)
+		}
+	})
+
+	t.Run("no labels adds no flag", func(t *testing.T) {
+		args := BuildRunArgs(RunConfig{ImageName: "test-image", Command: []string{"sh"}})
+		if slices.Contains(args, "--label") {
+			t.Errorf("expected no --label flag, got args: %v", args)
+		}
+	})
+}
+
+func TestAwListFormat(t *testing.T) {
+	// Asking for the whole label set is the bug this pins: podman 5.x renders
+	// {{.Labels}} as Go's "map[k:v k:v]", so the profile never parses out and
+	// aw save cannot tell which profile a container came from.
+	if strings.Contains(awListFormat, "{{.Labels}}") {
+		t.Errorf("format reads the whole label set, which renders differently per runtime: %q", awListFormat)
+	}
+	if !strings.Contains(awListFormat, `{{.Label "`+ProfileLabel+`"}}`) {
+		t.Errorf("format does not request %q by name: %q", ProfileLabel, awListFormat)
+	}
+	if got := strings.Count(awListFormat, "\t"); got != 3 {
+		t.Errorf("format has %d tabs, want 3 (parser splits into 4 fields)", got)
 	}
 }

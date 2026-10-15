@@ -20,6 +20,7 @@ func BuildRunConfig(ec *ExecutionContext, runtime string, command []string, envV
 		GroupAdd:     docker.RootGroupAdd(),
 		User:         docker.HostUserID(),
 		Userns:       docker.PodmanUserns(runtime),
+		Labels:       map[string]string{docker.ProfileLabel: ec.ProfileName},
 	}
 }
 
