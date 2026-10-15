@@ -456,6 +456,18 @@ func applyBuildResult(configPath, profileName, imageName string, skipMiseInstall
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading config file: %w", err)
 	}
+	// Writing image into the config changes its content hash, which would make
+	// the next run re-prompt for trust over a line aw itself just added. Carry
+	// the approval across the rewrite whenever there was nothing unvetted in
+	// the file to begin with; a file aw creates from scratch qualifies too,
+	// since every byte of it is aw's own.
+	carryTrust := data == nil
+	if data != nil {
+		carryTrust, err = profile.CanCarryTrust(configPath, data)
+		if err != nil {
+			return fmt.Errorf("checking config trust status: %w", err)
+		}
+	}
 	if data == nil {
 		data = []byte("{}\n")
 	}
@@ -510,6 +522,12 @@ func applyBuildResult(configPath, profileName, imageName string, skipMiseInstall
 
 	if err := os.WriteFile(configPath, yamlBuf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
+	}
+
+	if carryTrust {
+		if err := profile.SaveTrust(configPath, yamlBuf.Bytes()); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not carry trust state over to the updated config: %v\n", err)
+		}
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +147,49 @@ func saveTrust(configPath string, data []byte) error {
 	return os.WriteFile(fp, []byte(contentHash(data)+"\n"), 0600)
 }
 
+// IsTrustedContent reports whether data, as the content of the config file at
+// configPath, has already been approved by the user.
+func IsTrustedContent(configPath string, data []byte) (bool, error) {
+	return isTrusted(configPath, data)
+}
+
+// CanCarryTrust reports whether aw may keep the user's approval alive across
+// its own rewrite of the config file at configPath, whose pre-write content is
+// data.
+//
+// That holds in two cases: the content was explicitly approved, or it has no
+// sensitive fields at all. The latter matters because a config that never
+// tripped the trust prompt also never got a stored hash, yet nothing in it was
+// withheld from the user — re-prompting after aw appends an image line would
+// be asking them to approve aw's own edit.
+//
+// Content that does have sensitive fields and was not approved stays
+// un-carryable: the stored hash covers the whole file, so blessing it here
+// would approve whatever else someone put in it.
+func CanCarryTrust(configPath string, data []byte) (bool, error) {
+	cfg, err := parseQuiet(data)
+	if err != nil {
+		// Unparseable content cannot be vouched for.
+		return false, nil
+	}
+	if len(hasSensitiveFields(cfg)) == 0 {
+		return true, nil
+	}
+	return isTrusted(configPath, data)
+}
+
+// SaveTrust records data as the approved content of the config file at
+// configPath, so that loading it later does not re-prompt.
+//
+// Only call this for a file aw itself rewrote on the user's explicit command,
+// and only when CanCarryTrust allowed it for the pre-write content (or the
+// file did not exist). The stored hash covers the whole file, so blessing an
+// unvetted file here would also approve any sensitive fields someone else put
+// in it.
+func SaveTrust(configPath string, data []byte) error {
+	return saveTrust(configPath, data)
+}
+
 // promptTrust displays sensitive fields and asks the user for approval.
 // Returns true if the user approves.
 var promptTrust = func(configPath string, fields []string) bool {
@@ -164,12 +208,37 @@ var promptTrust = func(configPath string, fields []string) bool {
 	}
 	fmt.Fprintf(os.Stderr, "\nDo you trust this project config? [y/N] ")
 
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
-		return answer == "y" || answer == "yes"
+	return readTrustAnswer(os.Stdin, os.Stderr)
+}
+
+// maxTrustAnswerAttempts caps how many times an unrecognized answer is
+// re-prompted before the safe default ("no") wins.
+const maxTrustAnswerAttempts = 3
+
+// readTrustAnswer reads a yes/no answer from in, re-prompting on anything it
+// does not recognize so that a typo like "u" is not silently taken as "no".
+//
+// An empty line keeps meaning "no": it is the documented [y/N] default, not a
+// mistake. A closed or non-interactive stdin also means "no" and must not be
+// re-prompted, otherwise a piped or CI invocation would spin forever.
+func readTrustAnswer(in io.Reader, out io.Writer) bool {
+	scanner := bufio.NewScanner(in)
+	for attempt := 1; ; attempt++ {
+		if !scanner.Scan() {
+			return false
+		}
+		switch strings.TrimSpace(strings.ToLower(scanner.Text())) {
+		case "y", "yes":
+			return true
+		case "", "n", "no":
+			return false
+		}
+		if attempt >= maxTrustAnswerAttempts {
+			_, _ = fmt.Fprintf(out, "No valid answer after %d attempts; treating it as 'no'.\n", maxTrustAnswerAttempts)
+			return false
+		}
+		_, _ = fmt.Fprintf(out, "Please answer 'y' or 'n'. Do you trust this project config? [y/N] ")
 	}
-	return false
 }
 
 // stripSensitiveFields returns a copy of the config with sensitive fields removed.
