@@ -35,3 +35,8 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10.1
+          # The config check downloads a JSONSchema from golangci-lint.run on
+          # every run, and a timeout there fails the job without saying
+          # anything about our code. The linters themselves already reject a
+          # config they cannot parse.
+          verify: false

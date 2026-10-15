@@ -2,6 +2,8 @@ package toolinfo
 
 import (
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/v4/internal/containerenv"
@@ -48,6 +50,55 @@ func TestInstallScript(t *testing.T) {
 	}
 	if got := InstallScript("unknown"); got != "" {
 		t.Errorf("InstallScript(unknown) = %q, want empty", got)
+	}
+}
+
+// Piping the installer straight into an interpreter hides curl's exit code:
+// the pipeline reports the interpreter's status, and an interpreter handed an
+// empty stdin exits 0. A 502 from the installer host then builds a green
+// image with no tool in it.
+func TestInstallScript_DoesNotPipeIntoInterpreter(t *testing.T) {
+	pipeIntoShell := regexp.MustCompile(`curl[^;&|]*\|\s*\S*\s*(ba)?sh`)
+	for _, tool := range Names() {
+		script := InstallScript(tool)
+		if script == "" {
+			continue
+		}
+		if m := pipeIntoShell.FindString(script); m != "" {
+			t.Errorf("%s: installer is piped into a shell, which masks a download failure: %s", tool, m)
+		}
+	}
+}
+
+// Every installer is followed by a check that the binary exists, so an
+// installer that exits 0 without producing one fails the build.
+func TestInstallScript_VerifiesBinaryExists(t *testing.T) {
+	for _, tool := range Names() {
+		spec, _ := Lookup(tool)
+		script := InstallScript(tool)
+		if script == "" {
+			continue
+		}
+		if spec.Binary == "" {
+			t.Errorf("%s: has an install script but no binary to verify", tool)
+			continue
+		}
+		if !strings.Contains(script, "command -v "+spec.Binary) {
+			t.Errorf("%s: install script never checks for %q:\n%s", tool, spec.Binary, script)
+		}
+		if !strings.Contains(script, "exit 1") {
+			t.Errorf("%s: install script cannot fail the build:\n%s", tool, script)
+		}
+	}
+}
+
+// The script is embedded as su -c "$AW_TOOL_INSTALL_SCRIPT", so a double
+// quote in it would end the argument early.
+func TestInstallScript_HasNoDoubleQuotes(t *testing.T) {
+	for _, tool := range Names() {
+		if strings.Contains(InstallScript(tool), `"`) {
+			t.Errorf("%s: install script contains a double quote", tool)
+		}
 	}
 }
 

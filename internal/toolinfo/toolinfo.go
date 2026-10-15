@@ -26,7 +26,7 @@ var tools = map[string]ToolSpec{
 	"claude": {
 		Binary:            "claude",
 		DisplayName:       "Claude Code",
-		InstallScript:     "curl -fsSL https://claude.ai/install.sh | bash; _rc=$?; if [ $_rc -ne 0 ]; then if [ ! -f $HOME/.local/bin/claude ] && ! command -v claude >/dev/null 2>&1; then exit $_rc; fi; fi; { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(which claude) $HOME/.local/bin/claude; }; }; sudo ln -sf $HOME/.local/bin/claude /claude 2>/dev/null || true",
+		InstallScript:     "curl -fsSL https://claude.ai/install.sh -o /tmp/aw-install-claude.sh && bash /tmp/aw-install-claude.sh && rm -f /tmp/aw-install-claude.sh && { [ -f $HOME/.local/bin/claude ] || { mkdir -p $HOME/.local/bin && ln -sf $(command -v claude) $HOME/.local/bin/claude; }; }; sudo ln -sf $HOME/.local/bin/claude /claude 2>/dev/null || true",
 		HomeEnvVar:        "CLAUDE_HOME",
 		DefaultHomeSubdir: ".claude",
 		InstallHint:       "Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash",
@@ -34,7 +34,7 @@ var tools = map[string]ToolSpec{
 	"codex": {
 		Binary:            "codex",
 		DisplayName:       "Codex",
-		InstallScript:     "curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | CODEX_NON_INTERACTIVE=true sh && cp -L $HOME/.local/bin/codex $HOME/.local/bin/codex.tmp && mv $HOME/.local/bin/codex.tmp $HOME/.local/bin/codex",
+		InstallScript:     "curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh -o /tmp/aw-install-codex.sh && CODEX_NON_INTERACTIVE=true sh /tmp/aw-install-codex.sh && rm -f /tmp/aw-install-codex.sh && cp -L $HOME/.local/bin/codex $HOME/.local/bin/codex.tmp && mv $HOME/.local/bin/codex.tmp $HOME/.local/bin/codex",
 		HomeEnvVar:        "CODEX_HOME",
 		DefaultHomeSubdir: ".codex",
 		InstallHint:       "Install Codex CLI: curl -fsSL https://github.com/openai/codex/releases/latest/download/install.sh | sh",
@@ -42,7 +42,7 @@ var tools = map[string]ToolSpec{
 	"opencode": {
 		Binary:            "opencode",
 		DisplayName:       "OpenCode",
-		InstallScript:     "curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && mkdir -p $HOME/.local/bin && ln -sf $HOME/.opencode/bin/opencode $HOME/.local/bin/opencode",
+		InstallScript:     "curl -fsSL https://opencode.ai/install -o /tmp/aw-install-opencode.sh && bash /tmp/aw-install-opencode.sh --no-modify-path && rm -f /tmp/aw-install-opencode.sh && mkdir -p $HOME/.local/bin && ln -sf $HOME/.opencode/bin/opencode $HOME/.local/bin/opencode",
 		HomeEnvVar:        "OPENCODE_CONFIG_DIR",
 		DefaultHomeSubdir: filepath.Join(".config", "opencode"),
 		InstallHint:       "Install via: curl -fsSL https://opencode.ai/install | bash",
@@ -50,7 +50,7 @@ var tools = map[string]ToolSpec{
 	"cursor": {
 		Binary:            "agent",
 		DisplayName:       "Cursor",
-		InstallScript:     "curl -fsSL https://cursor.com/install | bash; _rc=$?; if [ $_rc -ne 0 ]; then if [ ! -f $HOME/.local/bin/agent ]; then exit $_rc; fi; fi; { [ -f $HOME/.local/bin/agent ] || { mkdir -p $HOME/.local/bin && ln -sf $(which agent) $HOME/.local/bin/agent; }; }",
+		InstallScript:     "curl -fsSL https://cursor.com/install -o /tmp/aw-install-cursor.sh && bash /tmp/aw-install-cursor.sh && rm -f /tmp/aw-install-cursor.sh && { [ -f $HOME/.local/bin/agent ] || { mkdir -p $HOME/.local/bin && ln -sf $(command -v agent) $HOME/.local/bin/agent; }; }",
 		HomeEnvVar:        "CURSOR_CONFIG_DIR",
 		DefaultHomeSubdir: ".cursor",
 		InstallHint:       "Install Cursor CLI: curl https://cursor.com/install -fsS | bash",
@@ -68,11 +68,36 @@ func Lookup(tool string) (ToolSpec, bool) {
 	return spec, ok
 }
 
+// InstallScript returns the command that installs the tool inside a
+// container, with a check that the binary actually exists appended.
+//
+// The check is not redundant with the installers' own exit codes. An
+// installer can report success and still leave nothing usable behind: a
+// release archive missing the architecture, a partial download, or a symlink
+// pointing at a path the installer never wrote. Without the check the image
+// builds green and the tool is only missed at launch, which is how a 502 from
+// claude.ai produced an image with no claude in it.
 func InstallScript(tool string) string {
-	if spec, ok := Lookup(tool); ok {
-		return spec.InstallScript
+	spec, ok := Lookup(tool)
+	if !ok || spec.InstallScript == "" {
+		return ""
 	}
-	return ""
+	return spec.InstallScript + installedCheck(spec.Binary)
+}
+
+// installedCheck fails the build when binary is neither on PATH nor in the
+// per-user bin directory. -x rather than -f so a dangling symlink, which
+// ln -sf creates happily when its target is missing, counts as absent.
+//
+// It avoids double quotes: the script is passed to the image build as an ARG
+// and run as su -c "$AW_TOOL_INSTALL_SCRIPT".
+func installedCheck(binary string) string {
+	if binary == "" {
+		return ""
+	}
+	return "; if [ ! -x $HOME/.local/bin/" + binary + " ] && ! command -v " + binary +
+		" >/dev/null 2>&1; then echo 'aw: " + binary +
+		" was not installed (the installer did not leave a usable binary)' >&2; exit 1; fi"
 }
 
 func HomePath(tool, homeDir string) string {
