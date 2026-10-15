@@ -6,6 +6,19 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [6.1.0](https://github.com/konono/aw/compare/v6.0.1...v6.1.0) (2026-10-15)
+
+
+### Features
+
+* **container:** name containers after their workspace ([#183](https://github.com/konono/aw/issues/183)) ([83b3300](https://github.com/konono/aw/commit/83b33006dbe7d976197348f23139a293f7ff952c))
+
+
+### Bug Fixes
+
+* **build:** fail the image build when a tool installer does not land ([#185](https://github.com/konono/aw/issues/185)) ([e36ad30](https://github.com/konono/aw/commit/e36ad30ae25a9efc850608c8fec87526c48140df))
+* **trust:** carry approval across aw build --apply and re-prompt on typos ([#182](https://github.com/konono/aw/issues/182)) ([f321473](https://github.com/konono/aw/commit/f32147374de58ed3e29695a6e267f5307855c90d))
+
 ## [6.0.1](https://github.com/konono/aw/compare/v6.0.0...v6.0.1) (2026-10-08)
 
 
