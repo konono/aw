@@ -734,24 +734,17 @@ func TestBuildRunArgs_Labels(t *testing.T) {
 	})
 }
 
-func TestLabelValue(t *testing.T) {
-	tests := []struct {
-		name   string
-		labels string
-		want   string
-	}{
-		{"single", "aw.profile=claude", "claude"},
-		{"among others", "io.buildah.version=1.4,aw.profile=claude,x=y", "claude"},
-		{"spaces around separators", "x=y, aw.profile=my-profile", "my-profile"},
-		{"absent", "io.buildah.version=1.4", ""},
-		{"empty", "", ""},
-		{"key is a prefix of another", "aw.profiled=no", ""},
+func TestAwListFormat(t *testing.T) {
+	// Asking for the whole label set is the bug this pins: podman 5.x renders
+	// {{.Labels}} as Go's "map[k:v k:v]", so the profile never parses out and
+	// aw save cannot tell which profile a container came from.
+	if strings.Contains(awListFormat, "{{.Labels}}") {
+		t.Errorf("format reads the whole label set, which renders differently per runtime: %q", awListFormat)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := labelValue(tt.labels, ProfileLabel); got != tt.want {
-				t.Errorf("labelValue(%q) = %q, want %q", tt.labels, got, tt.want)
-			}
-		})
+	if !strings.Contains(awListFormat, `{{.Label "`+ProfileLabel+`"}}`) {
+		t.Errorf("format does not request %q by name: %q", ProfileLabel, awListFormat)
+	}
+	if got := strings.Count(awListFormat, "\t"); got != 3 {
+		t.Errorf("format has %d tabs, want 3 (parser splits into 4 fields)", got)
 	}
 }

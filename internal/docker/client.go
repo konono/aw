@@ -555,11 +555,17 @@ type ContainerInfo struct {
 	Profile string // aw profile that started it, from the ProfileLabel label
 }
 
+// awListFormat asks for the profile label by name. {{.Labels}} renders as
+// "k=v,k=v" on docker but as Go's "map[k:v k:v]" on podman 5.x, so reading the
+// whole set means parsing two formats; {{.Label "k"}} prints just the value on
+// both.
+const awListFormat = "{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Label \"" + ProfileLabel + "\"}}"
+
 // ListAwContainers lists all running and exited containers matching the aw naming pattern.
 func (c *ShellClient) ListAwContainers(ctx context.Context) ([]ContainerInfo, error) {
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), "ps", "-a",
 		"--filter", "name=^aw-.*-[0-9a-f]+$",
-		"--format", "{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Labels}}")
+		"--format", awListFormat)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("%s ps: %w", c.dockerCmd(), err)
@@ -580,24 +586,11 @@ func (c *ShellClient) ListAwContainers(ctx context.Context) ([]ContainerInfo, er
 			Image:  parts[2],
 		}
 		if len(parts) == 4 {
-			info.Profile = labelValue(parts[3], ProfileLabel)
+			info.Profile = strings.TrimSpace(parts[3])
 		}
 		result = append(result, info)
 	}
 	return result, nil
-}
-
-// labelValue picks one label out of the comma-separated "k=v,k=v" list that
-// docker and podman render for {{.Labels}}. It returns "" when absent, which
-// is the normal case for containers started by an aw older than the label.
-func labelValue(labels, key string) string {
-	for _, kv := range strings.Split(labels, ",") {
-		name, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
-		if ok && name == key {
-			return value
-		}
-	}
-	return ""
 }
 
 // InspectContainerEnv returns the value of a named environment variable from a container's config.

@@ -130,11 +130,6 @@ func (r *RunCmd) Run(pt *PassthroughCmd) error {
 
 		reaper.CheckOrphanedReapers(runtime)
 		reaper.CheckStaleContainers(runtime)
-
-		ec.ContainerName = generateContainerName(profileName, ec.OrigWorkDir)
-		if err := reaper.CheckStaleContainer(runtime, ec.ContainerName); err != nil {
-			return err
-		}
 	}
 
 	// Build pipeline stages
@@ -184,23 +179,30 @@ func buildStages(p profile.Profile) []pipeline.Stage {
 		stages = append(stages, &stage.WorktreeStage{})
 	}
 
-	// Stage 2: Docker setup (conditional)
+	// Stage 2: Container name. After the worktree stage, which is what moves
+	// WorkDir to the worktree: naming before it would label every worktree
+	// container with the parent repository's name.
+	if p.Environment == profile.EnvironmentContainer {
+		stages = append(stages, &containerNameStage{})
+	}
+
+	// Stage 3: Docker setup (conditional)
 	if p.Environment == profile.EnvironmentContainer {
 		stages = append(stages, stage.NewDockerStage())
 	}
 
-	// Stage 3: Env loading (conditional — only for Docker, where custom env vars are needed)
+	// Stage 4: Env loading (conditional — only for Docker, where custom env vars are needed)
 	if p.Environment == profile.EnvironmentContainer {
 		stages = append(stages, &stage.EnvStage{})
 	}
 
-	// Stage 4: Optional auth preflight before normal launch.
+	// Stage 5: Optional auth preflight before normal launch.
 	authCheck := p.EffectiveAuthOnLaunchCheck()
 	if authCheck != "" && authCheck != profile.AuthOnLaunchCheckNone {
 		stages = append(stages, &stage.AuthCheckStage{})
 	}
 
-	// Stage 5: Launch (always)
+	// Stage 6: Launch (always)
 	stages = append(stages, &stage.LaunchStage{})
 
 	return stages
