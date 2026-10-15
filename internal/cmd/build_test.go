@@ -1001,3 +1001,88 @@ func TestImageWithoutBuildInputs_PinnedImageIsResolved(t *testing.T) {
 		}
 	})
 }
+
+// TestApplyBuildResultCarriesTrust verifies that writing the built image into
+// a config does not force the user to approve a line aw itself added, while an
+// unvetted config with sensitive fields is left untrusted.
+func TestApplyBuildResultCarriesTrust(t *testing.T) {
+	// No sensitive fields, so loading it never prompts and never records a hash.
+	const safeConfig = "profiles:\n  dev:\n    launch: claude\n"
+	// mounts is sensitive, so this one only gets a hash once the user approves.
+	const sensitiveConfig = "profiles:\n  dev:\n    launch: claude\n    mounts:\n      - source: ~/.aws\n        target: /aws\n"
+
+	setup := func(t *testing.T, content string) string {
+		t.Helper()
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("APPDATA", home)
+		cfgPath := filepath.Join(t.TempDir(), ".aw.yml")
+		if content != "" {
+			if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+				t.Fatalf("writing config file: %v", err)
+			}
+		}
+		return cfgPath
+	}
+
+	trustedAfter := func(t *testing.T, cfgPath string) bool {
+		t.Helper()
+		data, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatalf("reading config file: %v", err)
+		}
+		ok, err := profile.IsTrustedContent(cfgPath, data)
+		if err != nil {
+			t.Fatalf("IsTrustedContent() error = %v", err)
+		}
+		return ok
+	}
+
+	t.Run("approved config stays trusted", func(t *testing.T) {
+		cfgPath := setup(t, sensitiveConfig)
+		if err := profile.SaveTrust(cfgPath, []byte(sensitiveConfig)); err != nil {
+			t.Fatalf("SaveTrust() error = %v", err)
+		}
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+		if !trustedAfter(t, cfgPath) {
+			t.Error("config is no longer trusted after aw wrote the image into it")
+		}
+	})
+
+	t.Run("config with nothing sensitive needs no approval", func(t *testing.T) {
+		cfgPath := setup(t, safeConfig)
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+		if !trustedAfter(t, cfgPath) {
+			t.Error("a config that never had anything to approve should not start prompting")
+		}
+	})
+
+	t.Run("unapproved sensitive config stays untrusted", func(t *testing.T) {
+		cfgPath := setup(t, sensitiveConfig)
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+		if trustedAfter(t, cfgPath) {
+			t.Error("an unvetted config was trusted without the user approving it")
+		}
+	})
+
+	t.Run("config created by aw is trusted", func(t *testing.T) {
+		cfgPath := setup(t, "")
+
+		if err := applyBuildResult(cfgPath, "dev", "aw-build:dev-abc123", nil); err != nil {
+			t.Fatalf("applyBuildResult() error = %v", err)
+		}
+		if !trustedAfter(t, cfgPath) {
+			t.Error("a config whose entire content aw authored should not need approval")
+		}
+	})
+}

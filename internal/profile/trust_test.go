@@ -3,6 +3,7 @@ package profile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -406,5 +407,44 @@ func TestCheckProjectTrust_AlreadyTrustedSkipsPrompt(t *testing.T) {
 	}
 	if result.Profiles["test"].Worktree.OnCreate != "echo hi" {
 		t.Error("trusted config should preserve all fields")
+	}
+}
+
+// TestReadTrustAnswer verifies that a typo is re-prompted instead of being
+// silently taken as "no", while the [y/N] default and a closed stdin still
+// resolve to "no" without looping.
+func TestReadTrustAnswer(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		want          bool
+		wantReprompts int
+	}{
+		{name: "yes", input: "y\n", want: true},
+		{name: "yes spelled out", input: "YES\n", want: true},
+		{name: "no", input: "n\n", want: false},
+		{name: "empty line keeps the [y/N] default", input: "\n", want: false},
+		{name: "closed stdin", input: "", want: false},
+		{name: "typo then yes", input: "u\ny\n", want: true, wantReprompts: 1},
+		{name: "typo then no", input: "u\nn\n", want: false, wantReprompts: 1},
+		{
+			name:          "typos only give up after the attempt cap",
+			input:         "u\nu\nu\ny\n",
+			want:          false,
+			wantReprompts: maxTrustAnswerAttempts - 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			got := readTrustAnswer(strings.NewReader(tt.input), &out)
+			if got != tt.want {
+				t.Errorf("readTrustAnswer() = %v, want %v", got, tt.want)
+			}
+			if n := strings.Count(out.String(), "Please answer"); n != tt.wantReprompts {
+				t.Errorf("re-prompts = %d, want %d (output: %q)", n, tt.wantReprompts, out.String())
+			}
+		})
 	}
 }
