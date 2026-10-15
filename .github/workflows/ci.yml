@@ -34,9 +34,9 @@ jobs:
           go-version: '1.25'
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.10.1
-          # The config check downloads a JSONSchema from golangci-lint.run on
-          # every run, and a timeout there fails the job without saying
-          # anything about our code. The linters themselves already reject a
-          # config they cannot parse.
-          verify: false
+          # 2.12.0 and later embed the config JSONSchema in the binary. The
+          # action runs `config verify` with the version pinned here, so on
+          # 2.10.1 every lint run downloaded the schema from golangci-lint.run
+          # and a timeout there failed the job with nothing to say about our
+          # code. Keep this at 2.12.0 or later; verification stays on.
+          version: v2.12.2
