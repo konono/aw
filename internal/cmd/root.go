@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/konono/aw/v4/internal/doctor"
 	"github.com/konono/aw/v4/internal/image"
@@ -132,8 +131,7 @@ func (r *RunCmd) Run(pt *PassthroughCmd) error {
 		reaper.CheckOrphanedReapers(runtime)
 		reaper.CheckStaleContainers(runtime)
 
-		// Nanosecond suffix avoids collisions when the same profile starts twice in one second.
-		ec.ContainerName = fmt.Sprintf("aw-%s-%d", profileName, time.Now().UnixNano())
+		ec.ContainerName = generateContainerName(profileName, ec.OrigWorkDir)
 		if err := reaper.CheckStaleContainer(runtime, ec.ContainerName); err != nil {
 			return err
 		}

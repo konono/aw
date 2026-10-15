@@ -41,7 +41,7 @@ func (s *SaveCmd) Run() error {
 	items := make([]string, len(entries))
 	entryMap := make(map[string]*containerEntry, len(entries))
 	for i, e := range entries {
-		profileName, _ := extractProfileName(e.Name)
+		profileName, _ := extractProfileName(e.ContainerInfo)
 		if profileName == "" {
 			profileName = "?"
 		}
@@ -63,7 +63,7 @@ func (s *SaveCmd) Run() error {
 		return fmt.Errorf("unexpected picker result")
 	}
 
-	profileName, err := extractProfileName(entry.Name)
+	profileName, err := extractProfileName(entry.ContainerInfo)
 	if err != nil {
 		return err
 	}
@@ -178,12 +178,18 @@ func listAllAwContainers(ctx context.Context, runtimes []string) ([]containerEnt
 	return entries, nil
 }
 
+// profileNameRe recovers the profile from the legacy aw-<profile>-<unixnano>
+// name. Current names also carry a workspace segment, which this cannot split
+// apart, so it only serves containers started before the ProfileLabel label.
 var profileNameRe = regexp.MustCompile(`^aw-(.+)-[0-9]+$`)
 
-func extractProfileName(containerName string) (string, error) {
-	m := profileNameRe.FindStringSubmatch(containerName)
+func extractProfileName(c docker.ContainerInfo) (string, error) {
+	if c.Profile != "" {
+		return c.Profile, nil
+	}
+	m := profileNameRe.FindStringSubmatch(c.Name)
 	if m == nil {
-		return "", fmt.Errorf("cannot extract profile name from container %q", containerName)
+		return "", fmt.Errorf("cannot extract profile name from container %q", c.Name)
 	}
 	return m[1], nil
 }

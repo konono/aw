@@ -3,6 +3,8 @@ package docker
 import (
 	"fmt"
 	"os/exec"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -702,6 +704,53 @@ func TestBuildRunArgs_MountOptions(t *testing.T) {
 			}
 			if !found {
 				t.Errorf("expected mount arg %q, got args: %v", tt.wantArg, args)
+			}
+		})
+	}
+}
+
+func TestBuildRunArgs_Labels(t *testing.T) {
+	t.Run("labels are rendered sorted", func(t *testing.T) {
+		args := BuildRunArgs(RunConfig{
+			ImageName: "test-image",
+			Command:   []string{"sh"},
+			Labels:    map[string]string{"z.last": "2", ProfileLabel: "claude"},
+		})
+
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--label aw.profile=claude") {
+			t.Errorf("expected --label aw.profile=claude, got args: %v", args)
+		}
+		if !strings.Contains(joined, "--label aw.profile=claude --label z.last=2") {
+			t.Errorf("expected labels in sorted order, got args: %v", args)
+		}
+	})
+
+	t.Run("no labels adds no flag", func(t *testing.T) {
+		args := BuildRunArgs(RunConfig{ImageName: "test-image", Command: []string{"sh"}})
+		if slices.Contains(args, "--label") {
+			t.Errorf("expected no --label flag, got args: %v", args)
+		}
+	})
+}
+
+func TestLabelValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels string
+		want   string
+	}{
+		{"single", "aw.profile=claude", "claude"},
+		{"among others", "io.buildah.version=1.4,aw.profile=claude,x=y", "claude"},
+		{"spaces around separators", "x=y, aw.profile=my-profile", "my-profile"},
+		{"absent", "io.buildah.version=1.4", ""},
+		{"empty", "", ""},
+		{"key is a prefix of another", "aw.profiled=no", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := labelValue(tt.labels, ProfileLabel); got != tt.want {
+				t.Errorf("labelValue(%q) = %q, want %q", tt.labels, got, tt.want)
 			}
 		})
 	}

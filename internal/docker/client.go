@@ -28,6 +28,12 @@ type Mount struct {
 	Options  string // extra mount options (e.g. "z", "Z,nocopy")
 }
 
+// ProfileLabel is the container label recording which aw profile started a
+// container. The name alone cannot be parsed back into a profile: both the
+// profile and the workspace segment of the name may contain hyphens, so there
+// is no unambiguous split.
+const ProfileLabel = "aw.profile"
+
 // RunConfig holds the configuration for running a Docker container.
 type RunConfig struct {
 	ImageName    string
@@ -41,6 +47,7 @@ type RunConfig struct {
 	GroupAdd     []string // --group-add values (e.g. "0" for root group)
 	User         string   // overrides the image's USER (e.g. "1000:1000")
 	Userns       string   // --userns value (e.g. "keep-id" for rootless Podman)
+	Labels       map[string]string // --label values recording aw metadata
 }
 
 // Client is the interface for Docker operations.
@@ -215,6 +222,11 @@ func buildRunArgs(config RunConfig, mode runMode) []string {
 		args = append(args, "--name", mode.name)
 	}
 	args = append(args, "--pids-limit", "8192")
+
+	// Sorted so the command line is stable and testable.
+	for _, k := range slices.Sorted(maps.Keys(config.Labels)) {
+		args = append(args, "--label", k+"="+config.Labels[k])
+	}
 
 	if config.Userns != "" {
 		args = append(args, "--userns", config.Userns)
@@ -537,16 +549,17 @@ var ErrEnvNotFound = errors.New("environment variable not set")
 
 // ContainerInfo holds metadata about a container for listing/selection.
 type ContainerInfo struct {
-	Name   string
-	Status string
-	Image  string
+	Name    string
+	Status  string
+	Image   string
+	Profile string // aw profile that started it, from the ProfileLabel label
 }
 
 // ListAwContainers lists all running and exited containers matching the aw naming pattern.
 func (c *ShellClient) ListAwContainers(ctx context.Context) ([]ContainerInfo, error) {
 	cmd := exec.CommandContext(ctx, c.dockerCmd(), "ps", "-a",
-		"--filter", "name=^aw-.*-[0-9]+$",
-		"--format", "{{.Names}}\t{{.Status}}\t{{.Image}}")
+		"--filter", "name=^aw-.*-[0-9a-f]+$",
+		"--format", "{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Labels}}")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("%s ps: %w", c.dockerCmd(), err)
@@ -557,17 +570,34 @@ func (c *ShellClient) ListAwContainers(ctx context.Context) ([]ContainerInfo, er
 	}
 	var result []ContainerInfo
 	for _, line := range strings.Split(text, "\n") {
-		parts := strings.SplitN(line, "\t", 3)
+		parts := strings.SplitN(line, "\t", 4)
 		if len(parts) < 3 {
 			continue
 		}
-		result = append(result, ContainerInfo{
+		info := ContainerInfo{
 			Name:   parts[0],
 			Status: parts[1],
 			Image:  parts[2],
-		})
+		}
+		if len(parts) == 4 {
+			info.Profile = labelValue(parts[3], ProfileLabel)
+		}
+		result = append(result, info)
 	}
 	return result, nil
+}
+
+// labelValue picks one label out of the comma-separated "k=v,k=v" list that
+// docker and podman render for {{.Labels}}. It returns "" when absent, which
+// is the normal case for containers started by an aw older than the label.
+func labelValue(labels, key string) string {
+	for _, kv := range strings.Split(labels, ",") {
+		name, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		if ok && name == key {
+			return value
+		}
+	}
+	return ""
 }
 
 // InspectContainerEnv returns the value of a named environment variable from a container's config.
