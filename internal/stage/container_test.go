@@ -821,6 +821,11 @@ func TestDockerStage_MountsAwInitScript(t *testing.T) {
 			if !m.ReadOnly {
 				t.Error("aw-init.sh mount should be read-only")
 			}
+			// Without :z the host file keeps its home directory label and
+			// container_t cannot read it on an SELinux-enforcing host.
+			if m.Options != "z" {
+				t.Errorf("aw-init.sh mount options = %q, want %q", m.Options, "z")
+			}
 			break
 		}
 	}
