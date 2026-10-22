@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [6.1.1](https://github.com/konono/aw/compare/v6.1.0...v6.1.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **mount:** label the aw-init.sh bind mount with :z ([#188](https://github.com/konono/aw/issues/188)) ([27905c0](https://github.com/konono/aw/commit/27905c07a972e7fa08f1ca058a6c8c3eef505991))
+
 ## [6.1.0](https://github.com/konono/aw/compare/v6.0.1...v6.1.0) (2026-10-15)
 
 
