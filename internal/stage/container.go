@@ -321,11 +321,16 @@ func (s *DockerStage) buildExtraMounts(ec *pipeline.ExecutionContext) []docker.M
 	stageDir := filepath.Join(ec.HomeDir, ".agent-workspace")
 	initScriptPath := filepath.Join(stageDir, "aw-init.sh")
 
+	// aw owns this mount, so it labels it itself. buildMounts only adds :z to
+	// the mounts it builds, and ExtraMounts are appended afterward so users
+	// keep control of their own SELinux options -- which would otherwise leave
+	// aw-init.sh with its home directory label and unreadable to container_t.
 	extraMounts := []docker.Mount{
 		{
 			Source:   initScriptPath,
 			Target:   initScriptContainerPath,
 			ReadOnly: true,
+			Options:  "z",
 		},
 	}
 	for _, m := range ec.Profile.Mounts {
