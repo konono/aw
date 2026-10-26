@@ -39,4 +39,4 @@ jobs:
           # 2.10.1 every lint run downloaded the schema from golangci-lint.run
           # and a timeout there failed the job with nothing to say about our
           # code. Keep this at 2.12.0 or later; verification stays on.
-          version: v2.12.2
+          version: v2.15.0
