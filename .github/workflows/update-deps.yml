@@ -20,9 +20,11 @@ jobs:
         run: |
           mise=$(grep -oP 'const MiseVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
           gh_cli=$(grep -oP 'const GhCLIVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
+          zellij=$(grep -oP 'const ZellijVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
           panecom=$(grep -oP 'const PanecomVersion = "\K[^"]+' internal/toolinfo/toolinfo.go)
           echo "mise=$mise" >> "$GITHUB_OUTPUT"
           echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+          echo "zellij=$zellij" >> "$GITHUB_OUTPUT"
           echo "panecom=$panecom" >> "$GITHUB_OUTPUT"
 
       - name: Get latest versions
@@ -30,9 +32,11 @@ jobs:
         run: |
           mise=$(curl -fsSL https://api.github.com/repos/jdx/mise/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           gh_cli=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          zellij=$(curl -fsSL https://api.github.com/repos/zellij-org/zellij/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           panecom=$(curl -fsSL https://api.github.com/repos/konono/panecom/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           echo "mise=$mise" >> "$GITHUB_OUTPUT"
           echo "gh_cli=$gh_cli" >> "$GITHUB_OUTPUT"
+          echo "zellij=$zellij" >> "$GITHUB_OUTPUT"
           echo "panecom=$panecom" >> "$GITHUB_OUTPUT"
 
       - name: Update mise
@@ -44,6 +48,11 @@ jobs:
         if: steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli
         run: |
           sed -i 's/const GhCLIVersion = ".*"/const GhCLIVersion = "${{ steps.latest.outputs.gh_cli }}"/' internal/toolinfo/toolinfo.go
+
+      - name: Update zellij
+        if: steps.current.outputs.zellij != steps.latest.outputs.zellij
+        run: |
+          sed -i 's/const ZellijVersion = ".*"/const ZellijVersion = "${{ steps.latest.outputs.zellij }}"/' internal/toolinfo/toolinfo.go
 
       - name: Update panecom
         if: steps.current.outputs.panecom != steps.latest.outputs.panecom
@@ -60,6 +69,9 @@ jobs:
           if [ "${{ steps.current.outputs.gh_cli }}" != "${{ steps.latest.outputs.gh_cli }}" ]; then
             body="${body}- **gh CLI**: ${{ steps.current.outputs.gh_cli }} → ${{ steps.latest.outputs.gh_cli }} ([release notes](https://github.com/cli/cli/releases/tag/v${{ steps.latest.outputs.gh_cli }}))\n"
           fi
+          if [ "${{ steps.current.outputs.zellij }}" != "${{ steps.latest.outputs.zellij }}" ]; then
+            body="${body}- **zellij**: ${{ steps.current.outputs.zellij }} → ${{ steps.latest.outputs.zellij }} ([release notes](https://github.com/zellij-org/zellij/releases/tag/v${{ steps.latest.outputs.zellij }}))\n"
+          fi
           if [ "${{ steps.current.outputs.panecom }}" != "${{ steps.latest.outputs.panecom }}" ]; then
             body="${body}- **panecom**: ${{ steps.current.outputs.panecom }} → ${{ steps.latest.outputs.panecom }} ([release notes](https://github.com/konono/panecom/releases/tag/v${{ steps.latest.outputs.panecom }}))\n"
           fi
@@ -68,7 +80,7 @@ jobs:
           echo "GHEOF" >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
-        if: steps.current.outputs.mise != steps.latest.outputs.mise || steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli || steps.current.outputs.panecom != steps.latest.outputs.panecom
+        if: steps.current.outputs.mise != steps.latest.outputs.mise || steps.current.outputs.gh_cli != steps.latest.outputs.gh_cli || steps.current.outputs.zellij != steps.latest.outputs.zellij || steps.current.outputs.panecom != steps.latest.outputs.panecom
         uses: peter-evans/create-pull-request@v8
         with:
           commit-message: 'chore(deps): bump pinned tool versions'
