@@ -6,6 +6,13 @@
 
 * `launch: zellij` and the `zellij:` profile section are no longer supported. Use `launch: shell`, `launch: claude`, or another supported launcher instead. For multi-pane layouts, run [zellij](https://zellij.dev) externally.
 
+## [6.2.0](https://github.com/konono/aw/compare/v6.1.1...v6.2.0) (2026-11-27)
+
+
+### Features
+
+* **profile:** add env_file to load env vars from a file ([#194](https://github.com/konono/aw/issues/194)) ([35de7d0](https://github.com/konono/aw/commit/35de7d0b203f9b177d6cfbbb3281f78f093579a2))
+
 ## [6.1.1](https://github.com/konono/aw/compare/v6.1.0...v6.1.1) (2026-10-22)
 
 
