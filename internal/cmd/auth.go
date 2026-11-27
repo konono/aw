@@ -83,6 +83,9 @@ func loadExplicitProfile(cfg *profile.Config, profileName string) (profile.Profi
 	if err := profile.Validate(p); err != nil {
 		return profile.Profile{}, "", fmt.Errorf("invalid profile %q: %w", profileName, err)
 	}
+	if err := profile.ResolveEnvFile(&p); err != nil {
+		return profile.Profile{}, "", fmt.Errorf("profile %q: %w", profileName, err)
+	}
 
 	return p, profileName, nil
 }

@@ -22,7 +22,7 @@ const (
 //
 // Override priority (highest wins):
 //  1. .aw-env (dynamic, from on-create hook, in WorkDir)
-//  2. profile.Env (static, from current profile's env field)
+//  2. profile.Env (static, from current profile's env and env_file fields)
 //  3. .aw-profile-env (static, written by parent process's profile env, in cache dir)
 type EnvStage struct{}
 
@@ -51,20 +51,29 @@ func (s *EnvStage) Run(_ context.Context, ec *pipeline.ExecutionContext) error {
 			merged[k] = v
 		}
 
-		// 2. Overlay with current profile's env vars
+		// 2. Overlay with current profile's env vars (env: plus env_file)
 		for k, v := range ec.Profile.Env {
 			merged[k] = v
 		}
+	}
 
-		// 3. Write current profile env to .aw-profile-env for child processes
-		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	// 3. Write the current profile's env: vars to .aw-profile-env for child
+	// processes. Values loaded from env_file are left out so they never
+	// leak into a later, unrelated profile run from the same directory.
+	if inheritable := ec.Profile.InheritableEnv(); len(inheritable) > 0 {
+		if err := os.MkdirAll(cacheDir, 0700); err != nil {
 			return fmt.Errorf("creating profile env cache dir: %w", err)
 		}
-		if err := envfile.WriteFile(profileEnvFilePath, ec.Profile.Env); err != nil {
+		// MkdirAll leaves an existing directory's mode alone; tighten
+		// caches created by older versions with 0755.
+		if err := os.Chmod(cacheDir, 0700); err != nil {
+			return fmt.Errorf("securing profile env cache dir: %w", err)
+		}
+		if err := envfile.WriteFile(profileEnvFilePath, inheritable); err != nil {
 			return fmt.Errorf("writing %s: %w", profileEnvFileName, err)
 		}
 	} else {
-		// No env vars in current profile — remove stale cache from previous runs
+		// Nothing to hand down — remove stale cache from previous runs
 		_ = os.Remove(profileEnvFilePath)
 	}
 

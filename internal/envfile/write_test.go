@@ -114,3 +114,21 @@ func TestWriteFile_RoundTrip(t *testing.T) {
 		t.Errorf("got %d entries, want %d", len(got), len(env))
 	}
 }
+
+func TestWriteFile_OwnerOnlyPermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".aw-profile-env")
+	// A file left by an older version with world-readable mode.
+	if err := os.WriteFile(path, []byte("OLD=1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFile(path, map[string]string{"SECRET": "x"}); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Errorf("mode = %o, want 600", got)
+	}
+}

@@ -9,7 +9,7 @@
 # Config is loaded in order: built-in → global config → .aw.yml
 # Paths use forward slashes on all platforms: ~/certs/corp.pem or C:/certs/corp.pem
 # Project-level .aw.yml can override these settings. If a project
-# config contains security-sensitive fields (mounts, env, dockerfile, image,
+# config contains security-sensitive fields (mounts, env, env_file, dockerfile, image,
 # worktree.on-create, worktree.on-end), aw will prompt you to trust it on
 # first use.
 
@@ -90,6 +90,7 @@ profiles:
   #   # ── Environment variables (passed into the container) ─────────
   #   env:
   #     FOO: bar
+  #   env_file: .env                # load KEY=VALUE from a file; env: above wins on conflicts
   #
   #   # ── Custom bind mounts ────────────────────────────────────────
   #   # Mounts are read-only by default. Set mode: rw to allow writes.

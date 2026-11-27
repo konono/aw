@@ -67,6 +67,7 @@ type Profile struct {
 	Launch           LaunchMode        `yaml:"launch"`
 	Auth             *AuthConfig       `yaml:"auth,omitempty"`
 	Env              map[string]string `yaml:"env,omitempty"`
+	EnvFile          StringList        `yaml:"env_file,omitempty"`
 	OS               OSTemplate        `yaml:"os,omitempty"`
 	Image            string            `yaml:"image,omitempty"`
 	Dockerfile       string            `yaml:"dockerfile,omitempty"`
@@ -96,6 +97,10 @@ type Profile struct {
 	Kubernetes         *KubernetesConfig    `yaml:"kubernetes,omitempty"`
 
 	hadLegacyExport bool `yaml:"-"`
+
+	// envFileKeys records the Env keys whose value came from env_file (not
+	// overridden by env:). Set by ResolveEnvFile; see InheritableEnv.
+	envFileKeys map[string]bool `yaml:"-"`
 }
 
 // ReaperProfileConfig controls reaper behavior per-profile.

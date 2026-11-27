@@ -24,6 +24,7 @@ var sensitiveFieldDescriptions = map[string]string{
 	"dockerfile":         "use a custom Dockerfile for the container image",
 	"image":              "use a pre-built container image",
 	"env":                "set environment variables inside the container",
+	"env_file":           "load environment variables from host files into the container",
 	"packages":           "install OS packages inside the container",
 	"mount_zellij":       "forward the host zellij session socket into the container",
 }
@@ -77,6 +78,9 @@ func profileSensitiveFields(profileName string, p Profile) []string {
 		for k, v := range p.Env {
 			found = append(found, fmt.Sprintf("%senv: %s=%s", prefix, k, v))
 		}
+	}
+	for _, f := range p.EnvFile {
+		found = append(found, fmt.Sprintf("%senv_file = %q", prefix, f))
 	}
 	if len(p.Packages) > 0 {
 		found = append(found, fmt.Sprintf("%spackages: %s", prefix, strings.Join(p.Packages, ", ")))
@@ -199,7 +203,7 @@ var promptTrust = func(configPath string, fields []string) bool {
 	}
 	fmt.Fprintf(os.Stderr, "\nWhat these settings can do:\n")
 	seen := make(map[string]bool)
-	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "packages", "dockerfile", "image", "env", "mount_zellij"} {
+	for _, key := range []string{"worktree.on-create", "worktree.on-end", "mounts", "packages", "dockerfile", "image", "env", "env_file", "mount_zellij"} {
 		desc := sensitiveFieldDescriptions[key]
 		if !seen[desc] {
 			fmt.Fprintf(os.Stderr, "  %s: %s\n", key, desc)
@@ -269,6 +273,7 @@ func stripProfileSensitive(p Profile) Profile {
 	p.Dockerfile = ""
 	p.Image = ""
 	p.Env = nil
+	p.EnvFile = nil
 	p.MountZellij = nil
 	return p
 }
