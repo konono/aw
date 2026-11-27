@@ -34,6 +34,9 @@ func (m *ManifestCmd) Run() error {
 	if err := profile.Validate(p); err != nil {
 		return fmt.Errorf("profile %q: %w", m.ProfileName, err)
 	}
+	if err := profile.ResolveEnvFile(&p); err != nil {
+		return fmt.Errorf("profile %q: %w", m.ProfileName, err)
+	}
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

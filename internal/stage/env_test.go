@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/konono/aw/v4/internal/pipeline"
@@ -320,5 +322,115 @@ func TestEnvStage_InvalidFileReturnsError(t *testing.T) {
 	err := s.Run(context.Background(), ec)
 	if err == nil {
 		t.Fatal("expected error for invalid .aw-env file")
+	}
+}
+
+// Regression: env_file values of one profile must not reach a different
+// profile launched later from the same work directory via .aw-profile-env,
+// and the cache must be owner-only.
+func TestEnvStage_EnvFileValuesNotInheritedAcrossProfiles(t *testing.T) {
+	dir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Simulate a cache dir/file created by an older version with loose modes.
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cacheFile := filepath.Join(cacheDir, ".aw-profile-env")
+	if err := os.WriteFile(cacheFile, []byte("OLD=1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	secretFile := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(secretFile, []byte("SECRET_TOKEN=s3cr3t\nSHARED=file\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run 1: profile A with env_file + env.
+	pa := profile.Profile{
+		Environment: profile.EnvironmentContainer,
+		EnvFile:     profile.StringList{secretFile},
+		Env:         map[string]string{"A_STATIC": "a", "SHARED": "yaml"},
+	}
+	if err := profile.ResolveEnvFile(&pa); err != nil {
+		t.Fatalf("ResolveEnvFile: %v", err)
+	}
+	ecA := &pipeline.ExecutionContext{Profile: pa, HomeDir: homeDir, OrigWorkDir: dir, WorkDir: dir}
+	if err := (&EnvStage{}).Run(context.Background(), ecA); err != nil {
+		t.Fatalf("run A: %v", err)
+	}
+	if ecA.EnvVars["SECRET_TOKEN"] != "s3cr3t" || ecA.EnvVars["SHARED"] != "yaml" {
+		t.Errorf("A EnvVars = %v", ecA.EnvVars)
+	}
+
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		t.Fatalf("reading cache: %v", err)
+	}
+	if strings.Contains(string(data), "SECRET_TOKEN") {
+		t.Errorf("cache contains env_file value: %q", data)
+	}
+	if string(data) != "A_STATIC=a\nSHARED=yaml\n" {
+		t.Errorf("cache = %q", data)
+	}
+	// POSIX permission bits are not supported on Windows.
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(cacheFile); fi.Mode().Perm() != 0600 {
+			t.Errorf("cache file mode = %o, want 600", fi.Mode().Perm())
+		}
+		if di, _ := os.Stat(cacheDir); di.Mode().Perm() != 0700 {
+			t.Errorf("cache dir mode = %o, want 700", di.Mode().Perm())
+		}
+	}
+
+	// Run 2: unrelated profile B with its own env, same work directory.
+	ecB := &pipeline.ExecutionContext{
+		Profile:     profile.Profile{Env: map[string]string{"B_STATIC": "b"}},
+		HomeDir:     homeDir,
+		OrigWorkDir: dir,
+		WorkDir:     dir,
+	}
+	if err := (&EnvStage{}).Run(context.Background(), ecB); err != nil {
+		t.Fatalf("run B: %v", err)
+	}
+	if _, ok := ecB.EnvVars["SECRET_TOKEN"]; ok {
+		t.Errorf("profile B inherited env_file value from profile A: %v", ecB.EnvVars)
+	}
+	if ecB.EnvVars["B_STATIC"] != "b" {
+		t.Errorf("B EnvVars = %v", ecB.EnvVars)
+	}
+}
+
+// A profile whose env comes only from env_file writes no cache and removes
+// a stale one.
+func TestEnvStage_EnvFileOnlyWritesNoCache(t *testing.T) {
+	dir := t.TempDir()
+	homeDir := t.TempDir()
+	cacheDir := profileEnvCacheDir(homeDir, dir)
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	cacheFile := filepath.Join(cacheDir, ".aw-profile-env")
+	if err := os.WriteFile(cacheFile, []byte("STALE=1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(f, []byte("ONLY_FILE=1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p := profile.Profile{Environment: profile.EnvironmentContainer, EnvFile: profile.StringList{f}}
+	if err := profile.ResolveEnvFile(&p); err != nil {
+		t.Fatal(err)
+	}
+	ec := &pipeline.ExecutionContext{Profile: p, HomeDir: homeDir, OrigWorkDir: dir, WorkDir: dir}
+	if err := (&EnvStage{}).Run(context.Background(), ec); err != nil {
+		t.Fatal(err)
+	}
+	if ec.EnvVars["ONLY_FILE"] != "1" {
+		t.Errorf("EnvVars = %v", ec.EnvVars)
+	}
+	if _, err := os.Stat(cacheFile); !os.IsNotExist(err) {
+		t.Errorf("cache should be removed, stat err = %v", err)
 	}
 }

@@ -454,7 +454,7 @@ aw save                    # fzf でコンテナを選択 → commit → .aw.yml
 
 ### プロジェクト設定の信頼
 
-`.aw.yml` にセキュリティ上重要なフィールド（`mounts`、`env`、`dockerfile`、`image`、`worktree.on-create`、`worktree.on-end`）が含まれる場合、初回使用時に信頼するかどうかの確認が表示されます。信頼情報はファイル内容のハッシュに基づくため、設定ファイルが変更されると再度確認が求められます。
+`.aw.yml` にセキュリティ上重要なフィールド（`mounts`、`env`、`env_file`、`dockerfile`、`image`、`worktree.on-create`、`worktree.on-end`）が含まれる場合、初回使用時に信頼するかどうかの確認が表示されます。信頼情報はファイル内容のハッシュに基づくため、設定ファイルが変更されると再度確認が求められます。
 
 ### Worktree のライフサイクル
 
@@ -531,7 +531,7 @@ aw codex --cwd ~/src/my-project    # 指定ディレクトリで codex を起動
 ビルトインデフォルト → ~/.config/aw/config.yml → .aw.yml
 ```
 
-`~/.config/aw/` にはプロファイル設定を配置します（`aw init` で雛形が生成されます）。ツールやパッケージの追加はワークスペースの `mise.toml` や `packages.txt` で管理します。プロジェクトルートに `.aw-env` ファイルを置くと、`KEY=VALUE` 形式でコンテナへの環境変数を追加できます（YAML 設定のマージとは別の仕組みで、プロファイルの `env:` より優先されます）。
+`~/.config/aw/` にはプロファイル設定を配置します（`aw init` で雛形が生成されます）。ツールやパッケージの追加はワークスペースの `mise.toml` や `packages.txt` で管理します。プロジェクトルートに `.aw-env` ファイルを置くと、`KEY=VALUE` 形式でコンテナへの環境変数を追加できます（YAML 設定のマージとは別の仕組みで、プロファイルの `env:` より優先されます）。既存の `.env` をそのまま使いたい場合は、プロファイルに `env_file` を指定して読み込めます（[使用例](#env-を-awyml-と二重管理しない)）。
 
 ```yaml
 default: claude
@@ -580,6 +580,22 @@ profiles:
     environment: container
     launch: claude
 ```
+
+### `.env` を `.aw.yml` と二重管理しない
+
+プロジェクトで既に `.env` を使っている場合、`env_file` で読み込めば同じ変数を `.aw.yml` に書き写す必要はありません。同じキーが両方にある場合は `.aw.yml` の `env:` が優先されます:
+
+```yaml
+profiles:
+  claude:
+    environment: container
+    launch: claude
+    env_file: .env            # .aw.yml からの相対パス。複数なら [.env, .env.local]
+    env:
+      LOG_LEVEL: debug        # .env に LOG_LEVEL があってもこちらが優先
+```
+
+`env_file` は `environment: container` の場合のみ有効で、指定したファイルが存在しない場合はエラーになります。詳細は [docs/configuration.md](docs/configuration.md#env_file任意) を参照してください。
 
 ### Vertex AI で Claude を使う
 

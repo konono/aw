@@ -125,6 +125,9 @@ func mergeCollectionFields(merged *Profile, base, override Profile) {
 		}
 		merged.Env = envCopy
 	}
+	if override.EnvFile != nil {
+		merged.EnvFile = append(StringList{}, override.EnvFile...)
+	}
 	if override.Mounts != nil {
 		merged.Mounts = override.Mounts
 	}
@@ -270,6 +273,9 @@ func relativeBoolPtrFields(relative *Profile, defaults, effective Profile) {
 
 func relativeCollectionFields(relative *Profile, defaults, effective Profile) {
 	relative.Env = relativeEnv(defaults.Env, effective.Env)
+	if !equalStrings(effective.EnvFile, defaults.EnvFile) && effective.EnvFile != nil {
+		relative.EnvFile = append(StringList{}, effective.EnvFile...)
+	}
 	if !equalMounts(effective.Mounts, defaults.Mounts) && effective.Mounts != nil {
 		relative.Mounts = cloneMounts(effective.Mounts)
 	}

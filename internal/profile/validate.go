@@ -34,6 +34,7 @@ func Validate(p Profile) error {
 		func(p Profile) error { return validateBuild(p.Build, p.Environment) },
 		func(p Profile) error { return validateReaper(p.Reaper, p.Environment) },
 		func(p Profile) error { return validateKubernetes(p.Kubernetes) },
+		validateEnvFile,
 	}
 	for _, v := range validators {
 		if err := v(p); err != nil {
@@ -341,5 +342,17 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("config validation errors:\n  %s", strings.Join(errs, "\n  "))
 	}
 
+	return nil
+}
+
+func validateEnvFile(p Profile) error {
+	if len(p.EnvFile) > 0 && p.Environment != EnvironmentContainer {
+		return fmt.Errorf("env_file is only valid with environment: container")
+	}
+	for i, f := range p.EnvFile {
+		if f == "" {
+			return fmt.Errorf("env_file[%d] must not be empty", i)
+		}
+	}
 	return nil
 }

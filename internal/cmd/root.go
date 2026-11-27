@@ -80,6 +80,9 @@ func (r *RunCmd) Run(pt *PassthroughCmd) error {
 	if err := profile.Validate(p); err != nil {
 		return fmt.Errorf("invalid profile %q: %w", profileName, err)
 	}
+	if err := profile.ResolveEnvFile(&p); err != nil {
+		return fmt.Errorf("profile %q: %w", profileName, err)
+	}
 
 	// Build execution context
 	ec, err := buildExecutionContext(profileName, p)

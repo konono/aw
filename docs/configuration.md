@@ -58,6 +58,7 @@
 ### フィールドごとのマージルール
 
 - `env` はキーごとにマージ（後の値が優先）
+- `env_file` は指定時に全体を置換
 - `worktree` はフィールドごとにマージ
 - `packages` は指定時に全体を置換（ワークスペースの `packages.txt` とマージされる）
 - `mounts` は指定時に全体を置換
@@ -186,6 +187,7 @@ profiles:
 - `container_runtime`
 - `auth`
 - `env`
+- `env_file`
 - `mount_gh`
 - `mount_ssh`
 - `ssh_agent_forwarding`
@@ -316,6 +318,30 @@ profiles:
 ### `env`（任意）
 
 起動環境に渡す追加の環境変数。トップレベルとプロファイルごとの `env` はマージされます。
+
+### `env_file`（任意）
+
+`KEY=VALUE` 形式のファイルから環境変数を読み込みます。`.env` と `.aw.yml` で同じ変数を二重管理しないために使います。文字列 1 つ、またはリストで指定できます。`environment: container` の場合のみ有効です。
+
+```yaml
+profiles:
+  dev:
+    environment: container
+    launch: claude
+    env_file: .env              # または [.env, .env.local]
+    env:
+      LOG_LEVEL: debug          # .env に LOG_LEVEL があっても、こちらが優先
+```
+
+- 相対パスは、そのフィールドを書いた設定ファイルのディレクトリ基準で解決されます（`.aw.yml` ならリポジトリルート、`~/.config/aw/config.yml` なら `~/.config/aw`）。`~/` はホームディレクトリに展開されます
+- 複数ファイルを指定した場合、後のファイルの値が優先されます
+- 同じキーが `env_file` と `env` の両方にある場合、**`env` の値が優先**されます
+- 指定したファイルが存在しない場合はエラーになります
+- ファイルはプロファイル選択時（`aw <profile>`、`aw auth --profile`、`aw manifest`）に読み込まれます
+- 書式は `.aw-env` と同じです（`#` コメント・空行を無視、値の前後のダブルクォートを除去）
+- プロジェクトの `.aw.yml` に書いた `env_file` は、`env` と同じく trust 確認の対象です
+- `aw manifest` では、読み込んだ値も Deployment の `env` に平文で書き出されます
+- `env_file` 由来の値は、子プロセス（`worktree-zellij` から起動される `aw claude` 等）へ引き継ぐ `.aw-profile-env` キャッシュには書き込まれません。子プロセスでも使いたい場合はトップレベルに `env_file` を書いてください
 
 ### `os`（任意）
 

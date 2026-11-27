@@ -80,6 +80,7 @@ func loadInternal(quiet bool) (*Config, error) {
 						return nil, fmt.Errorf("checking project config trust: %w", err)
 					}
 				}
+				resolveEnvFilePaths(projectCfg, filepath.Dir(projectPath))
 			} else if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("reading config file: %w", err)
 			}
@@ -138,6 +139,7 @@ func loadGlobalConfig(quiet bool) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing global config %s: %w", path, err)
 	}
+	resolveEnvFilePaths(cfg, dir)
 	return cfg, nil
 }
 
@@ -158,6 +160,7 @@ func LoadFile(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	resolveEnvFilePaths(userCfg, filepath.Dir(path))
 
 	merged := MergeConfig(builtinConfig, *userCfg)
 	merged.Source = ConfigSource{FilePath: path}
