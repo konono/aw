@@ -55,10 +55,11 @@ func TestResolveEnvFilePaths(t *testing.T) {
 		t.Skip("no home dir")
 	}
 	base := t.TempDir()
+	abs := filepath.Join(t.TempDir(), ".env") // absolute on every OS
 	cfg := &Config{
 		Defaults: ProfileDefaults{EnvFile: StringList{".env"}},
 		Profiles: map[string]Profile{
-			"a": {EnvFile: StringList{"sub/.env", "/abs/.env", "~/x.env"}},
+			"a": {EnvFile: StringList{"sub/.env", abs, "~/x.env"}},
 			"b": {},
 		},
 	}
@@ -68,7 +69,7 @@ func TestResolveEnvFilePaths(t *testing.T) {
 		t.Errorf("defaults = %q, want %q", got, want)
 	}
 	a := cfg.Profiles["a"].EnvFile
-	want := []string{filepath.Join(base, "sub/.env"), "/abs/.env", filepath.Join(home, "x.env")}
+	want := []string{filepath.Join(base, "sub/.env"), abs, filepath.Join(home, "x.env")}
 	for i := range want {
 		if a[i] != want[i] {
 			t.Errorf("a[%d] = %q, want %q", i, a[i], want[i])

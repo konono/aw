@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -373,11 +374,14 @@ func TestEnvStage_EnvFileValuesNotInheritedAcrossProfiles(t *testing.T) {
 	if string(data) != "A_STATIC=a\nSHARED=yaml\n" {
 		t.Errorf("cache = %q", data)
 	}
-	if fi, _ := os.Stat(cacheFile); fi.Mode().Perm() != 0600 {
-		t.Errorf("cache file mode = %o, want 600", fi.Mode().Perm())
-	}
-	if di, _ := os.Stat(cacheDir); di.Mode().Perm() != 0700 {
-		t.Errorf("cache dir mode = %o, want 700", di.Mode().Perm())
+	// POSIX permission bits are not supported on Windows.
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(cacheFile); fi.Mode().Perm() != 0600 {
+			t.Errorf("cache file mode = %o, want 600", fi.Mode().Perm())
+		}
+		if di, _ := os.Stat(cacheDir); di.Mode().Perm() != 0700 {
+			t.Errorf("cache dir mode = %o, want 700", di.Mode().Perm())
+		}
 	}
 
 	// Run 2: unrelated profile B with its own env, same work directory.

@@ -3,6 +3,7 @@ package envfile
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -116,6 +117,9 @@ func TestWriteFile_RoundTrip(t *testing.T) {
 }
 
 func TestWriteFile_OwnerOnlyPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not supported on Windows")
+	}
 	path := filepath.Join(t.TempDir(), ".aw-profile-env")
 	// A file left by an older version with world-readable mode.
 	if err := os.WriteFile(path, []byte("OLD=1\n"), 0644); err != nil {
